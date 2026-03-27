@@ -161,40 +161,5 @@
     <strong>DEBUG LOG:</strong>
     <div id="debugOutput"></div>
 </div>
-
-<script>
-// Capturar todos los errores
-window.onerror = function(msg, url, line, col, error) {
-    const debug = document.getElementById('debugOutput');
-    if (debug) {
-        debug.innerHTML += '<div style="color:red;">❌ ERROR: ' + msg + ' (Linea ' + line + ')</div>';
-    }
-    return false;
-};
-
-// Capturar logs de consola
-const originalLog = console.log;
-const originalError = console.error;
-
-console.log = function(...args) {
-    const debug = document.getElementById('debugOutput');
-    if (debug) {
-        debug.innerHTML += '<div>📝 ' + args.join(' ') + '</div>';
-    }
-    originalLog.apply(console, args);
-};
-
-console.error = function(...args) {
-    const debug = document.getElementById('debugOutput');
-    if (debug) {
-        debug.innerHTML += '<div style="color:red;">❌ ' + args.join(' ') + '</div>';
-    }
-    originalError.apply(console, args);
-};
-
-console.log('Debug iniciado...');
-console.log('Buscando formulario:', document.getElementById('formSolicitarTurno'));
-console.log('Buscando placa:', document.getElementById('placa'));
-</script>
 </body>
 </html>
