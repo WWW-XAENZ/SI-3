@@ -1,6 +1,6 @@
 // ============================================
 // SISTEMA DE TURNOS PARA PROVEEDORES
-// Con Supabase Real-time
+// Con Supabase Real-time - VERSIÓN CORREGIDA
 // ============================================
 
 // ============================================
@@ -8,7 +8,7 @@
 // ============================================
 
 const SUPABASE_URL = 'https://kqqjlkpwctaekyzuzdqm.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxcWpsa3B3Y3RhZWt5enV6ZHFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDQwNjA4MDAsImV4cCI6MjAxOTYzNjgwMH0.VhDAjJwgcqqiEw08i4g6CA__Y5aPGbp'; // Reemplaza con tu anon key real
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtxcWpsa3B3Y3RhZWt5enV6ZHFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDQwNjA4MDAsImV4cCI6MjAxOTYzNjgwMH0.VhDAjJwgcqqiEw08i4g6CA__Y5aPGbp';
 
 // Inicializar Supabase
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -27,7 +27,6 @@ const AppState = {
     subscription: null
 };
 
-// Configuración de acceso al admin
 const CONFIG = {
     ADMIN_PASSWORD: '12345',
     LOGO_CLICKS_REQUIRED: 5,
@@ -36,7 +35,6 @@ const CONFIG = {
     TURN_TIME_ESTIMATE: 5
 };
 
-// Estado del logo
 let logoClickCount = 0;
 let logoClickTimer = null;
 
@@ -70,7 +68,6 @@ const Utils = {
             const actual = await this.obtenerContadorTurnos();
             const nuevo = actual + 1;
             
-            // Intentar upsert con onConflict explícito
             const { error } = await supabase
                 .from('configuracion')
                 .upsert(
@@ -81,7 +78,6 @@ const Utils = {
             if (error) {
                 console.warn('Upsert falló, intentando método alternativo:', error);
                 
-                // Método alternativo: intentar update primero
                 const { data: existing } = await supabase
                     .from('configuracion')
                     .select('id')
@@ -89,24 +85,18 @@ const Utils = {
                     .maybeSingle();
                 
                 if (existing) {
-                    // Update
-                    const { error: updateError } = await supabase
+                    await supabase
                         .from('configuracion')
                         .update({ valor: nuevo.toString(), updated_at: new Date().toISOString() })
                         .eq('clave', 'contador_turnos');
-                    
-                    if (updateError) throw updateError;
                 } else {
-                    // Insert
-                    const { error: insertError } = await supabase
+                    await supabase
                         .from('configuracion')
                         .insert({ 
                             clave: 'contador_turnos', 
                             valor: nuevo.toString(),
                             created_at: new Date().toISOString()
                         });
-                    
-                    if (insertError) throw insertError;
                 }
             }
             
@@ -114,7 +104,6 @@ const Utils = {
             return nuevo;
         } catch (err) {
             console.error('Error en incrementarContadorTurnos:', err);
-            // Fallback local
             AppState.contadorTurnos = Math.max(AppState.contadorTurnos, await this.obtenerContadorTurnos()) + 1;
             return AppState.contadorTurnos;
         }
@@ -229,27 +218,40 @@ const Proveedores = {
             
             console.log('Registrando proveedor:', proveedor);
             
-            const { data, error } = await supabase
+            // CORRECCIÓN: Primero insertar, luego consultar por ID
+            const { error: insertError } = await supabase
                 .from('proveedores')
-                .insert([proveedor])
-                .select()
-                .single();
+                .insert([proveedor]);
             
-            if (error) {
-                console.error('Error al registrar proveedor:', error);
-                throw new Error(`Error al registrar proveedor: ${error.message}`);
+            if (insertError) {
+                console.error('Error al insertar proveedor:', insertError);
+                throw new Error(`Error al registrar proveedor: ${insertError.message}`);
             }
             
-            console.log('Proveedor registrado:', data);
+            // Consultar el proveedor recién insertado por NIT
+            const { data: proveedorInsertado, error: selectError } = await supabase
+                .from('proveedores')
+                .select('*')
+                .eq('nit', datos.nit)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            
+            if (selectError || !proveedorInsertado) {
+                console.error('Error al consultar proveedor insertado:', selectError);
+                throw new Error('No se pudo verificar el proveedor registrado');
+            }
+            
+            console.log('Proveedor registrado:', proveedorInsertado);
             
             return {
-                id: data.id,
-                nombreEmpresa: data.nombre_empresa,
-                nit: data.nit,
-                contacto: data.contacto,
-                telefono: data.telefono,
-                servicio: data.servicio,
-                fechaRegistro: data.fecha_registro
+                id: proveedorInsertado.id,
+                nombreEmpresa: proveedorInsertado.nombre_empresa,
+                nit: proveedorInsertado.nit,
+                contacto: proveedorInsertado.contacto,
+                telefono: proveedorInsertado.telefono,
+                servicio: proveedorInsertado.servicio,
+                fechaRegistro: proveedorInsertado.fecha_registro
             };
         } catch (err) {
             console.error('Excepción en registrar proveedor:', err);
@@ -264,11 +266,7 @@ const Proveedores = {
                 .delete()
                 .eq('id', id);
             
-            if (error) {
-                console.error('Error al eliminar proveedor:', error);
-                throw error;
-            }
-            
+            if (error) throw error;
             return true;
         } catch (err) {
             console.error('Error en eliminar proveedor:', err);
@@ -284,12 +282,7 @@ const Proveedores = {
                 .eq('id', id)
                 .maybeSingle();
             
-            if (error) {
-                console.error('Error al obtener proveedor por ID:', error);
-                return null;
-            }
-            
-            if (!data) return null;
+            if (error || !data) return null;
             
             return {
                 id: data.id,
@@ -418,14 +411,13 @@ const Turnos = {
                 console.log('Proveedor registrado con ID:', proveedor.id);
             } else {
                 console.log('Proveedor encontrado, actualizando...', proveedor);
-                const actualizado = await Proveedores.actualizar({
+                await Proveedores.actualizar({
                     id: proveedor.id,
                     nombreEmpresa: datosProveedor.nombreEmpresa,
                     contacto: datosProveedor.contacto,
                     telefono: datosProveedor.telefono,
                     servicio: datosProveedor.servicio
                 });
-                console.log('Proveedor actualizado:', actualizado);
             }
             
             // Incrementar contador
@@ -451,42 +443,60 @@ const Turnos = {
             
             console.log('Insertando turno en Supabase:', turnoData);
             
-            const { data, error } = await supabase
+            // CORRECCIÓN CLAVE: Separar INSERT de SELECT debido a políticas RLS
+            // 1. Primero hacemos el insert
+            const { error: insertError } = await supabase
                 .from('turnos')
-                .insert([turnoData])
-                .select()
-                .single();
+                .insert([turnoData]);
             
-            if (error) {
-                console.error('Error detallado al crear turno:', error);
-                console.error('Código de error:', error.code);
-                console.error('Mensaje de error:', error.message);
-                console.error('Detalles:', error.details);
-                throw new Error(`Error al crear turno: ${error.message} (código: ${error.code})`);
+            if (insertError) {
+                console.error('Error al insertar turno:', insertError);
+                console.error('Código de error:', insertError.code);
+                console.error('Mensaje de error:', insertError.message);
+                console.error('Detalles:', insertError.details);
+                throw new Error(`Error al crear turno: ${insertError.message} (código: ${insertError.code})`);
             }
             
-            if (!data) {
-                throw new Error('No se recibieron datos al crear el turno');
+            console.log('Insert exitoso, consultando turno creado...');
+            
+            // 2. Luego consultamos el turno recién creado por numero
+            const { data: turnoCreado, error: selectError } = await supabase
+                .from('turnos')
+                .select('*')
+                .eq('numero', numeroTurno)
+                .eq('proveedor_id', proveedor.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            
+            if (selectError) {
+                console.error('Error al consultar turno creado:', selectError);
+                throw new Error('Turno creado pero no se pudo verificar');
             }
             
-            console.log('=== TURNO CREADO EXITOSAMENTE ===', data);
+            if (!turnoCreado) {
+                console.error('No se encontró el turno recién creado');
+                throw new Error('No se pudo verificar el turno creado');
+            }
             
-            const turnoCreado = {
-                id: data.id,
-                numero: data.numero,
-                proveedorId: data.proveedor_id,
-                nombreEmpresa: data.nombre_empresa,
-                nit: data.nit,
-                motivo: data.motivo,
-                horaSolicitud: data.hora_solicitud,
-                fechaSolicitud: data.fecha_solicitud,
-                estado: data.estado
+            console.log('=== TURNO CREADO EXITOSAMENTE ===', turnoCreado);
+            
+            const resultado = {
+                id: turnoCreado.id,
+                numero: turnoCreado.numero,
+                proveedorId: turnoCreado.proveedor_id,
+                nombreEmpresa: turnoCreado.nombre_empresa,
+                nit: turnoCreado.nit,
+                motivo: turnoCreado.motivo,
+                horaSolicitud: turnoCreado.hora_solicitud,
+                fechaSolicitud: turnoCreado.fecha_solicitud,
+                estado: turnoCreado.estado
             };
             
             // Actualizar estado local inmediatamente
-            AppState.turnos.push(turnoCreado);
+            AppState.turnos.push(resultado);
             
-            return turnoCreado;
+            return resultado;
         } catch (err) {
             console.error('=== ERROR COMPLETO EN SOLICITAR TURNO ===', err);
             console.error('Stack trace:', err.stack);
@@ -498,7 +508,6 @@ const Turnos = {
         try {
             console.log('Buscando siguiente turno...');
             
-            // Obtener el primer turno en espera
             const { data: turnosEspera, error: errorEspera } = await supabase
                 .from('turnos')
                 .select('*')
@@ -519,44 +528,51 @@ const Turnos = {
             const siguienteTurno = turnosEspera[0];
             console.log('Siguiente turno encontrado:', siguienteTurno);
             
-            // Si hay un turno actual, moverlo al historial
             if (AppState.turnoActual) {
                 console.log('Completando turno actual:', AppState.turnoActual);
                 await this.completarTurnoActual();
             }
             
-            // Actualizar el siguiente turno a "atendiendo"
-            const { data, error } = await supabase
+            // Actualizar estado a "atendiendo"
+            const { error: updateError } = await supabase
                 .from('turnos')
                 .update({
                     estado: 'atendiendo',
                     hora_llamada: Utils.obtenerHoraActual(),
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', siguienteTurno.id)
-                .select()
-                .single();
+                .eq('id', siguienteTurno.id);
             
-            if (error) {
-                console.error('Error al actualizar turno a atendiendo:', error);
+            if (updateError) {
+                console.error('Error al actualizar turno a atendiendo:', updateError);
+                return null;
+            }
+            
+            // Consultar el turno actualizado
+            const { data: turnoActualizado, error: selectError } = await supabase
+                .from('turnos')
+                .select('*')
+                .eq('id', siguienteTurno.id)
+                .maybeSingle();
+            
+            if (selectError || !turnoActualizado) {
+                console.error('Error al consultar turno actualizado:', selectError);
                 return null;
             }
             
             const turnoActual = {
-                id: data.id,
-                numero: data.numero,
-                proveedorId: data.proveedor_id,
-                nombreEmpresa: data.nombre_empresa,
-                nit: data.nit,
-                motivo: data.motivo,
-                horaSolicitud: data.hora_solicitud,
-                horaLlamada: data.hora_llamada,
-                estado: data.estado
+                id: turnoActualizado.id,
+                numero: turnoActualizado.numero,
+                proveedorId: turnoActualizado.proveedor_id,
+                nombreEmpresa: turnoActualizado.nombre_empresa,
+                nit: turnoActualizado.nit,
+                motivo: turnoActualizado.motivo,
+                horaSolicitud: turnoActualizado.hora_solicitud,
+                horaLlamada: turnoActualizado.hora_llamada,
+                estado: turnoActualizado.estado
             };
             
             AppState.turnoActual = turnoActual;
-            
-            // Remover de la lista de espera local
             AppState.turnos = AppState.turnos.filter(t => t.id !== turnoActual.id);
             
             console.log('Turno llamado:', turnoActual);
@@ -595,7 +611,6 @@ const Turnos = {
                 console.error('Error al guardar en historial:', historialError);
             }
             
-            // Actualizar estado en turnos
             const { error: updateError } = await supabase
                 .from('turnos')
                 .update({ 
@@ -628,9 +643,7 @@ const Turnos = {
                 return false;
             }
             
-            // Actualizar estado local
             AppState.turnos = AppState.turnos.filter(t => t.id !== turnoId);
-            
             return true;
         } catch (err) {
             console.error('Error en cancelar turno:', err);
@@ -642,7 +655,6 @@ const Turnos = {
         try {
             console.log('Reiniciando cola...');
             
-            // Mover todos los turnos en espera al historial como cancelados
             const { data: turnosEspera, error: fetchError } = await supabase
                 .from('turnos')
                 .select('*')
@@ -677,10 +689,7 @@ const Turnos = {
                 }
             }
             
-            // Cancelar turno actual si existe
             if (AppState.turnoActual) {
-                console.log('Moviendo turno actual al historial como cancelado');
-                
                 const { error: insertError } = await supabase
                     .from('historial_turnos')
                     .insert([{
@@ -702,7 +711,6 @@ const Turnos = {
                 }
             }
             
-            // Eliminar todos los turnos
             const { error: deleteError } = await supabase
                 .from('turnos')
                 .delete()
@@ -712,7 +720,6 @@ const Turnos = {
                 console.error('Error al eliminar turnos:', deleteError);
             }
             
-            // Resetear contador
             const { error: resetError } = await supabase
                 .from('configuracion')
                 .upsert(
@@ -1225,7 +1232,6 @@ const UsuarioHandlers = {
                 servicio: document.getElementById('servicio')?.value
             };
             
-            // Validaciones básicas
             if (!datosProveedor.nit) throw new Error('El NIT es requerido');
             if (!datosProveedor.nombreEmpresa) throw new Error('El nombre de la empresa es requerido');
             
@@ -1256,7 +1262,6 @@ const UsuarioHandlers = {
             
             e.target.reset();
             
-            // Ocultar campo motivo si existe
             const motivoGroup = document.getElementById('motivoGroup');
             if (motivoGroup) motivoGroup.style.display = 'none';
             
@@ -1372,7 +1377,6 @@ const DataSync = {
     suscribirCambios() {
         console.log('Suscribiéndose a cambios en tiempo real...');
         
-        // Suscribirse a cambios en la tabla turnos
         AppState.subscription = supabase
             .channel('turnos-channel')
             .on('postgres_changes', 
@@ -1381,7 +1385,6 @@ const DataSync = {
                     console.log('Cambio detectado en turnos:', payload);
                     await this.cargarDatos();
                     
-                    // Renderizar según la página actual
                     if (document.getElementById('btnLlamarTurno')) {
                         RenderAdmin.todo();
                     } else if (document.getElementById('formSolicitarTurno')) {
@@ -1416,7 +1419,6 @@ const DataSync = {
 
 const ModalConfig = {
     configurar() {
-        // Modal de acceso admin
         const adminModal = document.getElementById('adminAccessModal');
         if (adminModal) {
             const closeBtn = adminModal.querySelector('.close-modal');
@@ -1433,7 +1435,6 @@ const ModalConfig = {
                 loginForm.addEventListener('submit', AdminAccess.handleLogin);
             }
             
-            // Cerrar con Escape
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && adminModal.style.display === 'block') {
                     adminModal.style.display = 'none';
@@ -1441,7 +1442,6 @@ const ModalConfig = {
             });
         }
         
-        // Modal de turno llamado (admin)
         const turnoModal = document.getElementById('turnoModal');
         if (turnoModal) {
             const closeBtn = turnoModal.querySelector('.close-modal');
@@ -1449,7 +1449,6 @@ const ModalConfig = {
                 closeBtn.onclick = () => turnoModal.style.display = 'none';
             }
             
-            // Cerrar al hacer clic fuera
             turnoModal.addEventListener('click', (event) => {
                 if (event.target === turnoModal) {
                     turnoModal.style.display = 'none';
@@ -1457,7 +1456,6 @@ const ModalConfig = {
             });
         }
         
-        // Modal de confirmación (usuario)
         const confirmacionModal = document.getElementById('confirmacionModal');
         if (confirmacionModal) {
             const closeBtn = confirmacionModal.querySelector('.close-modal');
@@ -1563,7 +1561,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     ModalConfig.configurar();
     
-    // Detectar qué página estamos cargando
     if (document.getElementById('logoClick')) {
         App.initIndex();
     }
