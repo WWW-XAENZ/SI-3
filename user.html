@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Usuario - Sistema de Turnos</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="Logo-Web-SI3.png" alt="Logo" class="logo">
+            <h1>Solicitar Turno</h1>
+        </header>
+        
+        <nav class="main-nav">
+            <a href="index.html" class="nav-link">Inicio</a>
+            <a href="user.html" class="nav-link active">Solicitar Turno</a>
+        </nav>
+
+        <main class="user-content">
+            <div class="user-grid">
+                <!-- Solicitar Turno -->
+                <section class="user-section request-turn">
+                    <h2>Solicitar Turno</h2>
+                    <form id="formSolicitarTurno" class="turn-form">
+                        <div class="form-group">
+                            <label for="nombreEmpresa">Nombre de la Empresa:</label>
+                            <input type="text" id="nombreEmpresa" required placeholder="Ingrese el nombre de su empresa">
+                        </div>
+                        <div class="form-group">
+                            <label for="nit">Placa del Vehiculo:</label>
+                            <input type="text" id="nit" required placeholder="Ingrese la placa de su vehiculo">
+                        </div>
+                        <div class="form-group">
+                            <label for="contacto">Persona de Contacto:</label>
+                            <input type="text" id="contacto" required placeholder="Nombre del contacto">
+                        </div>
+                        <div class="form-group">
+                            <label for="telefono">Telefono:</label>
+                            <input type="tel" id="telefono" required placeholder="Numero de telefono">
+                        </div>
+                        <div class="form-group">
+                            <label for="servicio">Tipo de Servicio:</label>
+                            <select id="servicio" required>
+                                <option value="">Seleccione...</option>
+                                <option value="entrega">Entrega de Mercancia</option>
+                                <option value="servicio">Servicio Tecnico</option>
+                                <option value="reunion">Reunion</option>
+                                <option value="otro">Otro</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="motivoGroup" style="display: none;">
+                            <label for="motivoVisita">Motivo de la Visita:</label>
+                            <textarea id="motivoVisita" rows="3" placeholder="Describa brevemente el motivo de su visita..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-large">
+                            Solicitar Turno
+                        </button>
+                    </form>
+                </section>
+
+                <!-- Mi Turno Actual -->
+                <section class="user-section my-turn">
+                    <h2>Mi Turno</h2>
+                    <div id="miTurnoContainer" class="my-turn-display">
+                        <div class="no-turn-message">
+                            <p>No tienes un turno activo</p>
+                            <p class="hint">Solicita un turno usando el formulario</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Estado de la Cola -->
+                <section class="user-section queue-status">
+                    <h2>Estado de la Cola</h2>
+                    <div class="queue-info">
+                        <div class="queue-stat">
+                            <span class="queue-label">Turno Actual:</span>
+                            <span id="turnoActualUsuario" class="queue-value">--</span>
+                        </div>
+                        <div class="queue-stat">
+                            <span class="queue-label">Turnos en Espera:</span>
+                            <span id="turnosEnEsperaUsuario" class="queue-value">0</span>
+                        </div>
+                        <div class="queue-stat">
+                            <span class="queue-label">Tu Posicion:</span>
+                            <span id="miPosicion" class="queue-value">--</span>
+                        </div>
+                        <div class="queue-stat">
+                            <span class="queue-label">Tiempo Estimado:</span>
+                            <span id="tiempoEstimado" class="queue-value">--</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Turnos Disponibles -->
+                <section class="user-section available-turns">
+                    <h2>Turnos en Espera</h2>
+                    <div id="listaTurnosUsuario" class="turn-list-user">
+                        <p class="empty-message">No hay turnos en espera</p>
+                    </div>
+                </section>
+
+                <!-- Instrucciones -->
+                <section class="user-section instructions">
+                    <h2>Instrucciones</h2>
+                    <div class="instructions-content">
+                        <ol>
+                            <li>Ingrese los datos de su empresa</li>
+                            <li>Seleccione el tipo de servicio</li>
+                            <li>Si selecciona "Otro", describa el motivo de su visita</li>
+                            <li>Haga clic en "Solicitar Turno"</li>
+                            <li>Espere a que su numero sea llamado</li>
+                            <li>Dirijase al punto de atencion cuando sea llamado</li>
+                        </ol>
+                        <div class="important-note">
+                            <strong>Nota:</strong> Los turnos se atienden por orden de llegada. 
+                            Mantengase atento a la pantalla de turnos.
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <footer>
+            <p>2024 Sistema de Turnos - Todos los derechos reservados</p>
+        </footer>
+    </div>
+
+    <!-- Modal de confirmacion de turno -->
+    <div id="confirmacionModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Turno Solicitado</h2>
+            <div class="modal-turn-number" id="modalMiTurno">--</div>
+            <div class="modal-turn-info" id="modalTurnoInfo"></div>
+            <p class="modal-message">Por favor, espere a que su numero sea llamado.</p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

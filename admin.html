@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administrador - Sistema de Turnos</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="Logo-Web-SI3.png" alt="Logo" class="logo">
+            <h1>Panel de Administrador</h1>
+        </header>
+        
+        <nav class="main-nav">
+            <a href="index.html" class="nav-link">Inicio</a>
+            <a href="admin.html" class="nav-link active">Panel Administrador</a>
+        </nav>
+
+        <main class="admin-content">
+            <div class="admin-grid">
+                <!-- Panel de Control -->
+                <section class="admin-section control-panel">
+                    <h2>Panel de Control</h2>
+                    <div class="control-buttons">
+                        <button id="btnLlamarTurno" class="btn btn-primary btn-large">
+                            Llamar Siguiente Turno
+                        </button>
+                        <button id="btnReiniciarCola" class="btn btn-danger">
+                            Reiniciar Cola
+                        </button>
+                    </div>
+                    <div class="current-turn-display">
+                        <h3>Turno Actual</h3>
+                        <div id="turnoActual" class="turn-number">--</div>
+                        <div id="turnoInfo" class="turn-info">Ningun turno en atencion</div>
+                    </div>
+                </section>
+
+                <!-- Lista de Turnos en Espera -->
+                <section class="admin-section waiting-list">
+                    <h2>Turnos en Espera</h2>
+                    <div id="listaTurnosEspera" class="turn-list">
+                        <p class="empty-message">No hay turnos en espera</p>
+                    </div>
+                </section>
+
+                <!-- Lista de Proveedores Registrados -->
+                <section class="admin-section providers-list">
+                    <h2>Proveedores Registrados</h2>
+                    <div id="listaProveedores" class="providers-table-container">
+                        <table class="providers-table">
+                            <thead>
+                                <tr>
+                                    <th>Empresa</th>
+                                    <th>Contacto</th>
+                                    <th>Telefono</th>
+                                    <th>Servicio</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="proveedoresBody">
+                                <tr>
+                                    <td colspan="5" class="empty-message">No hay proveedores registrados</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Historial de Turnos -->
+                <section class="admin-section turn-history">
+                    <h2>Historial de Turnos</h2>
+                    <button id="btnLimpiarHistorial" class="btn btn-secondary" style="margin-bottom: 15px;">
+                        Limpiar Historial
+                    </button>
+                    <div id="historialTurnos" class="history-list">
+                        <p class="empty-message">No hay historial de turnos</p>
+                    </div>
+                </section>
+
+                <!-- Estadisticas -->
+                <section class="admin-section statistics">
+                    <h2>Estadisticas del Dia</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalTurnos">0</div>
+                            <div class="stat-label">Turnos Atendidos</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="turnosEspera">0</div>
+                            <div class="stat-label">En Espera</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalProveedores">0</div>
+                            <div class="stat-label">Proveedores</div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal para mostrar informacion del turno -->
+    <div id="turnoModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Turno Llamado</h2>
+            <div class="modal-turn-number" id="modalTurnNumber">--</div>
+            <div class="modal-turn-info" id="modalTurnInfo"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

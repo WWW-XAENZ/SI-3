@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Turnos - Proveedores</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="Logo-Web-SI3.png" alt="Logo" class="logo" id="logoClick">
+            <h1>Sistema de Turnos SI-3</h1>
+        </header>
+        
+        <nav class="main-nav">
+            <a href="index.html" class="nav-link active">Inicio</a>
+            <a href="user.html" class="nav-link">Solicitar Turno</a>
+        </nav>
+
+        <main class="home-content">
+            <div class="welcome-section">
+                <h2>Bienvenido al Sistema de Turnos</h2>
+                <p>Solicite su turno y con gusto lo atenderemos.</p>
+            </div>
+
+            <div class="cards-container">
+                <div class="card">
+                    <div class="card-icon">
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </div>
+                    <h3>Solicitar Turno</h3>
+                    <p>Ingrese sus datos y solicite un turno para ser atendido.</p>
+                    <a href="user.html" class="btn btn-primary">Solicitar Turno</a>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon">
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                    </div>
+                    <h3>Estado de la Cola</h3>
+                    <p>Vea el estado actual de los turnos en espera.</p>
+                    <a href="user.html" class="btn btn-secondary">Ver Cola</a>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3>Como funciona</h3>
+                <div class="steps">
+                    <div class="step">
+                        <span class="step-number">1</span>
+                        <p>Ingrese sus datos de proveedor</p>
+                    </div>
+                    <div class="step">
+                        <span class="step-number">2</span>
+                        <p>Solicite un turno</p>
+                    </div>
+                    <div class="step">
+                        <span class="step-number">3</span>
+                        <p>Espere su numero</p>
+                    </div>
+                    <div class="step">
+                        <span class="step-number">4</span>
+                        <p>Sea atendido</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>2026 Sistema de Turnos SI-3 - Todos los derechos reservados</p>
+        </footer>
+    </div>
+
+    <!-- Modal de acceso al admin -->
+    <div id="adminAccessModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Acceso al Panel de Administrador</h2>
+            <form id="adminLoginForm">
+                <div class="form-group">
+                    <label for="adminPassword">Contraseña:</label>
+                    <input type="password" id="adminPassword" required placeholder="Ingrese la contraseña">
+                </div>
+                <button type="submit" class="btn btn-primary">Acceder</button>
+            </form>
+            <p id="loginError" class="error-message"></p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
