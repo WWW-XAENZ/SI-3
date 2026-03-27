@@ -1,6 +1,6 @@
 // ============================================
 // SISTEMA DE TURNOS PARA PROVEEDORES
-// Con Supabase Real-time - VERSIÓN FINAL CORREGIDA
+// Con Supabase Real-time
 // ============================================
 
 // ============================================
@@ -68,7 +68,6 @@ const Utils = {
             const actual = await this.obtenerContadorTurnos();
             const nuevo = actual + 1;
             
-            // CORRECCIÓN: Usar RPC para evitar problemas con RLS
             const { error } = await supabase
                 .from('configuracion')
                 .upsert(
@@ -78,7 +77,7 @@ const Utils = {
             
             if (error) {
                 console.warn('Upsert falló:', error);
-                // Intentar insert directo si no existe
+                
                 const { error: insertError } = await supabase
                     .from('configuracion')
                     .insert({ 
@@ -96,7 +95,6 @@ const Utils = {
             return nuevo;
         } catch (err) {
             console.error('Error en incrementarContadorTurnos:', err);
-            // Fallback: contador local
             AppState.contadorTurnos = (AppState.contadorTurnos || 0) + 1;
             return AppState.contadorTurnos;
         }
@@ -126,7 +124,6 @@ const Utils = {
     },
 
     mostrarNotificacion(mensaje, tipo = 'info') {
-        // Remover notificaciones anteriores
         const notificacionesAnteriores = document.querySelectorAll('.notificacion');
         notificacionesAnteriores.forEach(n => n.remove());
         
@@ -155,7 +152,6 @@ const Utils = {
             fontFamily: 'system-ui, -apple-system, sans-serif'
         });
 
-        // Agregar estilos de animación si no existen
         if (!document.querySelector('#notificacion-styles')) {
             const style = document.createElement('style');
             style.id = 'notificacion-styles';
@@ -222,7 +218,7 @@ const Proveedores = {
         try {
             const proveedor = {
                 nombre_empresa: datos.nombreEmpresa,
-                nit: datos.nit.toUpperCase(), // CORRECCIÓN: NIT en mayúsculas
+                nit: datos.nit.toUpperCase(),
                 contacto: datos.contacto,
                 telefono: datos.telefono,
                 servicio: datos.servicio,
@@ -232,7 +228,6 @@ const Proveedores = {
             
             console.log('Registrando proveedor:', proveedor);
             
-            // Insertar sin select
             const { error: insertError } = await supabase
                 .from('proveedores')
                 .insert([proveedor]);
@@ -242,7 +237,6 @@ const Proveedores = {
                 throw new Error(`Error al registrar proveedor: ${insertError.message}`);
             }
             
-            // Consultar por NIT para obtener el ID
             const { data: proveedorInsertado, error: selectError } = await supabase
                 .from('proveedores')
                 .select('*')
@@ -252,8 +246,6 @@ const Proveedores = {
                 .maybeSingle();
             
             if (selectError || !proveedorInsertado) {
-                console.error('Error al consultar proveedor:', selectError);
-                // Si no podemos consultar, devolvemos los datos que tenemos
                 return {
                     id: null,
                     nombreEmpresa: proveedor.nombre_empresa,
@@ -395,15 +387,12 @@ const Turnos = {
         try {
             console.log('=== INICIANDO SOLICITUD DE TURNO ===');
             
-            // Validar datos requeridos
             if (!datosProveedor.nit || !datosProveedor.nombreEmpresa) {
                 throw new Error('NIT y Nombre de empresa son requeridos');
             }
             
-            // Limpiar y normalizar NIT (mayúsculas)
             datosProveedor.nit = datosProveedor.nit.toString().trim().toUpperCase();
             
-            // Registrar o actualizar proveedor
             console.log('Buscando proveedor por NIT:', datosProveedor.nit);
             let proveedor = await Proveedores.buscarPorNIT(datosProveedor.nit);
             
@@ -424,7 +413,6 @@ const Turnos = {
                 });
             }
             
-            // Incrementar contador
             console.log('Incrementando contador...');
             const nuevoContador = await Utils.incrementarContadorTurnos();
             AppState.contadorTurnos = nuevoContador;
@@ -446,7 +434,6 @@ const Turnos = {
             
             console.log('Insertando turno:', turnoData);
             
-            // Insertar turno
             const { error: insertError } = await supabase
                 .from('turnos')
                 .insert([turnoData]);
@@ -458,7 +445,6 @@ const Turnos = {
                 throw new Error(`Error al crear turno: ${insertError.message}`);
             }
             
-            // Consultar el turno creado
             const { data: turnoCreado, error: selectError } = await supabase
                 .from('turnos')
                 .select('*')
@@ -470,9 +456,8 @@ const Turnos = {
             
             if (selectError || !turnoCreado) {
                 console.log('Turno creado pero no se pudo consultar, usando datos locales');
-                // Si no podemos consultar, construimos el objeto localmente
                 const turnoLocal = {
-                    id: Date.now(), // ID temporal
+                    id: Date.now(),
                     numero: numeroTurno,
                     proveedorId: proveedor.id,
                     nombreEmpresa: turnoData.nombre_empresa,
@@ -534,12 +519,10 @@ const Turnos = {
             
             const siguienteTurno = turnosEspera[0];
             
-            // Completar turno actual si existe
             if (AppState.turnoActual) {
                 await this.completarTurnoActual();
             }
             
-            // Actualizar a "atendiendo"
             const { error: updateError } = await supabase
                 .from('turnos')
                 .update({
@@ -554,7 +537,6 @@ const Turnos = {
                 return null;
             }
             
-            // Consultar turno actualizado
             const { data: turnoActualizado, error: selectError } = await supabase
                 .from('turnos')
                 .select('*')
@@ -562,7 +544,6 @@ const Turnos = {
                 .maybeSingle();
             
             if (selectError || !turnoActualizado) {
-                // Usar datos locales si falla la consulta
                 AppState.turnoActual = {
                     id: siguienteTurno.id,
                     numero: siguienteTurno.numero,
@@ -1133,7 +1114,6 @@ const UsuarioHandlers = {
             const motivoGroup = document.getElementById('motivoGroup');
             if (motivoGroup) motivoGroup.style.display = 'none';
             
-            // Recargar datos para mostrar el nuevo turno en la lista
             await DataSync.cargarDatos();
             RenderUsuario.todo();
             
@@ -1264,7 +1244,6 @@ const DataSync = {
 
 const ModalConfig = {
     configurar() {
-        // Admin modal
         const adminModal = document.getElementById('adminAccessModal');
         if (adminModal) {
             const closeBtn = adminModal.querySelector('.close-modal');
@@ -1282,14 +1261,12 @@ const ModalConfig = {
             }
         }
         
-        // Cerrar modales al hacer clic fuera
         window.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal')) {
                 e.target.style.display = 'none';
             }
         });
         
-        // Cerrar con Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
@@ -1306,10 +1283,8 @@ const InputConfig = {
     configurarPlacaInput() {
         const nitInput = document.getElementById('nit');
         if (nitInput) {
-            // CORRECCIÓN: CSS para mostrar en mayúsculas + JavaScript para forzar valor
             nitInput.style.textTransform = 'uppercase';
             
-            // Forzar mayúsculas en el valor real al escribir
             nitInput.addEventListener('input', function() {
                 const start = this.selectionStart;
                 const end = this.selectionEnd;
@@ -1317,7 +1292,6 @@ const InputConfig = {
                 this.setSelectionRange(start, end);
             });
             
-            // También al perder el foco por si acaso
             nitInput.addEventListener('blur', function() {
                 this.value = this.value.toUpperCase();
             });
