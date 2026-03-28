@@ -143,53 +143,59 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js"></script>
 
-    // VERSIÓN ULTRA SIMPLE - SOLO PARA PROBAR
+<!-- DEBUG: Mostrar errores en pantalla -->
+<div id="debugPanel" style="
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #000;
+    color: #0f0;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 10px;
+    z-index: 99999;
+    border: 2px solid red;
+">
+    <strong>DEBUG LOG:</strong>
+    <div id="debugOutput"></div>
+</div>
 
-console.log('=== APP CARGADA ===');
-
-// Cuando carga la página
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM listo');
-    
-    const form = document.getElementById('formSolicitarTurno');
-    const placa = document.getElementById('placa');
-    
-    console.log('Form encontrado:', form ? 'SÍ' : 'NO');
-    console.log('Placa encontrado:', placa ? 'SÍ' : 'NO');
-    
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            console.log('=== FORM ENVIADO ===');
-            
-            const valorPlaca = document.getElementById('placa')?.value;
-            const valorEmpresa = document.getElementById('nombreEmpresa')?.value;
-            
-            console.log('Placa:', valorPlaca);
-            console.log('Empresa:', valorEmpresa);
-            
-            if (!valorPlaca) {
-                alert('ERROR: La placa está vacía');
-                return;
-            }
-            
-            if (!valorEmpresa) {
-                alert('ERROR: La empresa está vacía');
-                return;
-            }
-            
-            // Crear turno simple
-            const turno = 'T' + Math.floor(Math.random() * 900 + 100);
-            console.log('Turno generado:', turno);
-            
-            alert('✅ Turno generado: ' + turno);
-            
-            // Guardar
-            localStorage.setItem('miTurno', turno);
-        });
-    } else {
-        alert('ERROR: No se encontró el formulario');
+<script>
+// Capturar todos los errores
+window.onerror = function(msg, url, line, col, error) {
+    const debug = document.getElementById('debugOutput');
+    if (debug) {
+        debug.innerHTML += '<div style="color:red;">❌ ERROR: ' + msg + ' (Linea ' + line + ')</div>';
     }
-});
+    return false;
+};
+
+// Capturar logs de consola
+const originalLog = console.log;
+const originalError = console.error;
+
+console.log = function(...args) {
+    const debug = document.getElementById('debugOutput');
+    if (debug) {
+        debug.innerHTML += '<div>📝 ' + args.join(' ') + '</div>';
+    }
+    originalLog.apply(console, args);
+};
+
+console.error = function(...args) {
+    const debug = document.getElementById('debugOutput');
+    if (debug) {
+        debug.innerHTML += '<div style="color:red;">❌ ' + args.join(' ') + '</div>';
+    }
+    originalError.apply(console, args);
+};
+
+console.log('Debug iniciado...');
+console.log('Buscando formulario:', document.getElementById('formSolicitarTurno'));
+console.log('Buscando placa:', document.getElementById('placa'));
+</script>
 </body>
 </html>
