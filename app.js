@@ -206,10 +206,14 @@ const LocalStorage = {
 };
 
 // ============================================
-// BASE DE DATOS SUPABASE
+// BASE DE DATOS SUPABASE - SOLO NUBE
 // ============================================
 
 const SupabaseDB = {
+    // ==========================================
+    // CONEXIÓN
+    // ==========================================
+    
     async verificarConexion() {
         if (!window.supabaseClient) {
             console.warn('Supabase no está inicializado');
@@ -227,7 +231,7 @@ const SupabaseDB = {
                 return false;
             }
             
-            console.log('Conexión con Supabase exitosa');
+            console.log('✅ Conexión con Supabase exitosa');
             return true;
         } catch (error) {
             console.warn('Error de conexión:', error.message);
@@ -235,9 +239,14 @@ const SupabaseDB = {
         }
     },
 
+    // ==========================================
+    // CONTADOR DE TURNOS
+    // ==========================================
+
     async obtenerContadorTurnos() {
         if (!window.supabaseClient) {
-            return LocalStorage.obtenerContador();
+            console.error('Supabase no está disponible');
+            return 0;
         }
         
         try {
@@ -249,150 +258,174 @@ const SupabaseDB = {
             
             if (error) {
                 if (error.code === 'PGRST116') {
+                    // No existe, crearlo
                     await window.supabaseClient
                         .from('configuracion')
-                        .insert({ clave: 'contador_turnos', valor: '0', descripcion: 'Contador global de turnos' });
+                        .insert({ 
+                            clave: 'contador_turnos', 
+                            valor: '0', 
+                            descripcion: 'Contador global de turnos' 
+                        });
                     return 0;
                 }
-                return LocalStorage.obtenerContador();
+                throw error;
             }
             
-            const contador = data ? parseInt(data.valor) : 0;
-            LocalStorage.guardarContador(contador);
-            return contador;
+            return data ? parseInt(data.valor) : 0;
         } catch (error) {
-            return LocalStorage.obtenerContador();
+            console.error('Error al obtener contador:', error);
+            return 0;
         }
     },
 
     async incrementarContadorTurnos() {
-        AppState.contadorTurnos++;
-        LocalStorage.guardarContador(AppState.contadorTurnos);
-        
         if (!window.supabaseClient) {
-            return AppState.contadorTurnos;
+            console.error('Supabase no está disponible');
+            return 0;
         }
         
         try {
+            // Obtener valor actual
+            const contadorActual = await this.obtenerContadorTurnos();
+            const nuevoContador = contadorActual + 1;
+            
+            // Actualizar en Supabase
             const { error } = await window.supabaseClient
                 .from('configuracion')
-                .upsert({ clave: 'contador_turnos', valor: AppState.contadorTurnos.toString() });
+                .upsert({ 
+                    clave: 'contador_turnos', 
+                    valor: nuevoContador.toString(),
+                    descripcion: 'Contador global de turnos',
+                    updated_at: new Date().toISOString()
+                });
             
-            if (error) {
-                console.error('Error al guardar contador en Supabase:', error);
-            }
+            if (error) throw error;
             
-            return AppState.contadorTurnos;
+            return nuevoContador;
         } catch (error) {
-            console.error('Error en incrementarContadorTurnos:', error);
-            return AppState.contadorTurnos;
+            console.error('Error al incrementar contador:', error);
+            return 0;
         }
     },
 
+    // ==========================================
+    // PROVEEDORES
+    // ==========================================
+
     async guardarProveedor(proveedor) {
-        const proveedores = LocalStorage.obtenerProveedores();
-        const existingIndex = proveedores.findIndex(p => p.nit === proveedor.nit);
-        
-        if (existingIndex >= 0) {
-            proveedores[existingIndex] = { ...proveedores[existingIndex], ...proveedor };
-        } else {
-            proveedor.id = Date.now();
-            proveedores.push(proveedor);
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return null;
         }
-        
-        LocalStorage.guardarProveedores(proveedores);
-        AppState.proveedores = proveedores;
-        
-        if (!window.supabaseClient) return proveedor;
         
         try {
             const proveedorData = {
                 nombre_empresa: proveedor.nombreEmpresa,
                 nit: proveedor.nit,
-                contacto: proveedor.contacto,
-                telefono: proveedor.telefono,
-                servicio: proveedor.servicio
+                contacto: proveedor.contacto || null,
+                telefono: proveedor.telefono || null,
+                servicio: proveedor.servicio || null,
+                activo: true,
+                updated_at: new Date().toISOString()
             };
             
-            const { data, error } = await window.supabaseClient
-                .from('proveedores')
-                .upsert(proveedorData, { onConflict: 'nit' })
-                .select()
-                .single();
-            
-            if (error) {
-                console.error('Error al guardar proveedor:', error);
-                return proveedor;
+            // Si tiene ID, es actualización
+            if (proveedor.id) {
+                const { data, error } = await window.supabaseClient
+                    .from('proveedores')
+                    .update(proveedorData)
+                    .eq('id', proveedor.id)
+                    .select()
+                    .single();
+                
+                if (error) throw error;
+                return this._mapearProveedor(data);
+            } else {
+                // Es nuevo
+                const { data, error } = await window.supabaseClient
+                    .from('proveedores')
+                    .insert(proveedorData)
+                    .select()
+                    .single();
+                
+                if (error) {
+                    // Si ya existe por NIT, actualizar
+                    if (error.code === '23505') {
+                        const { data: updateData, error: updateError } = await window.supabaseClient
+                            .from('proveedores')
+                            .update(proveedorData)
+                            .eq('nit', proveedor.nit)
+                            .select()
+                            .single();
+                        
+                        if (updateError) throw updateError;
+                        return this._mapearProveedor(updateData);
+                    }
+                    throw error;
+                }
+                
+                return this._mapearProveedor(data);
             }
-            
-            return data;
         } catch (error) {
-            console.error('Error en guardarProveedor:', error);
-            return proveedor;
+            console.error('Error al guardar proveedor:', error);
+            return null;
         }
     },
 
     async actualizarProveedor(proveedorId, datos) {
-        const proveedores = LocalStorage.obtenerProveedores();
-        const index = proveedores.findIndex(p => p.id === proveedorId);
-        
-        if (index >= 0) {
-            proveedores[index] = { ...proveedores[index], ...datos };
-            LocalStorage.guardarProveedores(proveedores);
-            AppState.proveedores = proveedores;
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return false;
         }
         
-        if (!window.supabaseClient) return true;
-        
         try {
+            const datosActualizados = {
+                ...datos,
+                updated_at: new Date().toISOString()
+            };
+            
             const { error } = await window.supabaseClient
                 .from('proveedores')
-                .update(datos)
+                .update(datosActualizados)
                 .eq('id', proveedorId);
             
-            if (error) {
-                console.error('Error al actualizar proveedor:', error);
-                return true;
-            }
-            
+            if (error) throw error;
             return true;
         } catch (error) {
-            console.error('Error en actualizarProveedor:', error);
-            return true;
+            console.error('Error al actualizar proveedor:', error);
+            return false;
         }
     },
 
     async eliminarProveedor(proveedorId) {
-        const proveedores = LocalStorage.obtenerProveedores();
-        const proveedoresFiltrados = proveedores.filter(p => p.id !== proveedorId);
-        LocalStorage.guardarProveedores(proveedoresFiltrados);
-        AppState.proveedores = proveedoresFiltrados;
-        
-        if (!window.supabaseClient) return true;
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return false;
+        }
         
         try {
+            // Soft delete - marcar como inactivo
             const { error } = await window.supabaseClient
                 .from('proveedores')
-                .delete()
+                .update({ 
+                    activo: false,
+                    updated_at: new Date().toISOString()
+                })
                 .eq('id', proveedorId);
             
-            if (error) {
-                console.error('Error al eliminar proveedor:', error);
-                return true;
-            }
-            
+            if (error) throw error;
             return true;
         } catch (error) {
-            console.error('Error en eliminarProveedor:', error);
-            return true;
+            console.error('Error al eliminar proveedor:', error);
+            return false;
         }
     },
 
     async cargarProveedores() {
-        const proveedores = LocalStorage.obtenerProveedores();
-        AppState.proveedores = proveedores;
-        
-        if (!window.supabaseClient) return proveedores;
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return [];
+        }
         
         try {
             const { data, error } = await window.supabaseClient
@@ -401,42 +434,63 @@ const SupabaseDB = {
                 .eq('activo', true)
                 .order('nombre_empresa', { ascending: true });
             
-            if (error) {
-                console.error('Error al cargar proveedores:', error);
-                return proveedores;
-            }
+            if (error) throw error;
             
-            const proveedoresSupabase = data.map(p => ({
-                id: p.id,
-                nombreEmpresa: p.nombre_empresa,
-                nit: p.nit,
-                contacto: p.contacto,
-                telefono: p.telefono,
-                servicio: p.servicio
-            }));
-            
-            LocalStorage.guardarProveedores(proveedoresSupabase);
-            AppState.proveedores = proveedoresSupabase;
-            
-            return proveedoresSupabase;
+            return data.map(p => this._mapearProveedor(p));
         } catch (error) {
-            console.error('Error en cargarProveedores:', error);
-            return proveedores;
+            console.error('Error al cargar proveedores:', error);
+            return [];
         }
     },
 
+    async buscarProveedorPorNit(nit) {
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return null;
+        }
+        
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('proveedores')
+                .select('*')
+                .eq('nit', nit)
+                .eq('activo', true)
+                .single();
+            
+            if (error) {
+                if (error.code === 'PGRST116') return null; // No encontrado
+                throw error;
+            }
+            
+            return this._mapearProveedor(data);
+        } catch (error) {
+            console.error('Error al buscar proveedor:', error);
+            return null;
+        }
+    },
+
+    _mapearProveedor(p) {
+        return {
+            id: p.id,
+            nombreEmpresa: p.nombre_empresa,
+            nit: p.nit,
+            contacto: p.contacto,
+            telefono: p.telefono,
+            servicio: p.servicio,
+            activo: p.activo,
+            createdAt: p.created_at,
+            updatedAt: p.updated_at
+        };
+    },
+
+    // ==========================================
+    // TURNOS
+    // ==========================================
+
     async guardarTurno(turno) {
         if (!window.supabaseClient) {
-            // Si no hay Supabase, guardar en LocalStorage
-            const turnos = LocalStorage.obtenerTurnos();
-            // Verificar que no exista un turno con el mismo número
-            const existeTurno = turnos.find(t => t.numero === turno.numero);
-            if (!existeTurno) {
-                turnos.push(turno);
-                LocalStorage.guardarTurnos(turnos);
-                AppState.turnos = turnos;
-            }
-            return turno;
+            console.error('Supabase no está disponible');
+            return null;
         }
         
         try {
@@ -446,8 +500,8 @@ const SupabaseDB = {
                 nit: turno.nit,
                 motivo: turno.motivo || '',
                 hora_solicitud: turno.horaSolicitud,
-                fecha_solicitud: turno.fechaSolicitud,
-                estado: turno.estado
+                fecha_solicitud: turno.fechaSolicitud || new Date().toISOString(),
+                estado: turno.estado || 'espera'
             };
             
             const { data, error } = await window.supabaseClient
@@ -456,110 +510,72 @@ const SupabaseDB = {
                 .select()
                 .single();
             
-            if (error) {
-                console.error('Error al guardar turno:', error);
-                // Si hay error en Supabase, guardar en LocalStorage como respaldo
-                const turnos = LocalStorage.obtenerTurnos();
-                const existeTurno = turnos.find(t => t.numero === turno.numero);
-                if (!existeTurno) {
-                    turnos.push(turno);
-                    LocalStorage.guardarTurnos(turnos);
-                    AppState.turnos = turnos;
-                }
-                return turno;
-            }
+            if (error) throw error;
             
-            return data;
+            return this._mapearTurno(data);
         } catch (error) {
-            console.error('Error en guardarTurno:', error);
-            // Si hay error en Supabase, guardar en LocalStorage como respaldo
-            const turnos = LocalStorage.obtenerTurnos();
-            const existeTurno = turnos.find(t => t.numero === turno.numero);
-            if (!existeTurno) {
-                turnos.push(turno);
-                LocalStorage.guardarTurnos(turnos);
-                AppState.turnos = turnos;
-            }
-            return turno;
+            console.error('Error al guardar turno:', error);
+            return null;
         }
     },
 
-    async cargarTurnos() {
-        const turnos = LocalStorage.obtenerTurnos();
-        AppState.turnos = turnos;
-        
-        if (!window.supabaseClient) return turnos;
+    async cargarTurnos(estado = 'espera') {
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return [];
+        }
         
         try {
-            const { data, error } = await window.supabaseClient
+            let query = window.supabaseClient
                 .from('turnos')
                 .select('*')
-                .eq('estado', 'espera')
                 .order('fecha_solicitud', { ascending: true });
             
-            if (error) {
-                console.error('Error al cargar turnos:', error);
-                return turnos;
+            if (estado) {
+                query = query.eq('estado', estado);
             }
             
-            const turnosSupabase = data.map(t => ({
-                id: t.id,
-                numero: t.numero,
-                nombreEmpresa: t.nombre_empresa,
-                nit: t.nit,
-                motivo: t.motivo,
-                horaSolicitud: t.hora_solicitud,
-                fechaSolicitud: t.fecha_solicitud,
-                estado: t.estado
-            }));
+            const { data, error } = await query;
             
-            LocalStorage.guardarTurnos(turnosSupabase);
-            AppState.turnos = turnosSupabase;
+            if (error) throw error;
             
-            return turnosSupabase;
+            return data.map(t => this._mapearTurno(t));
         } catch (error) {
-            console.error('Error en cargarTurnos:', error);
-            return turnos;
+            console.error('Error al cargar turnos:', error);
+            return [];
         }
     },
 
     async actualizarTurno(turnoId, datos) {
-        const turnos = LocalStorage.obtenerTurnos();
-        const index = turnos.findIndex(t => t.id === turnoId);
-        
-        if (index >= 0) {
-            turnos[index] = { ...turnos[index], ...datos };
-            LocalStorage.guardarTurnos(turnos);
-            AppState.turnos = turnos;
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return false;
         }
         
-        if (!window.supabaseClient) return true;
-        
         try {
+            const datosActualizados = {
+                ...datos,
+                updated_at: new Date().toISOString()
+            };
+            
             const { error } = await window.supabaseClient
                 .from('turnos')
-                .update(datos)
+                .update(datosActualizados)
                 .eq('id', turnoId);
             
-            if (error) {
-                console.error('Error al actualizar turno:', error);
-                return true;
-            }
-            
+            if (error) throw error;
             return true;
         } catch (error) {
-            console.error('Error en actualizarTurno:', error);
-            return true;
+            console.error('Error al actualizar turno:', error);
+            return false;
         }
     },
 
     async eliminarTurno(turnoId) {
-        const turnos = LocalStorage.obtenerTurnos();
-        const turnosFiltrados = turnos.filter(t => t.id !== turnoId);
-        LocalStorage.guardarTurnos(turnosFiltrados);
-        AppState.turnos = turnosFiltrados;
-        
-        if (!window.supabaseClient) return true;
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return false;
+        }
         
         try {
             const { error } = await window.supabaseClient
@@ -567,154 +583,299 @@ const SupabaseDB = {
                 .delete()
                 .eq('id', turnoId);
             
-            if (error) {
-                console.error('Error al eliminar turno:', error);
-                return true;
-            }
-            
+            if (error) throw error;
             return true;
         } catch (error) {
-            console.error('Error en eliminarTurno:', error);
-            return true;
+            console.error('Error al eliminar turno:', error);
+            return false;
         }
     },
 
-    async guardarEnHistorial(turno) {
-        const historial = LocalStorage.obtenerHistorial();
-        const historialData = {
-            id: Date.now(),
-            numero: turno.numero,
-            nombreEmpresa: turno.nombreEmpresa,
-            nit: turno.nit,
-            motivo: turno.motivo || '',
-            horaSolicitud: turno.horaSolicitud,
-            horaLlamada: turno.horaLlamada || null,
-            horaFinalizacion: Utils.obtenerHoraActual(),
-            estado: 'completado',
-            fecha: new Date().toISOString()
-        };
-        
-        historial.unshift(historialData);
-        
-        if (historial.length > CONFIG.MAX_HISTORIAL) {
-            historial.pop();
+    async llamarTurno(turnoId) {
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return null;
         }
         
-        LocalStorage.guardarHistorial(historial);
-        AppState.historial = historial;
-        
-        if (!window.supabaseClient) return true;
+        try {
+            const horaLlamada = new Date().toLocaleTimeString('es-CO', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: false 
+            });
+            
+            const { data, error } = await window.supabaseClient
+                .from('turnos')
+                .update({ 
+                    estado: 'atendiendo',
+                    hora_llamada: horaLlamada,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', turnoId)
+                .select()
+                .single();
+            
+            if (error) throw error;
+            
+            return this._mapearTurno(data);
+        } catch (error) {
+            console.error('Error al llamar turno:', error);
+            return null;
+        }
+    },
+
+    async completarTurno(turnoId) {
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return false;
+        }
         
         try {
-            const historialSupabase = {
+            // Obtener el turno primero para guardar en historial
+            const { data: turno, error: errorGet } = await window.supabaseClient
+                .from('turnos')
+                .select('*')
+                .eq('id', turnoId)
+                .single();
+            
+            if (errorGet) throw errorGet;
+            
+            // Guardar en historial
+            await this.guardarEnHistorial(this._mapearTurno(turno));
+            
+            // Eliminar de turnos activos
+            const { error } = await window.supabaseClient
+                .from('turnos')
+                .delete()
+                .eq('id', turnoId);
+            
+            if (error) throw error;
+            
+            return true;
+        } catch (error) {
+            console.error('Error al completar turno:', error);
+            return false;
+        }
+    },
+
+    async cancelarTurno(turnoId) {
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return false;
+        }
+        
+        try {
+            const { error } = await window.supabaseClient
+                .from('turnos')
+                .update({ 
+                    estado: 'cancelado',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', turnoId);
+            
+            if (error) throw error;
+            return true;
+        } catch (error) {
+            console.error('Error al cancelar turno:', error);
+            return false;
+        }
+    },
+
+    _mapearTurno(t) {
+        return {
+            id: t.id,
+            numero: t.numero,
+            nombreEmpresa: t.nombre_empresa,
+            nit: t.nit,
+            motivo: t.motivo,
+            horaSolicitud: t.hora_solicitud,
+            horaLlamada: t.hora_llamada,
+            fechaSolicitud: t.fecha_solicitud,
+            estado: t.estado,
+            createdAt: t.created_at,
+            updatedAt: t.updated_at
+        };
+    },
+
+    // ==========================================
+    // HISTORIAL
+    // ==========================================
+
+    async guardarEnHistorial(turno) {
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return false;
+        }
+        
+        try {
+            const horaFinalizacion = new Date().toLocaleTimeString('es-CO', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: false 
+            });
+            
+            const historialData = {
                 numero: turno.numero,
                 nombre_empresa: turno.nombreEmpresa,
                 nit: turno.nit,
                 motivo: turno.motivo || '',
                 hora_solicitud: turno.horaSolicitud,
                 hora_llamada: turno.horaLlamada || null,
-                hora_finalizacion: Utils.obtenerHoraActual(),
+                hora_finalizacion: horaFinalizacion,
                 estado: 'completado',
                 fecha: new Date().toISOString()
             };
             
             const { error } = await window.supabaseClient
                 .from('historial_turnos')
-                .insert([historialSupabase]);
+                .insert([historialData]);
             
-            if (error) {
-                console.error('Error al guardar en historial:', error);
-                return true;
-            }
-            
+            if (error) throw error;
             return true;
         } catch (error) {
-            console.error('Error en guardarEnHistorial:', error);
-            return true;
+            console.error('Error al guardar en historial:', error);
+            return false;
         }
     },
 
-    async cargarHistorial() {
-        const historial = LocalStorage.obtenerHistorial();
-        AppState.historial = historial;
-        
-        if (!window.supabaseClient) return historial;
+    async cargarHistorial(limite = 100) {
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return [];
+        }
         
         try {
             const { data, error } = await window.supabaseClient
                 .from('historial_turnos')
                 .select('*')
                 .order('fecha', { ascending: false })
-                .limit(CONFIG.MAX_HISTORIAL);
+                .limit(limite);
             
-            if (error) {
-                console.error('Error al cargar historial:', error);
-                return historial;
-            }
+            if (error) throw error;
             
-            const historialSupabase = data.map(h => ({
-                id: h.id,
-                numero: h.numero,
-                nombreEmpresa: h.nombre_empresa,
-                nit: h.nit,
-                motivo: h.motivo,
-                horaSolicitud: h.hora_solicitud,
-                horaLlamada: h.hora_llamada,
-                horaFinalizacion: h.hora_finalizacion,
-                estado: h.estado,
-                fecha: h.fecha
-            }));
-            
-            LocalStorage.guardarHistorial(historialSupabase);
-            AppState.historial = historialSupabase;
-            
-            return historialSupabase;
+            return data.map(h => this._mapearHistorial(h));
         } catch (error) {
-            console.error('Error en cargarHistorial:', error);
-            return historial;
+            console.error('Error al cargar historial:', error);
+            return [];
         }
     },
 
-    async cargarEstadisticas() {
-        const historial = LocalStorage.obtenerHistorial();
-        const turnos = LocalStorage.obtenerTurnos();
-        const proveedores = LocalStorage.obtenerProveedores();
-        
-        const hoy = Utils.obtenerFechaActual();
-        const turnosHoy = historial.filter(h => {
-            const fechaTurno = h.fecha ? h.fecha.split('T')[0] : '';
-            return fechaTurno === hoy;
-        });
-        
-        const stats = {
-            totalTurnos: turnosHoy.length,
-            turnosEspera: turnos.filter(t => t.estado === 'espera').length,
-            totalProveedores: proveedores.length
-        };
-        
-        if (!window.supabaseClient) return stats;
+    async cargarHistorialHoy() {
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return [];
+        }
         
         try {
-            const [{ count: totalTurnos }, { count: turnosEspera }, { count: totalProveedores }] = await Promise.all([
-                window.supabaseClient.from('historial_turnos').select('*', { count: 'exact', head: true }).gte('fecha', hoy),
-                window.supabaseClient.from('turnos').select('*', { count: 'exact', head: true }).eq('estado', 'espera'),
-                window.supabaseClient.from('proveedores').select('*', { count: 'exact', head: true }).eq('activo', true)
-            ]);
-
-            return {
-                totalTurnos: totalTurnos || stats.totalTurnos,
-                turnosEspera: turnosEspera || stats.turnosEspera,
-                totalProveedores: totalProveedores || stats.totalProveedores
-            };
+            const hoy = new Date().toISOString().split('T')[0];
+            
+            const { data, error } = await window.supabaseClient
+                .from('historial_turnos')
+                .select('*')
+                .gte('fecha', `${hoy}T00:00:00`)
+                .lte('fecha', `${hoy}T23:59:59`)
+                .order('fecha', { ascending: false });
+            
+            if (error) throw error;
+            
+            return data.map(h => this._mapearHistorial(h));
         } catch (error) {
-            console.error('Error en cargarEstadisticas:', error);
-            return stats;
+            console.error('Error al cargar historial de hoy:', error);
+            return [];
         }
     },
 
-    suscribirCambios(callback) {
+    _mapearHistorial(h) {
+        return {
+            id: h.id,
+            numero: h.numero,
+            nombreEmpresa: h.nombre_empresa,
+            nit: h.nit,
+            motivo: h.motivo,
+            horaSolicitud: h.hora_solicitud,
+            horaLlamada: h.hora_llamada,
+            horaFinalizacion: h.hora_finalizacion,
+            estado: h.estado,
+            fecha: h.fecha,
+            createdAt: h.created_at
+        };
+    },
+
+    // ==========================================
+    // ESTADÍSTICAS
+    // ==========================================
+
+    async cargarEstadisticas() {
         if (!window.supabaseClient) {
-            console.warn('Supabase no está disponible para suscripción');
+            console.error('Supabase no está disponible');
+            return {
+                totalTurnos: 0,
+                turnosEspera: 0,
+                turnosAtendiendo: 0,
+                totalProveedores: 0,
+                promedioEspera: 0
+            };
+        }
+        
+        try {
+            const hoy = new Date().toISOString().split('T')[0];
+            
+            const [
+                { count: totalTurnosHoy, error: error1 },
+                { count: turnosEspera, error: error2 },
+                { count: turnosAtendiendo, error: error3 },
+                { count: totalProveedores, error: error4 }
+            ] = await Promise.all([
+                window.supabaseClient
+                    .from('historial_turnos')
+                    .select('*', { count: 'exact', head: true })
+                    .gte('fecha', `${hoy}T00:00:00`),
+                
+                window.supabaseClient
+                    .from('turnos')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('estado', 'espera'),
+                
+                window.supabaseClient
+                    .from('turnos')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('estado', 'atendiendo'),
+                
+                window.supabaseClient
+                    .from('proveedores')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('activo', true)
+            ]);
+
+            if (error1) throw error1;
+            if (error2) throw error2;
+            if (error3) throw error3;
+            if (error4) throw error4;
+
+            return {
+                totalTurnos: totalTurnosHoy || 0,
+                turnosEspera: turnosEspera || 0,
+                turnosAtendiendo: turnosAtendiendo || 0,
+                totalProveedores: totalProveedores || 0
+            };
+        } catch (error) {
+            console.error('Error al cargar estadísticas:', error);
+            return {
+                totalTurnos: 0,
+                turnosEspera: 0,
+                turnosAtendiendo: 0,
+                totalProveedores: 0
+            };
+        }
+    },
+
+    // ==========================================
+    // SUSCRIPCIONES REALTIME
+    // ==========================================
+
+    suscribirCambiosTurnos(callback) {
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
             return null;
         }
         
@@ -722,103 +883,110 @@ const SupabaseDB = {
             const subscription = window.supabaseClient
                 .channel('turnos-changes')
                 .on('postgres_changes', 
-                    { event: '*', schema: 'public', table: 'turnos' },
+                    { 
+                        event: '*', 
+                        schema: 'public', 
+                        table: 'turnos' 
+                    },
                     (payload) => {
-                        console.log('Cambio en tiempo real:', payload);
+                        console.log('🔄 Cambio en turnos:', payload);
                         if (callback && typeof callback === 'function') {
                             callback(payload);
                         }
                     }
                 )
                 .subscribe((status) => {
-                    console.log('Estado de suscripción:', status);
                     if (status === 'SUBSCRIBED') {
-                        console.log('✅ Suscripción a tiempo real activada correctamente');
+                        console.log('✅ Suscripción a turnos activada');
                     } else if (status === 'CHANNEL_ERROR') {
-                        console.error('❌ Error en el canal de tiempo real');
+                        console.error('❌ Error en canal de turnos');
                     }
                 });
             
             return subscription;
         } catch (error) {
-            console.error('Error al suscribirse:', error);
+            console.error('Error al suscribirse a turnos:', error);
             return null;
         }
     },
 
-    async suscribirCambiosHistorial(callback) {
-        if (!window.supabaseClient) return null;
+    suscribirCambiosHistorial(callback) {
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return null;
+        }
         
         try {
             const subscription = window.supabaseClient
                 .channel('historial-changes')
                 .on('postgres_changes', 
-                    { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
+                    { 
+                        event: 'INSERT', 
+                        schema: 'public', 
+                        table: 'historial_turnos' 
+                    },
                     (payload) => {
-                        console.log('Nuevo turno en historial:', payload);
+                        console.log('📝 Nuevo en historial:', payload);
                         if (callback && typeof callback === 'function') {
                             callback(payload);
                         }
                     }
                 )
-                .subscribe();
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        console.log('✅ Suscripción a historial activada');
+                    }
+                });
             
             return subscription;
         } catch (error) {
-            console.error('Error al suscribirse al historial:', error);
+            console.error('Error al suscribirse a historial:', error);
             return null;
         }
     },
 
+    desuscribirCanal(channel) {
+        if (channel && window.supabaseClient) {
+            window.supabaseClient.removeChannel(channel);
+            console.log('🔌 Canal desconectado');
+        }
+    },
+
+    // ==========================================
+    // UTILIDADES
+    // ==========================================
+
     async sincronizarTodo() {
+        // Ya no es necesario sincronizar - todo está en la nube
+        console.log('ℹ️ No se requiere sincronización - modo solo nube activo');
+        return { 
+            success: true, 
+            message: 'Modo solo nube - sin sincronización necesaria' 
+        };
+    },
+
+    async limpiarDatosAntiguos(dias = 30) {
         if (!window.supabaseClient) {
-            return { success: false, message: 'Supabase no está configurado' };
+            console.error('Supabase no está disponible');
+            return false;
         }
-
-        if (AppState.syncInProgress) {
-            return { success: false, message: 'Sincronización ya en progreso' };
-        }
-
-        AppState.syncInProgress = true;
-
+        
         try {
-            const contador = LocalStorage.obtenerContador();
-            await window.supabaseClient
-                .from('configuracion')
-                .upsert({ clave: 'contador_turnos', valor: contador.toString() });
-
-            const turnosLocal = LocalStorage.obtenerTurnos();
-            let turnosSincronizados = 0;
+            const fechaLimite = new Date();
+            fechaLimite.setDate(fechaLimite.getDate() - dias);
             
-            for (const turno of turnosLocal) {
-                const turnoData = {
-                    numero: turno.numero,
-                    nombre_empresa: turno.nombreEmpresa,
-                    nit: turno.nit,
-                    motivo: turno.motivo || '',
-                    hora_solicitud: turno.horaSolicitud,
-                    fecha_solicitud: turno.fechaSolicitud,
-                    estado: turno.estado
-                };
-                
-                const { error } = await window.supabaseClient
-                    .from('turnos')
-                    .upsert(turnoData, { onConflict: 'numero' });
-                
-                if (!error) turnosSincronizados++;
-            }
-
-            AppState.lastSync = new Date();
-            AppState.syncInProgress = false;
-
-            return { 
-                success: true, 
-                message: `Sincronización completada: ${turnosSincronizados} turnos` 
-            };
+            const { error } = await window.supabaseClient
+                .from('historial_turnos')
+                .delete()
+                .lt('fecha', fechaLimite.toISOString());
+            
+            if (error) throw error;
+            
+            console.log(`🧹 Datos antiguos eliminados (> ${dias} días)`);
+            return true;
         } catch (error) {
-            console.error('Error durante sincronización:', error);
-            AppState.syncInProgress = false;
-            return { success: false, message: error.message };
+            console.error('Error al limpiar datos:', error);
+            return false;
         }
     }
 };
