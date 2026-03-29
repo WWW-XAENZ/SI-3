@@ -375,9 +375,21 @@ const Turnos = {
     async solicitar(datosProveedor, motivo = '') {
         console.log('=== CREANDO TURNO ===');
         
-        // Validar
-        if (!datosProveedor.nit) throw new Error('La placa es requerida');
+        // Validar placa (6 caracteres, mayúsculas)
+        if (!datosProveedor.nit) {
+            throw new Error('La placa es requerida');
+        }
+        
+        const placa = datosProveedor.nit.toUpperCase();
+        
+        if (placa.length !== 6) {
+            throw new Error('La placa debe tener exactamente 6 caracteres');
+        }
+        
         if (!datosProveedor.nombreEmpresa) throw new Error('El nombre de la empresa es requerido');
+        
+        // Actualizar placa en mayúsculas
+        datosProveedor.nit = placa;
 
         // Incrementar contador (Supabase o local)
         const nuevoContador = await SupabaseDB.incrementarContadorTurnos();
@@ -665,15 +677,25 @@ const UsuarioHandlers = {
         Utils.setLoading(true);
         
         try {
+            const placaInput = document.getElementById('nit')?.value?.trim().toUpperCase();
+            
+            // Validar placa (6 caracteres)
+            if (!placaInput) {
+                throw new Error('La placa es requerida');
+            }
+            
+            if (placaInput.length !== 6) {
+                throw new Error('La placa debe tener exactamente 6 caracteres');
+            }
+            
             const datosProveedor = {
                 nombreEmpresa: document.getElementById('nombreEmpresa')?.value?.trim(),
-                nit: document.getElementById('placa')?.value?.trim(),
+                nit: placaInput,
                 contacto: document.getElementById('contacto')?.value?.trim(),
                 telefono: document.getElementById('telefono')?.value?.trim(),
                 servicio: document.getElementById('servicio')?.value
             };
 
-            if (!datosProveedor.nit) throw new Error('La placa es requerida');
             if (!datosProveedor.nombreEmpresa) throw new Error('El nombre de la empresa es requerido');
 
             const motivoInput = document.getElementById('motivoVisita');
@@ -800,12 +822,17 @@ const AdminAccess = {
 
 const InputConfig = {
     configurarPlacaInput() {
-        const placaInput = document.getElementById('placa');
+        const placaInput = document.getElementById('nit');
         if (placaInput) {
+            // Limitar a 6 caracteres y convertir a mayúsculas
+            placaInput.setAttribute('maxlength', '6');
+            placaInput.setAttribute('pattern', '[A-Za-z0-9]{6}');
+            placaInput.setAttribute('title', 'Ingrese exactamente 6 caracteres (letras o números)');
+            
             placaInput.addEventListener('input', function() {
                 const start = this.selectionStart;
                 const end = this.selectionEnd;
-                this.value = this.value.toUpperCase();
+                this.value = this.value.toUpperCase().slice(0, 6);
                 this.setSelectionRange(start, end);
             });
         }

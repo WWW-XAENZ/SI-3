@@ -30,8 +30,8 @@
                             <input type="text" id="nombreEmpresa" required placeholder="Ingrese el nombre de su empresa">
                         </div>
                         <div class="form-group">
-                            <label for="nit">Placa del Vehiculo:</label>
-                            <input type="text" id="placa" required placeholder="Ingrese la placa de su vehiculo">
+                            <label for="nit">Placa del Vehiculo (6 caracteres):</label>
+                            <input type="text" id="nit" required placeholder="Ingrese la placa de su vehiculo" maxlength="6" pattern="[A-Za-z0-9]{6}" title="Ingrese exactamente 6 caracteres (letras o números)">
                         </div>
                         <div class="form-group">
                             <label for="contacto">Persona de Contacto:</label>
