@@ -3,98 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sistema de Turnos SI-3 - Gestión profesional de turnos para proveedores">
+    <meta name="keywords" content="turnos, proveedores, gestión, cola, atención">
     <title>Sistema de Turnos - Proveedores</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <img src="Logo-Web-SI3.png" alt="Logo" class="logo" id="logoClick">
+            <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo" id="logoClick">
             <h1>Sistema de Turnos SI-3</h1>
         </header>
         
-        <nav class="main-nav">
-            <a href="index.html" class="nav-link active">Inicio</a>
+        <nav class="main-nav" role="navigation" aria-label="Navegación principal">
+            <a href="index.html" class="nav-link active" aria-current="page">Inicio</a>
             <a href="user.html" class="nav-link">Solicitar Turno</a>
         </nav>
 
-        <main class="home-content">
-            <div class="welcome-section">
-                <h2>Bienvenido al Sistema de Turnos</h2>
-                <p>Solicite su turno y con gusto lo atenderemos.</p>
-            </div>
+        <main class="home-content" role="main">
+            <section class="welcome-section" aria-labelledby="welcome-title">
+                <h2 id="welcome-title">Bienvenido al Sistema de Turnos</h2>
+                <p>Solicite su turno de manera rápida y sencilla. Nuestro sistema le permite gestionar su espera de forma eficiente.</p>
+            </section>
 
-            <div class="cards-container">
-                <div class="card">
-                    <div class="card-icon">
-                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
+            <section class="cards-container cards-centered" aria-label="Opciones principales">
+                <article class="card">
+                    <div class="card-icon" aria-hidden="true">
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                         </svg>
                     </div>
                     <h3>Solicitar Turno</h3>
-                    <p>Ingrese sus datos y solicite un turno para ser atendido.</p>
+                    <p>Ingrese sus datos de proveedor y solicite un turno para ser atendido en nuestro punto de atención.</p>
                     <a href="user.html" class="btn btn-primary">Solicitar Turno</a>
-                </div>
+                </article>
 
-                <div class="card">
-                    <div class="card-icon">
-                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <article class="card">
+                    <div class="card-icon" aria-hidden="true">
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="10"></circle>
                             <polyline points="12 6 12 12 16 14"></polyline>
                         </svg>
                     </div>
                     <h3>Estado de la Cola</h3>
-                    <p>Vea el estado actual de los turnos en espera.</p>
+                    <p>Consulte el estado actual de los turnos en espera, su posición y el tiempo estimado de atención.</p>
                     <a href="user.html" class="btn btn-secondary">Ver Cola</a>
-                </div>
-            </div>
+                </article>
+            </section>
 
-            <div class="info-section">
-                <h3>Como funciona</h3>
-                <div class="steps">
-                    <div class="step">
-                        <span class="step-number">1</span>
+            <section class="info-section" aria-labelledby="how-it-works-title">
+                <h3 id="how-it-works-title">¿Cómo funciona?</h3>
+                <div class="steps" role="list">
+                    <div class="step" role="listitem">
+                        <span class="step-number" aria-hidden="true">1</span>
                         <p>Ingrese sus datos de proveedor</p>
                     </div>
-                    <div class="step">
-                        <span class="step-number">2</span>
+                    <div class="step" role="listitem">
+                        <span class="step-number" aria-hidden="true">2</span>
                         <p>Solicite un turno</p>
                     </div>
-                    <div class="step">
-                        <span class="step-number">3</span>
-                        <p>Espere su numero</p>
+                    <div class="step" role="listitem">
+                        <span class="step-number" aria-hidden="true">3</span>
+                        <p>Espere a que su número sea llamado</p>
                     </div>
-                    <div class="step">
-                        <span class="step-number">4</span>
-                        <p>Sea atendido</p>
+                    <div class="step" role="listitem">
+                        <span class="step-number" aria-hidden="true">4</span>
+                        <p>Diríjase al punto de atención</p>
                     </div>
                 </div>
-            </div>
+            </section>
+
+            <section class="info-section about-company" aria-labelledby="about-title">
+                <h3 id="about-title">Acerca de Nosotros</h3>
+                <div class="about-content">
+                    <div class="about-text">
+                        <p>Somos un grupo industrial experto en el diseño de procesos productivos bajo las metodologías avanzadas de la calidad usadas en el sector automotriz, brindamos soluciones integrales para la fabricación de partes en diferentes tecnologías a clientes de diversos sectores como ensambladoras, fabricantes de automóviles y motocicletas, así como para otros clientes industriales.</p>
+                        <a href="https://www.si-3.tech/nosotros" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                            Conocer más sobre nosotros
+                        </a>
+                    </div>
+                </div>
+            </section>
         </main>
 
-        <footer>
-            <p>2026 Sistema de Turnos SI-3 - Todos los derechos reservados</p>
+        <footer role="contentinfo">
+            <p>&copy; 2026 Sistema de Turnos SI-3 - Todos los derechos reservados</p>
+            <p>Desarrollado con tecnología moderna para una experiencia óptima</p>
         </footer>
     </div>
 
-    <!-- Modal de acceso al admin -->
+    <!-- Modal Acceso Admin -->
     <div id="adminAccessModal" class="modal">
         <div class="modal-content">
-            <span class="close-modal">&times;</span>
-            <h2>Acceso al Panel de Administrador</h2>
+            <button class="close-modal">&times;</button>
+            <h2>Acceso Administrador</h2>
             <form id="adminLoginForm">
                 <div class="form-group">
                     <label for="adminPassword">Contraseña:</label>
-                    <input type="password" id="adminPassword" required placeholder="Ingrese la contraseña">
+                    <input type="password" id="adminPassword" required>
                 </div>
-                <button type="submit" class="btn btn-primary">Acceder</button>
+                <p id="loginError" class="error-message" style="display: none;"></p>
+                <button type="submit" class="btn btn-primary">Ingresar</button>
             </form>
-            <p id="loginError" class="error-message"></p>
         </div>
     </div>
 
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>
