@@ -244,9 +244,11 @@ const SupabaseDB = {
     // ==========================================
 
     async obtenerContadorTurnos() {
+        // Siempre usar el contador local como respaldo
+        const contadorLocal = LocalStorage.obtenerContador();
+        
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return 0;
+            return contadorLocal;
         }
         
         try {
@@ -258,37 +260,40 @@ const SupabaseDB = {
             
             if (error) {
                 if (error.code === 'PGRST116') {
-                    // No existe, crearlo
+                    // No existe, crearlo con el valor local
                     await window.supabaseClient
                         .from('configuracion')
                         .insert({ 
                             clave: 'contador_turnos', 
-                            valor: '0', 
+                            valor: contadorLocal.toString(), 
                             descripcion: 'Contador global de turnos' 
                         });
-                    return 0;
+                    return contadorLocal;
                 }
-                throw error;
+                console.warn('Error al obtener contador de Supabase, usando local:', error.message);
+                return contadorLocal;
             }
             
-            return data ? parseInt(data.valor) : 0;
+            const contadorSupabase = data ? parseInt(data.valor) : 0;
+            // Usar el mayor entre local y Supabase para evitar retrocesos
+            return Math.max(contadorLocal, contadorSupabase);
         } catch (error) {
-            console.error('Error al obtener contador:', error);
-            return 0;
+            console.warn('Error al obtener contador, usando local:', error.message);
+            return contadorLocal;
         }
     },
 
     async incrementarContadorTurnos() {
+        // Siempre incrementar el contador local primero
+        const contadorLocal = LocalStorage.obtenerContador();
+        const nuevoContador = contadorLocal + 1;
+        LocalStorage.guardarContador(nuevoContador);
+        
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return 0;
+            return nuevoContador;
         }
         
         try {
-            // Obtener valor actual
-            const contadorActual = await this.obtenerContadorTurnos();
-            const nuevoContador = contadorActual + 1;
-            
             // Actualizar en Supabase
             const { error } = await window.supabaseClient
                 .from('configuracion')
@@ -299,12 +304,15 @@ const SupabaseDB = {
                     updated_at: new Date().toISOString()
                 });
             
-            if (error) throw error;
+            if (error) {
+                console.warn('Error al actualizar contador en Supabase, pero local ya se actualizó:', error.message);
+            }
             
             return nuevoContador;
         } catch (error) {
+            console.warn('Error al actualizar contador en Supabase, pero local ya se actualizó:', error.message);
             console.error('Error al incrementar contador:', error);
-            return 0;
+            return nuevoContador;
         }
     },
 
@@ -977,12 +985,37 @@ suscribirCambiosHistorial(callback) {
     // ==========================================
 
     async sincronizarTodo() {
-        // Ya no es necesario sincronizar - todo está en la nube
-        console.log('ℹ️ No se requiere sincronización - modo solo nube activo');
-        return { 
-            success: true, 
-            message: 'Modo solo nube - sin sincronización necesaria' 
-        };
+        if (!window.supabaseClient) {
+            return { success: false, message: 'Supabase no está configurado' };
+        }
+
+        try {
+            console.log('🔄 Sincronizando datos desde la nube...');
+            
+            // Recargar turnos desde Supabase
+            const turnos = await this.cargarTurnos();
+            console.log(`✅ Turnos sincronizados: ${turnos.length}`);
+            
+            // Recargar proveedores desde Supabase
+            const proveedores = await this.cargarProveedores();
+            console.log(`✅ Proveedores sincronizados: ${proveedores.length}`);
+            
+            // Recargar historial desde Supabase
+            const historial = await this.cargarHistorial();
+            console.log(`✅ Historial sincronizado: ${historial.length}`);
+            
+            // Recargar contador desde Supabase
+            const contador = await this.obtenerContadorTurnos();
+            console.log(`✅ Contador sincronizado: ${contador}`);
+            
+            return { 
+                success: true, 
+                message: `Sincronización completada: ${turnos.length} turnos, ${proveedores.length} proveedores, ${historial.length} registros de historial` 
+            };
+        } catch (error) {
+            console.error('❌ Error al sincronizar:', error);
+            return { success: false, message: error.message };
+        }
     },
 
     async limpiarDatosAntiguos(dias = 30) {
