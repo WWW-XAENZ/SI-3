@@ -1979,7 +1979,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (conexionOk) {
                 ConnectionStatus.actualizar('connected', '✓ Conectado a Supabase');
             } else {
-                ConnectionStatus.actualizar('local', '⚠ Modo local (sin nube)');
+                ConnectionStatus.actualizar('disconnected', '✗ Sin conexión a Supabase');
             }
         } catch (error) {
             console.log('Error al verificar Supabase:', error.message);
@@ -2021,7 +2021,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('Configurando suscripción a tiempo real para usuario...');
                 AppState.subscription = RenderUsuario.suscribirCambios();
             } else {
-                console.warn('Supabase no disponible - funcionando en modo local');
+                console.warn('Supabase no disponible - verifica tu conexión y credenciales');
             }
         }
         
@@ -2099,7 +2099,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 });
             } else {
-                console.warn('Supabase no disponible - funcionando en modo local');
+                console.warn('Supabase no disponible - verifica tu conexión y credenciales');
             }
         }
     } catch (error) {

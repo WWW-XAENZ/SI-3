@@ -2,8 +2,8 @@
 // CONFIGURACIÓN DE SUPABASE - VERSIÓN MEJORADA
 // ============================================
 
-const SUPABASE_URL = 'https://mfgxfplxwpnfwguvtfxw.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mZ3hmcGx4d3BuZndndXZ0Znh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDI5OTcsImV4cCI6MjA5MDM3ODk5N30.vxPihLYL_miLDgCFdTMGr2Ndf04lBxSWV92hcqAvusw';
+const SUPABASE_URL = 'https://msgrypuvobpemieckghb.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1zZ3J5cHV2b2JwZW1pZWNrZ2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MjQzNzksImV4cCI6MjA5MDQwMDM3OX0.wLUQnslW4UigRyNi1yWduoGabAm7pGV9TuFAkrtW09s';
 
 // Estado de la conexión
 const ConnectionState = {
@@ -26,7 +26,7 @@ function verificarConfiguracion() {
     if (!urlValida || !keyValida) {
         console.warn('⚠️ ADVERTENCIA: Configura tus credenciales reales de Supabase');
         console.log('📖 Ve a: https://app.supabase.com → Tu Proyecto → Settings → API → anon public');
-        console.log('💡 El sistema funcionará en modo local (solo este navegador)');
+        console.log('⚠️ El sistema no funcionará hasta que configures tus credenciales');
         return false;
     }
     return true;
@@ -42,14 +42,25 @@ function inicializarSupabase() {
             return null;
         }
 
+        // Verificar si la librería de Supabase está cargada
         if (!window.supabase) {
-            console.warn('⚠️ Librería Supabase no cargada. Asegúrate de incluir:');
-            console.log('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>');
+            console.warn('⚠️ Librería Supabase no cargada aún. Reintentando en 1 segundo...');
+            // Reintentar después de 1 segundo
+            setTimeout(() => {
+                supabase = inicializarSupabase();
+                window.supabaseClient = supabase;
+            }, 1000);
             return null;
         }
 
         if (!verificarConfiguracion()) {
-            console.log('💡 Usando modo local (sin sincronización en la nube)');
+            console.warn('⚠️ Configuración de Supabase incompleta. Verifica tus credenciales.');
+            console.log('📖 Ve a: https://app.supabase.com → Tu Proyecto → Settings → API → anon public');
+            // Intentar de nuevo en 2 segundos
+            setTimeout(() => {
+                supabase = inicializarSupabase();
+                window.supabaseClient = supabase;
+            }, 2000);
             return null;
         }
 
@@ -65,16 +76,24 @@ function inicializarSupabase() {
     }
 }
 
-// Inicializar inmediatamente
-supabase = inicializarSupabase();
-
-// Exportar para uso en otros archivos
-window.supabaseClient = supabase;
+// Inicializar cuando el DOM esté listo
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        supabase = inicializarSupabase();
+        window.supabaseClient = supabase;
+    });
+} else {
+    // Si el DOM ya está listo, esperar un momento para que Supabase se cargue
+    setTimeout(() => {
+        supabase = inicializarSupabase();
+        window.supabaseClient = supabase;
+    }, 500);
+}
 
 // Función para verificar la conexión con reintentos
 async function verificarConexion() {
     if (!supabase) {
-        console.log('💡 Supabase no configurado - funcionando en modo local');
+        console.warn('⚠️ Supabase no configurado. Verifica tus credenciales.');
         return false;
     }
     
@@ -135,17 +154,17 @@ window.verificarConexionSupabase = verificarConexion;
 window.obtenerEstadoConexion = obtenerEstadoConexion;
 window.forzarReconexion = forzarReconexion;
 
-// Verificar conexión automáticamente después de 1 segundo
+// Verificar conexión automáticamente después de 2 segundos
 setTimeout(async () => {
     if (supabase) {
         const conectado = await verificarConexion();
         if (!conectado) {
-            console.log('💡 El sistema funcionará en modo local (datos solo en este navegador)');
+            console.warn('⚠️ No se pudo conectar a Supabase. Verifica tu conexión y credenciales.');
         }
     } else {
-        console.log('💡 El sistema funcionará en modo local (datos solo en este navegador)');
+        console.warn('⚠️ Supabase no inicializado. Verifica tus credenciales.');
     }
-}, 1000);
+}, 2000);
 
 // Verificar conexión periódicamente cada 30 segundos
 setInterval(async () => {
@@ -153,3 +172,15 @@ setInterval(async () => {
         await verificarConexion();
     }
 }, 30000);
+
+// Forzar reconexión si no hay conexión después de 5 segundos
+setTimeout(async () => {
+    if (!supabase || connectionStatus !== ConnectionState.CONNECTED) {
+        console.log('🔄 Intentando reconectar a Supabase...');
+        supabase = inicializarSupabase();
+        window.supabaseClient = supabase;
+        if (supabase) {
+            await verificarConexion();
+        }
+    }
+}, 5000);

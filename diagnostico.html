@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico Supabase - Sistema de Turnos SI-3</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; margin-bottom: 20px; text-align: center; }
+        .status { padding: 15px; border-radius: 5px; margin-bottom: 15px; font-weight: bold; text-align: center; }
+        .success { background: #d4edda; color: #155724; border: 2px solid #28a745; }
+        .error { background: #f8d7da; color: #721c24; border: 2px solid #dc3545; }
+        .warning { background: #fff3cd; color: #856404; border: 2px solid #ffc107; }
+        .info { background: #d1ecf1; color: #0c5460; border: 2px solid #17a2b8; }
+        .section { margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #007bff; }
+        .section h2 { color: #333; margin-bottom: 15px; }
+        .test { padding: 10px; margin: 10px 0; background: white; border-radius: 5px; border: 1px solid #ddd; }
+        .test.success { border-left: 4px solid #28a745; }
+        .test.error { border-left: 4px solid #dc3545; }
+        .test.warning { border-left: 4px solid #ffc107; }
+        button { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 5px; cursor: pointer; margin: 5px; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        .btn-success { background: #28a745; }
+        .btn-success:hover { background: #1e7e34; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .log { background: #1e1e1e; color: #0f0; padding: 15px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 12px; max-height: 400px; overflow-y: auto; margin-top: 20px; }
+        .log-entry { margin: 5px 0; padding: 5px; border-bottom: 1px solid #333; }
+        .log-error { color: #f44; }
+        .log-success { color: #4f4; }
+        .log-warning { color: #ff0; }
+        .log-info { color: #0ff; }
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; justify-content: center; }
+        .instructions { background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #007bff; }
+        .instructions ol { margin-left: 20px; }
+        .instructions li { margin: 8px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Diagnóstico de Supabase</h1>
+        
+        <div id="mainStatus" class="status info">
+            Verificando configuración...
+        </div>
+
+        <div class="section">
+            <h2>📊 Estado de la Configuración</h2>
+            <div id="configTests"></div>
+        </div>
+
+        <div class="section">
+            <h2>🗄️ Estado de la Base de Datos</h2>
+            <div id="dbTests"></div>
+        </div>
+
+        <div class="section">
+            <h2>⚡ Estado de Tiempo Real</h2>
+            <div id="realtimeTests"></div>
+        </div>
+
+        <div class="instructions">
+            <h3>📋 Instrucciones para Solucionar Problemas</h3>
+            <ol>
+                <li>Si ves "❌ Librería Supabase no cargada", verifica tu conexión a internet</li>
+                <li>Si ves "❌ Tabla no existe", ejecuta <code>supabase-schema.sql</code> en Supabase SQL Editor</li>
+                <li>Si ves "❌ Realtime no habilitado", ve a Database → Replication y actívalo para la tabla <code>turnos</code></li>
+                <li>Si ves "❌ Error de conexión", verifica que tu proyecto esté activo en Supabase</li>
+            </ol>
+        </div>
+
+        <div class="actions">
+            <button onclick="ejecutarDiagnostico()">🔄 Ejecutar Diagnóstico</button>
+            <button onclick="crearTablas()" class="btn-success">📊 Crear Tablas</button>
+            <button onclick="limpiarLog()" class="btn-danger">🗑️ Limpiar Log</button>
+        </div>
+
+        <div id="log" class="log">
+            <div class="log-entry">Esperando diagnóstico...</div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        const logDiv = document.getElementById('log');
+        const configTestsDiv = document.getElementById('configTests');
+        const dbTestsDiv = document.getElementById('dbTests');
+        const realtimeTestsDiv = document.getElementById('realtimeTests');
+        const mainStatusDiv = document.getElementById('mainStatus');
+
+        function log(msg, type = '') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + type;
+            const time = new Date().toLocaleTimeString('es-ES');
+            entry.textContent = `[${time}] ${msg}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function limpiarLog() {
+            logDiv.innerHTML = '<div class="log-entry">Log limpiado</div>';
+        }
+
+        function addTest(container, name, success, message) {
+            const test = document.createElement('div');
+            test.className = 'test ' + (success ? 'success' : 'error');
+            test.innerHTML = `<strong>${success ? '✅' : '❌'} ${name}</strong><br><small>${message}</small>`;
+            container.appendChild(test);
+        }
+
+        function setStatus(message, type) {
+            mainStatusDiv.className = 'status ' + type;
+            mainStatusDiv.textContent = message;
+        }
+
+        async function ejecutarDiagnostico() {
+            configTestsDiv.innerHTML = '';
+            dbTestsDiv.innerHTML = '';
+            realtimeTestsDiv.innerHTML = '';
+            
+            log('🚀 Iniciando diagnóstico completo...', 'log-info');
+            
+            // Test 1: Verificar configuración
+            log('Verificando configuración...', 'log-info');
+            const urlValida = SUPABASE_URL && SUPABASE_URL.includes('supabase.co');
+            const keyValida = SUPABASE_KEY && SUPABASE_KEY.startsWith('eyJ') && SUPABASE_KEY.length > 100;
+            
+            if (urlValida && keyValida) {
+                addTest(configTestsDiv, 'Configuración de Supabase', true, `URL: ${SUPABASE_URL.substring(0, 40)}...`);
+                log('✅ Configuración válida', 'log-success');
+            } else {
+                addTest(configTestsDiv, 'Configuración de Supabase', false, 'URL o Key no configuradas correctamente');
+                log('❌ Configuración inválida', 'log-error');
+                setStatus('❌ Error: Configura tus credenciales en supabase-config.js', 'error');
+                return;
+            }
+
+            // Test 2: Verificar librería Supabase
+            log('Verificando librería Supabase...', 'log-info');
+            if (window.supabase) {
+                addTest(configTestsDiv, 'Librería Supabase', true, 'Librería cargada correctamente');
+                log('✅ Librería Supabase disponible', 'log-success');
+            } else {
+                addTest(configTestsDiv, 'Librería Supabase', false, 'Librería no cargada. Verifica tu conexión a internet');
+                log('❌ Librería Supabase no cargada', 'log-error');
+                setStatus('❌ Error: Librería Supabase no cargada. Verifica tu conexión a internet', 'error');
+                return;
+            }
+
+            // Test 3: Verificar cliente Supabase
+            log('Verificando cliente Supabase...', 'log-info');
+            if (window.supabaseClient) {
+                addTest(configTestsDiv, 'Cliente Supabase', true, 'Cliente inicializado correctamente');
+                log('✅ Cliente Supabase disponible', 'log-success');
+            } else {
+                addTest(configTestsDiv, 'Cliente Supabase', false, 'Cliente no inicializado. Espera unos segundos e intenta de nuevo');
+                log('❌ Cliente Supabase no disponible', 'log-error');
+                setStatus('❌ Error: Cliente no inicializado. Espera unos segundos e intenta de nuevo', 'error');
+                return;
+            }
+
+            // Test 4: Verificar conexión
+            log('Verificando conexión con Supabase...', 'log-info');
+            try {
+                const { data, error } = await window.supabaseClient
+                    .from('configuracion')
+                    .select('*')
+                    .limit(1);
+                
+                if (error) {
+                    addTest(dbTestsDiv, 'Conexión a Base de Datos', false, `Error: ${error.message}`);
+                    log(`❌ Error de conexión: ${error.message}`, 'log-error');
+                    setStatus(`❌ Error: ${error.message}`, 'error');
+                } else {
+                    addTest(dbTestsDiv, 'Conexión a Base de Datos', true, 'Conexión exitosa');
+                    log('✅ Conexión exitosa', 'log-success');
+                    setStatus('✅ Conectado a Supabase correctamente', 'success');
+                }
+            } catch (error) {
+                addTest(dbTestsDiv, 'Conexión a Base de Datos', false, `Error: ${error.message}`);
+                log(`❌ Error: ${error.message}`, 'log-error');
+                setStatus(`❌ Error: ${error.message}`, 'error');
+            }
+
+            // Test 5: Verificar tablas
+            log('Verificando tablas...', 'log-info');
+            const tables = ['configuracion', 'proveedores', 'turnos', 'historial_turnos'];
+            for (const table of tables) {
+                try {
+                    const { data, error } = await window.supabaseClient
+                        .from(table)
+                        .select('*')
+                        .limit(1);
+                    
+                    if (error) {
+                        addTest(dbTestsDiv, `Tabla ${table}`, false, `Error: ${error.message}`);
+                        log(`❌ Tabla ${table}: ${error.message}`, 'log-error');
+                    } else {
+                        addTest(dbTestsDiv, `Tabla ${table}`, true, 'Tabla existe y accesible');
+                        log(`✅ Tabla ${table} verificada`, 'log-success');
+                    }
+                } catch (error) {
+                    addTest(dbTestsDiv, `Tabla ${table}`, false, `Error: ${error.message}`);
+                    log(`❌ Tabla ${table}: ${error.message}`, 'log-error');
+                }
+            }
+
+            // Test 6: Verificar Realtime
+            log('Verificando Realtime...', 'log-info');
+            try {
+                const channel = window.supabaseClient.channel('test-realtime');
+                channel.subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        addTest(realtimeTestsDiv, 'Realtime', true, 'Canal de tiempo real activo');
+                        log('✅ Realtime funcionando correctamente', 'log-success');
+                        window.supabaseClient.removeChannel(channel);
+                    } else if (status === 'CHANNEL_ERROR') {
+                        addTest(realtimeTestsDiv, 'Realtime', false, 'Error en canal de tiempo real');
+                        log('❌ Error en canal de tiempo real', 'log-error');
+                    }
+                });
+            } catch (error) {
+                addTest(realtimeTestsDiv, 'Realtime', false, `Error: ${error.message}`);
+                log(`❌ Error al verificar Realtime: ${error.message}`, 'log-error');
+            }
+
+            log('🏁 Diagnóstico completado', 'log-info');
+        }
+
+        async function crearTablas() {
+            log('📊 Creando tablas...', 'log-info');
+            
+            if (!window.supabaseClient) {
+                log('❌ Supabase no está configurado', 'log-error');
+                return;
+            }
+
+            const sql = `
+                -- Tabla de configuración
+                CREATE TABLE IF NOT EXISTS configuracion (
+                    id BIGSERIAL PRIMARY KEY,
+                    clave VARCHAR(100) UNIQUE NOT NULL,
+                    valor TEXT NOT NULL,
+                    descripcion TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+
+                -- Tabla de proveedores
+                CREATE TABLE IF NOT EXISTS proveedores (
+                    id BIGSERIAL PRIMARY KEY,
+                    nombre_empresa VARCHAR(255) NOT NULL,
+                    nit VARCHAR(20) UNIQUE NOT NULL,
+                    contacto VARCHAR(255),
+                    telefono VARCHAR(50),
+                    servicio VARCHAR(50),
+                    activo BOOLEAN DEFAULT true,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+
+                -- Tabla de turnos
+                CREATE TABLE IF NOT EXISTS turnos (
+                    id BIGSERIAL PRIMARY KEY,
+                    numero VARCHAR(10) UNIQUE NOT NULL,
+                    nombre_empresa VARCHAR(255) NOT NULL,
+                    nit VARCHAR(20) NOT NULL,
+                    motivo TEXT,
+                    hora_solicitud TIME NOT NULL,
+                    fecha_solicitud TIMESTAMP WITH TIME ZONE NOT NULL,
+                    hora_llamada TIME,
+                    estado VARCHAR(20) DEFAULT 'espera' CHECK (estado IN ('espera', 'atendiendo', 'completado', 'cancelado')),
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+
+                -- Tabla de historial de turnos
+                CREATE TABLE IF NOT EXISTS historial_turnos (
+                    id BIGSERIAL PRIMARY KEY,
+                    numero VARCHAR(10) NOT NULL,
+                    nombre_empresa VARCHAR(255) NOT NULL,
+                    nit VARCHAR(20) NOT NULL,
+                    motivo TEXT,
+                    hora_solicitud TIME NOT NULL,
+                    hora_llamada TIME,
+                    hora_finalizacion TIME,
+                    estado VARCHAR(20) DEFAULT 'completado',
+                    fecha TIMESTAMP WITH TIME ZONE NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+
+                -- Insertar configuración inicial
+                INSERT INTO configuracion (clave, valor, descripcion) 
+                VALUES ('contador_turnos', '0', 'Contador global de turnos')
+                ON CONFLICT (clave) DO NOTHING;
+            `;
+
+            try {
+                const { error } = await window.supabaseClient.rpc('exec_sql', { sql });
+                
+                if (error) {
+                    log(`❌ Error al crear tablas: ${error.message}`, 'log-error');
+                    log('💡 Ve a Supabase SQL Editor y ejecuta manualmente el archivo supabase-schema.sql', 'log-warning');
+                } else {
+                    log('✅ Tablas creadas exitosamente', 'log-success');
+                    log('🔄 Verificando tablas...', 'log-info');
+                    setTimeout(ejecutarDiagnostico, 1000);
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'log-error');
+                log('💡 Ve a Supabase SQL Editor y ejecuta manualmente el archivo supabase-schema.sql', 'log-warning');
+            }
+        }
+
+        // Ejecutar diagnóstico automáticamente al cargar
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(ejecutarDiagnostico, 2000);
+        });
+    </script>
+</body>
+</html>
