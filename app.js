@@ -517,7 +517,7 @@ const SupabaseDB = {
         }
     },
 
-    async cargarTurnos(estado = null) {  // CORREGIDO: null en lugar de 'espera' por defecto
+    async cargarTurnos(estado = null) {
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible');
             return [];
@@ -529,7 +529,6 @@ const SupabaseDB = {
                 .select('*')
                 .order('fecha_solicitud', { ascending: true });
             
-            // Solo filtrar si se especifica explícitamente un estado
             if (estado) {
                 query = query.eq('estado', estado);
             }
@@ -979,18 +978,14 @@ const SupabaseDB = {
         try {
             console.log('🔄 Sincronizando datos desde la nube...');
             
-            // CORREGIDO: Cargar TODOS los turnos sin filtro de estado
             const todosLosTurnos = await this.cargarTurnos();
             
-            // Separar por estado
             const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera');
             const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
             
-            // Actualizar AppState
             AppState.turnos = turnosEnEspera;
             AppState.turnoActual = turnoAtendiendo || null;
             
-            // Guardar en localStorage
             LocalStorage.guardarTurnos(turnosEnEspera);
             if (turnoAtendiendo) {
                 LocalStorage.guardarTurnoActual(turnoAtendiendo);
@@ -998,15 +993,12 @@ const SupabaseDB = {
             
             console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total (${turnosEnEspera.length} en espera, ${turnoAtendiendo ? 1 : 0} atendiendo)`);
             
-            // Recargar proveedores
             const proveedores = await this.cargarProveedores();
             console.log(`✅ Proveedores sincronizados: ${proveedores.length}`);
             
-            // Recargar historial
             const historial = await this.cargarHistorial();
             console.log(`✅ Historial sincronizado: ${historial.length}`);
             
-            // Recargar contador
             const contador = await this.obtenerContadorTurnos();
             console.log(`✅ Contador sincronizado: ${contador}`);
             
@@ -1102,7 +1094,6 @@ const Turnos = {
     },
 
     async llamarSiguiente() {
-        // CORREGIDO: Cargar turnos en espera específicamente
         const turnosSupabase = await SupabaseDB.cargarTurnos('espera');
         if (turnosSupabase.length > 0) {
             AppState.turnos = turnosSupabase;
@@ -1146,13 +1137,14 @@ const Turnos = {
         if (!AppState.turnoActual) return false;
         
         try {
-            await SupabaseDB.guardarEnHistorial(AppState.turnoActual);
-            await SupabaseDB.actualizarTurno(AppState.turnoActual.id, {
-                estado: 'completado'
-            });
+            const turnoCompletado = AppState.turnoActual;
             
+            await SupabaseDB.guardarEnHistorial(turnoCompletado);
+            await SupabaseDB.eliminarTurno(turnoCompletado.id);
+            
+            // Verificar si el usuario tenía este turno y limpiarlo
             const miTurno = LocalStorage.obtenerMiTurno();
-            if (miTurno && miTurno.numero === AppState.turnoActual.numero) {
+            if (miTurno && miTurno.numero === turnoCompletado.numero) {
                 LocalStorage.eliminarMiTurno();
                 ModoEspera.desactivar();
             }
@@ -1191,19 +1183,15 @@ const Turnos = {
 
     async cargarTurnos() {
         try {
-            // CORREGIDO: Cargar TODOS los turnos desde Supabase
             const todosLosTurnos = await SupabaseDB.cargarTurnos();
             
             if (todosLosTurnos && todosLosTurnos.length > 0) {
-                // Separar por estado
                 const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera');
                 const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
                 
-                // Actualizar estado
                 AppState.turnos = turnosEnEspera;
                 AppState.turnoActual = turnoAtendiendo || null;
                 
-                // Guardar en localStorage
                 LocalStorage.guardarTurnos(turnosEnEspera);
                 if (turnoAtendiendo) {
                     LocalStorage.guardarTurnoActual(turnoAtendiendo);
@@ -1211,7 +1199,6 @@ const Turnos = {
                 
                 console.log(`Turnos cargados: ${todosLosTurnos.length} total (${turnosEnEspera.length} espera, ${turnoAtendiendo ? 1 : 0} atendiendo)`);
             } else {
-                // Fallback a localStorage
                 AppState.turnos = LocalStorage.obtenerTurnos();
                 AppState.turnoActual = LocalStorage.obtenerTurnoActual();
             }
@@ -1226,7 +1213,7 @@ const Turnos = {
 };
 
 // ============================================
-// RENDERIZADO USUARIO
+// RENDERIZADO USUARIO - CORREGIDO
 // ============================================
 
 const RenderUsuario = {
@@ -1237,6 +1224,32 @@ const RenderUsuario = {
         if (!container) return;
 
         if (miTurno) {
+            // CORREGIDO: Verificar si el turno aún existe en el sistema
+            const enCola = AppState.turnos.find(t => t.numero === miTurno.numero);
+            const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
+            
+            // Si no está en cola ni siendo atendido, el turno fue completado
+            if (!enCola && !siendoAtendido) {
+                // Limpiar turno completado
+                LocalStorage.eliminarMiTurno();
+                container.innerHTML = `
+                    <div class="no-turn-message">
+                        <p><strong>✓ Turno completado</strong></p>
+                        <p>Tu turno ${miTurno.numero} ha sido atendido</p>
+                        <p class="hint">Gracias por tu visita</p>
+                    </div>
+                `;
+                
+                // Desactivar modo espera si está activo
+                ModoEspera.desactivar();
+                
+                // Limpiar después de 5 segundos
+                setTimeout(() => {
+                    this.miTurno();
+                }, 5000);
+                return;
+            }
+
             try {
                 const posicion = AppState.turnos.findIndex(t => t.numero === miTurno.numero) + 1;
                 const tiempoEstimado = posicion > 0 ? posicion * CONFIG.TURN_TIME_ESTIMATE : 0;
@@ -1344,6 +1357,27 @@ const RenderUsuario = {
                             }
                         } catch (error) {
                             console.error('Error al procesar actualización:', error);
+                        }
+                    }
+                )
+                // CORREGIDO: También escuchar cambios en historial para detectar turnos completados
+                .on('postgres_changes',
+                    { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
+                    async (payload) => {
+                        console.log('Nuevo turno completado detectado:', payload);
+                        try {
+                            await Turnos.cargarTurnos();
+                            this.todo();
+                            
+                            // Verificar si es el turno del usuario actual
+                            const miTurno = LocalStorage.obtenerMiTurno();
+                            if (miTurno && payload.new && payload.new.numero === miTurno.numero) {
+                                ModoEspera.desactivar();
+                                LocalStorage.eliminarMiTurno();
+                                this.todo();
+                            }
+                        } catch (error) {
+                            console.error('Error al procesar historial:', error);
                         }
                     }
                 )
@@ -1640,10 +1674,12 @@ const AdminHandlers = {
             return;
         }
         
-        if (confirm(`¿Completar turno ${AppState.turnoActual.numero}?`)) {
+        const turnoNumero = AppState.turnoActual.numero;
+        
+        if (confirm(`¿Completar turno ${turnoNumero}?`)) {
             const resultado = await Turnos.completarTurnoActual();
             if (resultado) {
-                Utils.mostrarNotificacion(`Turno ${AppState.turnoActual.numero} completado`, 'success');
+                Utils.mostrarNotificacion(`Turno ${turnoNumero} completado`, 'success');
                 await RenderAdmin.todo();
             } else {
                 Utils.mostrarNotificacion('Error al completar turno', 'error');
@@ -1903,7 +1939,7 @@ const ConnectionStatus = {
 };
 
 // ============================================
-// MODO DE ESPERA Y NOTIFICACIONES
+// MODO DE ESPERA Y NOTIFICACIONES - CORREGIDO
 // ============================================
 
 const ModoEspera = {
@@ -1947,10 +1983,23 @@ const ModoEspera = {
     actualizar() {
         if (!this.activo || !this.miTurno) return;
         
+        // CORREGIDO: Verificar si el turno sigue existiendo
+        const enCola = AppState.turnos.find(t => t.numero === this.miTurno.numero);
+        const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === this.miTurno.numero;
+        
+        // Si el turno no está en cola ni siendo atendido, fue completado
+        if (!enCola && !siendoAtendido) {
+            console.log('Turno completado detectado en ModoEspera');
+            LocalStorage.eliminarMiTurno();
+            this.desactivar();
+            RenderUsuario.todo();
+            return;
+        }
+        
         const turnoActual = AppState.turnoActual;
         const turnosEspera = AppState.turnos;
         
-        if (turnoActual && turnoActual.numero === this.miTurno.numero) {
+        if (turnoActual && turnoActual.numero ===         this.miTurno.numero) {
             this.mostrarNotificacionLlamado();
             return;
         }
@@ -1985,7 +2034,7 @@ const ModoEspera = {
         notificacion.innerHTML = `
             <h3>
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                 </svg>
                 ¡Es tu turno!
             </h3>
@@ -1998,7 +2047,7 @@ const ModoEspera = {
         document.body.appendChild(notificacion);
         
         try {
-            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
             audio.volume = 0.5;
             audio.play().catch(() => {});
         } catch (e) {}
@@ -2012,7 +2061,7 @@ const ModoEspera = {
 };
 
 // ============================================
-// INICIALIZACIÓN
+// INICIALIZACIÓN - CORREGIDA
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2034,7 +2083,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ConnectionStatus.actualizar('disconnected', '✗ Sin conexión');
         }
         
-        // CORREGIDO: Cargar turnos correctamente al inicio
+        // Cargar turnos correctamente al inicio
         await Turnos.cargarTurnos();
         console.log('Datos cargados:', {
             turnos: AppState.turnos.length,
@@ -2060,9 +2109,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btnCancelarEspera.addEventListener('click', UsuarioHandlers.cancelarTurno);
             }
             
+            // CORREGIDO: Verificar si el turno del usuario sigue siendo válido
             const miTurno = LocalStorage.obtenerMiTurno();
             if (miTurno) {
-                ModoEspera.activar(miTurno);
+                // Verificar si el turno aún existe en el sistema
+                const enCola = AppState.turnos.find(t => t.numero === miTurno.numero);
+                const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
+                
+                if (enCola || siendoAtendido) {
+                    // El turno existe, activar modo espera
+                    ModoEspera.activar(miTurno);
+                } else {
+                    // El turno ya no existe (fue completado o cancelado)
+                    console.log('Turno guardado ya no existe en el sistema, limpiando...');
+                    LocalStorage.eliminarMiTurno();
+                }
             }
             
             if (window.supabaseClient) {
