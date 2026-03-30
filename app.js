@@ -870,87 +870,107 @@ const SupabaseDB = {
     },
 
     // ==========================================
-    // SUSCRIPCIONES REALTIME
-    // ==========================================
+// SUSCRIPCIONES REALTIME CORREGIDAS
+// ==========================================
 
-    suscribirCambiosTurnos(callback) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return null;
-        }
+suscribirCambiosTurnos(callback) {
+    if (!window.supabaseClient) {
+        console.error('❌ Supabase no está disponible');
+        return null;
+    }
+    
+    try {
+        const channel = window.supabaseClient
+            .channel('turnos-changes', {
+                config: {
+                    broadcast: { self: true },
+                    presence: { key: '' }
+                }
+            })
+            .on('postgres_changes', 
+                { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'turnos' 
+                },
+                (payload) => {
+                    console.log('🔄 Cambio en turnos:', payload);
+                    if (callback && typeof callback === 'function') {
+                        callback(payload);
+                    }
+                }
+            )
+            .subscribe((status, err) => {
+                console.log('📡 Estado canal turnos:', status);
+                
+                if (status === 'SUBSCRIBED') {
+                    console.log('✅ Suscripción a turnos activada correctamente');
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error('❌ Error en canal de turnos:', err);
+                    // Intentar reconectar después de 3 segundos
+                    setTimeout(() => {
+                        console.log('🔄 Intentando reconectar turnos...');
+                        this.suscribirCambiosTurnos(callback);
+                    }, 3000);
+                } else if (status === 'CLOSED') {
+                    console.warn('🔌 Canal de turnos cerrado');
+                } else if (status === 'TIMED_OUT') {
+                    console.warn('⏱️ Timeout en suscripción de turnos');
+                }
+            });
         
-        try {
-            const subscription = window.supabaseClient
-                .channel('turnos-changes')
-                .on('postgres_changes', 
-                    { 
-                        event: '*', 
-                        schema: 'public', 
-                        table: 'turnos' 
-                    },
-                    (payload) => {
-                        console.log('🔄 Cambio en turnos:', payload);
-                        if (callback && typeof callback === 'function') {
-                            callback(payload);
-                        }
-                    }
-                )
-                .subscribe((status) => {
-                    if (status === 'SUBSCRIBED') {
-                        console.log('✅ Suscripción a turnos activada');
-                    } else if (status === 'CHANNEL_ERROR') {
-                        console.error('❌ Error en canal de turnos');
-                    }
-                });
-            
-            return subscription;
-        } catch (error) {
-            console.error('Error al suscribirse a turnos:', error);
-            return null;
-        }
-    },
+        return channel;
+    } catch (error) {
+        console.error('❌ Error al suscribirse a turnos:', error);
+        return null;
+    }
+},
 
-    suscribirCambiosHistorial(callback) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return null;
-        }
+suscribirCambiosHistorial(callback) {
+    if (!window.supabaseClient) {
+        console.error('❌ Supabase no está disponible');
+        return null;
+    }
+    
+    try {
+        const channel = window.supabaseClient
+            .channel('historial-changes', {
+                config: {
+                    broadcast: { self: true }
+                }
+            })
+            .on('postgres_changes', 
+                { 
+                    event: 'INSERT', 
+                    schema: 'public', 
+                    table: 'historial_turnos' 
+                },
+                (payload) => {
+                    console.log('📝 Nuevo en historial:', payload);
+                    if (callback && typeof callback === 'function') {
+                        callback(payload);
+                    }
+                }
+            )
+            .subscribe((status, err) => {
+                console.log('📡 Estado canal historial:', status);
+                
+                if (status === 'SUBSCRIBED') {
+                    console.log('✅ Suscripción a historial activada');
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error('❌ Error en canal historial:', err);
+                    setTimeout(() => {
+                        this.suscribirCambiosHistorial(callback);
+                    }, 3000);
+                }
+            });
         
-        try {
-            const subscription = window.supabaseClient
-                .channel('historial-changes')
-                .on('postgres_changes', 
-                    { 
-                        event: 'INSERT', 
-                        schema: 'public', 
-                        table: 'historial_turnos' 
-                    },
-                    (payload) => {
-                        console.log('📝 Nuevo en historial:', payload);
-                        if (callback && typeof callback === 'function') {
-                            callback(payload);
-                        }
-                    }
-                )
-                .subscribe((status) => {
-                    if (status === 'SUBSCRIBED') {
-                        console.log('✅ Suscripción a historial activada');
-                    }
-                });
-            
-            return subscription;
-        } catch (error) {
-            console.error('Error al suscribirse a historial:', error);
-            return null;
-        }
-    },
-
-    desuscribirCanal(channel) {
-        if (channel && window.supabaseClient) {
-            window.supabaseClient.removeChannel(channel);
-            console.log('🔌 Canal desconectado');
-        }
-    },
+        return channel;
+    } catch (error) {
+        console.error('❌ Error al suscribirse a historial:', error);
+        return null;
+    }
+},
 
     // ==========================================
     // UTILIDADES
