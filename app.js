@@ -244,7 +244,6 @@ const SupabaseDB = {
     // ==========================================
 
     async obtenerContadorTurnos() {
-        // Siempre usar el contador local como respaldo
         const contadorLocal = LocalStorage.obtenerContador();
         
         if (!window.supabaseClient) {
@@ -260,7 +259,6 @@ const SupabaseDB = {
             
             if (error) {
                 if (error.code === 'PGRST116') {
-                    // No existe, crearlo con el valor local
                     await window.supabaseClient
                         .from('configuracion')
                         .insert({ 
@@ -275,7 +273,6 @@ const SupabaseDB = {
             }
             
             const contadorSupabase = data ? parseInt(data.valor) : 0;
-            // Usar el mayor entre local y Supabase para evitar retrocesos
             return Math.max(contadorLocal, contadorSupabase);
         } catch (error) {
             console.warn('Error al obtener contador, usando local:', error.message);
@@ -284,7 +281,6 @@ const SupabaseDB = {
     },
 
     async incrementarContadorTurnos() {
-        // Siempre incrementar el contador local primero
         const contadorLocal = LocalStorage.obtenerContador();
         const nuevoContador = contadorLocal + 1;
         LocalStorage.guardarContador(nuevoContador);
@@ -294,7 +290,6 @@ const SupabaseDB = {
         }
         
         try {
-            // Actualizar en Supabase
             const { error } = await window.supabaseClient
                 .from('configuracion')
                 .upsert({ 
@@ -311,7 +306,6 @@ const SupabaseDB = {
             return nuevoContador;
         } catch (error) {
             console.warn('Error al actualizar contador en Supabase, pero local ya se actualizó:', error.message);
-            console.error('Error al incrementar contador:', error);
             return nuevoContador;
         }
     },
@@ -337,7 +331,6 @@ const SupabaseDB = {
                 updated_at: new Date().toISOString()
             };
             
-            // Si tiene ID, es actualización
             if (proveedor.id) {
                 const { data, error } = await window.supabaseClient
                     .from('proveedores')
@@ -349,7 +342,6 @@ const SupabaseDB = {
                 if (error) throw error;
                 return this._mapearProveedor(data);
             } else {
-                // Es nuevo
                 const { data, error } = await window.supabaseClient
                     .from('proveedores')
                     .insert(proveedorData)
@@ -357,7 +349,6 @@ const SupabaseDB = {
                     .single();
                 
                 if (error) {
-                    // Si ya existe por NIT, actualizar
                     if (error.code === '23505') {
                         const { data: updateData, error: updateError } = await window.supabaseClient
                             .from('proveedores')
@@ -412,7 +403,6 @@ const SupabaseDB = {
         }
         
         try {
-            // Soft delete - marcar como inactivo
             const { error } = await window.supabaseClient
                 .from('proveedores')
                 .update({ 
@@ -466,7 +456,7 @@ const SupabaseDB = {
                 .single();
             
             if (error) {
-                if (error.code === 'PGRST116') return null; // No encontrado
+                if (error.code === 'PGRST116') return null;
                 throw error;
             }
             
@@ -492,7 +482,7 @@ const SupabaseDB = {
     },
 
     // ==========================================
-    // TURNOS
+    // TURNOS - CORREGIDO
     // ==========================================
 
     async guardarTurno(turno) {
@@ -527,7 +517,7 @@ const SupabaseDB = {
         }
     },
 
-    async cargarTurnos(estado = 'espera') {
+    async cargarTurnos(estado = null) {  // CORREGIDO: null en lugar de 'espera' por defecto
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible');
             return [];
@@ -539,6 +529,7 @@ const SupabaseDB = {
                 .select('*')
                 .order('fecha_solicitud', { ascending: true });
             
+            // Solo filtrar si se especifica explícitamente un estado
             if (estado) {
                 query = query.eq('estado', estado);
             }
@@ -639,7 +630,6 @@ const SupabaseDB = {
         }
         
         try {
-            // Obtener el turno primero para guardar en historial
             const { data: turno, error: errorGet } = await window.supabaseClient
                 .from('turnos')
                 .select('*')
@@ -648,10 +638,8 @@ const SupabaseDB = {
             
             if (errorGet) throw errorGet;
             
-            // Guardar en historial
             await this.guardarEnHistorial(this._mapearTurno(turno));
             
-            // Eliminar de turnos activos
             const { error } = await window.supabaseClient
                 .from('turnos')
                 .delete()
@@ -878,110 +866,109 @@ const SupabaseDB = {
     },
 
     // ==========================================
-// SUSCRIPCIONES REALTIME CORREGIDAS
-// ==========================================
+    // SUSCRIPCIONES REALTIME
+    // ==========================================
 
-suscribirCambiosTurnos(callback) {
-    if (!window.supabaseClient) {
-        console.error('❌ Supabase no está disponible');
-        return null;
-    }
-    
-    try {
-        const channel = window.supabaseClient
-            .channel('turnos-changes', {
-                config: {
-                    broadcast: { self: true },
-                    presence: { key: '' }
-                }
-            })
-            .on('postgres_changes', 
-                { 
-                    event: '*', 
-                    schema: 'public', 
-                    table: 'turnos' 
-                },
-                (payload) => {
-                    console.log('🔄 Cambio en turnos:', payload);
-                    if (callback && typeof callback === 'function') {
-                        callback(payload);
-                    }
-                }
-            )
-            .subscribe((status, err) => {
-                console.log('📡 Estado canal turnos:', status);
-                
-                if (status === 'SUBSCRIBED') {
-                    console.log('✅ Suscripción a turnos activada correctamente');
-                } else if (status === 'CHANNEL_ERROR') {
-                    console.error('❌ Error en canal de turnos:', err);
-                    // Intentar reconectar después de 3 segundos
-                    setTimeout(() => {
-                        console.log('🔄 Intentando reconectar turnos...');
-                        this.suscribirCambiosTurnos(callback);
-                    }, 3000);
-                } else if (status === 'CLOSED') {
-                    console.warn('🔌 Canal de turnos cerrado');
-                } else if (status === 'TIMED_OUT') {
-                    console.warn('⏱️ Timeout en suscripción de turnos');
-                }
-            });
+    suscribirCambiosTurnos(callback) {
+        if (!window.supabaseClient) {
+            console.error('❌ Supabase no está disponible');
+            return null;
+        }
         
-        return channel;
-    } catch (error) {
-        console.error('❌ Error al suscribirse a turnos:', error);
-        return null;
-    }
-},
+        try {
+            const channel = window.supabaseClient
+                .channel('turnos-changes', {
+                    config: {
+                        broadcast: { self: true },
+                        presence: { key: '' }
+                    }
+                })
+                .on('postgres_changes', 
+                    { 
+                        event: '*', 
+                        schema: 'public', 
+                        table: 'turnos' 
+                    },
+                    (payload) => {
+                        console.log('🔄 Cambio en turnos:', payload);
+                        if (callback && typeof callback === 'function') {
+                            callback(payload);
+                        }
+                    }
+                )
+                .subscribe((status, err) => {
+                    console.log('📡 Estado canal turnos:', status);
+                    
+                    if (status === 'SUBSCRIBED') {
+                        console.log('✅ Suscripción a turnos activada correctamente');
+                    } else if (status === 'CHANNEL_ERROR') {
+                        console.error('❌ Error en canal de turnos:', err);
+                        setTimeout(() => {
+                            console.log('🔄 Intentando reconectar turnos...');
+                            this.suscribirCambiosTurnos(callback);
+                        }, 3000);
+                    } else if (status === 'CLOSED') {
+                        console.warn('🔌 Canal de turnos cerrado');
+                    } else if (status === 'TIMED_OUT') {
+                        console.warn('⏱️ Timeout en suscripción de turnos');
+                    }
+                });
+            
+            return channel;
+        } catch (error) {
+            console.error('❌ Error al suscribirse a turnos:', error);
+            return null;
+        }
+    },
 
-suscribirCambiosHistorial(callback) {
-    if (!window.supabaseClient) {
-        console.error('❌ Supabase no está disponible');
-        return null;
-    }
-    
-    try {
-        const channel = window.supabaseClient
-            .channel('historial-changes', {
-                config: {
-                    broadcast: { self: true }
-                }
-            })
-            .on('postgres_changes', 
-                { 
-                    event: 'INSERT', 
-                    schema: 'public', 
-                    table: 'historial_turnos' 
-                },
-                (payload) => {
-                    console.log('📝 Nuevo en historial:', payload);
-                    if (callback && typeof callback === 'function') {
-                        callback(payload);
-                    }
-                }
-            )
-            .subscribe((status, err) => {
-                console.log('📡 Estado canal historial:', status);
-                
-                if (status === 'SUBSCRIBED') {
-                    console.log('✅ Suscripción a historial activada');
-                } else if (status === 'CHANNEL_ERROR') {
-                    console.error('❌ Error en canal historial:', err);
-                    setTimeout(() => {
-                        this.suscribirCambiosHistorial(callback);
-                    }, 3000);
-                }
-            });
+    suscribirCambiosHistorial(callback) {
+        if (!window.supabaseClient) {
+            console.error('❌ Supabase no está disponible');
+            return null;
+        }
         
-        return channel;
-    } catch (error) {
-        console.error('❌ Error al suscribirse a historial:', error);
-        return null;
-    }
-},
+        try {
+            const channel = window.supabaseClient
+                .channel('historial-changes', {
+                    config: {
+                        broadcast: { self: true }
+                    }
+                })
+                .on('postgres_changes', 
+                    { 
+                        event: 'INSERT', 
+                        schema: 'public', 
+                        table: 'historial_turnos' 
+                    },
+                    (payload) => {
+                        console.log('📝 Nuevo en historial:', payload);
+                        if (callback && typeof callback === 'function') {
+                            callback(payload);
+                        }
+                    }
+                )
+                .subscribe((status, err) => {
+                    console.log('📡 Estado canal historial:', status);
+                    
+                    if (status === 'SUBSCRIBED') {
+                        console.log('✅ Suscripción a historial activada');
+                    } else if (status === 'CHANNEL_ERROR') {
+                        console.error('❌ Error en canal historial:', err);
+                        setTimeout(() => {
+                            this.suscribirCambiosHistorial(callback);
+                        }, 3000);
+                    }
+                });
+            
+            return channel;
+        } catch (error) {
+            console.error('❌ Error al suscribirse a historial:', error);
+            return null;
+        }
+    },
 
     // ==========================================
-    // UTILIDADES
+    // SINCRONIZACIÓN - CORREGIDA
     // ==========================================
 
     async sincronizarTodo() {
@@ -992,25 +979,40 @@ suscribirCambiosHistorial(callback) {
         try {
             console.log('🔄 Sincronizando datos desde la nube...');
             
-            // Recargar turnos desde Supabase
-            const turnos = await this.cargarTurnos();
-            console.log(`✅ Turnos sincronizados: ${turnos.length}`);
+            // CORREGIDO: Cargar TODOS los turnos sin filtro de estado
+            const todosLosTurnos = await this.cargarTurnos();
             
-            // Recargar proveedores desde Supabase
+            // Separar por estado
+            const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera');
+            const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
+            
+            // Actualizar AppState
+            AppState.turnos = turnosEnEspera;
+            AppState.turnoActual = turnoAtendiendo || null;
+            
+            // Guardar en localStorage
+            LocalStorage.guardarTurnos(turnosEnEspera);
+            if (turnoAtendiendo) {
+                LocalStorage.guardarTurnoActual(turnoAtendiendo);
+            }
+            
+            console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total (${turnosEnEspera.length} en espera, ${turnoAtendiendo ? 1 : 0} atendiendo)`);
+            
+            // Recargar proveedores
             const proveedores = await this.cargarProveedores();
             console.log(`✅ Proveedores sincronizados: ${proveedores.length}`);
             
-            // Recargar historial desde Supabase
+            // Recargar historial
             const historial = await this.cargarHistorial();
             console.log(`✅ Historial sincronizado: ${historial.length}`);
             
-            // Recargar contador desde Supabase
+            // Recargar contador
             const contador = await this.obtenerContadorTurnos();
             console.log(`✅ Contador sincronizado: ${contador}`);
             
             return { 
                 success: true, 
-                message: `Sincronización completada: ${turnos.length} turnos, ${proveedores.length} proveedores, ${historial.length} registros de historial` 
+                message: `Sincronización completada: ${todosLosTurnos.length} turnos (${turnosEnEspera.length} espera, ${turnoAtendiendo ? 1 : 0} atendiendo), ${proveedores.length} proveedores, ${historial.length} historial` 
             };
         } catch (error) {
             console.error('❌ Error al sincronizar:', error);
@@ -1045,7 +1047,7 @@ suscribirCambiosHistorial(callback) {
 };
 
 // ============================================
-// GESTIÓN DE TURNOS
+// GESTIÓN DE TURNOS - CORREGIDO
 // ============================================
 
 const Turnos = {
@@ -1090,7 +1092,6 @@ const Turnos = {
             turno.id = turnoSupabase.id;
         }
 
-        // Verificar que no exista un turno con el mismo número antes de agregarlo
         const existeTurno = AppState.turnos.find(t => t.numero === turno.numero);
         if (!existeTurno) {
             AppState.turnos.push(turno);
@@ -1101,7 +1102,8 @@ const Turnos = {
     },
 
     async llamarSiguiente() {
-        const turnosSupabase = await SupabaseDB.cargarTurnos();
+        // CORREGIDO: Cargar turnos en espera específicamente
+        const turnosSupabase = await SupabaseDB.cargarTurnos('espera');
         if (turnosSupabase.length > 0) {
             AppState.turnos = turnosSupabase;
         }
@@ -1189,24 +1191,31 @@ const Turnos = {
 
     async cargarTurnos() {
         try {
-            const turnosSupabase = await SupabaseDB.cargarTurnos();
-            if (turnosSupabase && turnosSupabase.length > 0) {
-                // Filtrar duplicados por número de turno
-                const turnosUnicos = [];
-                const numerosVistos = new Set();
-                for (const turno of turnosSupabase) {
-                    if (!numerosVistos.has(turno.numero)) {
-                        numerosVistos.add(turno.numero);
-                        turnosUnicos.push(turno);
-                    }
+            // CORREGIDO: Cargar TODOS los turnos desde Supabase
+            const todosLosTurnos = await SupabaseDB.cargarTurnos();
+            
+            if (todosLosTurnos && todosLosTurnos.length > 0) {
+                // Separar por estado
+                const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera');
+                const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
+                
+                // Actualizar estado
+                AppState.turnos = turnosEnEspera;
+                AppState.turnoActual = turnoAtendiendo || null;
+                
+                // Guardar en localStorage
+                LocalStorage.guardarTurnos(turnosEnEspera);
+                if (turnoAtendiendo) {
+                    LocalStorage.guardarTurnoActual(turnoAtendiendo);
                 }
-                AppState.turnos = turnosUnicos;
-                LocalStorage.guardarTurnos(turnosUnicos);
+                
+                console.log(`Turnos cargados: ${todosLosTurnos.length} total (${turnosEnEspera.length} espera, ${turnoAtendiendo ? 1 : 0} atendiendo)`);
             } else {
+                // Fallback a localStorage
                 AppState.turnos = LocalStorage.obtenerTurnos();
+                AppState.turnoActual = LocalStorage.obtenerTurnoActual();
             }
             
-            AppState.turnoActual = LocalStorage.obtenerTurnoActual();
             AppState.contadorTurnos = await SupabaseDB.obtenerContadorTurnos();
         } catch (error) {
             console.error('Error al cargar turnos:', error);
@@ -1329,7 +1338,6 @@ const RenderUsuario = {
                             await Turnos.cargarTurnos();
                             this.todo();
                             
-                            // Verificar si mi turno fue llamado
                             const miTurno = LocalStorage.obtenerMiTurno();
                             if (miTurno && AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero) {
                                 ModoEspera.actualizar();
@@ -1545,7 +1553,6 @@ const UsuarioHandlers = {
             const motivoInput = document.getElementById('motivoVisita');
             const motivoPersonalizado = motivoInput ? motivoInput.value?.trim() : '';
             
-            // Usar el motivo personalizado si existe, sino usar el tipo de servicio
             const motivo = motivoPersonalizado || datosProveedor.servicio;
 
             const turno = await Turnos.solicitar(datosProveedor, motivo);
@@ -1564,7 +1571,6 @@ const UsuarioHandlers = {
 
             Utils.mostrarNotificacion(`Turno ${turno.numero} solicitado`, 'success');
             
-            // Activar modo de espera
             ModoEspera.activar(turno);
             
             e.target.reset();
@@ -1669,7 +1675,6 @@ const AdminHandlers = {
 
         const modal = document.getElementById('editarProveedorModal');
         if (!modal) {
-            // Crear modal si no existe
             const modalHTML = `
                 <div id="editarProveedorModal" class="modal">
                     <div class="modal-content">
@@ -1709,7 +1714,6 @@ const AdminHandlers = {
             `;
             document.body.insertAdjacentHTML('beforeend', modalHTML);
             
-            // Configurar evento submit
             document.getElementById('formEditarProveedor').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const proveedorId = parseInt(document.getElementById('editProveedorId').value);
@@ -1728,7 +1732,6 @@ const AdminHandlers = {
             });
         }
         
-        // Llenar formulario con datos del proveedor
         document.getElementById('editProveedorId').value = proveedor.id;
         document.getElementById('editNombreEmpresa').value = proveedor.nombreEmpresa;
         document.getElementById('editNit').value = proveedor.nit;
@@ -1919,7 +1922,6 @@ const ModoEspera = {
             waitingSection.style.display = 'block';
             this.actualizar();
             
-            // Iniciar actualización automática cada 3 segundos
             this.intervaloActualizacion = setInterval(() => {
                 this.actualizar();
             }, 3000);
@@ -1948,17 +1950,14 @@ const ModoEspera = {
         const turnoActual = AppState.turnoActual;
         const turnosEspera = AppState.turnos;
         
-        // Verificar si mi turno está siendo atendido
         if (turnoActual && turnoActual.numero === this.miTurno.numero) {
             this.mostrarNotificacionLlamado();
             return;
         }
         
-        // Calcular posición
         const posicion = turnosEspera.findIndex(t => t.numero === this.miTurno.numero) + 1;
         const tiempoEstimado = posicion > 0 ? posicion * CONFIG.TURN_TIME_ESTIMATE : 0;
         
-        // Actualizar UI
         const waitingTurnNumber = document.getElementById('waitingTurnNumber');
         const waitingTurnStatus = document.getElementById('waitingTurnStatus');
         const waitingPosition = document.getElementById('waitingPosition');
@@ -1970,7 +1969,6 @@ const ModoEspera = {
         if (waitingPosition) waitingPosition.textContent = `Posición: ${posicion > 0 ? posicion : '--'}`;
         if (waitingTime) waitingTime.textContent = `Tiempo estimado: ${tiempoEstimado > 0 ? tiempoEstimado + ' min' : '--'}`;
         
-        // Actualizar barra de progreso
         if (progressFill) {
             const totalTurnos = turnosEspera.length;
             const progreso = totalTurnos > 0 ? ((totalTurnos - posicion + 1) / totalTurnos) * 100 : 0;
@@ -1982,13 +1980,12 @@ const ModoEspera = {
         if (this.notificacionMostrada) return;
         this.notificacionMostrada = true;
         
-        // Crear notificación visual
         const notificacion = document.createElement('div');
         notificacion.className = 'turn-called-notification';
         notificacion.innerHTML = `
             <h3>
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                 </svg>
                 ¡Es tu turno!
             </h3>
@@ -2000,14 +1997,12 @@ const ModoEspera = {
         
         document.body.appendChild(notificacion);
         
-        // Reproducir sonido de notificación (si está disponible)
         try {
             const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
             audio.volume = 0.5;
             audio.play().catch(() => {});
         } catch (e) {}
         
-        // Auto-remover después de 10 segundos
         setTimeout(() => {
             if (notificacion.parentElement) {
                 notificacion.remove();
@@ -2039,6 +2034,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ConnectionStatus.actualizar('disconnected', '✗ Sin conexión');
         }
         
+        // CORREGIDO: Cargar turnos correctamente al inicio
         await Turnos.cargarTurnos();
         console.log('Datos cargados:', {
             turnos: AppState.turnos.length,
@@ -2052,19 +2048,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('logoClick').style.cursor = 'pointer';
         }
         
+        // Página de usuario (index.html)
         if (document.getElementById('formSolicitarTurno')) {
             InputConfig.configurarPlacaInput();
             InputConfig.configurarServicioSelect();
             document.getElementById('formSolicitarTurno').addEventListener('submit', UsuarioHandlers.solicitarTurno);
             RenderUsuario.todo();
             
-            // Configurar botón de cancelar turno en modo de espera
             const btnCancelarEspera = document.getElementById('btnCancelarEspera');
             if (btnCancelarEspera) {
                 btnCancelarEspera.addEventListener('click', UsuarioHandlers.cancelarTurno);
             }
             
-            // Verificar si ya hay un turno activo y activar modo de espera
             const miTurno = LocalStorage.obtenerMiTurno();
             if (miTurno) {
                 ModoEspera.activar(miTurno);
@@ -2078,6 +2073,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         
+        // Página de admin (admin.html)
         const btnLlamarTurno = document.getElementById('btnLlamarTurno');
         if (btnLlamarTurno) {
             console.log('Configurando página de administrador...');
@@ -2126,13 +2122,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             if (window.supabaseClient) {
                 console.log('Configurando suscripción a tiempo real para admin...');
-                AppState.subscription = SupabaseDB.suscribirCambios(async (payload) => {
+                AppState.subscription = SupabaseDB.suscribirCambiosTurnos(async (payload) => {
                     console.log('Actualización en tiempo real recibida:', payload);
                     try {
                         await Turnos.cargarTurnos();
                         await RenderAdmin.todo();
                         
-                        // Mostrar notificación si hay un nuevo turno
                         if (payload.eventType === 'INSERT') {
                             Utils.mostrarNotificacion(`Nuevo turno ${payload.new.numero} recibido`, 'info');
                         }
@@ -2141,7 +2136,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 });
                 
-                // Suscribirse también a cambios en historial
                 SupabaseDB.suscribirCambiosHistorial(async (payload) => {
                     console.log('Nuevo turno completado:', payload);
                     try {
