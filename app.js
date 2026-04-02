@@ -1,6 +1,6 @@
 // ============================================
 // SISTEMA DE TURNOS PROFESIONAL - ESTILO EPS
-// VERSIÓN MEJORADA - Abril 2026
+// VERSIÓN FINAL CORREGIDA - Abril 2026
 // ============================================
 
 const CONFIG = {
@@ -48,11 +48,9 @@ const SoundManager = {
     },
     
     playCallSound() {
-        // Intentar usar Web Audio API para mejor sonido
         if (this.audioContext) {
             this.playBeepSequence();
         } else {
-            // Fallback al audio simple
             this.playSimpleBeep();
         }
     },
@@ -61,19 +59,16 @@ const SoundManager = {
         const ctx = this.audioContext;
         const now = ctx.currentTime;
         
-        // Crear oscilador para tono principal
         const osc1 = ctx.createOscillator();
         const gain1 = ctx.createGain();
         
         osc1.connect(gain1);
         gain1.connect(ctx.destination);
         
-        // Configurar tono (frecuencia alta de llamada)
         osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(880, now); // La5
+        osc1.frequency.setValueAtTime(880, now);
         osc1.frequency.exponentialRampToValueAtTime(440, now + 0.1);
         
-        // Envolvente de volumen
         gain1.gain.setValueAtTime(0, now);
         gain1.gain.linearRampToValueAtTime(0.3, now + 0.05);
         gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
@@ -81,7 +76,6 @@ const SoundManager = {
         osc1.start(now);
         osc1.stop(now + 0.5);
         
-        // Segundo beep
         setTimeout(() => {
             const osc2 = ctx.createOscillator();
             const gain2 = ctx.createGain();
@@ -101,7 +95,6 @@ const SoundManager = {
             osc2.stop(ctx.currentTime + 0.5);
         }, 200);
         
-        // Tercer beep más largo
         setTimeout(() => {
             const osc3 = ctx.createOscillator();
             const gain3 = ctx.createGain();
@@ -123,7 +116,6 @@ const SoundManager = {
     },
     
     playSimpleBeep() {
-        // Fallback usando Audio element
         const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
         audio.volume = 0.5;
         audio.play().catch(() => {});
@@ -527,7 +519,7 @@ const SupabaseDB = {
             if (error) throw error;
             
             const proveedores = data.map(p => this._mapearProveedor(p));
-            AppState.proveedores = proveedores; // Guardar en estado global
+            AppState.proveedores = proveedores;
             return proveedores;
         } catch (error) {
             console.error('Error al cargar proveedores:', error);
@@ -1350,7 +1342,7 @@ const Turnos = {
 };
 
 // ============================================
-// RENDERIZADO USUARIO - CON NOTIFICACIÓN INSTANTÁNEA
+// RENDERIZADO USUARIO - CON NOTIFICACIÓN CENTRADA Y AUTO-ACTUALIZACIÓN
 // ============================================
 
 const RenderUsuario = {
@@ -1468,22 +1460,22 @@ const RenderUsuario = {
         this.turnosEnEspera();
     },
     
-    // MEJORA: Notificación instantánea cuando llaman el turno del usuario
-    verificarMiTurnoLlamado() {
+    // VERIFICACIÓN Y NOTIFICACIÓN AUTOMÁTICA DEL TURNO LLAMADO
+    verificarYNotificarTurnoLlamado() {
         const miTurno = LocalStorage.obtenerMiTurno();
         if (!miTurno) return false;
         
         const estaSiendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
         
         if (estaSiendoAtendido) {
-            // Verificar si ya mostramos la notificación
+            // Verificar si ya mostramos la notificación para este turno
             const notificacionMostrada = sessionStorage.getItem('notificacionTurno_' + miTurno.numero);
             
             if (!notificacionMostrada) {
                 // Marcar como mostrada
                 sessionStorage.setItem('notificacionTurno_' + miTurno.numero, 'true');
                 
-                // Mostrar notificación grande
+                // Mostrar notificación grande centrada
                 this.mostrarNotificacionTurnoLlamado(miTurno);
                 
                 // Reproducir sonido
@@ -1496,6 +1488,7 @@ const RenderUsuario = {
         return false;
     },
     
+    // NOTIFICACIÓN CENTRADA CORREGIDA
     mostrarNotificacionTurnoLlamado(turno) {
         // Eliminar notificación anterior si existe
         const notificacionAnterior = document.querySelector('.turn-called-notification');
@@ -1506,104 +1499,138 @@ const RenderUsuario = {
         const notificacion = document.createElement('div');
         notificacion.className = 'turn-called-notification';
         notificacion.innerHTML = `
-            <div class="notification-content">
-                <div class="notification-icon">🔔</div>
-                <h2>¡ES TU TURNO!</h2>
-                <div class="turn-number-display">${turno.numero}</div>
-                <div class="turn-company">${turno.nombreEmpresa}</div>
-                <p class="turn-message">Por favor diríjase al punto de atención</p>
-                <button class="btn btn-primary btn-large" onclick="this.closest('.turn-called-notification').remove()">
-                    Entendido
-                </button>
+            <div class="notification-overlay">
+                <div class="notification-content">
+                    <div class="notification-icon">🔔</div>
+                    <h2>¡ES TU TURNO!</h2>
+                    <div class="turn-number-display">${turno.numero}</div>
+                    <div class="turn-company">${turno.nombreEmpresa}</div>
+                    <p class="turn-message">Por favor diríjase al punto de atención</p>
+                    <button class="btn-entendido" onclick="this.closest('.turn-called-notification').remove()">
+                        Entendido
+                    </button>
+                </div>
             </div>
         `;
         
-        // Estilos inline para asegurar que se vea bien
-        notificacion.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            animation: fadeIn 0.3s ease;
+        // CSS completo para centrado absoluto
+        const style = document.createElement('style');
+        style.textContent = `
+            .turn-called-notification {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                z-index: 999999 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            
+            .notification-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.9);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                animation: fadeIn 0.3s ease;
+            }
+            
+            .notification-content {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 50px;
+                border-radius: 25px;
+                text-align: center;
+                color: white;
+                box-shadow: 0 25px 80px rgba(0,0,0,0.5);
+                max-width: 90%;
+                width: 450px;
+                animation: slideInUp 0.5s ease;
+                position: relative;
+            }
+            
+            .notification-icon {
+                font-size: 70px;
+                margin-bottom: 20px;
+                animation: bellRing 1s ease infinite;
+                display: block;
+            }
+            
+            .notification-content h2 {
+                font-size: 32px;
+                margin: 0 0 25px 0;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 3px;
+                color: white;
+            }
+            
+            .turn-number-display {
+                font-size: 85px;
+                font-weight: bold;
+                margin: 25px 0;
+                text-shadow: 4px 4px 8px rgba(0,0,0,0.4);
+                background: rgba(255,255,255,0.25);
+                padding: 25px;
+                border-radius: 20px;
+                display: inline-block;
+                min-width: 200px;
+                color: white;
+            }
+            
+            .turn-company {
+                font-size: 22px;
+                margin: 20px 0;
+                opacity: 0.95;
+                font-weight: 500;
+            }
+            
+            .turn-message {
+                font-size: 20px;
+                margin: 25px 0 35px 0;
+                opacity: 0.9;
+            }
+            
+            .btn-entendido {
+                padding: 18px 50px;
+                font-size: 20px;
+                border-radius: 35px;
+                border: none;
+                background: #fff;
+                color: #667eea;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s;
+                box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            }
+            
+            .btn-entendido:hover {
+                transform: scale(1.05);
+                box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+            }
+            
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            
+            @keyframes slideInUp {
+                from { transform: translateY(80px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+            
+            @keyframes bellRing {
+                0%, 100% { transform: rotate(0); }
+                10%, 30%, 50%, 70%, 90% { transform: rotate(15deg); }
+                20%, 40%, 60%, 80% { transform: rotate(-15deg); }
+            }
         `;
         
-        const content = notificacion.querySelector('.notification-content');
-        content.style.cssText = `
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 40px;
-            border-radius: 20px;
-            text-align: center;
-            color: white;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 90%;
-            width: 400px;
-            animation: slideInUp 0.5s ease;
-        `;
-        
-        const icon = notificacion.querySelector('.notification-icon');
-        icon.style.cssText = `
-            font-size: 60px;
-            margin-bottom: 20px;
-            animation: bellRing 1s ease infinite;
-        `;
-        
-        const title = notificacion.querySelector('h2');
-        title.style.cssText = `
-            font-size: 28px;
-            margin: 0 0 20px 0;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        `;
-        
-        const turnNumber = notificacion.querySelector('.turn-number-display');
-        turnNumber.style.cssText = `
-            font-size: 72px;
-            font-weight: bold;
-            margin: 20px 0;
-            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
-            background: rgba(255,255,255,0.2);
-            padding: 20px;
-            border-radius: 15px;
-            display: inline-block;
-        `;
-        
-        const company = notificacion.querySelector('.turn-company');
-        company.style.cssText = `
-            font-size: 20px;
-            margin: 15px 0;
-            opacity: 0.95;
-        `;
-        
-        const message = notificacion.querySelector('.turn-message');
-        message.style.cssText = `
-            font-size: 18px;
-            margin: 20px 0 30px 0;
-            opacity: 0.9;
-        `;
-        
-        const btn = notificacion.querySelector('button');
-        btn.style.cssText = `
-            padding: 15px 40px;
-            font-size: 18px;
-            border-radius: 30px;
-            border: none;
-            background: #fff;
-            color: #667eea;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
-        `;
-        
-        btn.onmouseover = () => btn.style.transform = 'scale(1.05)';
-        btn.onmouseout = () => btn.style.transform = 'scale(1)';
-        
+        document.head.appendChild(style);
         document.body.appendChild(notificacion);
         
         // Auto-cerrar después de 30 segundos
@@ -1616,6 +1643,7 @@ const RenderUsuario = {
         }, 30000);
     },
     
+    // SUSCRIPCIÓN CON AUTO-ACTUALIZACIÓN CORREGIDA
     suscribirCambios() {
         if (!window.supabaseClient) {
             console.warn('Supabase no disponible para suscripción en usuario');
@@ -1628,16 +1656,19 @@ const RenderUsuario = {
                 .on('postgres_changes', 
                     { event: '*', schema: 'public', table: 'turnos' },
                     async (payload) => {
-                        console.log('Actualización en tiempo real (usuario):', payload);
+                        console.log('🔄 Actualización en tiempo real (usuario):', payload);
                         try {
+                            // Recargar datos primero
                             await Turnos.cargarTurnos();
+                            
+                            // Actualizar interfaz
                             this.todo();
                             
-                            // MEJORA: Verificar si llamaron nuestro turno
-                            this.verificarMiTurnoLlamado();
-                            
+                            // Verificar si llamaron nuestro turno (DESPUÉS de actualizar datos)
                             const miTurno = LocalStorage.obtenerMiTurno();
                             if (miTurno && AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero) {
+                                this.verificarYNotificarTurnoLlamado();
+                                
                                 if (typeof ModoEspera !== 'undefined') {
                                     ModoEspera.actualizar();
                                 }
@@ -1650,7 +1681,7 @@ const RenderUsuario = {
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
                     async (payload) => {
-                        console.log('Nuevo turno completado detectado:', payload);
+                        console.log('📝 Nuevo turno completado detectado:', payload);
                         try {
                             await Turnos.cargarTurnos();
                             this.todo();
@@ -1669,7 +1700,7 @@ const RenderUsuario = {
                     }
                 )
                 .subscribe((status) => {
-                    console.log('Estado de suscripción (usuario):', status);
+                    console.log('📡 Estado de suscripción (usuario):', status);
                     if (status === 'SUBSCRIBED') {
                         console.log('✅ Suscripción a tiempo real activada (usuario)');
                     }
@@ -1684,7 +1715,7 @@ const RenderUsuario = {
 };
 
 // ============================================
-// RENDERIZADO ADMIN - CON EDICIÓN DE PROVEEDORES MEJORADA
+// RENDERIZADO ADMIN
 // ============================================
 
 const RenderAdmin = {
@@ -1742,7 +1773,6 @@ const RenderAdmin = {
         if (!proveedoresBody) return;
 
         try {
-            // Recargar proveedores para tener datos actualizados
             const proveedores = await SupabaseDB.cargarProveedores();
             
             if (contadorDiv) contadorDiv.textContent = proveedores.length;
@@ -1938,7 +1968,7 @@ const UsuarioHandlers = {
 };
 
 // ============================================
-// HANDLERS ADMIN - CON EDICIÓN MEJORADA
+// HANDLERS ADMIN
 // ============================================
 
 const AdminHandlers = {
@@ -1946,7 +1976,6 @@ const AdminHandlers = {
         const turno = await Turnos.llamarSiguiente();
         
         if (turno) {
-            // Reproducir sonido al llamar
             SoundManager.playCallSound();
             
             const modal = document.getElementById('turnoModal');
@@ -1998,14 +2027,11 @@ const AdminHandlers = {
         }
     },
 
-    // MEJORA: Edición de proveedores con modal funcional
     async editarProveedor(id) {
         console.log('Editando proveedor ID:', id);
         
-        // Buscar en el estado actual
         let proveedor = AppState.proveedores.find(p => p.id === id);
         
-        // Si no está en el estado, recargar
         if (!proveedor) {
             await SupabaseDB.cargarProveedores();
             proveedor = AppState.proveedores.find(p => p.id === id);
@@ -2016,7 +2042,6 @@ const AdminHandlers = {
             return;
         }
 
-        // Crear modal si no existe
         let modal = document.getElementById('editarProveedorModal');
         
         if (!modal) {
@@ -2067,7 +2092,6 @@ const AdminHandlers = {
             document.body.insertAdjacentHTML('beforeend', modalHTML);
             modal = document.getElementById('editarProveedorModal');
             
-            // Configurar evento submit del formulario
             document.getElementById('formEditarProveedor').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
@@ -2110,13 +2134,11 @@ const AdminHandlers = {
                 }
             });
             
-            // Configurar input de placa para mayúsculas
             document.getElementById('editNit').addEventListener('input', function() {
                 this.value = this.value.toUpperCase();
             });
         }
         
-        // Llenar datos del proveedor
         document.getElementById('editProveedorId').value = proveedor.id;
         document.getElementById('editNombreEmpresa').value = proveedor.nombreEmpresa || '';
         document.getElementById('editNit').value = proveedor.nit || '';
@@ -2124,7 +2146,6 @@ const AdminHandlers = {
         document.getElementById('editTelefono').value = proveedor.telefono || '';
         document.getElementById('editServicio').value = proveedor.servicio || 'entrega';
         
-        // Mostrar modal
         modal.style.display = 'flex';
     },
 
@@ -2301,7 +2322,7 @@ const ConnectionStatus = {
 };
 
 // ============================================
-// MODO DE ESPERA Y NOTIFICACIONES
+// MODO DE ESPERA
 // ============================================
 
 const ModoEspera = {
@@ -2389,12 +2410,10 @@ const ModoEspera = {
         if (this.notificacionMostrada) return;
         this.notificacionMostrada = true;
         
-        // Usar la nueva notificación mejorada
         if (typeof RenderUsuario !== 'undefined') {
             RenderUsuario.mostrarNotificacionTurnoLlamado(this.miTurno);
         }
         
-        // Reproducir sonido mejorado
         SoundManager.playCallSound();
     }
 };
@@ -2404,9 +2423,8 @@ const ModoEspera = {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Sistema de Turnos cargado - Versión Mejorada');
+    console.log('Sistema de Turnos cargado - Versión Final');
     
-    // Inicializar sistema de sonido
     SoundManager.init();
     
     try {
@@ -2459,9 +2477,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (enCola || siendoAtendido) {
                     ModoEspera.activar(miTurno);
                     
-                    // Verificar si ya está siendo atendido (recarga de página)
+                    // Si ya está siendo atendido, mostrar notificación inmediatamente
                     if (siendoAtendido) {
-                        RenderUsuario.verificarMiTurnoLlamado();
+                        setTimeout(() => {
+                            RenderUsuario.verificarYNotificarTurnoLlamado();
+                        }, 1000);
                     }
                 } else {
                     console.log('Turno guardado ya no existe en el sistema, limpiando...');
@@ -2518,7 +2538,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Renderizando admin...');
             await RenderAdmin.todo();
             
-            // Actualizar historial y estadísticas cada 5 segundos
             setInterval(async () => {
                 await RenderAdmin.historial();
                 await RenderAdmin.estadisticas();
