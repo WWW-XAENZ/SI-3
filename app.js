@@ -1,2563 +1,2387 @@
-// ============================================
-// SISTEMA DE TURNOS PROFESIONAL - ESTILO EPS
-// VERSIÓN MEJORADA - Abril 2026
-// ============================================
-
-const CONFIG = {
-    ADMIN_PASSWORD: '12345',
-    LOGO_CLICKS_REQUIRED: 5,
-    LOGO_CLICK_TIMEOUT: 2000,
-    TURN_TIME_ESTIMATE: 5,
-    SYNC_INTERVAL: 10000,
-    MAX_RETRY_ATTEMPTS: 3,
-    RETRY_DELAY: 2000,
-    MAX_HISTORIAL: 200,
-    MAX_PROVEEDORES: 500
-};
-
-const AppState = {
-    turnos: [],
-    turnoActual: null,
-    contadorTurnos: parseInt(localStorage.getItem('contadorTurnos')) || 0,
-    isLoading: false,
-    subscription: null,
-    lastSync: null,
-    syncInProgress: false,
-    proveedores: [],
-    historial: []
-};
-
-let logoClickCount = 0;
-let logoClickTimer = null;
-let syncInterval = null;
-
-// ============================================
-// SONIDO DE LLAMADO - MEJORADO
-// ============================================
-
-const SoundManager = {
-    audioContext: null,
-    
-    init() {
-        try {
-            window.AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.audioContext = new AudioContext();
-        } catch (e) {
-            console.warn('Web Audio API no soportada');
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Turnos Profesional</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #3b82f6;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
-    },
-    
-    playCallSound() {
-        // Intentar usar Web Audio API para mejor sonido
-        if (this.audioContext) {
-            this.playBeepSequence();
-        } else {
-            // Fallback al audio simple
-            this.playSimpleBeep();
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-    },
-    
-    playBeepSequence() {
-        const ctx = this.audioContext;
-        const now = ctx.currentTime;
-        
-        // Crear oscilador para tono principal
-        const osc1 = ctx.createOscillator();
-        const gain1 = ctx.createGain();
-        
-        osc1.connect(gain1);
-        gain1.connect(ctx.destination);
-        
-        // Configurar tono (frecuencia alta de llamada)
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(880, now); // La5
-        osc1.frequency.exponentialRampToValueAtTime(440, now + 0.1);
-        
-        // Envolvente de volumen
-        gain1.gain.setValueAtTime(0, now);
-        gain1.gain.linearRampToValueAtTime(0.3, now + 0.05);
-        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-        
-        osc1.start(now);
-        osc1.stop(now + 0.5);
-        
-        // Segundo beep
-        setTimeout(() => {
-            const osc2 = ctx.createOscillator();
-            const gain2 = ctx.createGain();
-            
-            osc2.connect(gain2);
-            gain2.connect(ctx.destination);
-            
-            osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(880, ctx.currentTime);
-            osc2.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
-            
-            gain2.gain.setValueAtTime(0, ctx.currentTime);
-            gain2.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
-            gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-            
-            osc2.start();
-            osc2.stop(ctx.currentTime + 0.5);
-        }, 200);
-        
-        // Tercer beep más largo
-        setTimeout(() => {
-            const osc3 = ctx.createOscillator();
-            const gain3 = ctx.createGain();
-            
-            osc3.connect(gain3);
-            gain3.connect(ctx.destination);
-            
-            osc3.type = 'sine';
-            osc3.frequency.setValueAtTime(880, ctx.currentTime);
-            osc3.frequency.exponentialRampToValueAtTime(220, ctx.currentTime + 0.3);
-            
-            gain3.gain.setValueAtTime(0, ctx.currentTime);
-            gain3.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.1);
-            gain3.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
-            
-            osc3.start();
-            osc3.stop(ctx.currentTime + 0.8);
-        }, 400);
-    },
-    
-    playSimpleBeep() {
-        // Fallback usando Audio element
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
-        audio.volume = 0.5;
-        audio.play().catch(() => {});
-    }
-};
 
-// ============================================
-// UTILIDADES
-// ============================================
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: var(--gray-800);
+        }
 
-const Utils = {
-    generarNumeroTurno() {
-        AppState.contadorTurnos++;
-        localStorage.setItem('contadorTurnos', AppState.contadorTurnos.toString());
-        return 'T' + AppState.contadorTurnos.toString().padStart(3, '0');
-    },
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
 
-    obtenerHoraActual() {
-        const ahora = new Date();
-        return ahora.toLocaleTimeString('es-ES', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            second: '2-digit'
-        });
-    },
+        /* Header */
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
-    obtenerFechaActual() {
-        return new Date().toISOString().split('T')[0];
-    },
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            user-select: none;
+        }
 
-    obtenerFechaHoraCompleta() {
-        return new Date().toLocaleString('es-ES', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-        });
-    },
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
 
-    mostrarNotificacion(mensaje, tipo = 'info') {
-        const notificacionesAnteriores = document.querySelectorAll('.notificacion');
-        notificacionesAnteriores.forEach(n => n.remove());
-        
-        const notificacion = document.createElement('div');
-        notificacion.className = `notificacion notificacion-${tipo}`;
-        notificacion.innerHTML = `
-            <span class="notificacion-mensaje">${mensaje}</span>
-            <button class="notificacion-cerrar">&times;</button>
-        `;
+        .logo-text h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--gray-900);
+        }
 
-        Object.assign(notificacion.style, {
-            position: 'fixed',
-            top: '20px',
-            right: '20px',
-            padding: '16px 24px',
-            borderRadius: '8px',
-            backgroundColor: tipo === 'success' ? '#10b981' : tipo === 'error' ? '#ef4444' : '#3b82f6',
-            color: 'white',
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-            zIndex: '9999',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            maxWidth: '400px',
-            animation: 'slideIn 0.3s ease'
-        });
+        .logo-text p {
+            font-size: 14px;
+            color: var(--gray-500);
+        }
 
-        document.body.appendChild(notificacion);
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
 
-        const btnCerrar = notificacion.querySelector('.notificacion-cerrar');
-        btnCerrar.style.cssText = 'background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 0; margin-left: auto;';
-        btnCerrar.onclick = () => notificacion.remove();
+        .connection-status.connected {
+            background: #d1fae5;
+            color: #065f46;
+        }
 
-        setTimeout(() => notificacion.remove(), 4000);
-    },
+        .connection-status.disconnected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
 
-    setLoading(isLoading) {
-        AppState.isLoading = isLoading;
-        const buttons = document.querySelectorAll('.btn, button[type="submit"]');
-        buttons.forEach(btn => {
-            btn.disabled = isLoading;
-            if (isLoading) {
-                btn.dataset.originalText = btn.textContent;
-                btn.textContent = 'Procesando...';
-            } else if (btn.dataset.originalText) {
-                btn.textContent = btn.dataset.originalText;
-            }
-        });
-    },
+        /* Grid Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
 
-    async reintentarOperacion(operacion, maxIntentos = CONFIG.MAX_RETRY_ATTEMPTS) {
-        for (let intento = 1; intento <= maxIntentos; intento++) {
-            try {
-                return await operacion();
-            } catch (error) {
-                console.error(`Intento ${intento}/${maxIntentos} falló:`, error.message);
-                if (intento === maxIntentos) {
-                    throw error;
-                }
-                await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY));
+        @media (max-width: 968px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
             }
         }
-    },
 
-    formatearFecha(fechaISO) {
-        if (!fechaISO) return 'N/A';
-        const fecha = new Date(fechaISO);
-        return fecha.toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-        });
-    },
-
-    formatearHora(hora) {
-        return hora || 'N/A';
-    }
-};
-
-// ============================================
-// ALMACENAMIENTO LOCAL
-// ============================================
-
-const LocalStorage = {
-    guardarTurnos(turnos) {
-        localStorage.setItem('turnos', JSON.stringify(turnos));
-    },
-
-    obtenerTurnos() {
-        return JSON.parse(localStorage.getItem('turnos') || '[]');
-    },
-
-    guardarTurnoActual(turno) {
-        localStorage.setItem('turnoActual', JSON.stringify(turno));
-    },
-
-    obtenerTurnoActual() {
-        const turno = localStorage.getItem('turnoActual');
-        return turno && turno !== 'null' ? JSON.parse(turno) : null;
-    },
-
-    guardarProveedores(proveedores) {
-        localStorage.setItem('proveedores', JSON.stringify(proveedores));
-    },
-
-    obtenerProveedores() {
-        return JSON.parse(localStorage.getItem('proveedores') || '[]');
-    },
-
-    guardarHistorial(historial) {
-        localStorage.setItem('historial_turnos', JSON.stringify(historial));
-    },
-
-    obtenerHistorial() {
-        return JSON.parse(localStorage.getItem('historial_turnos') || '[]');
-    },
-
-    guardarContador(contador) {
-        localStorage.setItem('contadorTurnos', contador.toString());
-    },
-
-    obtenerContador() {
-        return parseInt(localStorage.getItem('contadorTurnos')) || 0;
-    },
-
-    guardarMiTurno(turno) {
-        localStorage.setItem('miTurnoActual', JSON.stringify(turno));
-    },
-
-    obtenerMiTurno() {
-        const turno = localStorage.getItem('miTurnoActual');
-        return turno && turno !== 'null' ? JSON.parse(turno) : null;
-    },
-
-    eliminarMiTurno() {
-        localStorage.removeItem('miTurnoActual');
-    }
-};
-
-// ============================================
-// BASE DE DATOS SUPABASE
-// ============================================
-
-const SupabaseDB = {
-    async verificarConexion() {
-        if (!window.supabaseClient) {
-            console.warn('Supabase no está inicializado');
-            return false;
-        }
-        
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('configuracion')
-                .select('*')
-                .limit(1);
-            
-            if (error) {
-                console.warn('Error al conectar con Supabase:', error.message);
-                return false;
-            }
-            
-            console.log('✅ Conexión con Supabase exitosa');
-            return true;
-        } catch (error) {
-            console.warn('Error de conexión:', error.message);
-            return false;
-        }
-    },
-
-    async obtenerContadorTurnos() {
-        const contadorLocal = LocalStorage.obtenerContador();
-        
-        if (!window.supabaseClient) {
-            return contadorLocal;
-        }
-        
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('configuracion')
-                .select('valor')
-                .eq('clave', 'contador_turnos')
-                .single();
-            
-            if (error) {
-                if (error.code === 'PGRST116') {
-                    await window.supabaseClient
-                        .from('configuracion')
-                        .insert({ 
-                            clave: 'contador_turnos', 
-                            valor: contadorLocal.toString(), 
-                            descripcion: 'Contador global de turnos' 
-                        });
-                    return contadorLocal;
-                }
-                console.warn('Error al obtener contador de Supabase, usando local:', error.message);
-                return contadorLocal;
-            }
-            
-            const contadorSupabase = data ? parseInt(data.valor) : 0;
-            return Math.max(contadorLocal, contadorSupabase);
-        } catch (error) {
-            console.warn('Error al obtener contador, usando local:', error.message);
-            return contadorLocal;
-        }
-    },
-
-    async incrementarContadorTurnos() {
-        const contadorLocal = LocalStorage.obtenerContador();
-        const nuevoContador = contadorLocal + 1;
-        LocalStorage.guardarContador(nuevoContador);
-        
-        if (!window.supabaseClient) {
-            return nuevoContador;
-        }
-        
-        try {
-            const { error } = await window.supabaseClient
-                .from('configuracion')
-                .upsert({ 
-                    clave: 'contador_turnos', 
-                    valor: nuevoContador.toString(),
-                    descripcion: 'Contador global de turnos',
-                    updated_at: new Date().toISOString()
-                });
-            
-            if (error) {
-                console.warn('Error al actualizar contador en Supabase, pero local ya se actualizó:', error.message);
-            }
-            
-            return nuevoContador;
-        } catch (error) {
-            console.warn('Error al actualizar contador en Supabase, pero local ya se actualizó:', error.message);
-            return nuevoContador;
-        }
-    },
-
-    async guardarProveedor(proveedor) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return null;
-        }
-        
-        try {
-            const proveedorData = {
-                nombre_empresa: proveedor.nombreEmpresa,
-                nit: proveedor.nit,
-                contacto: proveedor.contacto || null,
-                telefono: proveedor.telefono || null,
-                servicio: proveedor.servicio || null,
-                activo: true,
-                updated_at: new Date().toISOString()
-            };
-            
-            if (proveedor.id) {
-                const { data, error } = await window.supabaseClient
-                    .from('proveedores')
-                    .update(proveedorData)
-                    .eq('id', proveedor.id)
-                    .select()
-                    .single();
-                
-                if (error) throw error;
-                return this._mapearProveedor(data);
-            } else {
-                const { data, error } = await window.supabaseClient
-                    .from('proveedores')
-                    .insert(proveedorData)
-                    .select()
-                    .single();
-                
-                if (error) {
-                    if (error.code === '23505') {
-                        const { data: updateData, error: updateError } = await window.supabaseClient
-                            .from('proveedores')
-                            .update(proveedorData)
-                            .eq('nit', proveedor.nit)
-                            .select()
-                            .single();
-                        
-                        if (updateError) throw updateError;
-                        return this._mapearProveedor(updateData);
-                    }
-                    throw error;
-                }
-                
-                return this._mapearProveedor(data);
-            }
-        } catch (error) {
-            console.error('Error al guardar proveedor:', error);
-            return null;
-        }
-    },
-
-    async actualizarProveedor(proveedorId, datos) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const datosActualizados = {
-                nombre_empresa: datos.nombreEmpresa,
-                nit: datos.nit,
-                contacto: datos.contacto || null,
-                telefono: datos.telefono || null,
-                servicio: datos.servicio || null,
-                updated_at: new Date().toISOString()
-            };
-            
-            const { error } = await window.supabaseClient
-                .from('proveedores')
-                .update(datosActualizados)
-                .eq('id', proveedorId);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Error al actualizar proveedor:', error);
-            return false;
-        }
-    },
-
-    async eliminarProveedor(proveedorId) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const { error } = await window.supabaseClient
-                .from('proveedores')
-                .update({ 
-                    activo: false,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', proveedorId);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Error al eliminar proveedor:', error);
-            return false;
-        }
-    },
-
-    async cargarProveedores() {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return [];
-        }
-        
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('proveedores')
-                .select('*')
-                .eq('activo', true)
-                .order('nombre_empresa', { ascending: true });
-            
-            if (error) throw error;
-            
-            const proveedores = data.map(p => this._mapearProveedor(p));
-            AppState.proveedores = proveedores; // Guardar en estado global
-            return proveedores;
-        } catch (error) {
-            console.error('Error al cargar proveedores:', error);
-            return [];
-        }
-    },
-
-    async buscarProveedorPorNit(nit) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return null;
-        }
-        
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('proveedores')
-                .select('*')
-                .eq('nit', nit)
-                .eq('activo', true)
-                .single();
-            
-            if (error) {
-                if (error.code === 'PGRST116') return null;
-                throw error;
-            }
-            
-            return this._mapearProveedor(data);
-        } catch (error) {
-            console.error('Error al buscar proveedor:', error);
-            return null;
-        }
-    },
-
-    _mapearProveedor(p) {
-        return {
-            id: p.id,
-            nombreEmpresa: p.nombre_empresa,
-            nit: p.nit,
-            contacto: p.contacto,
-            telefono: p.telefono,
-            servicio: p.servicio,
-            activo: p.activo,
-            createdAt: p.created_at,
-            updatedAt: p.updated_at
-        };
-    },
-
-    async guardarTurno(turno) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return null;
-        }
-        
-        try {
-            const turnoData = {
-                numero: turno.numero,
-                nombre_empresa: turno.nombreEmpresa,
-                nit: turno.nit,
-                motivo: turno.motivo || '',
-                hora_solicitud: turno.horaSolicitud,
-                fecha_solicitud: turno.fechaSolicitud || new Date().toISOString(),
-                estado: turno.estado || 'espera'
-            };
-            
-            const { data, error } = await window.supabaseClient
-                .from('turnos')
-                .insert([turnoData])
-                .select()
-                .single();
-            
-            if (error) throw error;
-            
-            return this._mapearTurno(data);
-        } catch (error) {
-            console.error('Error al guardar turno:', error);
-            return null;
-        }
-    },
-
-    async cargarTurnos(estado = null) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return [];
-        }
-        
-        try {
-            let query = window.supabaseClient
-                .from('turnos')
-                .select('*')
-                .order('fecha_solicitud', { ascending: true });
-            
-            if (estado) {
-                query = query.eq('estado', estado);
-            }
-            
-            const { data, error } = await query;
-            
-            if (error) throw error;
-            
-            return data.map(t => this._mapearTurno(t));
-        } catch (error) {
-            console.error('Error al cargar turnos:', error);
-            return [];
-        }
-    },
-
-    async actualizarTurno(turnoId, datos) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const datosActualizados = {
-                ...datos,
-                updated_at: new Date().toISOString()
-            };
-            
-            const { error } = await window.supabaseClient
-                .from('turnos')
-                .update(datosActualizados)
-                .eq('id', turnoId);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Error al actualizar turno:', error);
-            return false;
-        }
-    },
-
-    async eliminarTurno(turnoId) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const { error } = await window.supabaseClient
-                .from('turnos')
-                .delete()
-                .eq('id', turnoId);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Error al eliminar turno:', error);
-            return false;
-        }
-    },
-
-    async llamarTurno(turnoId) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return null;
-        }
-        
-        try {
-            const horaLlamada = new Date().toLocaleTimeString('es-CO', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: false 
-            });
-            
-            const { data, error } = await window.supabaseClient
-                .from('turnos')
-                .update({ 
-                    estado: 'atendiendo',
-                    hora_llamada: horaLlamada,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', turnoId)
-                .select()
-                .single();
-            
-            if (error) throw error;
-            
-            return this._mapearTurno(data);
-        } catch (error) {
-            console.error('Error al llamar turno:', error);
-            return null;
-        }
-    },
-
-    async completarTurno(turnoId) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const { data: turno, error: errorGet } = await window.supabaseClient
-                .from('turnos')
-                .select('*')
-                .eq('id', turnoId)
-                .single();
-            
-            if (errorGet) throw errorGet;
-            
-            await this.guardarEnHistorial(this._mapearTurno(turno));
-            
-            const { error } = await window.supabaseClient
-                .from('turnos')
-                .delete()
-                .eq('id', turnoId);
-            
-            if (error) throw error;
-            
-            return true;
-        } catch (error) {
-            console.error('Error al completar turno:', error);
-            return false;
-        }
-    },
-
-    async cancelarTurno(turnoId) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const { error } = await window.supabaseClient
-                .from('turnos')
-                .update({ 
-                    estado: 'cancelado',
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', turnoId);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Error al cancelar turno:', error);
-            return false;
-        }
-    },
-
-    _mapearTurno(t) {
-        return {
-            id: t.id,
-            numero: t.numero,
-            nombreEmpresa: t.nombre_empresa,
-            nit: t.nit,
-            motivo: t.motivo,
-            horaSolicitud: t.hora_solicitud,
-            horaLlamada: t.hora_llamada,
-            fechaSolicitud: t.fecha_solicitud,
-            estado: t.estado,
-            createdAt: t.created_at,
-            updatedAt: t.updated_at
-        };
-    },
-
-    async guardarEnHistorial(turno) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const horaFinalizacion = new Date().toLocaleTimeString('es-CO', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: false 
-            });
-            
-            const historialData = {
-                numero: turno.numero,
-                nombre_empresa: turno.nombreEmpresa,
-                nit: turno.nit,
-                motivo: turno.motivo || '',
-                hora_solicitud: turno.horaSolicitud,
-                hora_llamada: turno.horaLlamada || null,
-                hora_finalizacion: horaFinalizacion,
-                estado: 'completado',
-                fecha: new Date().toISOString()
-            };
-            
-            const { error } = await window.supabaseClient
-                .from('historial_turnos')
-                .insert([historialData]);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Error al guardar en historial:', error);
-            return false;
-        }
-    },
-
-    async cargarHistorial(limite = 100) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return [];
-        }
-        
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('historial_turnos')
-                .select('*')
-                .order('fecha', { ascending: false })
-                .limit(limite);
-            
-            if (error) throw error;
-            
-            return data.map(h => this._mapearHistorial(h));
-        } catch (error) {
-            console.error('Error al cargar historial:', error);
-            return [];
-        }
-    },
-
-    async cargarHistorialHoy() {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return [];
-        }
-        
-        try {
-            const hoy = new Date().toISOString().split('T')[0];
-            
-            const { data, error } = await window.supabaseClient
-                .from('historial_turnos')
-                .select('*')
-                .gte('fecha', `${hoy}T00:00:00`)
-                .lte('fecha', `${hoy}T23:59:59`)
-                .order('fecha', { ascending: false });
-            
-            if (error) throw error;
-            
-            return data.map(h => this._mapearHistorial(h));
-        } catch (error) {
-            console.error('Error al cargar historial de hoy:', error);
-            return [];
-        }
-    },
-
-    _mapearHistorial(h) {
-        return {
-            id: h.id,
-            numero: h.numero,
-            nombreEmpresa: h.nombre_empresa,
-            nit: h.nit,
-            motivo: h.motivo,
-            horaSolicitud: h.hora_solicitud,
-            horaLlamada: h.hora_llamada,
-            horaFinalizacion: h.hora_finalizacion,
-            estado: h.estado,
-            fecha: h.fecha,
-            createdAt: h.created_at
-        };
-    },
-
-    async cargarEstadisticas() {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return {
-                totalTurnos: 0,
-                turnosEspera: 0,
-                turnosAtendiendo: 0,
-                totalProveedores: 0,
-                promedioEspera: 0
-            };
-        }
-        
-        try {
-            const hoy = new Date().toISOString().split('T')[0];
-            
-            const [
-                { count: totalTurnosHoy, error: error1 },
-                { count: turnosEspera, error: error2 },
-                { count: turnosAtendiendo, error: error3 },
-                { count: totalProveedores, error: error4 }
-            ] = await Promise.all([
-                window.supabaseClient
-                    .from('historial_turnos')
-                    .select('*', { count: 'exact', head: true })
-                    .gte('fecha', `${hoy}T00:00:00`),
-                
-                window.supabaseClient
-                    .from('turnos')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('estado', 'espera'),
-                
-                window.supabaseClient
-                    .from('turnos')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('estado', 'atendiendo'),
-                
-                window.supabaseClient
-                    .from('proveedores')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('activo', true)
-            ]);
-
-            if (error1) throw error1;
-            if (error2) throw error2;
-            if (error3) throw error3;
-            if (error4) throw error4;
-
-            return {
-                totalTurnos: totalTurnosHoy || 0,
-                turnosEspera: turnosEspera || 0,
-                turnosAtendiendo: turnosAtendiendo || 0,
-                totalProveedores: totalProveedores || 0
-            };
-        } catch (error) {
-            console.error('Error al cargar estadísticas:', error);
-            return {
-                totalTurnos: 0,
-                turnosEspera: 0,
-                turnosAtendiendo: 0,
-                totalProveedores: 0
-            };
-        }
-    },
-
-    suscribirCambiosTurnos(callback) {
-        if (!window.supabaseClient) {
-            console.error('❌ Supabase no está disponible');
-            return null;
-        }
-        
-        try {
-            const channel = window.supabaseClient
-                .channel('turnos-changes', {
-                    config: {
-                        broadcast: { self: true },
-                        presence: { key: '' }
-                    }
-                })
-                .on('postgres_changes', 
-                    { 
-                        event: '*', 
-                        schema: 'public', 
-                        table: 'turnos' 
-                    },
-                    (payload) => {
-                        console.log('🔄 Cambio en turnos:', payload);
-                        if (callback && typeof callback === 'function') {
-                            callback(payload);
-                        }
-                    }
-                )
-                .subscribe((status, err) => {
-                    console.log('📡 Estado canal turnos:', status);
-                    
-                    if (status === 'SUBSCRIBED') {
-                        console.log('✅ Suscripción a turnos activada correctamente');
-                    } else if (status === 'CHANNEL_ERROR') {
-                        console.error('❌ Error en canal de turnos:', err);
-                        setTimeout(() => {
-                            console.log('🔄 Intentando reconectar turnos...');
-                            this.suscribirCambiosTurnos(callback);
-                        }, 3000);
-                    } else if (status === 'CLOSED') {
-                        console.warn('🔌 Canal de turnos cerrado');
-                    } else if (status === 'TIMED_OUT') {
-                        console.warn('⏱️ Timeout en suscripción de turnos');
-                    }
-                });
-            
-            return channel;
-        } catch (error) {
-            console.error('❌ Error al suscribirse a turnos:', error);
-            return null;
-        }
-    },
-
-    suscribirCambiosHistorial(callback) {
-        if (!window.supabaseClient) {
-            console.error('❌ Supabase no está disponible');
-            return null;
-        }
-        
-        try {
-            const channel = window.supabaseClient
-                .channel('historial-changes', {
-                    config: {
-                        broadcast: { self: true }
-                    }
-                })
-                .on('postgres_changes', 
-                    { 
-                        event: 'INSERT', 
-                        schema: 'public', 
-                        table: 'historial_turnos' 
-                    },
-                    (payload) => {
-                        console.log('📝 Nuevo en historial:', payload);
-                        if (callback && typeof callback === 'function') {
-                            callback(payload);
-                        }
-                    }
-                )
-                .subscribe((status, err) => {
-                    console.log('📡 Estado canal historial:', status);
-                    
-                    if (status === 'SUBSCRIBED') {
-                        console.log('✅ Suscripción a historial activada');
-                    } else if (status === 'CHANNEL_ERROR') {
-                        console.error('❌ Error en canal historial:', err);
-                        setTimeout(() => {
-                            this.suscribirCambiosHistorial(callback);
-                        }, 3000);
-                    }
-                });
-            
-            return channel;
-        } catch (error) {
-            console.error('❌ Error al suscribirse a historial:', error);
-            return null;
-        }
-    },
-
-    async sincronizarTodo() {
-        if (!window.supabaseClient) {
-            return { success: false, message: 'Supabase no está configurado' };
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow-lg);
+            transition: transform 0.2s, box-shadow 0.2s;
         }
 
-        try {
-            console.log('🔄 Sincronizando datos desde la nube...');
-            
-            const todosLosTurnos = await this.cargarTurnos();
-            
-            const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera');
-            const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
-            
-            AppState.turnos = turnosEnEspera;
-            AppState.turnoActual = turnoAtendiendo || null;
-            
-            LocalStorage.guardarTurnos(turnosEnEspera);
-            if (turnoAtendiendo) {
-                LocalStorage.guardarTurnoActual(turnoAtendiendo);
-            }
-            
-            console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total (${turnosEnEspera.length} en espera, ${turnoAtendiendo ? 1 : 0} atendiendo)`);
-            
-            const proveedores = await this.cargarProveedores();
-            console.log(`✅ Proveedores sincronizados: ${proveedores.length}`);
-            
-            const historial = await this.cargarHistorial();
-            console.log(`✅ Historial sincronizado: ${historial.length}`);
-            
-            const contador = await this.obtenerContadorTurnos();
-            console.log(`✅ Contador sincronizado: ${contador}`);
-            
-            return { 
-                success: true, 
-                message: `Sincronización completada: ${todosLosTurnos.length} turnos (${turnosEnEspera.length} espera, ${turnoAtendiendo ? 1 : 0} atendiendo), ${proveedores.length} proveedores, ${historial.length} historial` 
-            };
-        } catch (error) {
-            console.error('❌ Error al sincronizar:', error);
-            return { success: false, message: error.message };
-        }
-    },
-
-    async limpiarDatosAntiguos(dias = 30) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const fechaLimite = new Date();
-            fechaLimite.setDate(fechaLimite.getDate() - dias);
-            
-            const { error } = await window.supabaseClient
-                .from('historial_turnos')
-                .delete()
-                .lt('fecha', fechaLimite.toISOString());
-            
-            if (error) throw error;
-            
-            console.log(`🧹 Datos antiguos eliminados (> ${dias} días)`);
-            return true;
-        } catch (error) {
-            console.error('Error al limpiar datos:', error);
-            return false;
-        }
-    }
-};
-
-// ============================================
-// GESTIÓN DE TURNOS
-// ============================================
-
-const Turnos = {
-    async solicitar(datosProveedor, motivo = '') {
-        console.log('=== CREANDO TURNO ===');
-        
-        if (!datosProveedor.nit) {
-            throw new Error('La placa es requerida');
-        }
-        
-        const placa = datosProveedor.nit.toUpperCase().trim();
-        
-        if (placa.length !== 6) {
-            throw new Error('La placa debe tener exactamente 6 caracteres');
-        }
-        
-        if (!datosProveedor.nombreEmpresa || datosProveedor.nombreEmpresa.trim() === '') {
-            throw new Error('El nombre de la empresa es requerido');
-        }
-        
-        datosProveedor.nit = placa;
-        datosProveedor.nombreEmpresa = datosProveedor.nombreEmpresa.trim();
-
-        await SupabaseDB.guardarProveedor(datosProveedor);
-
-        let nuevoContador;
-        try {
-            nuevoContador = await SupabaseDB.incrementarContadorTurnos();
-        } catch (error) {
-            console.error('Error al incrementar contador:', error);
-            AppState.contadorTurnos++;
-            nuevoContador = AppState.contadorTurnos;
-            LocalStorage.guardarContador(nuevoContador);
-        }
-        
-        const numeroTurno = 'T' + nuevoContador.toString().padStart(3, '0');
-        console.log('Nuevo número de turno:', numeroTurno);
-        
-        const turno = {
-            numero: numeroTurno,
-            nombreEmpresa: datosProveedor.nombreEmpresa,
-            nit: placa,
-            contacto: datosProveedor.contacto,
-            telefono: datosProveedor.telefono,
-            servicio: datosProveedor.servicio,
-            motivo: motivo || '',
-            horaSolicitud: Utils.obtenerHoraActual(),
-            fechaSolicitud: new Date().toISOString(),
-            estado: 'espera'
-        };
-
-        const turnoSupabase = await SupabaseDB.guardarTurno(turno);
-        
-        if (turnoSupabase && turnoSupabase.id) {
-            turno.id = turnoSupabase.id;
-            console.log('Turno guardado en Supabase con ID:', turno.id);
-        } else {
-            turno.id = Date.now();
-            console.warn('Turno guardado localmente con ID:', turno.id);
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-xl);
         }
 
-        const existeTurno = AppState.turnos.find(t => t.numero === turno.numero);
-        if (!existeTurno) {
-            AppState.turnos.push(turno);
-            LocalStorage.guardarTurnos(AppState.turnos);
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--gray-100);
         }
-        
-        console.log('✅ Turno creado exitosamente:', turno.numero);
-        return turno;
-    },
 
-    async llamarSiguiente() {
-        console.log('=== LLAMANDO SIGUIENTE TURNO ===');
-        
-        if (AppState.turnoActual) {
-            Utils.mostrarNotificacion(`Hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
-            return null;
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        
-        const todosLosTurnos = await SupabaseDB.cargarTurnos('espera');
-        console.log('Turnos en espera cargados:', todosLosTurnos.length);
-        
-        if (!todosLosTurnos || todosLosTurnos.length === 0) {
-            Utils.mostrarNotificacion('No hay turnos en espera', 'error');
-            return null;
+
+        .card-icon.primary { background: #dbeafe; color: var(--primary); }
+        .card-icon.success { background: #d1fae5; color: var(--success); }
+        .card-icon.warning { background: #fef3c7; color: var(--warning); }
+        .card-icon.info { background: #dbeafe; color: var(--info); }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--gray-900);
         }
-        
-        todosLosTurnos.sort((a, b) => {
-            const fechaA = new Date(a.fechaSolicitud || a.fecha_solicitud || 0);
-            const fechaB = new Date(b.fechaSolicitud || b.fecha_solicitud || 0);
-            return fechaA - fechaB;
-        });
-        
-        const siguiente = todosLosTurnos[0];
-        console.log('Turno seleccionado:', siguiente);
-        
-        const horaLlamada = Utils.obtenerHoraActual();
-        const actualizado = await SupabaseDB.llamarTurno(siguiente.id);
-        
-        if (!actualizado) {
-            Utils.mostrarNotificacion('Error al llamar turno en la base de datos', 'error');
-            return null;
+
+        /* Current Turn Display */
+        .current-turn-display {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
         }
-        
-        siguiente.estado = 'atendiendo';
-        siguiente.horaLlamada = horaLlamada;
-        
-        AppState.turnoActual = siguiente;
-        AppState.turnos = todosLosTurnos.filter(t => t.id !== siguiente.id);
-        
-        LocalStorage.guardarTurnoActual(AppState.turnoActual);
-        LocalStorage.guardarTurnos(AppState.turnos);
-        
-        console.log('✅ Turno llamado exitosamente:', siguiente.numero);
-        return siguiente;
-    },
 
-    async cancelar(turnoId) {
-        try {
-            await SupabaseDB.eliminarTurno(turnoId);
-            AppState.turnos = AppState.turnos.filter(t => t.id !== turnoId);
-            LocalStorage.guardarTurnos(AppState.turnos);
-            return true;
-        } catch (error) {
-            console.error('Error al cancelar turno:', error);
-            return false;
+        .current-turn-display::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            opacity: 0.3;
         }
-    },
 
-    async completarTurnoActual() {
-        if (!AppState.turnoActual) {
-            Utils.mostrarNotificacion('No hay turno en atención', 'error');
-            return false;
+        .current-turn-label {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
-        
-        const turnoCompletado = { ...AppState.turnoActual };
-        console.log('Completando turno:', turnoCompletado.numero);
-        
-        try {
-            const historialGuardado = await SupabaseDB.guardarEnHistorial(turnoCompletado);
-            if (!historialGuardado) {
-                console.warn('No se pudo guardar en historial, continuando...');
-            }
-            
-            const eliminado = await SupabaseDB.eliminarTurno(turnoCompletado.id);
-            if (!eliminado) {
-                throw new Error('No se pudo eliminar el turno de la base de datos');
-            }
-            
-            const miTurno = LocalStorage.obtenerMiTurno();
-            if (miTurno && miTurno.numero === turnoCompletado.numero) {
-                LocalStorage.eliminarMiTurno();
-                if (typeof ModoEspera !== 'undefined') {
-                    ModoEspera.desactivar();
-                }
-            }
-            
-            AppState.turnoActual = null;
-            LocalStorage.guardarTurnoActual(null);
-            
-            console.log('✅ Turno completado exitosamente');
-            return true;
-            
-        } catch (error) {
-            console.error('❌ Error al completar turno:', error);
-            Utils.mostrarNotificacion('Error al completar turno: ' + error.message, 'error');
-            return false;
+
+        .current-turn-number {
+            font-size: 72px;
+            font-weight: 800;
+            line-height: 1;
+            margin: 16px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }
-    },
 
-    async reiniciarCola() {
-        try {
-            for (const turno of AppState.turnos) {
-                await SupabaseDB.eliminarTurno(turno.id);
-            }
-            
-            AppState.turnos = [];
-            AppState.turnoActual = null;
-            AppState.contadorTurnos = 0;
-            
-            LocalStorage.guardarTurnos([]);
-            LocalStorage.guardarTurnoActual(null);
-            LocalStorage.guardarContador(0);
-            LocalStorage.eliminarMiTurno();
-            
-            return true;
-        } catch (error) {
-            console.error('Error al reiniciar cola:', error);
-            return false;
+        .current-turn-info {
+            font-size: 18px;
+            opacity: 0.95;
+            font-weight: 500;
         }
-    },
 
-    async cargarTurnos() {
-        console.log('=== CARGANDO TURNOS ===');
-        
-        try {
-            if (window.supabaseClient) {
-                const todosLosTurnos = await SupabaseDB.cargarTurnos();
-                
-                if (todosLosTurnos && Array.isArray(todosLosTurnos)) {
-                    const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera');
-                    const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
-                    
-                    AppState.turnos = turnosEnEspera;
-                    AppState.turnoActual = turnoAtendiendo || null;
-                    
-                    LocalStorage.guardarTurnos(turnosEnEspera);
-                    if (turnoAtendiendo) {
-                        LocalStorage.guardarTurnoActual(turnoAtendiendo);
-                    } else {
-                        LocalStorage.guardarTurnoActual(null);
-                    }
-                    
-                    console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total`);
-                    console.log(`   - En espera: ${turnosEnEspera.length}`);
-                    console.log(`   - Atendiendo: ${turnoAtendiendo ? 1 : 0}`);
-                    
-                    AppState.contadorTurnos = await SupabaseDB.obtenerContadorTurnos();
-                    return;
-                }
-            }
-            
-            console.warn('Usando datos locales');
-            AppState.turnos = LocalStorage.obtenerTurnos();
-            AppState.turnoActual = LocalStorage.obtenerTurnoActual();
-            
-        } catch (error) {
-            console.error('❌ Error al cargar turnos:', error);
-            AppState.turnos = LocalStorage.obtenerTurnos();
-            AppState.turnoActual = LocalStorage.obtenerTurnoActual();
-            Utils.mostrarNotificacion('Error de conexión. Usando datos locales.', 'error');
+        .current-turn-plate {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-family: monospace;
+            font-size: 20px;
+            letter-spacing: 2px;
         }
-    }
-};
 
-// ============================================
-// RENDERIZADO USUARIO - CON NOTIFICACIÓN INSTANTÁNEA
-// ============================================
-
-const RenderUsuario = {
-    miTurno() {
-        const container = document.getElementById('miTurnoContainer');
-        const miTurno = LocalStorage.obtenerMiTurno();
-        
-        if (!container) return;
-
-        if (miTurno) {
-            const enCola = AppState.turnos.find(t => t.numero === miTurno.numero);
-            const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
-            
-            if (!enCola && !siendoAtendido) {
-                LocalStorage.eliminarMiTurno();
-                container.innerHTML = `
-                    <div class="no-turn-message">
-                        <p><strong>✓ Turno completado</strong></p>
-                        <p>Tu turno ${miTurno.numero} ha sido atendido</p>
-                        <p class="hint">Gracias por tu visita</p>
-                    </div>
-                `;
-                
-                if (typeof ModoEspera !== 'undefined') {
-                    ModoEspera.desactivar();
-                }
-                
-                setTimeout(() => {
-                    this.miTurno();
-                }, 5000);
-                return;
-            }
-
-            try {
-                const posicion = AppState.turnos.findIndex(t => t.numero === miTurno.numero) + 1;
-                const tiempoEstimado = posicion > 0 ? posicion * CONFIG.TURN_TIME_ESTIMATE : 0;
-                
-                const estaSiendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
-                
-                container.innerHTML = `
-                    <div class="my-turn-active ${estaSiendoAtendido ? 'being-served' : ''}">
-                        <div class="my-turn-number">${miTurno.numero}</div>
-                        <div class="my-turn-status">${miTurno.nombreEmpresa}</div>
-                        <div class="my-turn-position">
-                            ${estaSiendoAtendido ? '¡Es tu turno! Diríjase al punto de atención' : 
-                              posicion > 0 ? `Posición en cola: ${posicion}` : 'Esperando confirmación'}
-                        </div>
-                        ${posicion > 0 && !estaSiendoAtendido ? `<div class="my-turn-position">Tiempo estimado: ${tiempoEstimado} min</div>` : ''}
-                    </div>
-                `;
-            } catch (e) {
-                container.innerHTML = `
-                    <div class="no-turn-message">
-                        <p>No tienes un turno activo</p>
-                    </div>
-                `;
-            }
-        } else {
-            container.innerHTML = `
-                <div class="no-turn-message">
-                    <p>No tienes un turno activo</p>
-                    <p class="hint">Solicita un turno usando el formulario</p>
-                </div>
-            `;
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
         }
-    },
 
-    estadoCola() {
-        const turnoActualEl = document.getElementById('turnoActualUsuario');
-        const turnosEsperaEl = document.getElementById('turnosEnEsperaUsuario');
-        
-        if (turnoActualEl) turnoActualEl.textContent = AppState.turnoActual ? AppState.turnoActual.numero : '--';
-        if (turnosEsperaEl) turnosEsperaEl.textContent = AppState.turnos.length;
-        
-        const miTurno = LocalStorage.obtenerMiTurno();
-        if (miTurno) {
-            try {
-                const posicion = AppState.turnos.findIndex(t => t.numero === miTurno.numero) + 1;
-                
-                const miPosicionEl = document.getElementById('miPosicion');
-                const tiempoEstimadoEl = document.getElementById('tiempoEstimado');
-                
-                if (miPosicionEl) miPosicionEl.textContent = posicion > 0 ? posicion : '--';
-                if (tiempoEstimadoEl) tiempoEstimadoEl.textContent = posicion > 0 ? `${posicion * CONFIG.TURN_TIME_ESTIMATE} min` : '--';
-            } catch (e) {}
-        }
-    },
-
-    turnosEnEspera() {
-        const listaDiv = document.getElementById('listaTurnosUsuario');
-        if (!listaDiv) return;
-
-        if (AppState.turnos.length === 0) {
-            listaDiv.innerHTML = '<p class="empty-message">No hay turnos en espera</p>';
-        } else {
-            const miTurno = LocalStorage.obtenerMiTurno();
-            let miNumero = null;
-            try { miNumero = miTurno.numero; } catch(e) {}
-            
-            listaDiv.innerHTML = AppState.turnos.map(turno => `
-                <div class="turn-item-user ${turno.numero === miNumero ? 'current' : ''}">
-                    <span class="turn-item-number">${turno.numero}</span>
-                    <div class="turn-item-info">
-                        <div class="turn-item-company">${turno.nombreEmpresa}</div>
-                        <div class="turn-item-time">${turno.horaSolicitud}</div>
-                    </div>
-                </div>
-            `).join('');
-        }
-    },
-
-    todo() {
-        this.miTurno();
-        this.estadoCola();
-        this.turnosEnEspera();
-    },
-    
-    // MEJORA: Notificación instantánea cuando llaman el turno del usuario
-    verificarMiTurnoLlamado() {
-        const miTurno = LocalStorage.obtenerMiTurno();
-        if (!miTurno) return false;
-        
-        const estaSiendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
-        
-        if (estaSiendoAtendido) {
-            // Verificar si ya mostramos la notificación
-            const notificacionMostrada = sessionStorage.getItem('notificacionTurno_' + miTurno.numero);
-            
-            if (!notificacionMostrada) {
-                // Marcar como mostrada
-                sessionStorage.setItem('notificacionTurno_' + miTurno.numero, 'true');
-                
-                // Mostrar notificación grande
-                this.mostrarNotificacionTurnoLlamado(miTurno);
-                
-                // Reproducir sonido
-                SoundManager.playCallSound();
-                
-                return true;
+        @media (max-width: 640px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
             }
         }
-        
-        return false;
-    },
-    
-    mostrarNotificacionTurnoLlamado(turno) {
-        // Eliminar notificación anterior si existe
-        const notificacionAnterior = document.querySelector('.turn-called-notification');
-        if (notificacionAnterior) {
-            notificacionAnterior.remove();
+
+        .stat-item {
+            background: var(--gray-50);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid var(--gray-100);
+            transition: all 0.2s;
         }
-        
-        const notificacion = document.createElement('div');
-        notificacion.className = 'turn-called-notification';
-        notificacion.innerHTML = `
-            <div class="notification-content">
-                <div class="notification-icon">🔔</div>
-                <h2>¡ES TU TURNO!</h2>
-                <div class="turn-number-display">${turno.numero}</div>
-                <div class="turn-company">${turno.nombreEmpresa}</div>
-                <p class="turn-message">Por favor diríjase al punto de atención</p>
-                <button class="btn btn-primary btn-large" onclick="this.closest('.turn-called-notification').remove()">
-                    Entendido
-                </button>
-            </div>
-        `;
-        
-        // Estilos inline para asegurar que se vea bien
-        notificacion.style.cssText = `
+
+        .stat-item:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        /* Turn List */
+        .turn-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .turn-list-header {
+            display: grid;
+            grid-template-columns: 80px 1fr 100px;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--gray-100);
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .turn-item {
+            display: grid;
+            grid-template-columns: 80px 1fr 100px;
+            gap: 12px;
+            padding: 16px;
+            background: var(--gray-50);
+            border-radius: 10px;
+            margin-bottom: 8px;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            align-items: center;
+        }
+
+        .turn-item:hover {
+            border-color: var(--primary);
+            background: white;
+            transform: translateX(4px);
+        }
+
+        .turn-item.current {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border-color: var(--primary);
+        }
+
+        .turn-item.being-called {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-color: var(--warning);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+        }
+
+        .turn-number {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary);
+            font-family: monospace;
+        }
+
+        .turn-item.current .turn-number,
+        .turn-item.being-called .turn-number {
+            color: var(--gray-900);
+        }
+
+        .turn-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .turn-company {
+            font-weight: 600;
+            color: var(--gray-900);
+            font-size: 15px;
+        }
+
+        .turn-details {
+            font-size: 13px;
+            color: var(--gray-500);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .turn-time {
+            font-size: 13px;
+            color: var(--gray-400);
+            font-weight: 500;
+        }
+
+        .turn-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .turn-status.waiting {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .turn-status.called {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .form-input::placeholder {
+            color: var(--gray-400);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px -1px rgba(37, 99, 235, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px -1px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-200);
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+
+        .btn-large {
+            padding: 16px 32px;
+            font-size: 17px;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Waiting Mode Section */
+        .waiting-mode-section {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: white;
+            padding: 32px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-xl);
+            display: none;
+        }
+
+        .waiting-mode-section.active {
+            display: block;
+            animation: slideDown 0.5s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .waiting-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .waiting-title {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .waiting-subtitle {
+            color: var(--gray-400);
+            font-size: 15px;
+        }
+
+        .waiting-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            align-items: center;
+        }
+
+        @media (max-width: 640px) {
+            .waiting-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .waiting-turn-display {
+            text-align: center;
+            padding: 32px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .waiting-turn-number {
+            font-size: 64px;
+            font-weight: 800;
+            color: var(--warning);
+            line-height: 1;
+            margin-bottom: 8px;
+            text-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+        }
+
+        .waiting-turn-label {
+            font-size: 14px;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .waiting-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .waiting-stat {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+        }
+
+        .waiting-stat-icon {
+            width: 48px;
+            height: 48px;
+            background: rgba(37, 99, 235, 0.2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+        }
+
+        .waiting-stat-content {
+            flex: 1;
+        }
+
+        .waiting-stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .waiting-stat-label {
+            font-size: 13px;
+            color: var(--gray-400);
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary) 0%, #60a5fa 100%);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        /* Turn Called Notification */
+        .turn-called-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(0, 0, 0, 0.9);
             z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .turn-called-overlay.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .turn-called-modal {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid var(--warning);
+            border-radius: 24px;
+            padding: 48px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 0 60px rgba(245, 158, 11, 0.3);
+            animation: scaleIn 0.5s ease;
+        }
+
+        @keyframes scaleIn {
+            from {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .turn-called-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            animation: fadeIn 0.3s ease;
-        `;
-        
-        const content = notificacion.querySelector('.notification-content');
-        content.style.cssText = `
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 40px;
-            border-radius: 20px;
-            text-align: center;
-            color: white;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 90%;
-            width: 400px;
-            animation: slideInUp 0.5s ease;
-        `;
-        
-        const icon = notificacion.querySelector('.notification-icon');
-        icon.style.cssText = `
-            font-size: 60px;
-            margin-bottom: 20px;
-            animation: bellRing 1s ease infinite;
-        `;
-        
-        const title = notificacion.querySelector('h2');
-        title.style.cssText = `
+            margin: 0 auto 24px;
+            animation: ring 1s ease infinite;
+        }
+
+        @keyframes ring {
+            0%, 100% { transform: rotate(0deg); }
+            10%, 30%, 50%, 70%, 90% { transform: rotate(10deg); }
+            20%, 40%, 60%, 80% { transform: rotate(-10deg); }
+        }
+
+        .turn-called-title {
             font-size: 28px;
-            margin: 0 0 20px 0;
-            font-weight: bold;
+            font-weight: 800;
+            color: var(--warning);
+            margin-bottom: 8px;
             text-transform: uppercase;
             letter-spacing: 2px;
-        `;
-        
-        const turnNumber = notificacion.querySelector('.turn-number-display');
-        turnNumber.style.cssText = `
-            font-size: 72px;
-            font-weight: bold;
-            margin: 20px 0;
-            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
-            background: rgba(255,255,255,0.2);
-            padding: 20px;
-            border-radius: 15px;
-            display: inline-block;
-        `;
-        
-        const company = notificacion.querySelector('.turn-company');
-        company.style.cssText = `
+        }
+
+        .turn-called-number {
+            font-size: 96px;
+            font-weight: 800;
+            color: white;
+            line-height: 1;
+            margin: 24px 0;
+            text-shadow: 0 0 30px rgba(255,255,255,0.3);
+        }
+
+        .turn-called-company {
             font-size: 20px;
-            margin: 15px 0;
-            opacity: 0.95;
-        `;
-        
-        const message = notificacion.querySelector('.turn-message');
-        message.style.cssText = `
-            font-size: 18px;
-            margin: 20px 0 30px 0;
-            opacity: 0.9;
-        `;
-        
-        const btn = notificacion.querySelector('button');
-        btn.style.cssText = `
-            padding: 15px 40px;
-            font-size: 18px;
-            border-radius: 30px;
+            color: var(--gray-300);
+            margin-bottom: 8px;
+        }
+
+        .turn-called-message {
+            font-size: 16px;
+            color: var(--gray-400);
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+
+        /* Admin Panel */
+        .admin-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 968px) {
+            .admin-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .admin-controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: var(--gray-100);
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        tr:hover td {
+            background: var(--gray-50);
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-xl);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
+        .modal-close {
+            background: none;
             border: none;
-            background: #fff;
-            color: #667eea;
-            font-weight: bold;
             cursor: pointer;
-            transition: transform 0.2s;
-        `;
-        
-        btn.onmouseover = () => btn.style.transform = 'scale(1.05)';
-        btn.onmouseout = () => btn.style.transform = 'scale(1)';
-        
-        document.body.appendChild(notificacion);
-        
-        // Auto-cerrar después de 30 segundos
-        setTimeout(() => {
-            if (notificacion.parentElement) {
-                notificacion.style.opacity = '0';
-                notificacion.style.transition = 'opacity 0.5s';
-                setTimeout(() => notificacion.remove(), 500);
+            color: var(--gray-400);
+            padding: 4px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: var(--gray-100);
+            color: var(--gray-600);
+        }
+
+        /* Notification */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 500;
+            box-shadow: var(--shadow-xl);
+            z-index: 10001;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideInRight 0.3s ease;
+            max-width: 400px;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
             }
-        }, 30000);
-    },
-    
-    suscribirCambios() {
-        if (!window.supabaseClient) {
-            console.warn('Supabase no disponible para suscripción en usuario');
-            return null;
-        }
-        
-        try {
-            const subscription = window.supabaseClient
-                .channel('turnos-changes-user')
-                .on('postgres_changes', 
-                    { event: '*', schema: 'public', table: 'turnos' },
-                    async (payload) => {
-                        console.log('Actualización en tiempo real (usuario):', payload);
-                        try {
-                            await Turnos.cargarTurnos();
-                            this.todo();
-                            
-                            // MEJORA: Verificar si llamaron nuestro turno
-                            this.verificarMiTurnoLlamado();
-                            
-                            const miTurno = LocalStorage.obtenerMiTurno();
-                            if (miTurno && AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero) {
-                                if (typeof ModoEspera !== 'undefined') {
-                                    ModoEspera.actualizar();
-                                }
-                            }
-                        } catch (error) {
-                            console.error('Error al procesar actualización:', error);
-                        }
-                    }
-                )
-                .on('postgres_changes',
-                    { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
-                    async (payload) => {
-                        console.log('Nuevo turno completado detectado:', payload);
-                        try {
-                            await Turnos.cargarTurnos();
-                            this.todo();
-                            
-                            const miTurno = LocalStorage.obtenerMiTurno();
-                            if (miTurno && payload.new && payload.new.numero === miTurno.numero) {
-                                if (typeof ModoEspera !== 'undefined') {
-                                    ModoEspera.desactivar();
-                                }
-                                LocalStorage.eliminarMiTurno();
-                                this.todo();
-                            }
-                        } catch (error) {
-                            console.error('Error al procesar historial:', error);
-                        }
-                    }
-                )
-                .subscribe((status) => {
-                    console.log('Estado de suscripción (usuario):', status);
-                    if (status === 'SUBSCRIBED') {
-                        console.log('✅ Suscripción a tiempo real activada (usuario)');
-                    }
-                });
-            
-            return subscription;
-        } catch (error) {
-            console.error('Error al suscribirse (usuario):', error);
-            return null;
-        }
-    }
-};
-
-// ============================================
-// RENDERIZADO ADMIN - CON EDICIÓN DE PROVEEDORES MEJORADA
-// ============================================
-
-const RenderAdmin = {
-    turnoActual() {
-        const turnoActualDiv = document.getElementById('turnoActual');
-        const turnoInfoDiv = document.getElementById('turnoInfo');
-        
-        if (turnoActualDiv) {
-            turnoActualDiv.textContent = AppState.turnoActual ? AppState.turnoActual.numero : '--';
-        }
-        
-        if (turnoInfoDiv) {
-            if (AppState.turnoActual) {
-                const motivo = AppState.turnoActual.motivo ? ` - ${AppState.turnoActual.motivo}` : '';
-                const placa = AppState.turnoActual.nit ? ` (Placa: ${AppState.turnoActual.nit})` : '';
-                turnoInfoDiv.textContent = `${AppState.turnoActual.nombreEmpresa}${motivo}${placa}`;
-            } else {
-                turnoInfoDiv.textContent = 'Ningún turno en atención';
+            to {
+                transform: translateX(0);
+                opacity: 1;
             }
         }
-    },
 
-    listaTurnosEspera() {
-        const listaDiv = document.getElementById('listaTurnosEspera');
-        const contadorDiv = document.getElementById('contadorTurnosEspera');
-        
-        if (contadorDiv) contadorDiv.textContent = AppState.turnos.length;
-        
-        if (!listaDiv) return;
+        .notification.success { background: var(--success); }
+        .notification.error { background: var(--danger); }
+        .notification.info { background: var(--info); }
 
-        if (AppState.turnos.length === 0) {
-            listaDiv.innerHTML = '<p class="empty-message">No hay turnos en espera</p>';
-        } else {
-            listaDiv.innerHTML = AppState.turnos.map(turno => `
-                <div class="turn-item">
-                    <span class="turn-item-number">${turno.numero}</span>
-                    <div class="turn-item-info">
-                        <div class="turn-item-company">${turno.nombreEmpresa}</div>
-                        <div class="turn-item-time">${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}</div>
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--gray-400);
+        }
+
+        .empty-state-icon {
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state-text {
+            font-size: 15px;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .header {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+
+            .current-turn-number {
+                font-size: 48px;
+            }
+
+            .turn-called-number {
+                font-size: 64px;
+            }
+        }
+
+        /* Animations */
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .animate-bounce {
+            animation: bounce 1s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+            50% { transform: translateY(0); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--gray-100);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--gray-300);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--gray-400);
+        }
+
+        /* Utility Classes */
+        .text-center { text-align: center; }
+        .mt-4 { margin-top: 16px; }
+        .mb-4 { margin-bottom: 16px; }
+        .w-full { width: 100%; }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-2 { gap: 8px; }
+        .gap-4 { gap: 16px; }
+        .hidden { display: none !important; }
+    </style>
+<base target="_blank">
+</head>
+<body>
+    <!-- Turn Called Notification Overlay -->
+    <div id="turnCalledOverlay" class="turn-called-overlay">
+        <div class="turn-called-modal">
+            <div class="turn-called-icon">
+                <i data-lucide="bell-ring" style="width: 40px; height: 40px; color: white;"></i>
+            </div>
+            <div class="turn-called-title">¡Es tu turno!</div>
+            <div class="turn-called-number" id="calledTurnNumber">T001</div>
+            <div class="turn-called-company" id="calledTurnCompany">Nombre Empresa</div>
+            <div class="turn-called-message">
+                Por favor diríjase al punto de atención inmediatamente.<br>
+                Su placa: <strong id="calledTurnPlate">ABC123</strong>
+            </div>
+            <button class="btn btn-success btn-large" onclick="dismissTurnCalled()">
+                <i data-lucide="check-circle" style="width: 20px; height: 20px;"></i>
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <!-- Admin Login Modal -->
+    <div id="adminLoginModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i data-lucide="shield" style="width: 20px; height: 20px; vertical-align: middle; margin-right: 8px;"></i>
+                    Acceso Administrador
+                </h3>
+                <button class="modal-close" onclick="closeModal('adminLoginModal')">
+                    <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+                </button>
+            </div>
+            <form id="adminLoginForm" onsubmit="handleAdminLogin(event)">
+                <div class="form-group">
+                    <label class="form-label">Contraseña</label>
+                    <input type="password" id="adminPassword" class="form-input" placeholder="Ingrese contraseña" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-full">
+                    <i data-lucide="log-in" style="width: 18px; height: 18px;"></i>
+                    Ingresar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Provider Modal -->
+    <div id="editProviderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i data-lucide="edit-3" style="width: 20px; height: 20px; vertical-align: middle; margin-right: 8px;"></i>
+                    Editar Proveedor
+                </h3>
+                <button class="modal-close" onclick="closeModal('editProviderModal')">
+                    <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+                </button>
+            </div>
+            <form id="editProviderForm" onsubmit="handleEditProvider(event)">
+                <input type="hidden" id="editProviderId">
+                <div class="form-group">
+                    <label class="form-label">Nombre de la Empresa *</label>
+                    <input type="text" id="editCompanyName" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Placa del Vehículo *</label>
+                    <input type="text" id="editPlate" class="form-input" maxlength="6" style="text-transform: uppercase;" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Persona de Contacto</label>
+                    <input type="text" id="editContact" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Teléfono</label>
+                    <input type="tel" id="editPhone" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tipo de Servicio</label>
+                    <select id="editService" class="form-select">
+                        <option value="entrega">Entrega de Mercancía</option>
+                        <option value="servicio">Servicio Técnico</option>
+                        <option value="reunion">Reunión</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <button type="button" class="btn btn-secondary w-full" onclick="closeModal('editProviderModal')">
+                        <i data-lucide="x-circle" style="width: 18px; height: 18px;"></i>
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-success w-full">
+                        <i data-lucide="save" style="width: 18px; height: 18px;"></i>
+                        Guardar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmationModal" class="modal">
+        <div class="modal-content" style="text-align: center;">
+            <div style="width: 64px; height: 64px; background: #d1fae5; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                <i data-lucide="check" style="width: 32px; height: 32px; color: var(--success);"></i>
+            </div>
+            <h3 class="modal-title" style="margin-bottom: 8px;">¡Turno Solicitado!</h3>
+            <div style="font-size: 48px; font-weight: 800; color: var(--primary); margin: 16px 0;" id="confirmationTurnNumber">T001</div>
+            <p style="color: var(--gray-600); margin-bottom: 24px;" id="confirmationDetails">
+                Empresa<br>Motivo de visita
+            </p>
+            <button class="btn btn-primary w-full" onclick="closeModal('confirmationModal')">
+                <i data-lucide="thumbs-up" style="width: 18px; height: 18px;"></i>
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo-section" id="logoClick">
+                <div class="logo-icon">
+                    <i data-lucide="layout-grid" style="width: 28px; height: 28px;"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>Sistema de Turnos</h1>
+                    <p>Gestión profesional de colas</p>
+                </div>
+            </div>
+            <div id="connectionStatus" class="connection-status disconnected">
+                <i data-lucide="wifi-off" style="width: 16px; height: 16px;"></i>
+                <span>Sin conexión</span>
+            </div>
+        </header>
+
+        <!-- Waiting Mode Section (User View) -->
+        <div id="waitingModeSection" class="waiting-mode-section">
+            <div class="waiting-header">
+                <div class="waiting-title">
+                    <i data-lucide="clock" style="width: 24px; height: 24px; color: var(--warning);"></i>
+                    Modo de Espera Activado
+                </div>
+                <div class="waiting-subtitle">Mantenga esta ventana abierta para recibir notificaciones</div>
+            </div>
+            <div class="waiting-content">
+                <div class="waiting-turn-display">
+                    <div class="waiting-turn-number" id="waitingTurnNumber">--</div>
+                    <div class="waiting-turn-label">Su número de turno</div>
+                </div>
+                <div class="waiting-stats">
+                    <div class="waiting-stat">
+                        <div class="waiting-stat-icon">
+                            <i data-lucide="users" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div class="waiting-stat-content">
+                            <div class="waiting-stat-value" id="waitingPosition">--</div>
+                            <div class="waiting-stat-label">Posición en cola</div>
+                        </div>
                     </div>
-                    <div class="turn-item-actions">
-                        <button class="btn btn-danger btn-small" onclick="AdminHandlers.cancelarTurno(${turno.id})">
-                            Cancelar
-                        </button>
+                    <div class="waiting-stat">
+                        <div class="waiting-stat-icon">
+                            <i data-lucide="timer" style="width: 24px; height: 24px;"></i>
+                        </div>
+                        <div class="waiting-stat-content">
+                            <div class="waiting-stat-value" id="waitingTime">--</div>
+                            <div class="waiting-stat-label">Tiempo estimado</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="waitingProgress" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-danger" onclick="cancelMyTurn()">
+                        <i data-lucide="x-circle" style="width: 18px; height: 18px;"></i>
+                        Cancelar Turno
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- User View -->
+        <div id="userView">
+            <div class="dashboard-grid">
+                <!-- Current Turn Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon success">
+                            <i data-lucide="activity" style="width: 20px; height: 20px;"></i>
+                        </div>
+                        <h2 class="card-title">Turno en Atención</h2>
+                    </div>
+                    <div class="current-turn-display" style="padding: 32px;">
+                        <div class="current-turn-label">
+                            <i data-lucide="radio" style="width: 16px; height: 16px;"></i>
+                            En atención ahora
+                        </div>
+                        <div class="current-turn-number" id="currentTurnDisplay">--</div>
+                        <div class="current-turn-info" id="currentTurnInfo">Esperando...</div>
+                        <div class="current-turn-plate" id="currentTurnPlate" style="display: none;"></div>
+                    </div>
+                    <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 0; margin-top: 16px;">
+                        <div class="stat-item">
+                            <div class="stat-value" id="turnsWaitingCount" style="color: var(--warning);">0</div>
+                            <div class="stat-label">En Espera</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="estimatedTime">0</div>
+                            <div class="stat-label">Min Estimados</div>
+                        </div>
                     </div>
                 </div>
-            `).join('');
+
+                <!-- Request Turn Form -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon primary">
+                            <i data-lucide="plus-circle" style="width: 20px; height: 20px;"></i>
+                        </div>
+                        <h2 class="card-title">Solicitar Turno</h2>
+                    </div>
+                    <form id="requestTurnForm" onsubmit="handleRequestTurn(event)">
+                        <div class="form-group">
+                            <label class="form-label">Placa del Vehículo *</label>
+                            <input type="text" id="plateInput" class="form-input" maxlength="6" placeholder="ABC123" required style="text-transform: uppercase;">
+                            <small style="color: var(--gray-400); font-size: 12px; margin-top: 4px; display: block;">
+                                <i data-lucide="info" style="width: 12px; height: 12px; vertical-align: middle;"></i>
+                                Ingrese 6 caracteres (letras y números)
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Nombre de la Empresa *</label>
+                            <input type="text" id="companyInput" class="form-input" placeholder="Nombre de su empresa" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Persona de Contacto</label>
+                            <input type="text" id="contactInput" class="form-input" placeholder="Nombre del contacto">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Teléfono</label>
+                            <input type="tel" id="phoneInput" class="form-input" placeholder="Número de contacto">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tipo de Servicio *</label>
+                            <select id="serviceSelect" class="form-select" required onchange="handleServiceChange()">
+                                <option value="">Seleccione un servicio...</option>
+                                <option value="entrega">Entrega de Mercancía</option>
+                                <option value="servicio">Servicio Técnico</option>
+                                <option value="reunion">Reunión</option>
+                                <option value="otro">Otro</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="otherReasonGroup" style="display: none;">
+                            <label class="form-label">Especifique el motivo *</label>
+                            <input type="text" id="otherReasonInput" class="form-input" placeholder="Describa el motivo de su visita">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-full btn-large" id="submitTurnBtn">
+                            <i data-lucide="ticket" style="width: 20px; height: 20px;"></i>
+                            Solicitar Turno
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Waiting List -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon info">
+                        <i data-lucide="list" style="width: 20px; height: 20px;"></i>
+                    </div>
+                    <h2 class="card-title">Turnos en Espera</h2>
+                </div>
+                <div class="turn-list-header">
+                    <div>Turno</div>
+                    <div>Información</div>
+                    <div style="text-align: center;">Estado</div>
+                </div>
+                <div id="waitingList" class="turn-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i data-lucide="inbox" style="width: 48px; height: 48px;"></i>
+                        </div>
+                        <div class="empty-state-text">No hay turnos en espera</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin View -->
+        <div id="adminView" style="display: none;">
+            <div class="admin-grid">
+                <!-- Control Panel -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon primary">
+                            <i data-lucide="settings" style="width: 20px; height: 20px;"></i>
+                        </div>
+                        <h2 class="card-title">Panel de Control</h2>
+                    </div>
+
+                    <div class="current-turn-display" style="margin-bottom: 20px;">
+                        <div class="current-turn-label">
+                            <i data-lucide="radio" style="width: 16px; height: 16px;"></i>
+                            Turno Actual
+                        </div>
+                        <div class="current-turn-number" id="adminCurrentTurn">--</div>
+                        <div class="current-turn-info" id="adminCurrentInfo">Ningún turno en atención</div>
+                    </div>
+
+                    <div class="admin-controls">
+                        <button class="btn btn-success" onclick="callNextTurn()" id="callNextBtn">
+                            <i data-lucide="mic" style="width: 18px; height: 18px;"></i>
+                            Llamar Siguiente
+                        </button>
+                        <button class="btn btn-primary" onclick="completeCurrentTurn()" id="completeTurnBtn" disabled>
+                            <i data-lucide="check-circle" style="width: 18px; height: 18px;"></i>
+                            Completar
+                        </button>
+                        <button class="btn btn-secondary" onclick="syncData()">
+                            <i data-lucide="refresh-cw" style="width: 18px; height: 18px;"></i>
+                            Sincronizar
+                        </button>
+                    </div>
+
+                    <div class="stats-grid" style="margin-bottom: 0;">
+                        <div class="stat-item">
+                            <div class="stat-value" id="adminStatsWaiting">0</div>
+                            <div class="stat-label">En Espera</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="adminStatsTotal">0</div>
+                            <div class="stat-label">Total Hoy</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="adminStatsProviders">0</div>
+                            <div class="stat-label">Proveedores</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Waiting List Admin -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon warning">
+                            <i data-lucide="users" style="width: 20px; height: 20px;"></i>
+                        </div>
+                        <h2 class="card-title">Cola de Espera</h2>
+                    </div>
+                    <div id="adminWaitingList" class="turn-list">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">
+                                <i data-lucide="inbox" style="width: 48px; height: 48px;"></i>
+                            </div>
+                            <div class="empty-state-text">No hay turnos en espera</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Providers Management -->
+            <div class="card" style="margin-top: 24px;">
+                <div class="card-header" style="justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div class="card-icon info">
+                            <i data-lucide="truck" style="width: 20px; height: 20px;"></i>
+                        </div>
+                        <h2 class="card-title">Gestión de Proveedores</h2>
+                    </div>
+                    <button class="btn btn-primary btn-small" onclick="openAddProviderModal()">
+                        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                        Nuevo Proveedor
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table id="providersTable">
+                        <thead>
+                            <tr>
+                                <th>Empresa</th>
+                                <th>Placa</th>
+                                <th>Contacto</th>
+                                <th>Teléfono</th>
+                                <th>Servicio</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="providersTableBody">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- History -->
+            <div class="card" style="margin-top: 24px;">
+                <div class="card-header" style="justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div class="card-icon success">
+                            <i data-lucide="history" style="width: 20px; height: 20px;"></i>
+                        </div>
+                        <h2 class="card-title">Historial de Turnos</h2>
+                    </div>
+                    <button class="btn btn-danger btn-small" onclick="clearHistory()">
+                        <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                        Limpiar
+                    </button>
+                </div>
+                <div id="historyList" class="turn-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i data-lucide="clipboard-list" style="width: 48px; height: 48px;"></i>
+                        </div>
+                        <div class="empty-state-text">No hay historial disponible</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        // ============================================
+        // CONFIGURACIÓN Y ESTADO
+        // ============================================
+        const CONFIG = {
+            ADMIN_PASSWORD: '12345',
+            LOGO_CLICKS_REQUIRED: 5,
+            LOGO_CLICK_TIMEOUT: 2000,
+            TURN_TIME_ESTIMATE: 5,
+            MAX_HISTORIAL: 200,
+            NOTIFICATION_DURATION: 30000
+        };
+
+        const AppState = {
+            turns: [],
+            currentTurn: null,
+            turnCounter: parseInt(localStorage.getItem('turnCounter')) || 0,
+            providers: JSON.parse(localStorage.getItem('providers')) || [],
+            history: JSON.parse(localStorage.getItem('history')) || [],
+            myTurn: JSON.parse(localStorage.getItem('myTurn')) || null,
+            isAdmin: false,
+            notificationShown: {}
+        };
+
+        let logoClickCount = 0;
+        let logoClickTimer = null;
+        let updateInterval = null;
+
+        // ============================================
+        // UTILIDADES
+        // ============================================
+        const Utils = {
+            generateTurnNumber() {
+                AppState.turnCounter++;
+                localStorage.setItem('turnCounter', AppState.turnCounter.toString());
+                return 'T' + AppState.turnCounter.toString().padStart(3, '0');
+            },
+
+            getCurrentTime() {
+                return new Date().toLocaleTimeString('es-ES', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            },
+
+            getCurrentDate() {
+                return new Date().toISOString().split('T')[0];
+            },
+
+            showNotification(message, type = 'info', duration = 4000) {
+                const existing = document.querySelector('.notification');
+                if (existing) existing.remove();
+
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+
+                const iconMap = {
+                    success: 'check-circle',
+                    error: 'alert-circle',
+                    info: 'info'
+                };
+
+                notification.innerHTML = `
+                    <i data-lucide="${iconMap[type]}" style="width: 20px; height: 20px;"></i>
+                    <span>${message}</span>
+                `;
+
+                document.body.appendChild(notification);
+                lucide.createIcons();
+
+                setTimeout(() => {
+                    notification.style.opacity = '0';
+                    notification.style.transform = 'translateX(100%)';
+                    notification.style.transition = 'all 0.3s ease';
+                    setTimeout(() => notification.remove(), 300);
+                }, duration);
+            },
+
+            setLoading(buttonId, isLoading) {
+                const btn = document.getElementById(buttonId);
+                if (!btn) return;
+
+                btn.disabled = isLoading;
+                if (isLoading) {
+                    btn.dataset.originalText = btn.innerHTML;
+                    btn.innerHTML = `<i data-lucide="loader-2" class="animate-spin" style="width: 18px; height: 18px;"></i> Procesando...`;
+                    lucide.createIcons();
+                } else if (btn.dataset.originalText) {
+                    btn.innerHTML = btn.dataset.originalText;
+                    lucide.createIcons();
+                }
+            },
+
+            formatServiceType(type) {
+                const types = {
+                    'entrega': 'Entrega de Mercancía',
+                    'servicio': 'Servicio Técnico',
+                    'reunion': 'Reunión',
+                    'otro': 'Otro'
+                };
+                return types[type] || type;
+            }
+        };
+
+        // ============================================
+        // SISTEMA DE SONIDO
+        // ============================================
+        const SoundManager = {
+            audioContext: null,
+
+            init() {
+                try {
+                    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.audioContext = new AudioContext();
+                } catch (e) {
+                    console.warn('Web Audio API no soportada');
+                }
+            },
+
+            playCallSound() {
+                if (!this.audioContext) {
+                    this.playFallbackSound();
+                    return;
+                }
+
+                const now = this.audioContext.currentTime;
+
+                // Secuencia de beeps profesional
+                [0, 0.2, 0.4].forEach((delay, i) => {
+                    const osc = this.audioContext.createOscillator();
+                    const gain = this.audioContext.createGain();
+
+                    osc.connect(gain);
+                    gain.connect(this.audioContext.destination);
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, now + delay);
+                    osc.frequency.exponentialRampToValueAtTime(440, now + delay + 0.1);
+
+                    gain.gain.setValueAtTime(0, now + delay);
+                    gain.gain.linearRampToValueAtTime(0.3, now + delay + 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + delay + 0.5);
+
+                    osc.start(now + delay);
+                    osc.stop(now + delay + 0.5);
+                });
+            },
+
+            playFallbackSound() {
+                // Audio simple como fallback
+                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
+                audio.volume = 0.5;
+                audio.play().catch(() => {});
+            }
+        };
+
+        // ============================================
+        // GESTIÓN DE TURNOS
+        // ============================================
+        const TurnManager = {
+            createTurn(providerData, reason = '') {
+                const plate = providerData.plate?.toUpperCase().trim();
+
+                if (!plate || plate.length !== 6) {
+                    throw new Error('La placa debe tener exactamente 6 caracteres');
+                }
+
+                if (!providerData.companyName?.trim()) {
+                    throw new Error('El nombre de la empresa es requerido');
+                }
+
+                // Guardar o actualizar proveedor
+                this.saveProvider({
+                    id: Date.now(),
+                    companyName: providerData.companyName.trim(),
+                    plate: plate,
+                    contact: providerData.contact?.trim() || '',
+                    phone: providerData.phone?.trim() || '',
+                    service: providerData.service || 'otro'
+                });
+
+                const turnNumber = Utils.generateTurnNumber();
+
+                const turn = {
+                    id: Date.now().toString(),
+                    number: turnNumber,
+                    companyName: providerData.companyName.trim(),
+                    plate: plate,
+                    contact: providerData.contact?.trim() || '',
+                    phone: providerData.phone?.trim() || '',
+                    service: providerData.service || 'otro',
+                    reason: reason || Utils.formatServiceType(providerData.service),
+                    requestTime: Utils.getCurrentTime(),
+                    requestDate: Utils.getCurrentDate(),
+                    status: 'waiting'
+                };
+
+                AppState.turns.push(turn);
+                this.saveTurns();
+
+                return turn;
+            },
+
+            callNextTurn() {
+                if (AppState.currentTurn) {
+                    Utils.showNotification('Hay un turno en atención. Complételo primero.', 'error');
+                    return null;
+                }
+
+                if (AppState.turns.length === 0) {
+                    Utils.showNotification('No hay turnos en espera', 'error');
+                    return null;
+                }
+
+                // Ordenar por fecha/hora de solicitud
+                AppState.turns.sort((a, b) => a.id - b.id);
+
+                const nextTurn = AppState.turns.shift();
+                nextTurn.status = 'serving';
+                nextTurn.callTime = Utils.getCurrentTime();
+
+                AppState.currentTurn = nextTurn;
+
+                this.saveTurns();
+                this.saveCurrentTurn();
+
+                SoundManager.playCallSound();
+
+                return nextTurn;
+            },
+
+            completeCurrentTurn() {
+                if (!AppState.currentTurn) {
+                    Utils.showNotification('No hay turno en atención', 'error');
+                    return false;
+                }
+
+                const completedTurn = {
+                    ...AppState.currentTurn,
+                    completionTime: Utils.getCurrentTime(),
+                    completionDate: Utils.getCurrentDate(),
+                    finalStatus: 'completed'
+                };
+
+                // Agregar al historial
+                AppState.history.unshift(completedTurn);
+                if (AppState.history.length > CONFIG.MAX_HISTORIAL) {
+                    AppState.history = AppState.history.slice(0, CONFIG.MAX_HISTORIAL);
+                }
+                localStorage.setItem('history', JSON.stringify(AppState.history));
+
+                // Limpiar turno actual
+                AppState.currentTurn = null;
+                localStorage.removeItem('currentTurn');
+
+                // Verificar si era el turno del usuario
+                if (AppState.myTurn && AppState.myTurn.number === completedTurn.number) {
+                    AppState.myTurn = null;
+                    localStorage.removeItem('myTurn');
+                    deactivateWaitingMode();
+                }
+
+                return true;
+            },
+
+            cancelTurn(turnId) {
+                const index = AppState.turns.findIndex(t => t.id === turnId);
+                if (index === -1) return false;
+
+                const cancelledTurn = AppState.turns[index];
+
+                // Verificar si es el turno del usuario
+                if (AppState.myTurn && AppState.myTurn.id === turnId) {
+                    AppState.myTurn = null;
+                    localStorage.removeItem('myTurn');
+                    deactivateWaitingMode();
+                }
+
+                AppState.turns.splice(index, 1);
+                this.saveTurns();
+
+                // Agregar al historial como cancelado
+                cancelledTurn.status = 'cancelled';
+                cancelledTurn.cancellationTime = Utils.getCurrentTime();
+                AppState.history.unshift(cancelledTurn);
+                localStorage.setItem('history', JSON.stringify(AppState.history));
+
+                return true;
+            },
+
+            saveTurns() {
+                localStorage.setItem('turns', JSON.stringify(AppState.turns));
+            },
+
+            saveCurrentTurn() {
+                if (AppState.currentTurn) {
+                    localStorage.setItem('currentTurn', JSON.stringify(AppState.currentTurn));
+                } else {
+                    localStorage.removeItem('currentTurn');
+                }
+            },
+
+            loadTurns() {
+                AppState.turns = JSON.parse(localStorage.getItem('turns')) || [];
+                AppState.currentTurn = JSON.parse(localStorage.getItem('currentTurn')) || null;
+                AppState.history = JSON.parse(localStorage.getItem('history')) || [];
+            },
+
+            resetQueue() {
+                AppState.turns = [];
+                AppState.currentTurn = null;
+                AppState.turnCounter = 0;
+                AppState.myTurn = null;
+
+                localStorage.removeItem('turns');
+                localStorage.removeItem('currentTurn');
+                localStorage.removeItem('myTurn');
+                localStorage.setItem('turnCounter', '0');
+
+                deactivateWaitingMode();
+            }
+        };
+
+        // ============================================
+        // GESTIÓN DE PROVEEDORES
+        // ============================================
+        const ProviderManager = {
+            saveProvider(provider) {
+                const existingIndex = AppState.providers.findIndex(p => p.plate === provider.plate);
+
+                if (existingIndex >= 0) {
+                    // Actualizar existente
+                    AppState.providers[existingIndex] = { ...AppState.providers[existingIndex], ...provider };
+                } else {
+                    // Agregar nuevo
+                    AppState.providers.push(provider);
+                }
+
+                localStorage.setItem('providers', JSON.stringify(AppState.providers));
+            },
+
+            updateProvider(id, data) {
+                const index = AppState.providers.findIndex(p => p.id === id);
+                if (index === -1) return false;
+
+                AppState.providers[index] = { ...AppState.providers[index], ...data };
+                localStorage.setItem('providers', JSON.stringify(AppState.providers));
+                return true;
+            },
+
+            deleteProvider(id) {
+                const index = AppState.providers.findIndex(p => p.id === id);
+                if (index === -1) return false;
+
+                AppState.providers.splice(index, 1);
+                localStorage.setItem('providers', JSON.stringify(AppState.providers));
+                return true;
+            },
+
+            getProviderByPlate(plate) {
+                return AppState.providers.find(p => p.plate === plate.toUpperCase());
+            },
+
+            getAllProviders() {
+                return AppState.providers;
+            }
+        };
+
+        // ============================================
+        // MODO DE ESPERA
+        // ============================================
+        function activateWaitingMode(turn) {
+            AppState.myTurn = turn;
+            localStorage.setItem('myTurn', JSON.stringify(turn));
+
+            const section = document.getElementById('waitingModeSection');
+            section.classList.add('active');
+
+            updateWaitingMode();
+
+            // Iniciar actualización periódica
+            if (updateInterval) clearInterval(updateInterval);
+            updateInterval = setInterval(updateWaitingMode, 3000);
         }
-    },
 
-    async proveedores() {
-        const proveedoresBody = document.getElementById('proveedoresBody');
-        const contadorDiv = document.getElementById('contadorProveedores');
-        
-        if (!proveedoresBody) return;
+        function deactivateWaitingMode() {
+            const section = document.getElementById('waitingModeSection');
+            section.classList.remove('active');
 
-        try {
-            // Recargar proveedores para tener datos actualizados
-            const proveedores = await SupabaseDB.cargarProveedores();
-            
-            if (contadorDiv) contadorDiv.textContent = proveedores.length;
-            
-            if (proveedores.length === 0) {
-                proveedoresBody.innerHTML = '<tr><td colspan="6" class="empty-message">No hay proveedores registrados</td></tr>';
+            if (updateInterval) {
+                clearInterval(updateInterval);
+                updateInterval = null;
+            }
+        }
+
+        function updateWaitingMode() {
+            if (!AppState.myTurn) return;
+
+            const turn = AppState.turns.find(t => t.id === AppState.myTurn.id);
+            const isBeingServed = AppState.currentTurn && AppState.currentTurn.id === AppState.myTurn.id;
+
+            // Si el turno ya no existe y no está siendo atendido, fue completado
+            if (!turn && !isBeingServed) {
+                Utils.showNotification('Su turno ha sido completado. ¡Gracias por su visita!', 'success', 6000);
+                AppState.myTurn = null;
+                localStorage.removeItem('myTurn');
+                deactivateWaitingMode();
+                renderUserView();
+                return;
+            }
+
+            // Actualizar display
+            document.getElementById('waitingTurnNumber').textContent = AppState.myTurn.number;
+
+            if (isBeingServed) {
+                document.getElementById('waitingPosition').textContent = '¡AHORA!';
+                document.getElementById('waitingTime').textContent = 'Es su turno';
+                document.getElementById('waitingProgress').style.width = '100%';
+
+                // Mostrar notificación prominente si no se ha mostrado
+                if (!AppState.notificationShown[AppState.myTurn.number]) {
+                    showTurnCalledNotification(AppState.currentTurn);
+                    AppState.notificationShown[AppState.myTurn.number] = true;
+                }
+            } else if (turn) {
+                const position = AppState.turns.findIndex(t => t.id === turn.id) + 1;
+                const estimatedMinutes = position * CONFIG.TURN_TIME_ESTIMATE;
+
+                document.getElementById('waitingPosition').textContent = position;
+                document.getElementById('waitingTime').textContent = estimatedMinutes + ' min';
+
+                const progress = Math.max(0, 100 - (position * 10));
+                document.getElementById('waitingProgress').style.width = progress + '%';
+            }
+        }
+
+        // ============================================
+        // NOTIFICACIÓN DE LLAMADO
+        // ============================================
+        function showTurnCalledNotification(turn) {
+            SoundManager.playCallSound();
+
+            document.getElementById('calledTurnNumber').textContent = turn.number;
+            document.getElementById('calledTurnCompany').textContent = turn.companyName;
+            document.getElementById('calledTurnPlate').textContent = turn.plate;
+
+            const overlay = document.getElementById('turnCalledOverlay');
+            overlay.classList.add('active');
+
+            // Auto-cerrar después de 30 segundos
+            setTimeout(() => {
+                dismissTurnCalled();
+            }, CONFIG.NOTIFICATION_DURATION);
+        }
+
+        function dismissTurnCalled() {
+            const overlay = document.getElementById('turnCalledOverlay');
+            overlay.classList.remove('active');
+        }
+
+        // ============================================
+        // RENDERIZADO
+        // ============================================
+        function renderUserView() {
+            // Turno actual
+            const currentTurnDisplay = document.getElementById('currentTurnDisplay');
+            const currentTurnInfo = document.getElementById('currentTurnInfo');
+            const currentTurnPlate = document.getElementById('currentTurnPlate');
+
+            if (AppState.currentTurn) {
+                currentTurnDisplay.textContent = AppState.currentTurn.number;
+                currentTurnInfo.textContent = AppState.currentTurn.companyName;
+                currentTurnPlate.textContent = 'Placa: ' + AppState.currentTurn.plate;
+                currentTurnPlate.style.display = 'inline-block';
             } else {
-                proveedoresBody.innerHTML = proveedores.map(p => `
-                    <tr data-proveedor-id="${p.id}">
-                        <td>${p.nombreEmpresa}</td>
-                        <td>${p.nit || '-'}</td>
-                        <td>${p.contacto || '-'}</td>
-                        <td>${p.telefono || '-'}</td>
-                        <td>${p.servicio || '-'}</td>
+                currentTurnDisplay.textContent = '--';
+                currentTurnInfo.textContent = 'Esperando...';
+                currentTurnPlate.style.display = 'none';
+            }
+
+            // Estadísticas
+            document.getElementById('turnsWaitingCount').textContent = AppState.turns.length;
+            document.getElementById('estimatedTime').textContent = AppState.turns.length * CONFIG.TURN_TIME_ESTIMATE;
+
+            // Lista de espera
+            const waitingList = document.getElementById('waitingList');
+
+            if (AppState.turns.length === 0) {
+                waitingList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i data-lucide="inbox" style="width: 48px; height: 48px;"></i>
+                        </div>
+                        <div class="empty-state-text">No hay turnos en espera</div>
+                    </div>
+                `;
+            } else {
+                waitingList.innerHTML = AppState.turns.map((turn, index) => {
+                    const isMyTurn = AppState.myTurn && AppState.myTurn.id === turn.id;
+                    return `
+                        <div class="turn-item ${isMyTurn ? 'current' : ''}">
+                            <div class="turn-number">${turn.number}</div>
+                            <div class="turn-info">
+                                <div class="turn-company">${turn.companyName}</div>
+                                <div class="turn-details">
+                                    <span><i data-lucide="truck" style="width: 12px; height: 12px;"></i> ${turn.plate}</span>
+                                    <span><i data-lucide="tag" style="width: 12px; height: 12px;"></i> ${turn.reason}</span>
+                                </div>
+                            </div>
+                            <div class="turn-time">${turn.requestTime}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            lucide.createIcons();
+        }
+
+        function renderAdminView() {
+            // Turno actual
+            const adminCurrentTurn = document.getElementById('adminCurrentTurn');
+            const adminCurrentInfo = document.getElementById('adminCurrentInfo');
+            const callNextBtn = document.getElementById('callNextBtn');
+            const completeTurnBtn = document.getElementById('completeTurnBtn');
+
+            if (AppState.currentTurn) {
+                adminCurrentTurn.textContent = AppState.currentTurn.number;
+                adminCurrentInfo.textContent = `${AppState.currentTurn.companyName} - Placa: ${AppState.currentTurn.plate}`;
+                callNextBtn.disabled = true;
+                completeTurnBtn.disabled = false;
+            } else {
+                adminCurrentTurn.textContent = '--';
+                adminCurrentInfo.textContent = 'Ningún turno en atención';
+                callNextBtn.disabled = false;
+                completeTurnBtn.disabled = true;
+            }
+
+            // Estadísticas
+            document.getElementById('adminStatsWaiting').textContent = AppState.turns.length;
+            document.getElementById('adminStatsTotal').textContent = AppState.history.filter(h => h.completionDate === Utils.getCurrentDate()).length;
+            document.getElementById('adminStatsProviders').textContent = AppState.providers.length;
+
+            // Lista de espera admin
+            const adminWaitingList = document.getElementById('adminWaitingList');
+
+            if (AppState.turns.length === 0) {
+                adminWaitingList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i data-lucide="inbox" style="width: 48px; height: 48px;"></i>
+                        </div>
+                        <div class="empty-state-text">No hay turnos en espera</div>
+                    </div>
+                `;
+            } else {
+                adminWaitingList.innerHTML = AppState.turns.map((turn, index) => `
+                    <div class="turn-item">
+                        <div class="turn-number">${turn.number}</div>
+                        <div class="turn-info">
+                            <div class="turn-company">${turn.companyName}</div>
+                            <div class="turn-details">
+                                <span><i data-lucide="truck" style="width: 12px; height: 12px;"></i> ${turn.plate}</span>
+                                <span><i data-lucide="user" style="width: 12px; height: 12px;"></i> ${turn.contact || 'N/A'}</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-danger btn-small" onclick="adminCancelTurn('${turn.id}')">
+                            <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                        </button>
+                    </div>
+                `).join('');
+            }
+
+            // Tabla de proveedores
+            renderProvidersTable();
+
+            // Historial
+            renderHistory();
+
+            lucide.createIcons();
+        }
+
+        function renderProvidersTable() {
+            const tbody = document.getElementById('providersTableBody');
+
+            if (AppState.providers.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 32px; color: var(--gray-400);">
+                            <i data-lucide="users" style="width: 32px; height: 32px; margin-bottom: 8px;"></i>
+                            <div>No hay proveedores registrados</div>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                tbody.innerHTML = AppState.providers.map(provider => `
+                    <tr>
+                        <td><strong>${provider.companyName}</strong></td>
+                        <td><code style="background: var(--gray-100); padding: 4px 8px; border-radius: 4px;">${provider.plate}</code></td>
+                        <td>${provider.contact || '-'}</td>
+                        <td>${provider.phone || '-'}</td>
+                        <td>${Utils.formatServiceType(provider.service)}</td>
                         <td>
-                            <button class="btn btn-secondary btn-small" onclick="AdminHandlers.editarProveedor(${p.id})">
-                                ✏️ Editar
+                            <button class="btn btn-secondary btn-small" onclick="editProvider(${provider.id})" style="margin-right: 8px;">
+                                <i data-lucide="edit-2" style="width: 14px; height: 14px;"></i>
                             </button>
-                            <button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarProveedor(${p.id})">
-                                🗑️ Eliminar
+                            <button class="btn btn-danger btn-small" onclick="deleteProvider(${provider.id})">
+                                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                             </button>
                         </td>
                     </tr>
                 `).join('');
             }
-        } catch (error) {
-            console.error('Error al cargar proveedores:', error);
-            proveedoresBody.innerHTML = '<tr><td colspan="6" class="empty-message">Error al cargar proveedores</td></tr>';
         }
-    },
 
-    async historial() {
-        const historialDiv = document.getElementById('historialTurnos');
-        if (!historialDiv) return;
+        function renderHistory() {
+            const historyList = document.getElementById('historyList');
+            const todayHistory = AppState.history.filter(h => h.completionDate === Utils.getCurrentDate()).slice(0, 20);
 
-        try {
-            const historial = await SupabaseDB.cargarHistorial();
-            
-            if (historial.length === 0) {
-                historialDiv.innerHTML = '<p class="empty-message">No hay historial de turnos</p>';
+            if (todayHistory.length === 0) {
+                historyList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i data-lucide="clipboard-list" style="width: 48px; height: 48px;"></i>
+                        </div>
+                        <div class="empty-state-text">No hay historial disponible</div>
+                    </div>
+                `;
             } else {
-                historialDiv.innerHTML = historial.map(h => `
-                    <div class="history-item">
-                        <div class="history-item-header">
-                            <span class="history-item-number">${h.numero}</span>
-                            <span class="history-item-status status-${h.estado}">${h.estado}</span>
-                        </div>
-                        <div class="history-item-info">
-                            <div class="history-item-company">${h.nombreEmpresa}</div>
-                            <div class="history-item-details">
-                                <span><strong>Placa:</strong> ${h.nit || 'N/A'}</span>
-                                <span><strong>Motivo:</strong> ${h.motivo || 'N/A'}</span>
-                            </div>
-                            <div class="history-item-time">
-                                <span><strong>Solicitud:</strong> ${Utils.formatearHora(h.horaSolicitud)}</span>
-                                <span><strong>Llamada:</strong> ${Utils.formatearHora(h.horaLlamada)}</span>
-                                <span><strong>Finalización:</strong> ${Utils.formatearHora(h.horaFinalizacion)}</span>
-                            </div>
-                            <div class="history-item-date">
-                                <strong>Fecha:</strong> ${Utils.formatearFecha(h.fecha)}
+                historyList.innerHTML = todayHistory.map(item => `
+                    <div class="turn-item">
+                        <div class="turn-number">${item.number}</div>
+                        <div class="turn-info">
+                            <div class="turn-company">${item.companyName}</div>
+                            <div class="turn-details">
+                                <span><i data-lucide="truck" style="width: 12px; height: 12px;"></i> ${item.plate}</span>
+                                <span class="turn-status ${item.finalStatus === 'completed' ? 'called' : 'waiting'}">
+                                    ${item.finalStatus === 'completed' ? 'Completado' : 'Cancelado'}
+                                </span>
                             </div>
                         </div>
+                        <div class="turn-time">${item.completionTime}</div>
                     </div>
                 `).join('');
             }
-        } catch (error) {
-            console.error('Error al cargar historial:', error);
-            historialDiv.innerHTML = '<p class="empty-message">Error al cargar historial</p>';
         }
-    },
 
-    async estadisticas() {
-        try {
-            const stats = await SupabaseDB.cargarEstadisticas();
-            
-            const totalTurnosEl = document.getElementById('totalTurnos');
-            const turnosEsperaEl = document.getElementById('turnosEspera');
-            const totalProveedoresEl = document.getElementById('totalProveedores');
-            
-            if (totalTurnosEl) totalTurnosEl.textContent = stats.totalTurnos;
-            if (turnosEsperaEl) turnosEsperaEl.textContent = stats.turnosEspera;
-            if (totalProveedoresEl) totalProveedoresEl.textContent = stats.totalProveedores;
-            
-            console.log('Estadísticas actualizadas:', stats);
-        } catch (error) {
-            console.error('Error al cargar estadísticas:', error);
+        // ============================================
+        // MANEJADORES DE EVENTOS
+        // ============================================
+        function handleServiceChange() {
+            const select = document.getElementById('serviceSelect');
+            const otherGroup = document.getElementById('otherReasonGroup');
+            const otherInput = document.getElementById('otherReasonInput');
+
+            if (select.value === 'otro') {
+                otherGroup.style.display = 'block';
+                otherInput.setAttribute('required', 'required');
+            } else {
+                otherGroup.style.display = 'none';
+                otherInput.removeAttribute('required');
+                otherInput.value = '';
+            }
         }
-    },
 
-    async todo() {
-        console.log('=== ACTUALIZANDO VISTA ADMIN ===');
-        
-        try { this.turnoActual(); } catch (e) { console.error('Error turnoActual:', e); }
-        try { this.listaTurnosEspera(); } catch (e) { console.error('Error listaTurnosEspera:', e); }
-        try { await this.proveedores(); } catch (e) { console.error('Error proveedores:', e); }
-        try { await this.historial(); } catch (e) { console.error('Error historial:', e); }
-        try { await this.estadisticas(); } catch (e) { console.error('Error estadisticas:', e); }
-    }
-};
+        function handleRequestTurn(event) {
+            event.preventDefault();
 
-// ============================================
-// HANDLERS USUARIO
-// ============================================
+            const plate = document.getElementById('plateInput').value;
+            const company = document.getElementById('companyInput').value;
+            const contact = document.getElementById('contactInput').value;
+            const phone = document.getElementById('phoneInput').value;
+            const service = document.getElementById('serviceSelect').value;
+            const otherReason = document.getElementById('otherReasonInput').value;
 
-const UsuarioHandlers = {
-    async solicitarTurno(e) {
-        e.preventDefault();
-        
-        Utils.setLoading(true);
-        
-        try {
-            const placaInput = document.getElementById('nit')?.value?.trim().toUpperCase();
-            
-            if (!placaInput) {
-                throw new Error('La placa es requerida');
+            if (!plate || plate.length !== 6) {
+                Utils.showNotification('La placa debe tener exactamente 6 caracteres', 'error');
+                return;
             }
-            
-            if (placaInput.length !== 6) {
-                throw new Error('La placa debe tener exactamente 6 caracteres');
+
+            if (!service) {
+                Utils.showNotification('Seleccione un tipo de servicio', 'error');
+                return;
             }
-            
-            const datosProveedor = {
-                nombreEmpresa: document.getElementById('nombreEmpresa')?.value?.trim(),
-                nit: placaInput,
-                contacto: document.getElementById('contacto')?.value?.trim(),
-                telefono: document.getElementById('telefono')?.value?.trim(),
-                servicio: document.getElementById('servicio')?.value
+
+            Utils.setLoading('submitTurnBtn', true);
+
+            try {
+                const reason = service === 'otro' ? otherReason : Utils.formatServiceType(service);
+
+                const turn = TurnManager.createTurn({
+                    plate,
+                    companyName: company,
+                    contact,
+                    phone,
+                    service
+                }, reason);
+
+                // Mostrar confirmación
+                document.getElementById('confirmationTurnNumber').textContent = turn.number;
+                document.getElementById('confirmationDetails').innerHTML = `
+                    <strong>${turn.companyName}</strong><br>
+                    ${turn.reason}
+                `;
+                openModal('confirmationModal');
+
+                // Activar modo de espera
+                activateWaitingMode(turn);
+
+                // Limpiar formulario
+                event.target.reset();
+                document.getElementById('otherReasonGroup').style.display = 'none';
+
+                Utils.showNotification(`Turno ${turn.number} solicitado exitosamente`, 'success');
+                renderUserView();
+
+            } catch (error) {
+                Utils.showNotification(error.message, 'error');
+            } finally {
+                Utils.setLoading('submitTurnBtn', false);
+            }
+        }
+
+        function cancelMyTurn() {
+            if (!AppState.myTurn) return;
+
+            if (confirm(`¿Está seguro de cancelar su turno ${AppState.myTurn.number}?`)) {
+                TurnManager.cancelTurn(AppState.myTurn.id);
+                Utils.showNotification('Turno cancelado', 'success');
+                renderUserView();
+            }
+        }
+
+        function callNextTurn() {
+            const turn = TurnManager.callNextTurn();
+            if (turn) {
+                Utils.showNotification(`Turno ${turn.number} llamado`, 'success');
+                renderAdminView();
+            }
+        }
+
+        function completeCurrentTurn() {
+            if (confirm('¿Completar el turno actual?')) {
+                if (TurnManager.completeCurrentTurn()) {
+                    Utils.showNotification('Turno completado', 'success');
+                    renderAdminView();
+                }
+            }
+        }
+
+        function adminCancelTurn(turnId) {
+            if (confirm('¿Cancelar este turno?')) {
+                if (TurnManager.cancelTurn(turnId)) {
+                    Utils.showNotification('Turno cancelado', 'success');
+                    renderAdminView();
+                }
+            }
+        }
+
+        function syncData() {
+            TurnManager.loadTurns();
+            renderAdminView();
+            Utils.showNotification('Datos sincronizados', 'success');
+        }
+
+        function clearHistory() {
+            if (confirm('¿Limpiar todo el historial?')) {
+                AppState.history = [];
+                localStorage.removeItem('history');
+                renderAdminView();
+                Utils.showNotification('Historial limpiado', 'success');
+            }
+        }
+
+        // ============================================
+        // GESTIÓN DE PROVEEDORES (ADMIN)
+        // ============================================
+        let editingProviderId = null;
+
+        function openAddProviderModal() {
+            editingProviderId = null;
+            document.getElementById('editProviderForm').reset();
+            document.querySelector('#editProviderModal .modal-title').innerHTML = `
+                <i data-lucide="plus-circle" style="width: 20px; height: 20px; vertical-align: middle; margin-right: 8px;"></i>
+                Nuevo Proveedor
+            `;
+            openModal('editProviderModal');
+            lucide.createIcons();
+        }
+
+        function editProvider(id) {
+            const provider = AppState.providers.find(p => p.id === id);
+            if (!provider) return;
+
+            editingProviderId = id;
+            document.getElementById('editProviderId').value = id;
+            document.getElementById('editCompanyName').value = provider.companyName;
+            document.getElementById('editPlate').value = provider.plate;
+            document.getElementById('editContact').value = provider.contact || '';
+            document.getElementById('editPhone').value = provider.phone || '';
+            document.getElementById('editService').value = provider.service || 'otro';
+
+            document.querySelector('#editProviderModal .modal-title').innerHTML = `
+                <i data-lucide="edit-3" style="width: 20px; height: 20px; vertical-align: middle; margin-right: 8px;"></i>
+                Editar Proveedor
+            `;
+
+            openModal('editProviderModal');
+            lucide.createIcons();
+        }
+
+        function handleEditProvider(event) {
+            event.preventDefault();
+
+            const data = {
+                companyName: document.getElementById('editCompanyName').value.trim(),
+                plate: document.getElementById('editPlate').value.trim().toUpperCase(),
+                contact: document.getElementById('editContact').value.trim(),
+                phone: document.getElementById('editPhone').value.trim(),
+                service: document.getElementById('editService').value
             };
 
-            if (!datosProveedor.nombreEmpresa) throw new Error('El nombre de la empresa es requerido');
-
-            const motivoInput = document.getElementById('motivoVisita');
-            const motivoPersonalizado = motivoInput ? motivoInput.value?.trim() : '';
-            
-            const motivo = motivoPersonalizado || datosProveedor.servicio;
-
-            const turno = await Turnos.solicitar(datosProveedor, motivo);
-            
-            LocalStorage.guardarMiTurno(turno);
-            
-            const modal = document.getElementById('confirmacionModal');
-            const modalMiTurno = document.getElementById('modalMiTurno');
-            const modalTurnoInfo = document.getElementById('modalTurnoInfo');
-            
-            if (modal && modalMiTurno) {
-                modalMiTurno.textContent = turno.numero;
-                if (modalTurnoInfo) modalTurnoInfo.textContent = `${turno.nombreEmpresa}\n${turno.motivo || ''}`;
-                modal.style.display = 'flex';
+            if (!data.companyName) {
+                Utils.showNotification('El nombre de la empresa es requerido', 'error');
+                return;
             }
 
-            Utils.mostrarNotificacion(`Turno ${turno.numero} solicitado`, 'success');
-            
-            if (typeof ModoEspera !== 'undefined') {
-                ModoEspera.activar(turno);
+            if (!data.plate || data.plate.length !== 6) {
+                Utils.showNotification('La placa debe tener 6 caracteres', 'error');
+                return;
             }
-            
-            e.target.reset();
-            const motivoGroup = document.getElementById('motivoGroup');
-            if (motivoGroup) motivoGroup.style.display = 'none';
-            
-            RenderUsuario.todo();
-            
-        } catch (error) {
-            console.error('Error:', error);
-            Utils.mostrarNotificacion(error.message, 'error');
-        } finally {
-            Utils.setLoading(false);
-        }
-    },
-    
-    async cancelarTurno() {
-        const miTurno = LocalStorage.obtenerMiTurno();
-        if (!miTurno) {
-            Utils.mostrarNotificacion('No tienes un turno activo', 'error');
-            return;
-        }
-        
-        if (confirm(`¿Cancelar turno ${miTurno.numero}?`)) {
-            try {
-                await Turnos.cancelar(miTurno.id);
-                LocalStorage.eliminarMiTurno();
-                if (typeof ModoEspera !== 'undefined') {
-                    ModoEspera.desactivar();
-                }
-                Utils.mostrarNotificacion('Turno cancelado', 'success');
-                RenderUsuario.todo();
-            } catch (error) {
-                console.error('Error al cancelar turno:', error);
-                Utils.mostrarNotificacion('Error al cancelar turno', 'error');
-            }
-        }
-    }
-};
 
-// ============================================
-// HANDLERS ADMIN - CON EDICIÓN MEJORADA
-// ============================================
-
-const AdminHandlers = {
-    async llamarTurno() {
-        const turno = await Turnos.llamarSiguiente();
-        
-        if (turno) {
-            // Reproducir sonido al llamar
-            SoundManager.playCallSound();
-            
-            const modal = document.getElementById('turnoModal');
-            if (modal) {
-                const modalTurnNumber = document.getElementById('modalTurnNumber');
-                const modalTurnInfo = document.getElementById('modalTurnInfo');
-                
-                if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
-                if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}\n${turno.motivo || ''}`;
-                modal.style.display = 'flex';
-            }
-            
-            Utils.mostrarNotificacion(`Turno ${turno.numero} llamado`, 'success');
-            await RenderAdmin.todo();
-        }
-    },
-    
-    async completarTurno() {
-        if (!AppState.turnoActual) {
-            Utils.mostrarNotificacion('No hay turno en atención', 'error');
-            return;
-        }
-        
-        const turnoNumero = AppState.turnoActual.numero;
-        
-        if (confirm(`¿Completar turno ${turnoNumero}?`)) {
-            const resultado = await Turnos.completarTurnoActual();
-            if (resultado) {
-                Utils.mostrarNotificacion(`Turno ${turnoNumero} completado`, 'success');
-                await RenderAdmin.todo();
+            if (editingProviderId) {
+                ProviderManager.updateProvider(editingProviderId, data);
+                Utils.showNotification('Proveedor actualizado', 'success');
             } else {
-                Utils.mostrarNotificacion('Error al completar turno', 'error');
+                ProviderManager.saveProvider({
+                    id: Date.now(),
+                    ...data
+                });
+                Utils.showNotification('Proveedor agregado', 'success');
+            }
+
+            closeModal('editProviderModal');
+            renderAdminView();
+        }
+
+        function deleteProvider(id) {
+            if (confirm('¿Eliminar este proveedor?')) {
+                if (ProviderManager.deleteProvider(id)) {
+                    Utils.showNotification('Proveedor eliminado', 'success');
+                    renderAdminView();
+                }
             }
         }
-    },
 
-    async cancelarTurno(id) {
-        if (confirm('¿Cancelar turno?')) {
-            await Turnos.cancelar(id);
-            await RenderAdmin.todo();
-        }
-    },
+        // ============================================
+        // ACCESO ADMIN
+        // ============================================
+        function handleLogoClick() {
+            logoClickCount++;
 
-    async reiniciarCola() {
-        if (confirm('¿Reiniciar cola? Se perderán todos los turnos en espera.')) {
-            await Turnos.reiniciarCola();
-            Utils.mostrarNotificacion('Cola reiniciada', 'success');
-            await RenderAdmin.todo();
-        }
-    },
+            if (logoClickTimer) clearTimeout(logoClickTimer);
+            logoClickTimer = setTimeout(() => {
+                logoClickCount = 0;
+            }, CONFIG.LOGO_CLICK_TIMEOUT);
 
-    // MEJORA: Edición de proveedores con modal funcional
-    async editarProveedor(id) {
-        console.log('Editando proveedor ID:', id);
-        
-        // Buscar en el estado actual
-        let proveedor = AppState.proveedores.find(p => p.id === id);
-        
-        // Si no está en el estado, recargar
-        if (!proveedor) {
-            await SupabaseDB.cargarProveedores();
-            proveedor = AppState.proveedores.find(p => p.id === id);
-        }
-        
-        if (!proveedor) {
-            Utils.mostrarNotificacion('Proveedor no encontrado', 'error');
-            return;
+            if (logoClickCount >= CONFIG.LOGO_CLICKS_REQUIRED) {
+                logoClickCount = 0;
+                openModal('adminLoginModal');
+            }
         }
 
-        // Crear modal si no existe
-        let modal = document.getElementById('editarProveedorModal');
-        
-        if (!modal) {
-            const modalHTML = `
-                <div id="editarProveedorModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
-                    <div class="modal-content" style="background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; position: relative;">
-                        <button class="close-modal" onclick="document.getElementById('editarProveedorModal').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
-                        <h2 style="margin-bottom: 20px; color: #333;">✏️ Editar Proveedor</h2>
-                        <form id="formEditarProveedor">
-                            <input type="hidden" id="editProveedorId">
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="editNombreEmpresa" style="display: block; margin-bottom: 5px; font-weight: bold;">Nombre de la Empresa:</label>
-                                <input type="text" id="editNombreEmpresa" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="editNit" style="display: block; margin-bottom: 5px; font-weight: bold;">Placa del Vehículo:</label>
-                                <input type="text" id="editNit" required maxlength="6" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; text-transform: uppercase;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="editContacto" style="display: block; margin-bottom: 5px; font-weight: bold;">Persona de Contacto:</label>
-                                <input type="text" id="editContacto" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="editTelefono" style="display: block; margin-bottom: 5px; font-weight: bold;">Teléfono:</label>
-                                <input type="tel" id="editTelefono" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 20px;">
-                                <label for="editServicio" style="display: block; margin-bottom: 5px; font-weight: bold;">Tipo de Servicio:</label>
-                                <select id="editServicio" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
-                                    <option value="entrega">📦 Entrega de Mercancía</option>
-                                    <option value="servicio">🔧 Servicio Técnico</option>
-                                    <option value="reunion">👥 Reunión</option>
-                                    <option value="otro">📋 Otro</option>
-                                </select>
-                            </div>
-                            <div style="display: flex; gap: 10px;">
-                                <button type="submit" class="btn btn-primary" style="flex: 1; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
-                                    💾 Guardar Cambios
-                                </button>
-                                <button type="button" onclick="document.getElementById('editarProveedorModal').style.display='none'" class="btn btn-secondary" style="flex: 1; padding: 12px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
-                                    ❌ Cancelar
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            `;
-            document.body.insertAdjacentHTML('beforeend', modalHTML);
-            modal = document.getElementById('editarProveedorModal');
-            
-            // Configurar evento submit del formulario
-            document.getElementById('formEditarProveedor').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const proveedorId = parseInt(document.getElementById('editProveedorId').value);
-                const datos = {
-                    nombreEmpresa: document.getElementById('editNombreEmpresa').value.trim(),
-                    nit: document.getElementById('editNit').value.trim().toUpperCase(),
-                    contacto: document.getElementById('editContacto').value.trim(),
-                    telefono: document.getElementById('editTelefono').value.trim(),
-                    servicio: document.getElementById('editServicio').value
-                };
-                
-                if (!datos.nombreEmpresa) {
-                    Utils.mostrarNotificacion('El nombre de la empresa es requerido', 'error');
-                    return;
-                }
-                
-                if (!datos.nit || datos.nit.length !== 6) {
-                    Utils.mostrarNotificacion('La placa debe tener 6 caracteres', 'error');
-                    return;
-                }
-                
-                Utils.setLoading(true);
-                
-                try {
-                    const resultado = await SupabaseDB.actualizarProveedor(proveedorId, datos);
-                    
-                    if (resultado) {
-                        Utils.mostrarNotificacion('Proveedor actualizado exitosamente', 'success');
-                        document.getElementById('editarProveedorModal').style.display = 'none';
-                        await RenderAdmin.proveedores();
-                    } else {
-                        Utils.mostrarNotificacion('Error al actualizar proveedor', 'error');
-                    }
-                } catch (error) {
-                    console.error('Error al actualizar:', error);
-                    Utils.mostrarNotificacion('Error al actualizar proveedor: ' + error.message, 'error');
-                } finally {
-                    Utils.setLoading(false);
-                }
+        function handleAdminLogin(event) {
+            event.preventDefault();
+
+            const password = document.getElementById('adminPassword').value;
+
+            if (password === CONFIG.ADMIN_PASSWORD) {
+                AppState.isAdmin = true;
+                closeModal('adminLoginModal');
+                document.getElementById('userView').style.display = 'none';
+                document.getElementById('adminView').style.display = 'block';
+                document.getElementById('connectionStatus').innerHTML = `
+                    <i data-lucide="shield-check" style="width: 16px; height: 16px;"></i>
+                    <span>Modo Admin</span>
+                `;
+                document.getElementById('connectionStatus').className = 'connection-status connected';
+
+                renderAdminView();
+                Utils.showNotification('Acceso de administrador concedido', 'success');
+                lucide.createIcons();
+            } else {
+                Utils.showNotification('Contraseña incorrecta', 'error');
+            }
+        }
+
+        // ============================================
+        // UTILIDADES DE MODAL
+        // ============================================
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function closeAllModals() {
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.classList.remove('active');
             });
-            
-            // Configurar input de placa para mayúsculas
-            document.getElementById('editNit').addEventListener('input', function() {
+        }
+
+        // ============================================
+        // INICIALIZACIÓN
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            // Inicializar sonido
+            SoundManager.init();
+
+            // Cargar datos
+            TurnManager.loadTurns();
+
+            // Configurar logo click
+            document.getElementById('logoClick').addEventListener('click', handleLogoClick);
+
+            // Configurar input de placa (mayúsculas)
+            document.getElementById('plateInput').addEventListener('input', function() {
                 this.value = this.value.toUpperCase();
             });
-        }
-        
-        // Llenar datos del proveedor
-        document.getElementById('editProveedorId').value = proveedor.id;
-        document.getElementById('editNombreEmpresa').value = proveedor.nombreEmpresa || '';
-        document.getElementById('editNit').value = proveedor.nit || '';
-        document.getElementById('editContacto').value = proveedor.contacto || '';
-        document.getElementById('editTelefono').value = proveedor.telefono || '';
-        document.getElementById('editServicio').value = proveedor.servicio || 'entrega';
-        
-        // Mostrar modal
-        modal.style.display = 'flex';
-    },
 
-    async eliminarProveedor(id) {
-        if (confirm('¿Eliminar este proveedor? Esta acción no se puede deshacer.')) {
-            Utils.setLoading(true);
-            try {
-                const resultado = await SupabaseDB.eliminarProveedor(id);
-                if (resultado) {
-                    Utils.mostrarNotificacion('Proveedor eliminado', 'success');
-                    await RenderAdmin.proveedores();
-                } else {
-                    Utils.mostrarNotificacion('Error al eliminar proveedor', 'error');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                Utils.mostrarNotificacion('Error al eliminar proveedor', 'error');
-            } finally {
-                Utils.setLoading(false);
-            }
-        }
-    },
-
-    async limpiarHistorial() {
-        if (confirm('¿Está seguro de que desea limpiar todo el historial?')) {
-            try {
-                LocalStorage.guardarHistorial([]);
-                AppState.historial = [];
-                
-                if (window.supabaseClient) {
-                    const { error } = await window.supabaseClient
-                        .from('historial_turnos')
-                        .delete()
-                        .neq('id', 0);
-                    
-                    if (error) {
-                        console.error('Error al limpiar historial:', error);
-                    }
-                }
-                
-                Utils.mostrarNotificacion('Historial limpiado', 'success');
-                await RenderAdmin.todo();
-            } catch (error) {
-                console.error('Error al limpiar historial:', error);
-                Utils.mostrarNotificacion('Error al limpiar historial', 'error');
-            }
-        }
-    }
-};
-
-window.AdminHandlers = AdminHandlers;
-window.UsuarioHandlers = UsuarioHandlers;
-
-// ============================================
-// ACCESO ADMIN
-// ============================================
-
-const AdminAccess = {
-    handleLogoClick() {
-        logoClickCount++;
-        if (logoClickTimer) clearTimeout(logoClickTimer);
-        
-        logoClickTimer = setTimeout(() => logoClickCount = 0, CONFIG.LOGO_CLICK_TIMEOUT);
-        
-        if (logoClickCount >= CONFIG.LOGO_CLICKS_REQUIRED) {
-            logoClickCount = 0;
-            const modal = document.getElementById('adminAccessModal');
-            if (modal) {
-                modal.style.display = 'flex';
-                const input = document.getElementById('adminPassword');
-                if (input) {
-                    input.value = '';
-                    input.focus();
-                }
-            }
-        }
-    },
-
-    handleLogin(e) {
-        e.preventDefault();
-        const password = document.getElementById('adminPassword')?.value;
-        
-        if (password === CONFIG.ADMIN_PASSWORD) {
-            window.location.href = 'admin.html';
-        } else {
-            const errorEl = document.getElementById('loginError');
-            if (errorEl) {
-                errorEl.textContent = 'Contraseña incorrecta';
-                errorEl.style.display = 'block';
-            }
-            Utils.mostrarNotificacion('Contraseña incorrecta', 'error');
-        }
-    }
-};
-
-// ============================================
-// CONFIGURACIÓN DE INPUTS
-// ============================================
-
-const InputConfig = {
-    configurarPlacaInput() {
-        const placaInput = document.getElementById('nit');
-        if (placaInput) {
-            placaInput.setAttribute('maxlength', '6');
-            placaInput.setAttribute('pattern', '[A-Za-z0-9]{6}');
-            placaInput.setAttribute('title', 'Ingrese exactamente 6 caracteres (letras o números)');
-            
-            placaInput.addEventListener('input', function() {
-                const start = this.selectionStart;
-                const end = this.selectionEnd;
-                this.value = this.value.toUpperCase().slice(0, 6);
-                this.setSelectionRange(start, end);
+            document.getElementById('editPlate').addEventListener('input', function() {
+                this.value = this.value.toUpperCase();
             });
-        }
-    },
 
-    configurarServicioSelect() {
-        const servicioSelect = document.getElementById('servicio');
-        const motivoGroup = document.getElementById('motivoGroup');
-        const motivoInput = document.getElementById('motivoVisita');
-        
-        if (servicioSelect && motivoGroup && motivoInput) {
-            servicioSelect.addEventListener('change', function() {
-                if (this.value === 'otro') {
-                    motivoGroup.style.display = 'block';
-                    motivoInput.setAttribute('required', 'required');
-                } else {
-                    motivoGroup.style.display = 'none';
-                    motivoInput.removeAttribute('required');
-                    motivoInput.value = '';
+            // Cerrar modales al hacer click fuera
+            window.onclick = (e) => {
+                if (e.target.classList.contains('modal')) {
+                    e.target.classList.remove('active');
                 }
-            });
-        }
-    }
-};
-
-// ============================================
-// CONFIGURACIÓN DE MODALES
-// ============================================
-
-const ModalConfig = {
-    configurar() {
-        document.querySelectorAll('.close-modal').forEach(btn => {
-            btn.onclick = function() {
-                this.closest('.modal').style.display = 'none';
             };
-        });
 
-        window.onclick = (e) => {
-            if (e.target.classList.contains('modal')) {
-                e.target.style.display = 'none';
-            }
-        };
+            // Verificar si hay turno guardado
+            if (AppState.myTurn) {
+                const turnExists = AppState.turns.find(t => t.id === AppState.myTurn.id);
+                const isBeingServed = AppState.currentTurn && AppState.currentTurn.id === AppState.myTurn.id;
 
-        const loginForm = document.getElementById('adminLoginForm');
-        if (loginForm) {
-            loginForm.addEventListener('submit', AdminAccess.handleLogin);
-        }
-    }
-};
+                if (turnExists || isBeingServed) {
+                    activateWaitingMode(AppState.myTurn);
 
-// ============================================
-// ESTADO DE CONEXIÓN
-// ============================================
-
-const ConnectionStatus = {
-    actualizar(estado, mensaje) {
-        const statusEl = document.getElementById('connectionStatus');
-        if (!statusEl) return;
-        
-        statusEl.textContent = mensaje;
-        statusEl.className = 'connection-status ' + estado;
-    }
-};
-
-// ============================================
-// MODO DE ESPERA Y NOTIFICACIONES
-// ============================================
-
-const ModoEspera = {
-    activo: false,
-    miTurno: null,
-    intervaloActualizacion: null,
-    notificacionMostrada: false,
-
-    activar(turno) {
-        this.activo = true;
-        this.miTurno = turno;
-        this.notificacionMostrada = false;
-        
-        const waitingSection = document.getElementById('waitingModeSection');
-        if (waitingSection) {
-            waitingSection.style.display = 'block';
-            this.actualizar();
-            
-            this.intervaloActualizacion = setInterval(() => {
-                this.actualizar();
-            }, 3000);
-        }
-    },
-
-    desactivar() {
-        this.activo = false;
-        this.miTurno = null;
-        this.notificacionMostrada = false;
-        
-        const waitingSection = document.getElementById('waitingModeSection');
-        if (waitingSection) {
-            waitingSection.style.display = 'none';
-        }
-        
-        if (this.intervaloActualizacion) {
-            clearInterval(this.intervaloActualizacion);
-            this.intervaloActualizacion = null;
-        }
-    },
-
-    actualizar() {
-        if (!this.activo || !this.miTurno) return;
-        
-        const enCola = AppState.turnos.find(t => t.numero === this.miTurno.numero);
-        const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === this.miTurno.numero;
-        
-        if (!enCola && !siendoAtendido) {
-            console.log('Turno completado detectado en ModoEspera');
-            LocalStorage.eliminarMiTurno();
-            this.desactivar();
-            RenderUsuario.todo();
-            return;
-        }
-        
-        const turnoActual = AppState.turnoActual;
-        const turnosEspera = AppState.turnos;
-        
-        if (turnoActual && turnoActual.numero === this.miTurno.numero) {
-            this.mostrarNotificacionLlamado();
-            return;
-        }
-        
-        const posicion = turnosEspera.findIndex(t => t.numero === this.miTurno.numero) + 1;
-        const tiempoEstimado = posicion > 0 ? posicion * CONFIG.TURN_TIME_ESTIMATE : 0;
-        
-        const waitingTurnNumber = document.getElementById('waitingTurnNumber');
-        const waitingTurnStatus = document.getElementById('waitingTurnStatus');
-        const waitingPosition = document.getElementById('waitingPosition');
-        const waitingTime = document.getElementById('waitingTime');
-        const progressFill = document.getElementById('progressFill');
-        
-        if (waitingTurnNumber) waitingTurnNumber.textContent = this.miTurno.numero;
-        if (waitingTurnStatus) waitingTurnStatus.textContent = posicion > 0 ? 'En espera' : 'Procesando...';
-        if (waitingPosition) waitingPosition.textContent = `Posición: ${posicion > 0 ? posicion : '--'}`;
-        if (waitingTime) waitingTime.textContent = `Tiempo estimado: ${tiempoEstimado > 0 ? tiempoEstimado + ' min' : '--'}`;
-        
-        if (progressFill) {
-            const totalTurnos = turnosEspera.length;
-            const progreso = totalTurnos > 0 ? ((totalTurnos - posicion + 1) / totalTurnos) * 100 : 0;
-            progressFill.style.width = `${Math.min(progreso, 100)}%`;
-        }
-    },
-
-    mostrarNotificacionLlamado() {
-        if (this.notificacionMostrada) return;
-        this.notificacionMostrada = true;
-        
-        // Usar la nueva notificación mejorada
-        if (typeof RenderUsuario !== 'undefined') {
-            RenderUsuario.mostrarNotificacionTurnoLlamado(this.miTurno);
-        }
-        
-        // Reproducir sonido mejorado
-        SoundManager.playCallSound();
-    }
-};
-
-// ============================================
-// INICIALIZACIÓN
-// ============================================
-
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Sistema de Turnos cargado - Versión Mejorada');
-    
-    // Inicializar sistema de sonido
-    SoundManager.init();
-    
-    try {
-        let conexionOk = false;
-        try {
-            conexionOk = await SupabaseDB.verificarConexion();
-            console.log(conexionOk ? 'Supabase conectado' : 'Modo local');
-            
-            if (conexionOk) {
-                ConnectionStatus.actualizar('connected', '✓ Conectado a Supabase');
-            } else {
-                ConnectionStatus.actualizar('disconnected', '✗ Sin conexión a Supabase');
-            }
-        } catch (error) {
-            console.log('Error al verificar Supabase:', error.message);
-            ConnectionStatus.actualizar('disconnected', '✗ Sin conexión');
-        }
-        
-        await Turnos.cargarTurnos();
-        console.log('Datos cargados:', {
-            turnos: AppState.turnos.length,
-            turnoActual: AppState.turnoActual ? AppState.turnoActual.numero : 'ninguno'
-        });
-        
-        ModalConfig.configurar();
-        
-        if (document.getElementById('logoClick')) {
-            document.getElementById('logoClick').addEventListener('click', AdminAccess.handleLogoClick);
-            document.getElementById('logoClick').style.cursor = 'pointer';
-        }
-        
-        // Página de usuario (index.html)
-        if (document.getElementById('formSolicitarTurno')) {
-            InputConfig.configurarPlacaInput();
-            InputConfig.configurarServicioSelect();
-            document.getElementById('formSolicitarTurno').addEventListener('submit', UsuarioHandlers.solicitarTurno);
-            RenderUsuario.todo();
-            
-            const btnCancelarEspera = document.getElementById('btnCancelarEspera');
-            if (btnCancelarEspera) {
-                btnCancelarEspera.addEventListener('click', UsuarioHandlers.cancelarTurno);
-            }
-            
-            // Verificar si el turno del usuario sigue siendo válido
-            const miTurno = LocalStorage.obtenerMiTurno();
-            if (miTurno) {
-                const enCola = AppState.turnos.find(t => t.numero === miTurno.numero);
-                const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
-                
-                if (enCola || siendoAtendido) {
-                    ModoEspera.activar(miTurno);
-                    
-                    // Verificar si ya está siendo atendido (recarga de página)
-                    if (siendoAtendido) {
-                        RenderUsuario.verificarMiTurnoLlamado();
+                    // Si ya está siendo atendido, mostrar notificación
+                    if (isBeingServed) {
+                        setTimeout(() => {
+                            showTurnCalledNotification(AppState.currentTurn);
+                        }, 1000);
                     }
                 } else {
-                    console.log('Turno guardado ya no existe en el sistema, limpiando...');
-                    LocalStorage.eliminarMiTurno();
+                    AppState.myTurn = null;
+                    localStorage.removeItem('myTurn');
                 }
             }
-            
-            if (window.supabaseClient) {
-                console.log('Configurando suscripción a tiempo real para usuario...');
-                AppState.subscription = RenderUsuario.suscribirCambios();
-            } else {
-                console.warn('Supabase no disponible - verifica tu conexión y credenciales');
-            }
-        }
-        
-        // Página de admin (admin.html)
-        const btnLlamarTurno = document.getElementById('btnLlamarTurno');
-        if (btnLlamarTurno) {
-            console.log('Configurando página de administrador...');
-            
-            btnLlamarTurno.addEventListener('click', AdminHandlers.llamarTurno);
-            
-            const btnCompletarTurno = document.getElementById('btnCompletarTurno');
-            if (btnCompletarTurno) btnCompletarTurno.addEventListener('click', AdminHandlers.completarTurno);
-            
-            const btnReiniciar = document.getElementById('btnReiniciarCola');
-            if (btnReiniciar) btnReiniciar.addEventListener('click', AdminHandlers.reiniciarCola);
-            
-            const btnLimpiar = document.getElementById('btnLimpiarHistorial');
-            if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
-            
-            const btnSincronizar = document.getElementById('btnSincronizarNube');
-            if (btnSincronizar) {
-                btnSincronizar.addEventListener('click', async () => {
-                    const originalText = btnSincronizar.textContent;
-                    btnSincronizar.textContent = 'Sincronizando...';
-                    btnSincronizar.disabled = true;
-                    
-                    const resultado = await SupabaseDB.sincronizarTodo();
-                    
-                    btnSincronizar.textContent = originalText;
-                    btnSincronizar.disabled = false;
-                    
-                    if (resultado.success) {
-                        Utils.mostrarNotificacion(resultado.message, 'success');
-                        await Turnos.cargarTurnos();
-                        await RenderAdmin.todo();
-                    } else {
-                        Utils.mostrarNotificacion('Error: ' + resultado.message, 'error');
-                    }
-                });
-            }
-            
-            console.log('Renderizando admin...');
-            await RenderAdmin.todo();
-            
-            // Actualizar historial y estadísticas cada 5 segundos
-            setInterval(async () => {
-                await RenderAdmin.historial();
-                await RenderAdmin.estadisticas();
-            }, 5000);
-            
-            if (window.supabaseClient) {
-                console.log('Configurando suscripción a tiempo real para admin...');
-                AppState.subscription = SupabaseDB.suscribirCambiosTurnos(async (payload) => {
-                    console.log('Actualización en tiempo real recibida:', payload);
-                    try {
-                        await Turnos.cargarTurnos();
-                        await RenderAdmin.todo();
-                        
-                        if (payload.eventType === 'INSERT') {
-                            Utils.mostrarNotificacion(`Nuevo turno ${payload.new.numero} recibido`, 'info');
-                        }
-                    } catch (error) {
-                        console.error('Error al procesar actualización en tiempo real:', error);
-                    }
-                });
-                
-                SupabaseDB.suscribirCambiosHistorial(async (payload) => {
-                    console.log('Nuevo turno completado:', payload);
-                    try {
-                        await RenderAdmin.historial();
-                        await RenderAdmin.estadisticas();
-                    } catch (error) {
-                        console.error('Error al actualizar historial:', error);
-                    }
-                });
-            } else {
-                console.warn('Supabase no disponible - verifica tu conexión y credenciales');
-            }
-        }
-    } catch (error) {
-        console.error('Error durante la inicialización:', error);
-        Utils.mostrarNotificacion('Error al inicializar el sistema', 'error');
-    }
-});
 
-window.AdminHandlers = AdminHandlers;
-window.UsuarioHandlers = UsuarioHandlers;
+            // Renderizar vista inicial
+            renderUserView();
+
+            // Inicializar iconos
+            lucide.createIcons();
+
+            // Actualización periódica para sincronización entre pestañas
+            setInterval(() => {
+                TurnManager.loadTurns();
+                if (AppState.isAdmin) {
+                    renderAdminView();
+                } else {
+                    renderUserView();
+                    if (AppState.myTurn) {
+                        updateWaitingMode();
+                    }
+                }
+            }, 3000);
+
+            console.log('Sistema de Turnos iniciado');
+        });
+
+        // Exponer funciones globales necesarias
+        window.dismissTurnCalled = dismissTurnCalled;
+        window.cancelMyTurn = cancelMyTurn;
+        window.callNextTurn = callNextTurn;
+        window.completeCurrentTurn = completeCurrentTurn;
+        window.adminCancelTurn = adminCancelTurn;
+        window.syncData = syncData;
+        window.clearHistory = clearHistory;
+        window.openAddProviderModal = openAddProviderModal;
+        window.editProvider = editProvider;
+        window.deleteProvider = deleteProvider;
+        window.closeModal = closeModal;
+    </script>
+</body>
+</html>
