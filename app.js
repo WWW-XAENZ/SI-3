@@ -1562,9 +1562,6 @@ const RenderAdmin = {
                         <td>${p.telefono || '-'}</td>
                         <td>${p.servicio || '-'}</td>
                         <td>
-                            <button class="btn btn-secondary btn-small" onclick="AdminHandlers.editarProveedor(${p.id})">
-                                Editar
-                            </button>
                             <button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarProveedor(${p.id})">
                                 Eliminar
                             </button>
@@ -1802,82 +1799,6 @@ const AdminHandlers = {
             Utils.mostrarNotificacion('Cola reiniciada', 'success');
             await RenderAdmin.todo();
         }
-    },
-
-    editarProveedor(id) {
-        const proveedor = AppState.proveedores.find(p => p.id === id);
-        if (!proveedor) {
-            Utils.mostrarNotificacion('Proveedor no encontrado', 'error');
-            return;
-        }
-
-        const modal = document.getElementById('editarProveedorModal');
-        if (!modal) {
-            const modalHTML = `
-                <div id="editarProveedorModal" class="modal">
-                    <div class="modal-content">
-                        <button class="close-modal" onclick="document.getElementById('editarProveedorModal').style.display='none'">&times;</button>
-                        <h2>Editar Proveedor</h2>
-                        <form id="formEditarProveedor">
-                            <input type="hidden" id="editProveedorId">
-                            <div class="form-group">
-                                <label for="editNombreEmpresa">Nombre de la Empresa:</label>
-                                <input type="text" id="editNombreEmpresa" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="editNit">Placa del Vehículo:</label>
-                                <input type="text" id="editNit" required maxlength="6">
-                            </div>
-                            <div class="form-group">
-                                <label for="editContacto">Persona de Contacto:</label>
-                                <input type="text" id="editContacto">
-                            </div>
-                            <div class="form-group">
-                                <label for="editTelefono">Teléfono:</label>
-                                <input type="tel" id="editTelefono">
-                            </div>
-                            <div class="form-group">
-                                <label for="editServicio">Tipo de Servicio:</label>
-                                <select id="editServicio">
-                                    <option value="entrega">Entrega de Mercancía</option>
-                                    <option value="servicio">Servicio Técnico</option>
-                                    <option value="reunion">Reunión</option>
-                                    <option value="otro">Otro</option>
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
-                        </form>
-                    </div>
-                </div>
-            `;
-            document.body.insertAdjacentHTML('beforeend', modalHTML);
-            
-            document.getElementById('formEditarProveedor').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const proveedorId = parseInt(document.getElementById('editProveedorId').value);
-                const datos = {
-                    nombreEmpresa: document.getElementById('editNombreEmpresa').value.trim(),
-                    nit: document.getElementById('editNit').value.trim().toUpperCase(),
-                    contacto: document.getElementById('editContacto').value.trim(),
-                    telefono: document.getElementById('editTelefono').value.trim(),
-                    servicio: document.getElementById('editServicio').value
-                };
-                
-                await SupabaseDB.actualizarProveedor(proveedorId, datos);
-                Utils.mostrarNotificacion('Proveedor actualizado', 'success');
-                document.getElementById('editarProveedorModal').style.display = 'none';
-                await RenderAdmin.proveedores();
-            });
-        }
-        
-        document.getElementById('editProveedorId').value = proveedor.id;
-        document.getElementById('editNombreEmpresa').value = proveedor.nombreEmpresa;
-        document.getElementById('editNit').value = proveedor.nit;
-        document.getElementById('editContacto').value = proveedor.contacto || '';
-        document.getElementById('editTelefono').value = proveedor.telefono || '';
-        document.getElementById('editServicio').value = proveedor.servicio || 'entrega';
-        
-        modal.style.display = 'flex';
     },
 
     async eliminarProveedor(id) {
@@ -2133,6 +2054,23 @@ const ModoEspera = {
         
         const notificacion = document.createElement('div');
         notificacion.className = 'turn-called-notification';
+
+        // Estilos para centrar en pantalla
+        Object.assign(notificacion.style, {
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: '10000',
+            backgroundColor: '#10b981',
+            color: 'white',
+            padding: '50px 80px',
+            borderRadius: '20px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+            textAlign: 'center',
+            minWidth: '350px',
+            animation: 'pulse 0.5s ease-in-out'
+        });
         notificacion.innerHTML = `
             <h3>
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2149,7 +2087,7 @@ const ModoEspera = {
         document.body.appendChild(notificacion);
         
         try {
-            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
             audio.volume = 0.5;
             audio.play().catch(() => {});
         } catch (e) {}
@@ -2317,6 +2255,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         Utils.mostrarNotificacion('Error al inicializar el sistema', 'error');
     }
 });
+
+// Recarga automática cada 20 segundos
+setInterval(() => {
+    location.reload();
+}, 20000);
 
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
