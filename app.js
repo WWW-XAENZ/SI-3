@@ -1,6 +1,6 @@
 // ============================================
 // SISTEMA DE TURNOS PROFESIONAL - ESTILO EPS
-// VERSIÓN MEJORADA - Abril 2026
+// VERSIÓN CORREGIDA - Abril 2026
 // ============================================
 
 const CONFIG = {
@@ -30,105 +30,6 @@ const AppState = {
 let logoClickCount = 0;
 let logoClickTimer = null;
 let syncInterval = null;
-
-// ============================================
-// SONIDO DE LLAMADO - MEJORADO
-// ============================================
-
-const SoundManager = {
-    audioContext: null,
-    
-    init() {
-        try {
-            window.AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.audioContext = new AudioContext();
-        } catch (e) {
-            console.warn('Web Audio API no soportada');
-        }
-    },
-    
-    playCallSound() {
-        // Intentar usar Web Audio API para mejor sonido
-        if (this.audioContext) {
-            this.playBeepSequence();
-        } else {
-            // Fallback al audio simple
-            this.playSimpleBeep();
-        }
-    },
-    
-    playBeepSequence() {
-        const ctx = this.audioContext;
-        const now = ctx.currentTime;
-        
-        // Crear oscilador para tono principal
-        const osc1 = ctx.createOscillator();
-        const gain1 = ctx.createGain();
-        
-        osc1.connect(gain1);
-        gain1.connect(ctx.destination);
-        
-        // Configurar tono (frecuencia alta de llamada)
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(880, now); // La5
-        osc1.frequency.exponentialRampToValueAtTime(440, now + 0.1);
-        
-        // Envolvente de volumen
-        gain1.gain.setValueAtTime(0, now);
-        gain1.gain.linearRampToValueAtTime(0.3, now + 0.05);
-        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-        
-        osc1.start(now);
-        osc1.stop(now + 0.5);
-        
-        // Segundo beep
-        setTimeout(() => {
-            const osc2 = ctx.createOscillator();
-            const gain2 = ctx.createGain();
-            
-            osc2.connect(gain2);
-            gain2.connect(ctx.destination);
-            
-            osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(880, ctx.currentTime);
-            osc2.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
-            
-            gain2.gain.setValueAtTime(0, ctx.currentTime);
-            gain2.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
-            gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-            
-            osc2.start();
-            osc2.stop(ctx.currentTime + 0.5);
-        }, 200);
-        
-        // Tercer beep más largo
-        setTimeout(() => {
-            const osc3 = ctx.createOscillator();
-            const gain3 = ctx.createGain();
-            
-            osc3.connect(gain3);
-            gain3.connect(ctx.destination);
-            
-            osc3.type = 'sine';
-            osc3.frequency.setValueAtTime(880, ctx.currentTime);
-            osc3.frequency.exponentialRampToValueAtTime(220, ctx.currentTime + 0.3);
-            
-            gain3.gain.setValueAtTime(0, ctx.currentTime);
-            gain3.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.1);
-            gain3.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
-            
-            osc3.start();
-            osc3.stop(ctx.currentTime + 0.8);
-        }, 400);
-    },
-    
-    playSimpleBeep() {
-        // Fallback usando Audio element
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
-        audio.volume = 0.5;
-        audio.play().catch(() => {});
-    }
-};
 
 // ============================================
 // UTILIDADES
@@ -306,10 +207,14 @@ const LocalStorage = {
 };
 
 // ============================================
-// BASE DE DATOS SUPABASE
+// BASE DE DATOS SUPABASE - CORREGIDO
 // ============================================
 
 const SupabaseDB = {
+    // ==========================================
+    // CONEXIÓN
+    // ==========================================
+    
     async verificarConexion() {
         if (!window.supabaseClient) {
             console.warn('Supabase no está inicializado');
@@ -334,6 +239,10 @@ const SupabaseDB = {
             return false;
         }
     },
+
+    // ==========================================
+    // CONTADOR DE TURNOS
+    // ==========================================
 
     async obtenerContadorTurnos() {
         const contadorLocal = LocalStorage.obtenerContador();
@@ -402,6 +311,10 @@ const SupabaseDB = {
         }
     },
 
+    // ==========================================
+    // PROVEEDORES
+    // ==========================================
+
     async guardarProveedor(proveedor) {
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible');
@@ -467,11 +380,7 @@ const SupabaseDB = {
         
         try {
             const datosActualizados = {
-                nombre_empresa: datos.nombreEmpresa,
-                nit: datos.nit,
-                contacto: datos.contacto || null,
-                telefono: datos.telefono || null,
-                servicio: datos.servicio || null,
+                ...datos,
                 updated_at: new Date().toISOString()
             };
             
@@ -526,9 +435,7 @@ const SupabaseDB = {
             
             if (error) throw error;
             
-            const proveedores = data.map(p => this._mapearProveedor(p));
-            AppState.proveedores = proveedores; // Guardar en estado global
-            return proveedores;
+            return data.map(p => this._mapearProveedor(p));
         } catch (error) {
             console.error('Error al cargar proveedores:', error);
             return [];
@@ -574,6 +481,10 @@ const SupabaseDB = {
             updatedAt: p.updated_at
         };
     },
+
+    // ==========================================
+    // TURNOS - CORREGIDO
+    // ==========================================
 
     async guardarTurno(turno) {
         if (!window.supabaseClient) {
@@ -782,6 +693,10 @@ const SupabaseDB = {
         };
     },
 
+    // ==========================================
+    // HISTORIAL
+    // ==========================================
+
     async guardarEnHistorial(turno) {
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible');
@@ -882,6 +797,10 @@ const SupabaseDB = {
         };
     },
 
+    // ==========================================
+    // ESTADÍSTICAS
+    // ==========================================
+
     async cargarEstadisticas() {
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible');
@@ -945,6 +864,10 @@ const SupabaseDB = {
             };
         }
     },
+
+    // ==========================================
+    // SUSCRIPCIONES REALTIME
+    // ==========================================
 
     suscribirCambiosTurnos(callback) {
         if (!window.supabaseClient) {
@@ -1044,6 +967,10 @@ const SupabaseDB = {
         }
     },
 
+    // ==========================================
+    // SINCRONIZACIÓN - CORREGIDA
+    // ==========================================
+
     async sincronizarTodo() {
         if (!window.supabaseClient) {
             return { success: false, message: 'Supabase no está configurado' };
@@ -1113,13 +1040,14 @@ const SupabaseDB = {
 };
 
 // ============================================
-// GESTIÓN DE TURNOS
+// GESTIÓN DE TURNOS - CORREGIDO COMPLETAMENTE
 // ============================================
 
 const Turnos = {
     async solicitar(datosProveedor, motivo = '') {
         console.log('=== CREANDO TURNO ===');
         
+        // Validaciones mejoradas
         if (!datosProveedor.nit) {
             throw new Error('La placa es requerida');
         }
@@ -1137,13 +1065,16 @@ const Turnos = {
         datosProveedor.nit = placa;
         datosProveedor.nombreEmpresa = datosProveedor.nombreEmpresa.trim();
 
+        // Guardar/actualizar proveedor
         await SupabaseDB.guardarProveedor(datosProveedor);
 
+        // Generar número de turno con manejo de errores
         let nuevoContador;
         try {
             nuevoContador = await SupabaseDB.incrementarContadorTurnos();
         } catch (error) {
             console.error('Error al incrementar contador:', error);
+            // Fallback a contador local
             AppState.contadorTurnos++;
             nuevoContador = AppState.contadorTurnos;
             LocalStorage.guardarContador(nuevoContador);
@@ -1165,16 +1096,19 @@ const Turnos = {
             estado: 'espera'
         };
 
+        // Guardar en Supabase
         const turnoSupabase = await SupabaseDB.guardarTurno(turno);
         
         if (turnoSupabase && turnoSupabase.id) {
             turno.id = turnoSupabase.id;
             console.log('Turno guardado en Supabase con ID:', turno.id);
         } else {
+            // Fallback: generar ID local
             turno.id = Date.now();
             console.warn('Turno guardado localmente con ID:', turno.id);
         }
 
+        // Actualizar estado local
         const existeTurno = AppState.turnos.find(t => t.numero === turno.numero);
         if (!existeTurno) {
             AppState.turnos.push(turno);
@@ -1188,11 +1122,13 @@ const Turnos = {
     async llamarSiguiente() {
         console.log('=== LLAMANDO SIGUIENTE TURNO ===');
         
+        // CORRECCIÓN CRÍTICA: Verificar si hay un turno actual que debe completarse
         if (AppState.turnoActual) {
             Utils.mostrarNotificacion(`Hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
             return null;
         }
         
+        // Recargar turnos desde Supabase para asegurar datos actualizados
         const todosLosTurnos = await SupabaseDB.cargarTurnos('espera');
         console.log('Turnos en espera cargados:', todosLosTurnos.length);
         
@@ -1201,6 +1137,7 @@ const Turnos = {
             return null;
         }
         
+        // CORRECCIÓN: Ordenar por fecha de solicitud (más antiguo primero) con manejo seguro
         todosLosTurnos.sort((a, b) => {
             const fechaA = new Date(a.fechaSolicitud || a.fecha_solicitud || 0);
             const fechaB = new Date(b.fechaSolicitud || b.fecha_solicitud || 0);
@@ -1210,6 +1147,7 @@ const Turnos = {
         const siguiente = todosLosTurnos[0];
         console.log('Turno seleccionado:', siguiente);
         
+        // Actualizar en Supabase primero
         const horaLlamada = Utils.obtenerHoraActual();
         const actualizado = await SupabaseDB.llamarTurno(siguiente.id);
         
@@ -1218,12 +1156,14 @@ const Turnos = {
             return null;
         }
         
+        // Actualizar estado local
         siguiente.estado = 'atendiendo';
         siguiente.horaLlamada = horaLlamada;
         
         AppState.turnoActual = siguiente;
         AppState.turnos = todosLosTurnos.filter(t => t.id !== siguiente.id);
         
+        // Guardar en localStorage
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
         
@@ -1253,16 +1193,19 @@ const Turnos = {
         console.log('Completando turno:', turnoCompletado.numero);
         
         try {
+            // 1. Guardar en historial PRIMERO
             const historialGuardado = await SupabaseDB.guardarEnHistorial(turnoCompletado);
             if (!historialGuardado) {
                 console.warn('No se pudo guardar en historial, continuando...');
             }
             
+            // 2. Eliminar de turnos activos
             const eliminado = await SupabaseDB.eliminarTurno(turnoCompletado.id);
             if (!eliminado) {
                 throw new Error('No se pudo eliminar el turno de la base de datos');
             }
             
+            // 3. Verificar si el usuario tenía este turno y limpiarlo
             const miTurno = LocalStorage.obtenerMiTurno();
             if (miTurno && miTurno.numero === turnoCompletado.numero) {
                 LocalStorage.eliminarMiTurno();
@@ -1271,6 +1214,7 @@ const Turnos = {
                 }
             }
             
+            // 4. Limpiar estado local
             AppState.turnoActual = null;
             LocalStorage.guardarTurnoActual(null);
             
@@ -1310,6 +1254,7 @@ const Turnos = {
         console.log('=== CARGANDO TURNOS ===');
         
         try {
+            // Intentar cargar desde Supabase primero
             if (window.supabaseClient) {
                 const todosLosTurnos = await SupabaseDB.cargarTurnos();
                 
@@ -1320,6 +1265,7 @@ const Turnos = {
                     AppState.turnos = turnosEnEspera;
                     AppState.turnoActual = turnoAtendiendo || null;
                     
+                    // Sincronizar localStorage
                     LocalStorage.guardarTurnos(turnosEnEspera);
                     if (turnoAtendiendo) {
                         LocalStorage.guardarTurnoActual(turnoAtendiendo);
@@ -1331,17 +1277,20 @@ const Turnos = {
                     console.log(`   - En espera: ${turnosEnEspera.length}`);
                     console.log(`   - Atendiendo: ${turnoAtendiendo ? 1 : 0}`);
                     
+                    // Actualizar contador
                     AppState.contadorTurnos = await SupabaseDB.obtenerContadorTurnos();
                     return;
                 }
             }
             
+            // Fallback a localStorage
             console.warn('Usando datos locales');
             AppState.turnos = LocalStorage.obtenerTurnos();
             AppState.turnoActual = LocalStorage.obtenerTurnoActual();
             
         } catch (error) {
             console.error('❌ Error al cargar turnos:', error);
+            // Usar datos locales como respaldo
             AppState.turnos = LocalStorage.obtenerTurnos();
             AppState.turnoActual = LocalStorage.obtenerTurnoActual();
             Utils.mostrarNotificacion('Error de conexión. Usando datos locales.', 'error');
@@ -1350,7 +1299,7 @@ const Turnos = {
 };
 
 // ============================================
-// RENDERIZADO USUARIO - CON NOTIFICACIÓN INSTANTÁNEA
+// RENDERIZADO USUARIO - CORREGIDO
 // ============================================
 
 const RenderUsuario = {
@@ -1361,10 +1310,13 @@ const RenderUsuario = {
         if (!container) return;
 
         if (miTurno) {
+            // Verificar si el turno aún existe en el sistema
             const enCola = AppState.turnos.find(t => t.numero === miTurno.numero);
             const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
             
+            // Si no está en cola ni siendo atendido, el turno fue completado
             if (!enCola && !siendoAtendido) {
+                // Limpiar turno completado
                 LocalStorage.eliminarMiTurno();
                 container.innerHTML = `
                     <div class="no-turn-message">
@@ -1374,10 +1326,12 @@ const RenderUsuario = {
                     </div>
                 `;
                 
+                // Desactivar modo espera si está activo
                 if (typeof ModoEspera !== 'undefined') {
                     ModoEspera.desactivar();
                 }
                 
+                // Limpiar después de 5 segundos
                 setTimeout(() => {
                     this.miTurno();
                 }, 5000);
@@ -1468,154 +1422,6 @@ const RenderUsuario = {
         this.turnosEnEspera();
     },
     
-    // MEJORA: Notificación instantánea cuando llaman el turno del usuario
-    verificarMiTurnoLlamado() {
-        const miTurno = LocalStorage.obtenerMiTurno();
-        if (!miTurno) return false;
-        
-        const estaSiendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
-        
-        if (estaSiendoAtendido) {
-            // Verificar si ya mostramos la notificación
-            const notificacionMostrada = sessionStorage.getItem('notificacionTurno_' + miTurno.numero);
-            
-            if (!notificacionMostrada) {
-                // Marcar como mostrada
-                sessionStorage.setItem('notificacionTurno_' + miTurno.numero, 'true');
-                
-                // Mostrar notificación grande
-                this.mostrarNotificacionTurnoLlamado(miTurno);
-                
-                // Reproducir sonido
-                SoundManager.playCallSound();
-                
-                return true;
-            }
-        }
-        
-        return false;
-    },
-    
-    mostrarNotificacionTurnoLlamado(turno) {
-        // Eliminar notificación anterior si existe
-        const notificacionAnterior = document.querySelector('.turn-called-notification');
-        if (notificacionAnterior) {
-            notificacionAnterior.remove();
-        }
-        
-        const notificacion = document.createElement('div');
-        notificacion.className = 'turn-called-notification';
-        notificacion.innerHTML = `
-            <div class="notification-content">
-                <div class="notification-icon">🔔</div>
-                <h2>¡ES TU TURNO!</h2>
-                <div class="turn-number-display">${turno.numero}</div>
-                <div class="turn-company">${turno.nombreEmpresa}</div>
-                <p class="turn-message">Por favor diríjase al punto de atención</p>
-                <button class="btn btn-primary btn-large" onclick="this.closest('.turn-called-notification').remove()">
-                    Entendido
-                </button>
-            </div>
-        `;
-        
-        // Estilos inline para asegurar que se vea bien
-        notificacion.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            animation: fadeIn 0.3s ease;
-        `;
-        
-        const content = notificacion.querySelector('.notification-content');
-        content.style.cssText = `
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 40px;
-            border-radius: 20px;
-            text-align: center;
-            color: white;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 90%;
-            width: 400px;
-            animation: slideInUp 0.5s ease;
-        `;
-        
-        const icon = notificacion.querySelector('.notification-icon');
-        icon.style.cssText = `
-            font-size: 60px;
-            margin-bottom: 20px;
-            animation: bellRing 1s ease infinite;
-        `;
-        
-        const title = notificacion.querySelector('h2');
-        title.style.cssText = `
-            font-size: 28px;
-            margin: 0 0 20px 0;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        `;
-        
-        const turnNumber = notificacion.querySelector('.turn-number-display');
-        turnNumber.style.cssText = `
-            font-size: 72px;
-            font-weight: bold;
-            margin: 20px 0;
-            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
-            background: rgba(255,255,255,0.2);
-            padding: 20px;
-            border-radius: 15px;
-            display: inline-block;
-        `;
-        
-        const company = notificacion.querySelector('.turn-company');
-        company.style.cssText = `
-            font-size: 20px;
-            margin: 15px 0;
-            opacity: 0.95;
-        `;
-        
-        const message = notificacion.querySelector('.turn-message');
-        message.style.cssText = `
-            font-size: 18px;
-            margin: 20px 0 30px 0;
-            opacity: 0.9;
-        `;
-        
-        const btn = notificacion.querySelector('button');
-        btn.style.cssText = `
-            padding: 15px 40px;
-            font-size: 18px;
-            border-radius: 30px;
-            border: none;
-            background: #fff;
-            color: #667eea;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.2s;
-        `;
-        
-        btn.onmouseover = () => btn.style.transform = 'scale(1.05)';
-        btn.onmouseout = () => btn.style.transform = 'scale(1)';
-        
-        document.body.appendChild(notificacion);
-        
-        // Auto-cerrar después de 30 segundos
-        setTimeout(() => {
-            if (notificacion.parentElement) {
-                notificacion.style.opacity = '0';
-                notificacion.style.transition = 'opacity 0.5s';
-                setTimeout(() => notificacion.remove(), 500);
-            }
-        }, 30000);
-    },
-    
     suscribirCambios() {
         if (!window.supabaseClient) {
             console.warn('Supabase no disponible para suscripción en usuario');
@@ -1633,9 +1439,6 @@ const RenderUsuario = {
                             await Turnos.cargarTurnos();
                             this.todo();
                             
-                            // MEJORA: Verificar si llamaron nuestro turno
-                            this.verificarMiTurnoLlamado();
-                            
                             const miTurno = LocalStorage.obtenerMiTurno();
                             if (miTurno && AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero) {
                                 if (typeof ModoEspera !== 'undefined') {
@@ -1647,6 +1450,7 @@ const RenderUsuario = {
                         }
                     }
                 )
+                // También escuchar cambios en historial para detectar turnos completados
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
                     async (payload) => {
@@ -1655,6 +1459,7 @@ const RenderUsuario = {
                             await Turnos.cargarTurnos();
                             this.todo();
                             
+                            // Verificar si es el turno del usuario actual
                             const miTurno = LocalStorage.obtenerMiTurno();
                             if (miTurno && payload.new && payload.new.numero === miTurno.numero) {
                                 if (typeof ModoEspera !== 'undefined') {
@@ -1684,7 +1489,7 @@ const RenderUsuario = {
 };
 
 // ============================================
-// RENDERIZADO ADMIN - CON EDICIÓN DE PROVEEDORES MEJORADA
+// RENDERIZADO ADMIN - CORREGIDO CON MANEJO DE ERRORES
 // ============================================
 
 const RenderAdmin = {
@@ -1742,7 +1547,6 @@ const RenderAdmin = {
         if (!proveedoresBody) return;
 
         try {
-            // Recargar proveedores para tener datos actualizados
             const proveedores = await SupabaseDB.cargarProveedores();
             
             if (contadorDiv) contadorDiv.textContent = proveedores.length;
@@ -1751,7 +1555,7 @@ const RenderAdmin = {
                 proveedoresBody.innerHTML = '<tr><td colspan="6" class="empty-message">No hay proveedores registrados</td></tr>';
             } else {
                 proveedoresBody.innerHTML = proveedores.map(p => `
-                    <tr data-proveedor-id="${p.id}">
+                    <tr>
                         <td>${p.nombreEmpresa}</td>
                         <td>${p.nit || '-'}</td>
                         <td>${p.contacto || '-'}</td>
@@ -1759,10 +1563,10 @@ const RenderAdmin = {
                         <td>${p.servicio || '-'}</td>
                         <td>
                             <button class="btn btn-secondary btn-small" onclick="AdminHandlers.editarProveedor(${p.id})">
-                                ✏️ Editar
+                                Editar
                             </button>
                             <button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarProveedor(${p.id})">
-                                🗑️ Eliminar
+                                Eliminar
                             </button>
                         </td>
                     </tr>
@@ -1832,9 +1636,11 @@ const RenderAdmin = {
         }
     },
 
+    // CORRECCIÓN: Manejo de errores individual para cada función
     async todo() {
         console.log('=== ACTUALIZANDO VISTA ADMIN ===');
         
+        // Ejecutar cada función independientemente (si una falla, las demás continúan)
         try { this.turnoActual(); } catch (e) { console.error('Error turnoActual:', e); }
         try { this.listaTurnosEspera(); } catch (e) { console.error('Error listaTurnosEspera:', e); }
         try { await this.proveedores(); } catch (e) { console.error('Error proveedores:', e); }
@@ -1938,7 +1744,7 @@ const UsuarioHandlers = {
 };
 
 // ============================================
-// HANDLERS ADMIN - CON EDICIÓN MEJORADA
+// HANDLERS ADMIN
 // ============================================
 
 const AdminHandlers = {
@@ -1946,9 +1752,6 @@ const AdminHandlers = {
         const turno = await Turnos.llamarSiguiente();
         
         if (turno) {
-            // Reproducir sonido al llamar
-            SoundManager.playCallSound();
-            
             const modal = document.getElementById('turnoModal');
             if (modal) {
                 const modalTurnNumber = document.getElementById('modalTurnNumber');
@@ -1961,6 +1764,9 @@ const AdminHandlers = {
             
             Utils.mostrarNotificacion(`Turno ${turno.numero} llamado`, 'success');
             await RenderAdmin.todo();
+        } else {
+            // No hay turnos o hay un error - la notificación ya se muestra en llamarSiguiente
+            console.log('No se pudo llamar turno');
         }
     },
     
@@ -1998,79 +1804,56 @@ const AdminHandlers = {
         }
     },
 
-    // MEJORA: Edición de proveedores con modal funcional
-    async editarProveedor(id) {
-        console.log('Editando proveedor ID:', id);
-        
-        // Buscar en el estado actual
-        let proveedor = AppState.proveedores.find(p => p.id === id);
-        
-        // Si no está en el estado, recargar
-        if (!proveedor) {
-            await SupabaseDB.cargarProveedores();
-            proveedor = AppState.proveedores.find(p => p.id === id);
-        }
-        
+    editarProveedor(id) {
+        const proveedor = AppState.proveedores.find(p => p.id === id);
         if (!proveedor) {
             Utils.mostrarNotificacion('Proveedor no encontrado', 'error');
             return;
         }
 
-        // Crear modal si no existe
-        let modal = document.getElementById('editarProveedorModal');
-        
+        const modal = document.getElementById('editarProveedorModal');
         if (!modal) {
             const modalHTML = `
-                <div id="editarProveedorModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
-                    <div class="modal-content" style="background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; position: relative;">
-                        <button class="close-modal" onclick="document.getElementById('editarProveedorModal').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
-                        <h2 style="margin-bottom: 20px; color: #333;">✏️ Editar Proveedor</h2>
+                <div id="editarProveedorModal" class="modal">
+                    <div class="modal-content">
+                        <button class="close-modal" onclick="document.getElementById('editarProveedorModal').style.display='none'">&times;</button>
+                        <h2>Editar Proveedor</h2>
                         <form id="formEditarProveedor">
                             <input type="hidden" id="editProveedorId">
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="editNombreEmpresa" style="display: block; margin-bottom: 5px; font-weight: bold;">Nombre de la Empresa:</label>
-                                <input type="text" id="editNombreEmpresa" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
+                            <div class="form-group">
+                                <label for="editNombreEmpresa">Nombre de la Empresa:</label>
+                                <input type="text" id="editNombreEmpresa" required>
                             </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="editNit" style="display: block; margin-bottom: 5px; font-weight: bold;">Placa del Vehículo:</label>
-                                <input type="text" id="editNit" required maxlength="6" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; text-transform: uppercase;">
+                            <div class="form-group">
+                                <label for="editNit">Placa del Vehículo:</label>
+                                <input type="text" id="editNit" required maxlength="6">
                             </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="editContacto" style="display: block; margin-bottom: 5px; font-weight: bold;">Persona de Contacto:</label>
-                                <input type="text" id="editContacto" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
+                            <div class="form-group">
+                                <label for="editContacto">Persona de Contacto:</label>
+                                <input type="text" id="editContacto">
                             </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="editTelefono" style="display: block; margin-bottom: 5px; font-weight: bold;">Teléfono:</label>
-                                <input type="tel" id="editTelefono" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
+                            <div class="form-group">
+                                <label for="editTelefono">Teléfono:</label>
+                                <input type="tel" id="editTelefono">
                             </div>
-                            <div class="form-group" style="margin-bottom: 20px;">
-                                <label for="editServicio" style="display: block; margin-bottom: 5px; font-weight: bold;">Tipo de Servicio:</label>
-                                <select id="editServicio" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
-                                    <option value="entrega">📦 Entrega de Mercancía</option>
-                                    <option value="servicio">🔧 Servicio Técnico</option>
-                                    <option value="reunion">👥 Reunión</option>
-                                    <option value="otro">📋 Otro</option>
+                            <div class="form-group">
+                                <label for="editServicio">Tipo de Servicio:</label>
+                                <select id="editServicio">
+                                    <option value="entrega">Entrega de Mercancía</option>
+                                    <option value="servicio">Servicio Técnico</option>
+                                    <option value="reunion">Reunión</option>
+                                    <option value="otro">Otro</option>
                                 </select>
                             </div>
-                            <div style="display: flex; gap: 10px;">
-                                <button type="submit" class="btn btn-primary" style="flex: 1; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
-                                    💾 Guardar Cambios
-                                </button>
-                                <button type="button" onclick="document.getElementById('editarProveedorModal').style.display='none'" class="btn btn-secondary" style="flex: 1; padding: 12px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
-                                    ❌ Cancelar
-                                </button>
-                            </div>
+                            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
                         </form>
                     </div>
                 </div>
             `;
             document.body.insertAdjacentHTML('beforeend', modalHTML);
-            modal = document.getElementById('editarProveedorModal');
             
-            // Configurar evento submit del formulario
             document.getElementById('formEditarProveedor').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                
                 const proveedorId = parseInt(document.getElementById('editProveedorId').value);
                 const datos = {
                     nombreEmpresa: document.getElementById('editNombreEmpresa').value.trim(),
@@ -2080,71 +1863,28 @@ const AdminHandlers = {
                     servicio: document.getElementById('editServicio').value
                 };
                 
-                if (!datos.nombreEmpresa) {
-                    Utils.mostrarNotificacion('El nombre de la empresa es requerido', 'error');
-                    return;
-                }
-                
-                if (!datos.nit || datos.nit.length !== 6) {
-                    Utils.mostrarNotificacion('La placa debe tener 6 caracteres', 'error');
-                    return;
-                }
-                
-                Utils.setLoading(true);
-                
-                try {
-                    const resultado = await SupabaseDB.actualizarProveedor(proveedorId, datos);
-                    
-                    if (resultado) {
-                        Utils.mostrarNotificacion('Proveedor actualizado exitosamente', 'success');
-                        document.getElementById('editarProveedorModal').style.display = 'none';
-                        await RenderAdmin.proveedores();
-                    } else {
-                        Utils.mostrarNotificacion('Error al actualizar proveedor', 'error');
-                    }
-                } catch (error) {
-                    console.error('Error al actualizar:', error);
-                    Utils.mostrarNotificacion('Error al actualizar proveedor: ' + error.message, 'error');
-                } finally {
-                    Utils.setLoading(false);
-                }
-            });
-            
-            // Configurar input de placa para mayúsculas
-            document.getElementById('editNit').addEventListener('input', function() {
-                this.value = this.value.toUpperCase();
+                await SupabaseDB.actualizarProveedor(proveedorId, datos);
+                Utils.mostrarNotificacion('Proveedor actualizado', 'success');
+                document.getElementById('editarProveedorModal').style.display = 'none';
+                await RenderAdmin.proveedores();
             });
         }
         
-        // Llenar datos del proveedor
         document.getElementById('editProveedorId').value = proveedor.id;
-        document.getElementById('editNombreEmpresa').value = proveedor.nombreEmpresa || '';
-        document.getElementById('editNit').value = proveedor.nit || '';
+        document.getElementById('editNombreEmpresa').value = proveedor.nombreEmpresa;
+        document.getElementById('editNit').value = proveedor.nit;
         document.getElementById('editContacto').value = proveedor.contacto || '';
         document.getElementById('editTelefono').value = proveedor.telefono || '';
         document.getElementById('editServicio').value = proveedor.servicio || 'entrega';
         
-        // Mostrar modal
         modal.style.display = 'flex';
     },
 
     async eliminarProveedor(id) {
-        if (confirm('¿Eliminar este proveedor? Esta acción no se puede deshacer.')) {
-            Utils.setLoading(true);
-            try {
-                const resultado = await SupabaseDB.eliminarProveedor(id);
-                if (resultado) {
-                    Utils.mostrarNotificacion('Proveedor eliminado', 'success');
-                    await RenderAdmin.proveedores();
-                } else {
-                    Utils.mostrarNotificacion('Error al eliminar proveedor', 'error');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                Utils.mostrarNotificacion('Error al eliminar proveedor', 'error');
-            } finally {
-                Utils.setLoading(false);
-            }
+        if (confirm('¿Eliminar este proveedor?')) {
+            await SupabaseDB.eliminarProveedor(id);
+            Utils.mostrarNotificacion('Proveedor eliminado', 'success');
+            await RenderAdmin.proveedores();
         }
     },
 
@@ -2345,9 +2085,11 @@ const ModoEspera = {
     actualizar() {
         if (!this.activo || !this.miTurno) return;
         
+        // Verificar si el turno sigue existiendo
         const enCola = AppState.turnos.find(t => t.numero === this.miTurno.numero);
         const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === this.miTurno.numero;
         
+        // Si el turno no está en cola ni siendo atendido, fue completado
         if (!enCola && !siendoAtendido) {
             console.log('Turno completado detectado en ModoEspera');
             LocalStorage.eliminarMiTurno();
@@ -2389,25 +2131,43 @@ const ModoEspera = {
         if (this.notificacionMostrada) return;
         this.notificacionMostrada = true;
         
-        // Usar la nueva notificación mejorada
-        if (typeof RenderUsuario !== 'undefined') {
-            RenderUsuario.mostrarNotificacionTurnoLlamado(this.miTurno);
-        }
+        const notificacion = document.createElement('div');
+        notificacion.className = 'turn-called-notification';
+        notificacion.innerHTML = `
+            <h3>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                ¡Es tu turno!
+            </h3>
+            <div class="turn-number">${this.miTurno.numero}</div>
+            <p>${this.miTurno.nombreEmpresa}</p>
+            <p>Diríjase al punto de atención</p>
+            <button class="btn" onclick="this.parentElement.remove()">Entendido</button>
+        `;
         
-        // Reproducir sonido mejorado
-        SoundManager.playCallSound();
+        document.body.appendChild(notificacion);
+        
+        try {
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
+            audio.volume = 0.5;
+            audio.play().catch(() => {});
+        } catch (e) {}
+        
+        setTimeout(() => {
+            if (notificacion.parentElement) {
+                notificacion.remove();
+            }
+        }, 10000);
     }
 };
 
 // ============================================
-// INICIALIZACIÓN
+// INICIALIZACIÓN - CORREGIDA
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Sistema de Turnos cargado - Versión Mejorada');
-    
-    // Inicializar sistema de sonido
-    SoundManager.init();
+    console.log('Sistema de Turnos cargado - Versión Corregida');
     
     try {
         let conexionOk = false;
@@ -2425,6 +2185,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ConnectionStatus.actualizar('disconnected', '✗ Sin conexión');
         }
         
+        // Cargar turnos correctamente al inicio
         await Turnos.cargarTurnos();
         console.log('Datos cargados:', {
             turnos: AppState.turnos.length,
@@ -2453,17 +2214,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Verificar si el turno del usuario sigue siendo válido
             const miTurno = LocalStorage.obtenerMiTurno();
             if (miTurno) {
+                // Verificar si el turno aún existe en el sistema
                 const enCola = AppState.turnos.find(t => t.numero === miTurno.numero);
                 const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
                 
                 if (enCola || siendoAtendido) {
+                    // El turno existe, activar modo espera
                     ModoEspera.activar(miTurno);
-                    
-                    // Verificar si ya está siendo atendido (recarga de página)
-                    if (siendoAtendido) {
-                        RenderUsuario.verificarMiTurnoLlamado();
-                    }
                 } else {
+                    // El turno ya no existe (fue completado o cancelado)
                     console.log('Turno guardado ya no existe en el sistema, limpiando...');
                     LocalStorage.eliminarMiTurno();
                 }
