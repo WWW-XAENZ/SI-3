@@ -1,5 +1,6 @@
 // ============================================
 // SISTEMA DE TURNOS PROFESIONAL - ESTILO EPS
+// VERSIÓN CORREGIDA - Abril 2026
 // ============================================
 
 const CONFIG = {
@@ -206,7 +207,7 @@ const LocalStorage = {
 };
 
 // ============================================
-// BASE DE DATOS SUPABASE - SOLO NUBE
+// BASE DE DATOS SUPABASE - CORREGIDO
 // ============================================
 
 const SupabaseDB = {
@@ -1039,85 +1040,134 @@ const SupabaseDB = {
 };
 
 // ============================================
-// GESTIÓN DE TURNOS - CORREGIDO
+// GESTIÓN DE TURNOS - CORREGIDO COMPLETAMENTE
 // ============================================
 
 const Turnos = {
     async solicitar(datosProveedor, motivo = '') {
         console.log('=== CREANDO TURNO ===');
         
+        // Validaciones mejoradas
         if (!datosProveedor.nit) {
             throw new Error('La placa es requerida');
         }
         
-        const placa = datosProveedor.nit.toUpperCase();
+        const placa = datosProveedor.nit.toUpperCase().trim();
         
         if (placa.length !== 6) {
             throw new Error('La placa debe tener exactamente 6 caracteres');
         }
         
-        if (!datosProveedor.nombreEmpresa) throw new Error('El nombre de la empresa es requerido');
+        if (!datosProveedor.nombreEmpresa || datosProveedor.nombreEmpresa.trim() === '') {
+            throw new Error('El nombre de la empresa es requerido');
+        }
         
         datosProveedor.nit = placa;
+        datosProveedor.nombreEmpresa = datosProveedor.nombreEmpresa.trim();
 
+        // Guardar/actualizar proveedor
         await SupabaseDB.guardarProveedor(datosProveedor);
 
-        const nuevoContador = await SupabaseDB.incrementarContadorTurnos();
+        // Generar número de turno con manejo de errores
+        let nuevoContador;
+        try {
+            nuevoContador = await SupabaseDB.incrementarContadorTurnos();
+        } catch (error) {
+            console.error('Error al incrementar contador:', error);
+            // Fallback a contador local
+            AppState.contadorTurnos++;
+            nuevoContador = AppState.contadorTurnos;
+            LocalStorage.guardarContador(nuevoContador);
+        }
+        
         const numeroTurno = 'T' + nuevoContador.toString().padStart(3, '0');
+        console.log('Nuevo número de turno:', numeroTurno);
         
         const turno = {
-            id: Date.now(),
             numero: numeroTurno,
             nombreEmpresa: datosProveedor.nombreEmpresa,
-            nit: datosProveedor.nit.toUpperCase(),
+            nit: placa,
             contacto: datosProveedor.contacto,
             telefono: datosProveedor.telefono,
             servicio: datosProveedor.servicio,
-            motivo: motivo,
+            motivo: motivo || '',
             horaSolicitud: Utils.obtenerHoraActual(),
             fechaSolicitud: new Date().toISOString(),
             estado: 'espera'
         };
 
+        // Guardar en Supabase
         const turnoSupabase = await SupabaseDB.guardarTurno(turno);
-        if (turnoSupabase) {
+        
+        if (turnoSupabase && turnoSupabase.id) {
             turno.id = turnoSupabase.id;
+            console.log('Turno guardado en Supabase con ID:', turno.id);
+        } else {
+            // Fallback: generar ID local
+            turno.id = Date.now();
+            console.warn('Turno guardado localmente con ID:', turno.id);
         }
 
+        // Actualizar estado local
         const existeTurno = AppState.turnos.find(t => t.numero === turno.numero);
         if (!existeTurno) {
             AppState.turnos.push(turno);
             LocalStorage.guardarTurnos(AppState.turnos);
         }
         
+        console.log('✅ Turno creado exitosamente:', turno.numero);
         return turno;
     },
 
     async llamarSiguiente() {
-        const turnosSupabase = await SupabaseDB.cargarTurnos('espera');
-        if (turnosSupabase.length > 0) {
-            AppState.turnos = turnosSupabase;
+        console.log('=== LLAMANDO SIGUIENTE TURNO ===');
+        
+        // CORRECCIÓN CRÍTICA: Verificar si hay un turno actual que debe completarse
+        if (AppState.turnoActual) {
+            Utils.mostrarNotificacion(`Hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
+            return null;
         }
         
-        if (AppState.turnos.length === 0) return null;
+        // Recargar turnos desde Supabase para asegurar datos actualizados
+        const todosLosTurnos = await SupabaseDB.cargarTurnos('espera');
+        console.log('Turnos en espera cargados:', todosLosTurnos.length);
         
-        AppState.turnos.sort((a, b) => new Date(a.fechaSolicitud) - new Date(b.fechaSolicitud));
+        if (!todosLosTurnos || todosLosTurnos.length === 0) {
+            Utils.mostrarNotificacion('No hay turnos en espera', 'error');
+            return null;
+        }
         
-        const siguiente = AppState.turnos[0];
-        siguiente.estado = 'atendiendo';
-        siguiente.horaLlamada = Utils.obtenerHoraActual();
-        
-        await SupabaseDB.actualizarTurno(siguiente.id, {
-            estado: 'atendiendo',
-            hora_llamada: siguiente.horaLlamada
+        // CORRECCIÓN: Ordenar por fecha de solicitud (más antiguo primero) con manejo seguro
+        todosLosTurnos.sort((a, b) => {
+            const fechaA = new Date(a.fechaSolicitud || a.fecha_solicitud || 0);
+            const fechaB = new Date(b.fechaSolicitud || b.fecha_solicitud || 0);
+            return fechaA - fechaB;
         });
         
+        const siguiente = todosLosTurnos[0];
+        console.log('Turno seleccionado:', siguiente);
+        
+        // Actualizar en Supabase primero
+        const horaLlamada = Utils.obtenerHoraActual();
+        const actualizado = await SupabaseDB.llamarTurno(siguiente.id);
+        
+        if (!actualizado) {
+            Utils.mostrarNotificacion('Error al llamar turno en la base de datos', 'error');
+            return null;
+        }
+        
+        // Actualizar estado local
+        siguiente.estado = 'atendiendo';
+        siguiente.horaLlamada = horaLlamada;
+        
         AppState.turnoActual = siguiente;
-        AppState.turnos = AppState.turnos.filter(t => t.id !== siguiente.id);
+        AppState.turnos = todosLosTurnos.filter(t => t.id !== siguiente.id);
         
-        LocalStorage.guardarTurnos(AppState.turnos);
+        // Guardar en localStorage
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
+        LocalStorage.guardarTurnos(AppState.turnos);
         
+        console.log('✅ Turno llamado exitosamente:', siguiente.numero);
         return siguiente;
     },
 
@@ -1134,27 +1184,46 @@ const Turnos = {
     },
 
     async completarTurnoActual() {
-        if (!AppState.turnoActual) return false;
+        if (!AppState.turnoActual) {
+            Utils.mostrarNotificacion('No hay turno en atención', 'error');
+            return false;
+        }
+        
+        const turnoCompletado = { ...AppState.turnoActual };
+        console.log('Completando turno:', turnoCompletado.numero);
         
         try {
-            const turnoCompletado = AppState.turnoActual;
+            // 1. Guardar en historial PRIMERO
+            const historialGuardado = await SupabaseDB.guardarEnHistorial(turnoCompletado);
+            if (!historialGuardado) {
+                console.warn('No se pudo guardar en historial, continuando...');
+            }
             
-            await SupabaseDB.guardarEnHistorial(turnoCompletado);
-            await SupabaseDB.eliminarTurno(turnoCompletado.id);
+            // 2. Eliminar de turnos activos
+            const eliminado = await SupabaseDB.eliminarTurno(turnoCompletado.id);
+            if (!eliminado) {
+                throw new Error('No se pudo eliminar el turno de la base de datos');
+            }
             
-            // Verificar si el usuario tenía este turno y limpiarlo
+            // 3. Verificar si el usuario tenía este turno y limpiarlo
             const miTurno = LocalStorage.obtenerMiTurno();
             if (miTurno && miTurno.numero === turnoCompletado.numero) {
                 LocalStorage.eliminarMiTurno();
-                ModoEspera.desactivar();
+                if (typeof ModoEspera !== 'undefined') {
+                    ModoEspera.desactivar();
+                }
             }
             
+            // 4. Limpiar estado local
             AppState.turnoActual = null;
             LocalStorage.guardarTurnoActual(null);
             
+            console.log('✅ Turno completado exitosamente');
             return true;
+            
         } catch (error) {
-            console.error('Error al completar turno:', error);
+            console.error('❌ Error al completar turno:', error);
+            Utils.mostrarNotificacion('Error al completar turno: ' + error.message, 'error');
             return false;
         }
     },
@@ -1182,32 +1251,49 @@ const Turnos = {
     },
 
     async cargarTurnos() {
+        console.log('=== CARGANDO TURNOS ===');
+        
         try {
-            const todosLosTurnos = await SupabaseDB.cargarTurnos();
-            
-            if (todosLosTurnos && todosLosTurnos.length > 0) {
-                const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera');
-                const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
+            // Intentar cargar desde Supabase primero
+            if (window.supabaseClient) {
+                const todosLosTurnos = await SupabaseDB.cargarTurnos();
                 
-                AppState.turnos = turnosEnEspera;
-                AppState.turnoActual = turnoAtendiendo || null;
-                
-                LocalStorage.guardarTurnos(turnosEnEspera);
-                if (turnoAtendiendo) {
-                    LocalStorage.guardarTurnoActual(turnoAtendiendo);
+                if (todosLosTurnos && Array.isArray(todosLosTurnos)) {
+                    const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera');
+                    const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
+                    
+                    AppState.turnos = turnosEnEspera;
+                    AppState.turnoActual = turnoAtendiendo || null;
+                    
+                    // Sincronizar localStorage
+                    LocalStorage.guardarTurnos(turnosEnEspera);
+                    if (turnoAtendiendo) {
+                        LocalStorage.guardarTurnoActual(turnoAtendiendo);
+                    } else {
+                        LocalStorage.guardarTurnoActual(null);
+                    }
+                    
+                    console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total`);
+                    console.log(`   - En espera: ${turnosEnEspera.length}`);
+                    console.log(`   - Atendiendo: ${turnoAtendiendo ? 1 : 0}`);
+                    
+                    // Actualizar contador
+                    AppState.contadorTurnos = await SupabaseDB.obtenerContadorTurnos();
+                    return;
                 }
-                
-                console.log(`Turnos cargados: ${todosLosTurnos.length} total (${turnosEnEspera.length} espera, ${turnoAtendiendo ? 1 : 0} atendiendo)`);
-            } else {
-                AppState.turnos = LocalStorage.obtenerTurnos();
-                AppState.turnoActual = LocalStorage.obtenerTurnoActual();
             }
             
-            AppState.contadorTurnos = await SupabaseDB.obtenerContadorTurnos();
-        } catch (error) {
-            console.error('Error al cargar turnos:', error);
+            // Fallback a localStorage
+            console.warn('Usando datos locales');
             AppState.turnos = LocalStorage.obtenerTurnos();
             AppState.turnoActual = LocalStorage.obtenerTurnoActual();
+            
+        } catch (error) {
+            console.error('❌ Error al cargar turnos:', error);
+            // Usar datos locales como respaldo
+            AppState.turnos = LocalStorage.obtenerTurnos();
+            AppState.turnoActual = LocalStorage.obtenerTurnoActual();
+            Utils.mostrarNotificacion('Error de conexión. Usando datos locales.', 'error');
         }
     }
 };
@@ -1224,7 +1310,7 @@ const RenderUsuario = {
         if (!container) return;
 
         if (miTurno) {
-            // CORREGIDO: Verificar si el turno aún existe en el sistema
+            // Verificar si el turno aún existe en el sistema
             const enCola = AppState.turnos.find(t => t.numero === miTurno.numero);
             const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
             
@@ -1241,7 +1327,9 @@ const RenderUsuario = {
                 `;
                 
                 // Desactivar modo espera si está activo
-                ModoEspera.desactivar();
+                if (typeof ModoEspera !== 'undefined') {
+                    ModoEspera.desactivar();
+                }
                 
                 // Limpiar después de 5 segundos
                 setTimeout(() => {
@@ -1353,14 +1441,16 @@ const RenderUsuario = {
                             
                             const miTurno = LocalStorage.obtenerMiTurno();
                             if (miTurno && AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero) {
-                                ModoEspera.actualizar();
+                                if (typeof ModoEspera !== 'undefined') {
+                                    ModoEspera.actualizar();
+                                }
                             }
                         } catch (error) {
                             console.error('Error al procesar actualización:', error);
                         }
                     }
                 )
-                // CORREGIDO: También escuchar cambios en historial para detectar turnos completados
+                // También escuchar cambios en historial para detectar turnos completados
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
                     async (payload) => {
@@ -1372,7 +1462,9 @@ const RenderUsuario = {
                             // Verificar si es el turno del usuario actual
                             const miTurno = LocalStorage.obtenerMiTurno();
                             if (miTurno && payload.new && payload.new.numero === miTurno.numero) {
-                                ModoEspera.desactivar();
+                                if (typeof ModoEspera !== 'undefined') {
+                                    ModoEspera.desactivar();
+                                }
                                 LocalStorage.eliminarMiTurno();
                                 this.todo();
                             }
@@ -1397,7 +1489,7 @@ const RenderUsuario = {
 };
 
 // ============================================
-// RENDERIZADO ADMIN
+// RENDERIZADO ADMIN - CORREGIDO CON MANEJO DE ERRORES
 // ============================================
 
 const RenderAdmin = {
@@ -1544,12 +1636,16 @@ const RenderAdmin = {
         }
     },
 
+    // CORRECCIÓN: Manejo de errores individual para cada función
     async todo() {
-        this.turnoActual();
-        this.listaTurnosEspera();
-        await this.proveedores();
-        await this.historial();
-        await this.estadisticas();
+        console.log('=== ACTUALIZANDO VISTA ADMIN ===');
+        
+        // Ejecutar cada función independientemente (si una falla, las demás continúan)
+        try { this.turnoActual(); } catch (e) { console.error('Error turnoActual:', e); }
+        try { this.listaTurnosEspera(); } catch (e) { console.error('Error listaTurnosEspera:', e); }
+        try { await this.proveedores(); } catch (e) { console.error('Error proveedores:', e); }
+        try { await this.historial(); } catch (e) { console.error('Error historial:', e); }
+        try { await this.estadisticas(); } catch (e) { console.error('Error estadisticas:', e); }
     }
 };
 
@@ -1605,10 +1701,13 @@ const UsuarioHandlers = {
 
             Utils.mostrarNotificacion(`Turno ${turno.numero} solicitado`, 'success');
             
-            ModoEspera.activar(turno);
+            if (typeof ModoEspera !== 'undefined') {
+                ModoEspera.activar(turno);
+            }
             
             e.target.reset();
-            document.getElementById('motivoGroup').style.display = 'none';
+            const motivoGroup = document.getElementById('motivoGroup');
+            if (motivoGroup) motivoGroup.style.display = 'none';
             
             RenderUsuario.todo();
             
@@ -1631,7 +1730,9 @@ const UsuarioHandlers = {
             try {
                 await Turnos.cancelar(miTurno.id);
                 LocalStorage.eliminarMiTurno();
-                ModoEspera.desactivar();
+                if (typeof ModoEspera !== 'undefined') {
+                    ModoEspera.desactivar();
+                }
                 Utils.mostrarNotificacion('Turno cancelado', 'success');
                 RenderUsuario.todo();
             } catch (error) {
@@ -1664,7 +1765,8 @@ const AdminHandlers = {
             Utils.mostrarNotificacion(`Turno ${turno.numero} llamado`, 'success');
             await RenderAdmin.todo();
         } else {
-            Utils.mostrarNotificacion('No hay turnos en espera', 'error');
+            // No hay turnos o hay un error - la notificación ya se muestra en llamarSiguiente
+            console.log('No se pudo llamar turno');
         }
     },
     
@@ -1939,7 +2041,7 @@ const ConnectionStatus = {
 };
 
 // ============================================
-// MODO DE ESPERA Y NOTIFICACIONES - CORREGIDO
+// MODO DE ESPERA Y NOTIFICACIONES
 // ============================================
 
 const ModoEspera = {
@@ -1983,7 +2085,7 @@ const ModoEspera = {
     actualizar() {
         if (!this.activo || !this.miTurno) return;
         
-        // CORREGIDO: Verificar si el turno sigue existiendo
+        // Verificar si el turno sigue existiendo
         const enCola = AppState.turnos.find(t => t.numero === this.miTurno.numero);
         const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === this.miTurno.numero;
         
@@ -1999,7 +2101,7 @@ const ModoEspera = {
         const turnoActual = AppState.turnoActual;
         const turnosEspera = AppState.turnos;
         
-        if (turnoActual && turnoActual.numero ===         this.miTurno.numero) {
+        if (turnoActual && turnoActual.numero === this.miTurno.numero) {
             this.mostrarNotificacionLlamado();
             return;
         }
@@ -2065,7 +2167,7 @@ const ModoEspera = {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Sistema de Turnos cargado');
+    console.log('Sistema de Turnos cargado - Versión Corregida');
     
     try {
         let conexionOk = false;
@@ -2109,7 +2211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btnCancelarEspera.addEventListener('click', UsuarioHandlers.cancelarTurno);
             }
             
-            // CORREGIDO: Verificar si el turno del usuario sigue siendo válido
+            // Verificar si el turno del usuario sigue siendo válido
             const miTurno = LocalStorage.obtenerMiTurno();
             if (miTurno) {
                 // Verificar si el turno aún existe en el sistema
