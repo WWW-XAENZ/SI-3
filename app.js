@@ -1774,24 +1774,33 @@ const AdminHandlers = {
     recargarPaginasUsuario() {
         console.log('🔄 Enviando señal de recarga a páginas de usuario...');
         
-        // Opción 1: Si tienes un mecanismo de broadcast (recomendado)
-        if (window.supabaseClient) {
-            // Enviar señal a través de Supabase Realtime
-            window.supabaseClient
-                .channel('admin-commands')
-                .send({
-                    type: 'broadcast',
-                    event: 'reload',
-                    payload: { timestamp: Date.now() }
-                })
-                .catch(err => console.log('Broadcast no disponible:', err));
+        // Opción 1: Usar BroadcastChannel (más moderno, compatible con la mayoría de navegadores)
+        try {
+            const bc = new BroadcastChannel('turnos_channel');
+            bc.postMessage({ action: 'reload', timestamp: Date.now() });
+            console.log('✅ Señal enviada via BroadcastChannel');
+        } catch (e) {
+            console.log('BroadcastChannel no soportado, usando alternativas...');
         }
         
-        // Opción 2: Forzar recarga en todas las pestañas del mismo origen
+        // Opción 2: Usar postMessage para ventanas hijas/padres
         try {
-            // Esto funciona si las páginas están en el mismo dominio
-            window.postMessage({ action: 'reload-turno', turno: AppState.turnoActual }, '*');
+            window.postMessage({ action: 'reload-turno', timestamp: Date.now() }, '*');
         } catch (e) {}
+        
+        // Opción 3: Si tienes Supabase, usar broadcast
+        if (window.supabaseClient) {
+            try {
+                window.supabaseClient
+                    .channel('admin-commands')
+                    .send({
+                        type: 'broadcast',
+                        event: 'reload-users',
+                        payload: { timestamp: Date.now() }
+                    })
+                    .catch(err => console.log('Supabase broadcast no disponible:', err));
+            } catch (e) {}
+        }
     },
     
     async completarTurno() {
@@ -1995,7 +2004,7 @@ const ConnectionStatus = {
 const ModoEspera = {
     activo: false,
     miTurno: null,
-    intervaloActualizacion: null,
+        intervaloActualizacion: null,
     notificacionMostrada: false,
 
     activar(turno) {
@@ -2004,7 +2013,8 @@ const ModoEspera = {
         this.notificacionMostrada = false;
         
         const waitingSection = document.getElementById('waitingModeSection');
-                waitingSection.style.display = 'block';
+        if (waitingSection) {
+            waitingSection.style.display = 'block';
             this.actualizar();
             
             this.intervaloActualizacion = setInterval(() => {
@@ -2127,7 +2137,7 @@ const ModoEspera = {
         
         // Sonido de notificación
         try {
-            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcGQ==');
             audio.volume = 0.5;
             audio.play().catch(() => {});
         } catch (e) {}
@@ -2209,26 +2219,44 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             // 🔄 ESCUCHAR COMANDO DE RECARGA DEL ADMIN
+            // Opción 1: BroadcastChannel
+            try {
+                const bc = new BroadcastChannel('turnos_channel');
+                bc.onmessage = (event) => {
+                    if (event.data && event.data.action === 'reload') {
+                        console.log('🔄 Recargando por comando de admin (BroadcastChannel)...');
+                        location.reload();
+                    }
+                };
+                console.log('✅ BroadcastChannel configurado');
+            } catch (e) {
+                console.log('BroadcastChannel no soportado');
+            }
+            
+            // Opción 2: postMessage
             window.addEventListener('message', (event) => {
                 if (event.data && event.data.action === 'reload-turno') {
-                    console.log('🔄 Recargando por comando de admin...');
+                    console.log('🔄 Recargando por comando de admin (postMessage)...');
                     location.reload();
                 }
             });
             
-            // Alternativa: Escuchar canal de Supabase para recarga
+            // Opción 3: Supabase Realtime
             if (window.supabaseClient) {
+                try {
+                    window.supabaseClient
+                        .channel('admin-commands')
+                        .on('broadcast', { event: 'reload-users' }, () => {
+                            console.log('🔄 Recargando por broadcast de admin (Supabase)...');
+                            location.reload();
+                        })
+                        .subscribe();
+                } catch (e) {
+                    console.log('Error al configurar Supabase broadcast:', e);
+                }
+                
                 console.log('Configurando suscripción a tiempo real para usuario...');
                 AppState.subscription = RenderUsuario.suscribirCambios();
-                
-                // Suscribirse a comandos de admin
-                window.supabaseClient
-                    .channel('admin-commands')
-                    .on('broadcast', { event: 'reload' }, () => {
-                        console.log('🔄 Recargando por broadcast de admin...');
-                        location.reload();
-                    })
-                    .subscribe();
             } else {
                 console.warn('Supabase no disponible - verifica tu conexión y credenciales');
             }
@@ -2323,4 +2351,3 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
-        if (waitingSection)
