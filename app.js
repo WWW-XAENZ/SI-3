@@ -1,6 +1,6 @@
 // ============================================
 // SISTEMA DE TURNOS PROFESIONAL - ESTILO EPS
-// VERSIÓN CON RECARGA INTELIGENTE (SOLO CUANDO ES TU TURNO)
+// VERSIÓN CON RECARGA INTELIGENTE CORREGIDA
 // ============================================
 
 const CONFIG = {
@@ -24,8 +24,7 @@ const AppState = {
     lastSync: null,
     syncInProgress: false,
     proveedores: [],
-    historial: [],
-    miTurnoAnterior: null  // NUEVO: Para detectar cuando nos llaman
+    historial: []
 };
 
 let logoClickCount = 0;
@@ -208,7 +207,7 @@ const LocalStorage = {
 };
 
 // ============================================
-// BASE DE DATOS SUPABASE - CORREGIDO
+// BASE DE DATOS SUPABASE
 // ============================================
 
 const SupabaseDB = {
@@ -361,7 +360,6 @@ const SupabaseDB = {
         }
     },
 
-    // CORRECCIÓN: Función eliminarProveedor añadida
     async eliminarProveedor(proveedorId) {
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible');
@@ -1132,48 +1130,6 @@ const RenderUsuario = {
         this.turnosEnEspera();
     },
     
-    // NUEVA FUNCIÓN: Verificar si el turno del usuario fue llamado y recargar
-    verificarYRecargarSiEsTuTurno() {
-        const miTurno = LocalStorage.obtenerMiTurno();
-        
-        if (!miTurno) return; // No hay turno activo, no recargar
-        
-        // Verificar si mi turno ahora está siendo atendido
-        const turnoActual = AppState.turnoActual;
-        const ahoraEsMiTurno = turnoActual && turnoActual.numero === miTurno.numero;
-        
-        // Verificar si antes NO era mi turno pero ahora SÍ lo es
-        const antesEraMiTurno = AppState.miTurnoAnterior === miTurno.numero;
-        
-        console.log('🔍 Verificando recarga inteligente:', {
-            miTurno: miTurno.numero,
-            turnoActual: turnoActual ? turnoActual.numero : 'ninguno',
-            ahoraEsMiTurno: ahoraEsMiTurno,
-            antesEraMiTurno: antesEraMiTurno,
-            miTurnoAnterior: AppState.miTurnoAnterior
-        });
-        
-        // Si ahora es mi turno y antes no lo era (o no teníamos registro), recargar
-        if (ahoraEsMiTurno && !antesEraMiTurno) {
-            console.log('🚀 ¡ES TU TURNO! Recargando página para mostrar notificación...');
-            
-            // Guardar flag para mostrar notificación después de recargar
-            sessionStorage.setItem('mostrarNotificacionTurno', 'true');
-            sessionStorage.setItem('miTurnoNumero', miTurno.numero);
-            sessionStorage.setItem('miTurnoEmpresa', miTurno.nombreEmpresa);
-            
-            location.reload();
-            return;
-        }
-        
-        // Actualizar el estado anterior para la próxima verificación
-        if (ahoraEsMiTurno) {
-            AppState.miTurnoAnterior = miTurno.numero;
-        } else {
-            AppState.miTurnoAnterior = null;
-        }
-    },
-    
     suscribirCambios() {
         if (!window.supabaseClient) {
             console.warn('Supabase no disponible para suscripción en usuario');
@@ -1188,11 +1144,40 @@ const RenderUsuario = {
                     async (payload) => {
                         console.log('📡 Actualización en tiempo real (usuario):', payload);
                         try {
-                            await Turnos.cargarTurnos();
-                            this.todo();
+                            // Guardar estado anterior antes de actualizar
+                            const miTurno = LocalStorage.obtenerMiTurno();
+                            const turnoActualAnterior = AppState.turnoActual ? AppState.turnoActual.numero : null;
                             
-                            // NUEVO: Verificar si es nuestro turno y recargar
-                            this.verificarYRecargarSiEsTuTurno();
+                            await Turnos.cargarTurnos();
+                            
+                            // Verificar si es mi turno después de actualizar
+                            if (miTurno && AppState.turnoActual) {
+                                const ahoraEsMiTurno = AppState.turnoActual.numero === miTurno.numero;
+                                const antesNoEraMiTurno = turnoActualAnterior !== miTurno.numero;
+                                
+                                console.log('🔍 Verificando turno:', {
+                                    miTurno: miTurno.numero,
+                                    turnoActualAhora: AppState.turnoActual.numero,
+                                    turnoActualAntes: turnoActualAnterior,
+                                    ahoraEsMiTurno: ahoraEsMiTurno,
+                                    antesNoEraMiTurno: antesNoEraMiTurno
+                                });
+                                
+                                if (ahoraEsMiTurno && antesNoEraMiTurno) {
+                                    console.log('🚀 ¡ES TU TURNO! Recargando...');
+                                    
+                                    // Guardar en sessionStorage para mostrar notificación después de recargar
+                                    sessionStorage.setItem('mostrarNotificacionTurno', 'true');
+                                    sessionStorage.setItem('miTurnoNumero', miTurno.numero);
+                                    sessionStorage.setItem('miTurnoEmpresa', miTurno.nombreEmpresa);
+                                    
+                                    // Recargar la página
+                                    window.location.reload();
+                                    return;
+                                }
+                            }
+                            
+                            this.todo();
                             
                         } catch (error) {
                             console.error('Error al procesar actualización:', error);
@@ -1544,7 +1529,6 @@ const AdminHandlers = {
         }
     },
 
-    // CORRECCIÓN: Función eliminarProveedor añadida correctamente
     async eliminarProveedor(id) {
         if (confirm('¿Eliminar este proveedor?')) {
             const resultado = await SupabaseDB.eliminarProveedor(id);
@@ -1862,7 +1846,7 @@ const ModoEspera = {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Sistema de Turnos cargado - Versión con Recarga Inteligente');
     
-    // NUEVO: Verificar si venimos de una recarga por "Es tu turno"
+    // Verificar si venimos de una recarga por "Es tu turno"
     const mostrarNotificacion = sessionStorage.getItem('mostrarNotificacionTurno');
     const turnoNumero = sessionStorage.getItem('miTurnoNumero');
     const turnoEmpresa = sessionStorage.getItem('miTurnoEmpresa');
@@ -1977,12 +1961,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (enCola || siendoAtendido) {
                     ModoEspera.activar(miTurno);
                     
-                    // NUEVO: Guardar estado inicial para comparación
                     if (siendoAtendido) {
-                        AppState.miTurnoAnterior = miTurno.numero;
                         ModoEspera.mostrarNotificacionLlamado();
-                    } else {
-                        AppState.miTurnoAnterior = null;
                     }
                 } else {
                     console.log('Turno guardado ya no existe en el sistema, limpiando...');
@@ -2056,9 +2036,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         Utils.mostrarNotificacion('Error al inicializar el sistema', 'error');
     }
 });
-
-// ❌ ELIMINADO: Recarga automática cada 20 segundos
-// Ahora la recarga solo ocurre cuando el administrador llama específicamente el turno del usuario
 
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
