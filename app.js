@@ -866,7 +866,7 @@ const SupabaseDB = {
     },
 
     // ==========================================
-    // SUSCRIPCIONES REALTIME
+    // SUSCRIPCIONES REALTIME - CORREGIDO
     // ==========================================
 
     suscribirCambiosTurnos(callback) {
@@ -1299,7 +1299,7 @@ const Turnos = {
 };
 
 // ============================================
-// RENDERIZADO USUARIO - CORREGIDO
+// RENDERIZADO USUARIO - CORREGIDO CON NOTIFICACIÓN INMEDIATA
 // ============================================
 
 const RenderUsuario = {
@@ -1422,6 +1422,29 @@ const RenderUsuario = {
         this.turnosEnEspera();
     },
     
+    // CORRECCIÓN: Función mejorada para verificar si es el turno del usuario
+    verificarMiTurnoLlamado() {
+        const miTurno = LocalStorage.obtenerMiTurno();
+        if (!miTurno) return false;
+        
+        // Verificar si mi turno es el que está siendo atendido ahora
+        if (AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero) {
+            console.log('🎉 ¡Mi turno está siendo atendido!');
+            
+            // Actualizar la UI inmediatamente
+            this.todo();
+            
+            // Mostrar notificación grande
+            if (typeof ModoEspera !== 'undefined') {
+                ModoEspera.mostrarNotificacionLlamado();
+            }
+            
+            return true;
+        }
+        
+        return false;
+    },
+    
     suscribirCambios() {
         if (!window.supabaseClient) {
             console.warn('Supabase no disponible para suscripción en usuario');
@@ -1434,17 +1457,46 @@ const RenderUsuario = {
                 .on('postgres_changes', 
                     { event: '*', schema: 'public', table: 'turnos' },
                     async (payload) => {
-                        console.log('Actualización en tiempo real (usuario):', payload);
+                        console.log('📡 Actualización en tiempo real (usuario):', payload);
                         try {
+                            // Recargar datos
                             await Turnos.cargarTurnos();
+                            
+                            // Actualizar UI
                             this.todo();
                             
-                            const miTurno = LocalStorage.obtenerMiTurno();
-                            if (miTurno && AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero) {
-                                if (typeof ModoEspera !== 'undefined') {
-                                    ModoEspera.actualizar();
+                            // CORRECCIÓN CRÍTICA: Verificar inmediatamente si es mi turno
+                            if (payload.eventType === 'UPDATE' && payload.new && payload.new.estado === 'atendiendo') {
+                                const miTurno = LocalStorage.obtenerMiTurno();
+                                if (miTurno && payload.new.numero === miTurno.numero) {
+                                    console.log('🎯 ¡Mi turno fue llamado!');
+                                    
+                                    // Actualizar AppState con el turno actual
+                                    AppState.turnoActual = {
+                                        id: payload.new.id,
+                                        numero: payload.new.numero,
+                                        nombreEmpresa: payload.new.nombre_empresa,
+                                        nit: payload.new.nit,
+                                        motivo: payload.new.motivo,
+                                        horaSolicitud: payload.new.hora_solicitud,
+                                        horaLlamada: payload.new.hora_llamada,
+                                        estado: 'atendiendo'
+                                    };
+                                    
+                                    // Mostrar notificación inmediatamente
+                                    if (typeof ModoEspera !== 'undefined') {
+                                        ModoEspera.miTurno = miTurno;
+                                        ModoEspera.activo = true;
+                                        ModoEspera.mostrarNotificacionLlamado();
+                                    }
                                 }
                             }
+                            
+                            // Si hay un turno actual y tengo un turno guardado, verificar
+                            if (AppState.turnoActual) {
+                                this.verificarMiTurnoLlamado();
+                            }
+                            
                         } catch (error) {
                             console.error('Error al procesar actualización:', error);
                         }
@@ -1454,7 +1506,7 @@ const RenderUsuario = {
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
                     async (payload) => {
-                        console.log('Nuevo turno completado detectado:', payload);
+                        console.log('📝 Nuevo turno completado detectado:', payload);
                         try {
                             await Turnos.cargarTurnos();
                             this.todo();
@@ -1474,7 +1526,7 @@ const RenderUsuario = {
                     }
                 )
                 .subscribe((status) => {
-                    console.log('Estado de suscripción (usuario):', status);
+                    console.log('📡 Estado de suscripción (usuario):', status);
                     if (status === 'SUBSCRIBED') {
                         console.log('✅ Suscripción a tiempo real activada (usuario)');
                     }
@@ -1741,7 +1793,7 @@ const UsuarioHandlers = {
 };
 
 // ============================================
-// HANDLERS ADMIN
+// HANDLERS ADMIN - CORREGIDO CON BROADCAST INMEDIATO
 // ============================================
 
 const AdminHandlers = {
@@ -1749,6 +1801,7 @@ const AdminHandlers = {
         const turno = await Turnos.llamarSiguiente();
         
         if (turno) {
+            // CORRECCIÓN: Mostrar modal inmediatamente en admin
             const modal = document.getElementById('turnoModal');
             if (modal) {
                 const modalTurnNumber = document.getElementById('modalTurnNumber');
@@ -1762,44 +1815,58 @@ const AdminHandlers = {
             Utils.mostrarNotificacion(`Turno ${turno.numero} llamado`, 'success');
             await RenderAdmin.todo();
             
-            // 🔄 RECARGAR PÁGINAS DE USUARIO DESPUÉS DE LLAMAR TURNO
-            this.recargarPaginasUsuario();
+            // 🔄 ENVIAR NOTIFICACIÓN INMEDIATA A TODOS LOS USUARIOS
+            this.notificarTurnoLlamado(turno);
             
         } else {
             console.log('No se pudo llamar turno');
         }
     },
     
-    // Nueva función para recargar páginas de usuario
-    recargarPaginasUsuario() {
-        console.log('🔄 Enviando señal de recarga a páginas de usuario...');
+    // NUEVA FUNCIÓN: Notificar a todos los usuarios que un turno fue llamado
+    notificarTurnoLlamado(turno) {
+        console.log('📢 Notificando turno llamado:', turno.numero);
         
-        // Opción 1: Usar BroadcastChannel (más moderno, compatible con la mayoría de navegadores)
+        // Opción 1: BroadcastChannel (más moderno y rápido)
         try {
             const bc = new BroadcastChannel('turnos_channel');
-            bc.postMessage({ action: 'reload', timestamp: Date.now() });
-            console.log('✅ Señal enviada via BroadcastChannel');
+            bc.postMessage({ 
+                action: 'turno-llamado', 
+                turno: turno,
+                timestamp: Date.now() 
+            });
+            console.log('✅ Notificación enviada via BroadcastChannel');
         } catch (e) {
-            console.log('BroadcastChannel no soportado, usando alternativas...');
+            console.log('BroadcastChannel no soportado');
         }
         
-        // Opción 2: Usar postMessage para ventanas hijas/padres
+        // Opción 2: postMessage para ventanas hijas/padres
         try {
-            window.postMessage({ action: 'reload-turno', timestamp: Date.now() }, '*');
+            window.postMessage({ 
+                action: 'turno-llamado', 
+                turno: turno,
+                timestamp: Date.now() 
+            }, '*');
         } catch (e) {}
         
-        // Opción 3: Si tienes Supabase, usar broadcast
+        // Opción 3: Supabase Realtime broadcast
         if (window.supabaseClient) {
             try {
                 window.supabaseClient
                     .channel('admin-commands')
                     .send({
                         type: 'broadcast',
-                        event: 'reload-users',
-                        payload: { timestamp: Date.now() }
+                        event: 'turno-llamado',
+                        payload: { 
+                            turno: turno,
+                            timestamp: Date.now() 
+                        }
                     })
-                    .catch(err => console.log('Supabase broadcast no disponible:', err));
-            } catch (e) {}
+                    .then(() => console.log('✅ Broadcast Supabase enviado'))
+                    .catch(err => console.log('Supabase broadcast error:', err));
+            } catch (e) {
+                console.error('Error en Supabase broadcast:', e);
+            }
         }
     },
     
@@ -1876,7 +1943,7 @@ window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
 
 // ============================================
-// ACCESO ADMIN
+// ACCESO ADMIN (CONTINUACIÓN)
 // ============================================
 
 const AdminAccess = {
@@ -1998,13 +2065,13 @@ const ConnectionStatus = {
 };
 
 // ============================================
-// MODO DE ESPERA Y NOTIFICACIONES
+// MODO DE ESPERA Y NOTIFICACIONES - CORREGIDO
 // ============================================
 
 const ModoEspera = {
     activo: false,
     miTurno: null,
-        intervaloActualizacion: null,
+    intervaloActualizacion: null,
     notificacionMostrada: false,
 
     activar(turno) {
@@ -2016,6 +2083,11 @@ const ModoEspera = {
         if (waitingSection) {
             waitingSection.style.display = 'block';
             this.actualizar();
+            
+            // Limpiar intervalo anterior si existe
+            if (this.intervaloActualizacion) {
+                clearInterval(this.intervaloActualizacion);
+            }
             
             this.intervaloActualizacion = setInterval(() => {
                 this.actualizar();
@@ -2058,6 +2130,7 @@ const ModoEspera = {
         const turnoActual = AppState.turnoActual;
         const turnosEspera = AppState.turnos;
         
+        // CORRECCIÓN: Verificar inmediatamente si es mi turno
         if (turnoActual && turnoActual.numero === this.miTurno.numero) {
             this.mostrarNotificacionLlamado();
             return;
@@ -2153,7 +2226,7 @@ const ModoEspera = {
 };
 
 // ============================================
-// INICIALIZACIÓN - CORREGIDA
+// INICIALIZACIÓN - CORREGIDA CON BROADCAST
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -2211,6 +2284,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (enCola || siendoAtendido) {
                     // El turno existe, activar modo espera
                     ModoEspera.activar(miTurno);
+                    
+                    // Si ya está siendo atendido, mostrar notificación inmediatamente
+                    if (siendoAtendido) {
+                        ModoEspera.mostrarNotificacionLlamado();
+                    }
                 } else {
                     // El turno ya no existe (fue completado o cancelado)
                     console.log('Turno guardado ya no existe en el sistema, limpiando...');
@@ -2218,43 +2296,88 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
             
-            // 🔄 ESCUCHAR COMANDO DE RECARGA DEL ADMIN
-            // Opción 1: BroadcastChannel
+            // 🔄 ESCUCHAR COMANDOS DEL ADMIN VIA BROADCASTCHANNEL
             try {
                 const bc = new BroadcastChannel('turnos_channel');
-                bc.onmessage = (event) => {
-                    if (event.data && event.data.action === 'reload') {
-                        console.log('🔄 Recargando por comando de admin (BroadcastChannel)...');
-                        location.reload();
+                bc.onmessage = async (event) => {
+                    console.log('📡 Mensaje recibido via BroadcastChannel:', event.data);
+                    
+                    if (event.data && event.data.action === 'turno-llamado') {
+                        console.log('🎯 Turno llamado detectado via BroadcastChannel');
+                        
+                        // Actualizar datos inmediatamente
+                        await Turnos.cargarTurnos();
+                        
+                        // Verificar si es mi turno
+                        const miTurno = LocalStorage.obtenerMiTurno();
+                        if (miTurno && event.data.turno && event.data.turno.numero === miTurno.numero) {
+                            console.log('🎉 ¡Es mi turno! Mostrando notificación...');
+                            
+                            // Actualizar AppState
+                            AppState.turnoActual = event.data.turno;
+                            
+                            // Actualizar UI
+                            RenderUsuario.todo();
+                            
+                            // Mostrar notificación grande inmediatamente
+                            ModoEspera.miTurno = miTurno;
+                            ModoEspera.activo = true;
+                            ModoEspera.mostrarNotificacionLlamado();
+                        } else {
+                            // No es mi turno, solo actualizar la lista
+                            RenderUsuario.todo();
+                        }
                     }
                 };
-                console.log('✅ BroadcastChannel configurado');
+                console.log('✅ BroadcastChannel configurado en usuario');
             } catch (e) {
-                console.log('BroadcastChannel no soportado');
+                console.log('BroadcastChannel no soportado:', e);
             }
             
-            // Opción 2: postMessage
-            window.addEventListener('message', (event) => {
-                if (event.data && event.data.action === 'reload-turno') {
-                    console.log('🔄 Recargando por comando de admin (postMessage)...');
-                    location.reload();
+            // Opción 2: postMessage como respaldo
+            window.addEventListener('message', async (event) => {
+                if (event.data && event.data.action === 'turno-llamado') {
+                    console.log('🔄 Turno llamado detectado via postMessage');
+                    await Turnos.cargarTurnos();
+                    RenderUsuario.todo();
+                    
+                    const miTurno = LocalStorage.obtenerMiTurno();
+                    if (miTurno && event.data.turno && event.data.turno.numero === miTurno.numero) {
+                        AppState.turnoActual = event.data.turno;
+                        ModoEspera.miTurno = miTurno;
+                        ModoEspera.activo = true;
+                        ModoEspera.mostrarNotificacionLlamado();
+                    }
                 }
             });
             
-            // Opción 3: Supabase Realtime
+            // Opción 3: Supabase Realtime como respaldo
             if (window.supabaseClient) {
                 try {
+                    // Canal para broadcast de admin
                     window.supabaseClient
                         .channel('admin-commands')
-                        .on('broadcast', { event: 'reload-users' }, () => {
-                            console.log('🔄 Recargando por broadcast de admin (Supabase)...');
-                            location.reload();
+                        .on('broadcast', { event: 'turno-llamado' }, async (payload) => {
+                            console.log('🔄 Turno llamado detectado via Supabase:', payload);
+                            await Turnos.cargarTurnos();
+                            RenderUsuario.todo();
+                            
+                            const miTurno = LocalStorage.obtenerMiTurno();
+                            if (miTurno && payload.payload && payload.payload.turno.numero === miTurno.numero) {
+                                AppState.turnoActual = payload.payload.turno;
+                                ModoEspera.miTurno = miTurno;
+                                ModoEspera.activo = true;
+                                ModoEspera.mostrarNotificacionLlamado();
+                            }
                         })
                         .subscribe();
+                        
+                    console.log('✅ Supabase broadcast configurado en usuario');
                 } catch (e) {
                     console.log('Error al configurar Supabase broadcast:', e);
                 }
                 
+                // Suscripción principal a cambios en la tabla turnos
                 console.log('Configurando suscripción a tiempo real para usuario...');
                 AppState.subscription = RenderUsuario.suscribirCambios();
             } else {
@@ -2351,3 +2474,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
+window.RenderUsuario = RenderUsuario;
+window.ModoEspera = ModoEspera;
