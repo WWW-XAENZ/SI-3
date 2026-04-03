@@ -1940,18 +1940,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// ✅ RECARGA AUTOMÁTICA CADA 20 SEGUNDOS - SOLO PÁGINA DE USUARIO
+// ✅ RECARGA AUTOMÁTICA CADA 50 SEGUNDOS (INTELIGENTE)
+
+let ultimaActividad = Date.now();
+
+// Detectar actividad del usuario
+['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach(evento => {
+    document.addEventListener(evento, () => {
+        ultimaActividad = Date.now();
+    });
+});
+
 setInterval(() => {
-    // Verificar si estamos en la página de usuario (index.html)
     const esPaginaUsuario = document.getElementById('formSolicitarTurno') !== null;
-    
-    if (esPaginaUsuario) {
-        console.log('🔄 Recargando página de usuario...');
+
+    // Verificar si está escribiendo (input o textarea enfocado)
+    const elementoActivo = document.activeElement;
+    const estaEscribiendo = elementoActivo.tagName === 'INPUT' || elementoActivo.tagName === 'TEXTAREA';
+
+    // Verificar inactividad (ej: 20 segundos sin hacer nada)
+    const tiempoInactivo = Date.now() - ultimaActividad;
+    const inactivo = tiempoInactivo > 20000;
+
+    if (esPaginaUsuario && !estaEscribiendo && inactivo) {
+        console.log('🔄 Recargando por inactividad...');
         location.reload();
     } else {
-        console.log('⏸️ Recarga omitida - no es página de usuario');
+        console.log('⏸️ No se recarga (actividad detectada o escribiendo)');
     }
-}, 60000);
+}, 30000);
 
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
