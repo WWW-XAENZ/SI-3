@@ -1968,7 +1968,7 @@ setInterval(() => {
     } else {
         console.log('⏸️ No se recarga (actividad detectada o escribiendo)');
     }
-}, 20000);
+}, 10000);
 
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
