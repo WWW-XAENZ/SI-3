@@ -1960,7 +1960,7 @@ setInterval(() => {
 
     // Verificar inactividad (ej: 20 segundos sin hacer nada)
     const tiempoInactivo = Date.now() - ultimaActividad;
-    const inactivo = tiempoInactivo > 20000;
+    const inactivo = tiempoInactivo > 7000;
 
     if (esPaginaUsuario && !estaEscribiendo && inactivo) {
         console.log('🔄 Recargando por inactividad...');
@@ -1968,7 +1968,7 @@ setInterval(() => {
     } else {
         console.log('⏸️ No se recarga (actividad detectada o escribiendo)');
     }
-}, 30000);
+}, 20000);
 
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
