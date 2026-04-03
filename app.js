@@ -1,6 +1,6 @@
 // ============================================
 // SISTEMA DE TURNOS PROFESIONAL - ESTILO EPS
-// VERSIÓN CON RECARGA AUTO Y ELIMINAR PROVEEDOR CORREGIDO
+// VERSIÓN CON RECARGA INTELIGENTE (SOLO CUANDO ES TU TURNO)
 // ============================================
 
 const CONFIG = {
@@ -24,7 +24,8 @@ const AppState = {
     lastSync: null,
     syncInProgress: false,
     proveedores: [],
-    historial: []
+    historial: [],
+    miTurnoAnterior: null  // NUEVO: Para detectar cuando nos llaman
 };
 
 let logoClickCount = 0;
@@ -1131,6 +1132,48 @@ const RenderUsuario = {
         this.turnosEnEspera();
     },
     
+    // NUEVA FUNCIÓN: Verificar si el turno del usuario fue llamado y recargar
+    verificarYRecargarSiEsTuTurno() {
+        const miTurno = LocalStorage.obtenerMiTurno();
+        
+        if (!miTurno) return; // No hay turno activo, no recargar
+        
+        // Verificar si mi turno ahora está siendo atendido
+        const turnoActual = AppState.turnoActual;
+        const ahoraEsMiTurno = turnoActual && turnoActual.numero === miTurno.numero;
+        
+        // Verificar si antes NO era mi turno pero ahora SÍ lo es
+        const antesEraMiTurno = AppState.miTurnoAnterior === miTurno.numero;
+        
+        console.log('🔍 Verificando recarga inteligente:', {
+            miTurno: miTurno.numero,
+            turnoActual: turnoActual ? turnoActual.numero : 'ninguno',
+            ahoraEsMiTurno: ahoraEsMiTurno,
+            antesEraMiTurno: antesEraMiTurno,
+            miTurnoAnterior: AppState.miTurnoAnterior
+        });
+        
+        // Si ahora es mi turno y antes no lo era (o no teníamos registro), recargar
+        if (ahoraEsMiTurno && !antesEraMiTurno) {
+            console.log('🚀 ¡ES TU TURNO! Recargando página para mostrar notificación...');
+            
+            // Guardar flag para mostrar notificación después de recargar
+            sessionStorage.setItem('mostrarNotificacionTurno', 'true');
+            sessionStorage.setItem('miTurnoNumero', miTurno.numero);
+            sessionStorage.setItem('miTurnoEmpresa', miTurno.nombreEmpresa);
+            
+            location.reload();
+            return;
+        }
+        
+        // Actualizar el estado anterior para la próxima verificación
+        if (ahoraEsMiTurno) {
+            AppState.miTurnoAnterior = miTurno.numero;
+        } else {
+            AppState.miTurnoAnterior = null;
+        }
+    },
+    
     suscribirCambios() {
         if (!window.supabaseClient) {
             console.warn('Supabase no disponible para suscripción en usuario');
@@ -1147,6 +1190,10 @@ const RenderUsuario = {
                         try {
                             await Turnos.cargarTurnos();
                             this.todo();
+                            
+                            // NUEVO: Verificar si es nuestro turno y recargar
+                            this.verificarYRecargarSiEsTuTurno();
+                            
                         } catch (error) {
                             console.error('Error al procesar actualización:', error);
                         }
@@ -1809,11 +1856,77 @@ const ModoEspera = {
 };
 
 // ============================================
-// INICIALIZACIÓN CON RECARGA AUTO
+// INICIALIZACIÓN CON RECARGA INTELIGENTE
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Sistema de Turnos cargado - Versión con Recarga Auto');
+    console.log('Sistema de Turnos cargado - Versión con Recarga Inteligente');
+    
+    // NUEVO: Verificar si venimos de una recarga por "Es tu turno"
+    const mostrarNotificacion = sessionStorage.getItem('mostrarNotificacionTurno');
+    const turnoNumero = sessionStorage.getItem('miTurnoNumero');
+    const turnoEmpresa = sessionStorage.getItem('miTurnoEmpresa');
+    
+    if (mostrarNotificacion === 'true' && turnoNumero) {
+        console.log('🎉 Recarga detectada por "Es tu turno" - Mostrando notificación');
+        
+        // Limpiar flags
+        sessionStorage.removeItem('mostrarNotificacionTurno');
+        sessionStorage.removeItem('miTurnoNumero');
+        sessionStorage.removeItem('miTurnoEmpresa');
+        
+        // Mostrar notificación inmediatamente
+        const notificacion = document.createElement('div');
+        notificacion.className = 'turn-called-notification';
+        Object.assign(notificacion.style, {
+            position: 'fixed',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: '10000',
+            backgroundColor: '#10b981',
+            color: 'white',
+            padding: '50px 80px',
+            borderRadius: '20px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+            textAlign: 'center',
+            minWidth: '350px',
+            animation: 'slideInCenter 0.5s ease-out',
+            fontFamily: 'system-ui, -apple-system, sans-serif'
+        });
+        
+        notificacion.innerHTML = `
+            <h3 style="margin: 0 0 20px 0; font-size: 24px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                ¡Es tu turno!
+            </h3>
+            <div style="font-size: 72px; font-weight: bold; margin: 20px 0; letter-spacing: 4px;">${turnoNumero}</div>
+            <p style="margin: 10px 0; font-size: 18px; opacity: 0.9;">${turnoEmpresa || ''}</p>
+            <p style="margin: 10px 0 30px 0; font-size: 16px; opacity: 0.8;">Diríjase al punto de atención</p>
+            <button style="background: white; color: #10b981; border: none; padding: 15px 40px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.2s;" 
+                    onmouseover="this.style.transform='scale(1.05)'" 
+                    onmouseout="this.style.transform='scale(1)'"
+                    onclick="this.closest('.turn-called-notification').remove(); document.body.style.overflow = '';">Entendido</button>
+        `;
+        
+        document.body.style.overflow = 'hidden';
+        document.body.appendChild(notificacion);
+        
+        // Reproducir sonido si es posible
+        try {
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZURE');
+            audio.play().catch(e => console.log('No se pudo reproducir sonido'));
+        } catch (e) {}
+        
+        setTimeout(() => {
+            if (notificacion.parentElement) {
+                notificacion.remove();
+                document.body.style.overflow = '';
+            }
+        }, 15000);
+    }
     
     try {
         let conexionOk = false;
@@ -1864,8 +1977,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (enCola || siendoAtendido) {
                     ModoEspera.activar(miTurno);
                     
+                    // NUEVO: Guardar estado inicial para comparación
                     if (siendoAtendido) {
+                        AppState.miTurnoAnterior = miTurno.numero;
                         ModoEspera.mostrarNotificacionLlamado();
+                    } else {
+                        AppState.miTurnoAnterior = null;
                     }
                 } else {
                     console.log('Turno guardado ya no existe en el sistema, limpiando...');
@@ -1940,22 +2057,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// ✅ RECARGA AUTOMÁTICA CADA 20 SEGUNDOS - SOLO PÁGINA DE USUARIO
-setInterval(() => {
-    // Verificar si estamos en la página de usuario (index.html)
-    const esPaginaUsuario = document.getElementById('formSolicitarTurno') !== null;
-    
-    if (esPaginaUsuario) {
-        console.log('🔄 Recargando página de usuario...');
-        location.reload();
-    } else {
-        console.log('⏸️ Recarga omitida - no es página de usuario');
-    }
-}, 20000);
+// ❌ ELIMINADO: Recarga automática cada 20 segundos
+// Ahora la recarga solo ocurre cuando el administrador llama específicamente el turno del usuario
 
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
 window.RenderUsuario = RenderUsuario;
 window.ModoEspera = ModoEspera;
-
-                        
