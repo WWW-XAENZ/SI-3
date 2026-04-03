@@ -1,6 +1,6 @@
 // ============================================
 // SISTEMA DE TURNOS PROFESIONAL - ESTILO EPS
-// VERSIÓN ULTRA RÁPIDA - SIN RECARGA
+// VERSIÓN CON RECARGA AUTO Y ELIMINAR PROVEEDOR CORREGIDO
 // ============================================
 
 const CONFIG = {
@@ -29,6 +29,7 @@ const AppState = {
 
 let logoClickCount = 0;
 let logoClickTimer = null;
+let syncInterval = null;
 
 // ============================================
 // UTILIDADES
@@ -116,6 +117,20 @@ const Utils = {
         });
     },
 
+    async reintentarOperacion(operacion, maxIntentos = CONFIG.MAX_RETRY_ATTEMPTS) {
+        for (let intento = 1; intento <= maxIntentos; intento++) {
+            try {
+                return await operacion();
+            } catch (error) {
+                console.error(`Intento ${intento}/${maxIntentos} falló:`, error.message);
+                if (intento === maxIntentos) {
+                    throw error;
+                }
+                await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY));
+            }
+        }
+    },
+
     formatearFecha(fechaISO) {
         if (!fechaISO) return 'N/A';
         const fecha = new Date(fechaISO);
@@ -192,7 +207,7 @@ const LocalStorage = {
 };
 
 // ============================================
-// BASE DE DATOS SUPABASE
+// BASE DE DATOS SUPABASE - CORREGIDO
 // ============================================
 
 const SupabaseDB = {
@@ -342,6 +357,32 @@ const SupabaseDB = {
         } catch (error) {
             console.error('Error al guardar proveedor:', error);
             return null;
+        }
+    },
+
+    // CORRECCIÓN: Función eliminarProveedor añadida
+    async eliminarProveedor(proveedorId) {
+        if (!window.supabaseClient) {
+            console.error('Supabase no está disponible');
+            return false;
+        }
+        
+        try {
+            const { error } = await window.supabaseClient
+                .from('proveedores')
+                .update({ 
+                    activo: false,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', proveedorId);
+            
+            if (error) throw error;
+            
+            console.log(`✅ Proveedor ${proveedorId} eliminado (desactivado)`);
+            return true;
+        } catch (error) {
+            console.error('Error al eliminar proveedor:', error);
+            return false;
         }
     },
 
@@ -972,7 +1013,7 @@ const Turnos = {
 };
 
 // ============================================
-// RENDERIZADO USUARIO - ULTRA RÁPIDO
+// RENDERIZADO USUARIO
 // ============================================
 
 const RenderUsuario = {
@@ -1090,50 +1131,6 @@ const RenderUsuario = {
         this.turnosEnEspera();
     },
     
-    // PROCESAMIENTO INMEDIATO DE TURNO LLAMADO
-    procesarTurnoLlamado(payload) {
-        console.log('🎯 Procesando turno llamado en tiempo real:', payload);
-        
-        const miTurno = LocalStorage.obtenerMiTurno();
-        if (!miTurno) return;
-        
-        const turnoActualizado = payload.new;
-        
-        if (turnoActualizado && turnoActualizado.numero === miTurno.numero && turnoActualizado.estado === 'atendiendo') {
-            console.log('🎉 ¡ES MI TURNO! Mostrando notificación inmediata...');
-            
-            // Actualizar AppState inmediatamente
-            AppState.turnoActual = {
-                id: turnoActualizado.id,
-                numero: turnoActualizado.numero,
-                nombreEmpresa: turnoActualizado.nombre_empresa,
-                nit: turnoActualizado.nit,
-                motivo: turnoActualizado.motivo,
-                horaSolicitud: turnoActualizado.hora_solicitud,
-                horaLlamada: turnoActualizado.hora_llamada,
-                estado: 'atendiendo'
-            };
-            
-            // Remover de la lista de espera
-            AppState.turnos = AppState.turnos.filter(t => t.numero !== miTurno.numero);
-            
-            // Actualizar localStorage
-            LocalStorage.guardarTurnoActual(AppState.turnoActual);
-            LocalStorage.guardarTurnos(AppState.turnos);
-            
-            // Actualizar UI inmediatamente
-            this.todo();
-            
-            // Mostrar notificación grande con sonido
-            if (typeof ModoEspera !== 'undefined') {
-                ModoEspera.miTurno = miTurno;
-                ModoEspera.activo = true;
-                ModoEspera.notificacionMostrada = false;
-                ModoEspera.mostrarNotificacionLlamado();
-            }
-        }
-    },
-    
     suscribirCambios() {
         if (!window.supabaseClient) {
             console.warn('Supabase no disponible para suscripción en usuario');
@@ -1143,49 +1140,36 @@ const RenderUsuario = {
         try {
             const subscription = window.supabaseClient
                 .channel('turnos-changes-user')
-                // INSERT: Nuevos turnos
                 .on('postgres_changes', 
-                    { event: 'INSERT', schema: 'public', table: 'turnos' },
+                    { event: '*', schema: 'public', table: 'turnos' },
                     async (payload) => {
-                        console.log('📡 Nuevo turno insertado:', payload);
-                        await Turnos.cargarTurnos();
-                        this.todo();
+                        console.log('📡 Actualización en tiempo real (usuario):', payload);
+                        try {
+                            await Turnos.cargarTurnos();
+                            this.todo();
+                        } catch (error) {
+                            console.error('Error al procesar actualización:', error);
+                        }
                     }
                 )
-                // UPDATE: Turnos llamados - PROCESAMIENTO INMEDIATO
-                .on('postgres_changes',
-                    { event: 'UPDATE', schema: 'public', table: 'turnos' },
-                    async (payload) => {
-                        console.log('📡 Turno actualizado:', payload);
-                        
-                        // Procesar inmediatamente sin esperar recargar
-                        this.procesarTurnoLlamado(payload);
-                    }
-                )
-                // DELETE: Turnos cancelados
-                .on('postgres_changes',
-                    { event: 'DELETE', schema: 'public', table: 'turnos' },
-                    async (payload) => {
-                        console.log('📡 Turno eliminado:', payload);
-                        await Turnos.cargarTurnos();
-                        this.todo();
-                    }
-                )
-                // INSERT en historial: Turnos completados
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
                     async (payload) => {
-                        console.log('📝 Nuevo turno completado:', payload);
-                        await Turnos.cargarTurnos();
-                        this.todo();
-                        
-                        const miTurno = LocalStorage.obtenerMiTurno();
-                        if (miTurno && payload.new && payload.new.numero === miTurno.numero) {
-                            if (typeof ModoEspera !== 'undefined') {
-                                ModoEspera.desactivar();
-                            }
-                            LocalStorage.eliminarMiTurno();
+                        console.log('📝 Nuevo turno completado detectado:', payload);
+                        try {
+                            await Turnos.cargarTurnos();
                             this.todo();
+                            
+                            const miTurno = LocalStorage.obtenerMiTurno();
+                            if (miTurno && payload.new && payload.new.numero === miTurno.numero) {
+                                if (typeof ModoEspera !== 'undefined') {
+                                    ModoEspera.desactivar();
+                                }
+                                LocalStorage.eliminarMiTurno();
+                                this.todo();
+                            }
+                        } catch (error) {
+                            console.error('Error al procesar historial:', error);
                         }
                     }
                 )
@@ -1513,11 +1497,16 @@ const AdminHandlers = {
         }
     },
 
+    // CORRECCIÓN: Función eliminarProveedor añadida correctamente
     async eliminarProveedor(id) {
         if (confirm('¿Eliminar este proveedor?')) {
-            await SupabaseDB.eliminarProveedor(id);
-            Utils.mostrarNotificacion('Proveedor eliminado', 'success');
-            await RenderAdmin.proveedores();
+            const resultado = await SupabaseDB.eliminarProveedor(id);
+            if (resultado) {
+                Utils.mostrarNotificacion('Proveedor eliminado', 'success');
+                await RenderAdmin.proveedores();
+            } else {
+                Utils.mostrarNotificacion('Error al eliminar proveedor', 'error');
+            }
         }
     },
 
@@ -1674,7 +1663,7 @@ const ConnectionStatus = {
 };
 
 // ============================================
-// MODO DE ESPERA Y NOTIFICACIONES - CON SONIDO
+// MODO DE ESPERA Y NOTIFICACIONES
 // ============================================
 
 const ModoEspera = {
@@ -1762,60 +1751,9 @@ const ModoEspera = {
         }
     },
 
-    reproducirSonido() {
-        try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) {
-                const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=');
-                audio.volume = 1.0;
-                audio.play().catch(() => {});
-                return;
-            }
-            
-            const ctx = new AudioContext();
-            
-            const oscillator = ctx.createOscillator();
-            const gainNode = ctx.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(ctx.destination);
-            
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);
-            oscillator.frequency.exponentialRampToValueAtTime(1046.5, ctx.currentTime + 0.1);
-            
-            gainNode.gain.setValueAtTime(0, ctx.currentTime);
-            gainNode.gain.linearRampToValueAtTime(0.8, ctx.currentTime + 0.05);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
-            
-            oscillator.start(ctx.currentTime);
-            oscillator.stop(ctx.currentTime + 1.5);
-            
-            setTimeout(() => {
-                const osc2 = ctx.createOscillator();
-                const gain2 = ctx.createGain();
-                osc2.connect(gain2);
-                gain2.connect(ctx.destination);
-                osc2.type = 'sine';
-                osc2.frequency.setValueAtTime(659.25, ctx.currentTime);
-                osc2.frequency.exponentialRampToValueAtTime(1318.5, ctx.currentTime + 0.1);
-                gain2.gain.setValueAtTime(0, ctx.currentTime);
-                gain2.gain.linearRampToValueAtTime(0.8, ctx.currentTime + 0.05);
-                gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
-                osc2.start(ctx.currentTime);
-                osc2.stop(ctx.currentTime + 1.5);
-            }, 200);
-            
-        } catch (e) {
-            console.log('Error al reproducir sonido:', e);
-        }
-    },
-
     mostrarNotificacionLlamado() {
         if (this.notificacionMostrada) return;
         this.notificacionMostrada = true;
-        
-        this.reproducirSonido();
         
         const notificacionAnterior = document.querySelector('.turn-called-notification');
         if (notificacionAnterior) {
@@ -1871,11 +1809,11 @@ const ModoEspera = {
 };
 
 // ============================================
-// INICIALIZACIÓN - ULTRA RÁPIDA
+// INICIALIZACIÓN CON RECARGA AUTO
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Sistema de Turnos cargado - Versión Ultra Rápida');
+    console.log('Sistema de Turnos cargado - Versión con Recarga Auto');
     
     try {
         let conexionOk = false;
@@ -1918,7 +1856,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btnCancelarEspera.addEventListener('click', UsuarioHandlers.cancelarTurno);
             }
             
-            // Verificar si el turno del usuario sigue siendo válido
             const miTurno = LocalStorage.obtenerMiTurno();
             if (miTurno) {
                 const enCola = AppState.turnos.find(t => t.numero === miTurno.numero);
@@ -1936,7 +1873,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
             
-            // Suscripción en tiempo real para usuario - ULTRA RÁPIDA
             if (window.supabaseClient) {
                 console.log('Configurando suscripción a tiempo real para usuario...');
                 AppState.subscription = RenderUsuario.suscribirCambios();
@@ -1964,7 +1900,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Renderizando admin...');
             await RenderAdmin.todo();
             
-            // Actualizar historial y estadísticas cada 5 segundos
             setInterval(async () => {
                 await RenderAdmin.historial();
                 await RenderAdmin.estadisticas();
@@ -2005,9 +1940,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// ✅ RECARGA AUTOMÁTICA CADA 20 SEGUNDOS
+setInterval(() => {
+    console.log('🔄 Recargando página...');
+    location.reload();
+}, 20000);
+
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
 window.RenderUsuario = RenderUsuario;
 window.ModoEspera = ModoEspera;
 
-                                                                  
+                        
