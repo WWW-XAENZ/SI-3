@@ -1940,10 +1940,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// ✅ RECARGA AUTOMÁTICA CADA 20 SEGUNDOS
+// ✅ RECARGA AUTOMÁTICA CADA 20 SEGUNDOS - SOLO PÁGINA DE USUARIO
 setInterval(() => {
-    console.log('🔄 Recargando página...');
-    location.reload();
+    // Verificar si estamos en la página de usuario (index.html)
+    const esPaginaUsuario = document.getElementById('formSolicitarTurno') !== null;
+    
+    if (esPaginaUsuario) {
+        console.log('🔄 Recargando página de usuario...');
+        location.reload();
+    } else {
+        console.log('⏸️ Recarga omitida - no es página de usuario');
+    }
 }, 20000);
 
 window.AdminHandlers = AdminHandlers;
