@@ -1761,10 +1761,37 @@ const AdminHandlers = {
             
             Utils.mostrarNotificacion(`Turno ${turno.numero} llamado`, 'success');
             await RenderAdmin.todo();
+            
+            // 🔄 RECARGAR PÁGINAS DE USUARIO DESPUÉS DE LLAMAR TURNO
+            this.recargarPaginasUsuario();
+            
         } else {
-            // No hay turnos o hay un error - la notificación ya se muestra en llamarSiguiente
             console.log('No se pudo llamar turno');
         }
+    },
+    
+    // Nueva función para recargar páginas de usuario
+    recargarPaginasUsuario() {
+        console.log('🔄 Enviando señal de recarga a páginas de usuario...');
+        
+        // Opción 1: Si tienes un mecanismo de broadcast (recomendado)
+        if (window.supabaseClient) {
+            // Enviar señal a través de Supabase Realtime
+            window.supabaseClient
+                .channel('admin-commands')
+                .send({
+                    type: 'broadcast',
+                    event: 'reload',
+                    payload: { timestamp: Date.now() }
+                })
+                .catch(err => console.log('Broadcast no disponible:', err));
+        }
+        
+        // Opción 2: Forzar recarga en todas las pestañas del mismo origen
+        try {
+            // Esto funciona si las páginas están en el mismo dominio
+            window.postMessage({ action: 'reload-turno', turno: AppState.turnoActual }, '*');
+        } catch (e) {}
     },
     
     async completarTurno() {
@@ -1977,8 +2004,7 @@ const ModoEspera = {
         this.notificacionMostrada = false;
         
         const waitingSection = document.getElementById('waitingModeSection');
-        if (waitingSection) {
-            waitingSection.style.display = 'block';
+                waitingSection.style.display = 'block';
             this.actualizar();
             
             this.intervaloActualizacion = setInterval(() => {
@@ -2052,10 +2078,16 @@ const ModoEspera = {
         if (this.notificacionMostrada) return;
         this.notificacionMostrada = true;
         
+        // Eliminar notificación anterior si existe
+        const notificacionAnterior = document.querySelector('.turn-called-notification');
+        if (notificacionAnterior) {
+            notificacionAnterior.remove();
+        }
+        
         const notificacion = document.createElement('div');
         notificacion.className = 'turn-called-notification';
 
-        // Estilos para centrar en pantalla
+        // Estilos para centrar perfectamente en pantalla
         Object.assign(notificacion.style, {
             position: 'fixed',
             top: '50%',
@@ -2069,34 +2101,44 @@ const ModoEspera = {
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
             textAlign: 'center',
             minWidth: '350px',
-            animation: 'pulse 0.5s ease-in-out'
+            animation: 'slideInCenter 0.5s ease-out',
+            fontFamily: 'system-ui, -apple-system, sans-serif'
         });
+        
         notificacion.innerHTML = `
-            <h3>
+            <h3 style="margin: 0 0 20px 0; font-size: 24px; display: flex; align-items: center; justify-content: center; gap: 10px;">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                 </svg>
                 ¡Es tu turno!
             </h3>
-            <div class="turn-number">${this.miTurno.numero}</div>
-            <p>${this.miTurno.nombreEmpresa}</p>
-            <p>Diríjase al punto de atención</p>
-            <button class="btn" onclick="this.parentElement.remove()">Entendido</button>
+            <div style="font-size: 72px; font-weight: bold; margin: 20px 0; letter-spacing: 4px;">${this.miTurno.numero}</div>
+            <p style="margin: 10px 0; font-size: 18px; opacity: 0.9;">${this.miTurno.nombreEmpresa}</p>
+            <p style="margin: 10px 0 30px 0; font-size: 16px; opacity: 0.8;">Diríjase al punto de atención</p>
+            <button style="background: white; color: #10b981; border: none; padding: 15px 40px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.2s;" 
+                    onmouseover="this.style.transform='scale(1.05)'" 
+                    onmouseout="this.style.transform='scale(1)'"
+                    onclick="this.closest('.turn-called-notification').remove(); document.body.style.overflow = '';">Entendido</button>
         `;
         
+        // Prevenir scroll del body
+        document.body.style.overflow = 'hidden';
         document.body.appendChild(notificacion);
         
+        // Sonido de notificación
         try {
-            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQ==');
             audio.volume = 0.5;
             audio.play().catch(() => {});
         } catch (e) {}
         
+        // Auto-cerrar después de 15 segundos
         setTimeout(() => {
             if (notificacion.parentElement) {
                 notificacion.remove();
+                document.body.style.overflow = '';
             }
-        }, 10000);
+        }, 15000);
     }
 };
 
@@ -2166,9 +2208,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
             
+            // 🔄 ESCUCHAR COMANDO DE RECARGA DEL ADMIN
+            window.addEventListener('message', (event) => {
+                if (event.data && event.data.action === 'reload-turno') {
+                    console.log('🔄 Recargando por comando de admin...');
+                    location.reload();
+                }
+            });
+            
+            // Alternativa: Escuchar canal de Supabase para recarga
             if (window.supabaseClient) {
                 console.log('Configurando suscripción a tiempo real para usuario...');
                 AppState.subscription = RenderUsuario.suscribirCambios();
+                
+                // Suscribirse a comandos de admin
+                window.supabaseClient
+                    .channel('admin-commands')
+                    .on('broadcast', { event: 'reload' }, () => {
+                        console.log('🔄 Recargando por broadcast de admin...');
+                        location.reload();
+                    })
+                    .subscribe();
             } else {
                 console.warn('Supabase no disponible - verifica tu conexión y credenciales');
             }
@@ -2256,10 +2316,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// Recarga automática cada 20 segundos
-setInterval(() => {
-    location.reload();
-}, 20000);
+// ❌ ELIMINADO: Recarga automática cada 20 segundos
+// setInterval(() => {
+//     location.reload();
+// }, 20000);
 
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
+        if (waitingSection)
