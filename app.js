@@ -1,6 +1,6 @@
 // ============================================
 // SISTEMA DE TURNOS PROFESIONAL - ESTILO EPS
-// VERSIÓN CORREGIDA - Abril 2026
+// VERSIÓN ULTRA RÁPIDA - SIN RECARGA
 // ============================================
 
 const CONFIG = {
@@ -29,7 +29,6 @@ const AppState = {
 
 let logoClickCount = 0;
 let logoClickTimer = null;
-let syncInterval = null;
 
 // ============================================
 // UTILIDADES
@@ -117,20 +116,6 @@ const Utils = {
         });
     },
 
-    async reintentarOperacion(operacion, maxIntentos = CONFIG.MAX_RETRY_ATTEMPTS) {
-        for (let intento = 1; intento <= maxIntentos; intento++) {
-            try {
-                return await operacion();
-            } catch (error) {
-                console.error(`Intento ${intento}/${maxIntentos} falló:`, error.message);
-                if (intento === maxIntentos) {
-                    throw error;
-                }
-                await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY));
-            }
-        }
-    },
-
     formatearFecha(fechaISO) {
         if (!fechaISO) return 'N/A';
         const fecha = new Date(fechaISO);
@@ -207,14 +192,10 @@ const LocalStorage = {
 };
 
 // ============================================
-// BASE DE DATOS SUPABASE - CORREGIDO
+// BASE DE DATOS SUPABASE
 // ============================================
 
 const SupabaseDB = {
-    // ==========================================
-    // CONEXIÓN
-    // ==========================================
-    
     async verificarConexion() {
         if (!window.supabaseClient) {
             console.warn('Supabase no está inicializado');
@@ -239,10 +220,6 @@ const SupabaseDB = {
             return false;
         }
     },
-
-    // ==========================================
-    // CONTADOR DE TURNOS
-    // ==========================================
 
     async obtenerContadorTurnos() {
         const contadorLocal = LocalStorage.obtenerContador();
@@ -301,19 +278,15 @@ const SupabaseDB = {
                 });
             
             if (error) {
-                console.warn('Error al actualizar contador en Supabase, pero local ya se actualizó:', error.message);
+                console.warn('Error al actualizar contador en Supabase:', error.message);
             }
             
             return nuevoContador;
         } catch (error) {
-            console.warn('Error al actualizar contador en Supabase, pero local ya se actualizó:', error.message);
+            console.warn('Error al actualizar contador en Supabase:', error.message);
             return nuevoContador;
         }
     },
-
-    // ==========================================
-    // PROVEEDORES
-    // ==========================================
 
     async guardarProveedor(proveedor) {
         if (!window.supabaseClient) {
@@ -372,54 +345,6 @@ const SupabaseDB = {
         }
     },
 
-    async actualizarProveedor(proveedorId, datos) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const datosActualizados = {
-                ...datos,
-                updated_at: new Date().toISOString()
-            };
-            
-            const { error } = await window.supabaseClient
-                .from('proveedores')
-                .update(datosActualizados)
-                .eq('id', proveedorId);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Error al actualizar proveedor:', error);
-            return false;
-        }
-    },
-
-    async eliminarProveedor(proveedorId) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const { error } = await window.supabaseClient
-                .from('proveedores')
-                .update({ 
-                    activo: false,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', proveedorId);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Error al eliminar proveedor:', error);
-            return false;
-        }
-    },
-
     async cargarProveedores() {
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible');
@@ -442,32 +367,6 @@ const SupabaseDB = {
         }
     },
 
-    async buscarProveedorPorNit(nit) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return null;
-        }
-        
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('proveedores')
-                .select('*')
-                .eq('nit', nit)
-                .eq('activo', true)
-                .single();
-            
-            if (error) {
-                if (error.code === 'PGRST116') return null;
-                throw error;
-            }
-            
-            return this._mapearProveedor(data);
-        } catch (error) {
-            console.error('Error al buscar proveedor:', error);
-            return null;
-        }
-    },
-
     _mapearProveedor(p) {
         return {
             id: p.id,
@@ -481,10 +380,6 @@ const SupabaseDB = {
             updatedAt: p.updated_at
         };
     },
-
-    // ==========================================
-    // TURNOS - CORREGIDO
-    // ==========================================
 
     async guardarTurno(turno) {
         if (!window.supabaseClient) {
@@ -542,51 +437,6 @@ const SupabaseDB = {
         } catch (error) {
             console.error('Error al cargar turnos:', error);
             return [];
-        }
-    },
-
-    async actualizarTurno(turnoId, datos) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const datosActualizados = {
-                ...datos,
-                updated_at: new Date().toISOString()
-            };
-            
-            const { error } = await window.supabaseClient
-                .from('turnos')
-                .update(datosActualizados)
-                .eq('id', turnoId);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Error al actualizar turno:', error);
-            return false;
-        }
-    },
-
-    async eliminarTurno(turnoId) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const { error } = await window.supabaseClient
-                .from('turnos')
-                .delete()
-                .eq('id', turnoId);
-            
-            if (error) throw error;
-            return true;
-        } catch (error) {
-            console.error('Error al eliminar turno:', error);
-            return false;
         }
     },
 
@@ -663,10 +513,7 @@ const SupabaseDB = {
         try {
             const { error } = await window.supabaseClient
                 .from('turnos')
-                .update({ 
-                    estado: 'cancelado',
-                    updated_at: new Date().toISOString()
-                })
+                .delete()
                 .eq('id', turnoId);
             
             if (error) throw error;
@@ -692,10 +539,6 @@ const SupabaseDB = {
             updatedAt: t.updated_at
         };
     },
-
-    // ==========================================
-    // HISTORIAL
-    // ==========================================
 
     async guardarEnHistorial(turno) {
         if (!window.supabaseClient) {
@@ -749,67 +592,31 @@ const SupabaseDB = {
             
             if (error) throw error;
             
-            return data.map(h => this._mapearHistorial(h));
+            return data.map(h => ({
+                id: h.id,
+                numero: h.numero,
+                nombreEmpresa: h.nombre_empresa,
+                nit: h.nit,
+                motivo: h.motivo,
+                horaSolicitud: h.hora_solicitud,
+                horaLlamada: h.hora_llamada,
+                horaFinalizacion: h.hora_finalizacion,
+                estado: h.estado,
+                fecha: h.fecha
+            }));
         } catch (error) {
             console.error('Error al cargar historial:', error);
             return [];
         }
     },
 
-    async cargarHistorialHoy() {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return [];
-        }
-        
-        try {
-            const hoy = new Date().toISOString().split('T')[0];
-            
-            const { data, error } = await window.supabaseClient
-                .from('historial_turnos')
-                .select('*')
-                .gte('fecha', `${hoy}T00:00:00`)
-                .lte('fecha', `${hoy}T23:59:59`)
-                .order('fecha', { ascending: false });
-            
-            if (error) throw error;
-            
-            return data.map(h => this._mapearHistorial(h));
-        } catch (error) {
-            console.error('Error al cargar historial de hoy:', error);
-            return [];
-        }
-    },
-
-    _mapearHistorial(h) {
-        return {
-            id: h.id,
-            numero: h.numero,
-            nombreEmpresa: h.nombre_empresa,
-            nit: h.nit,
-            motivo: h.motivo,
-            horaSolicitud: h.hora_solicitud,
-            horaLlamada: h.hora_llamada,
-            horaFinalizacion: h.hora_finalizacion,
-            estado: h.estado,
-            fecha: h.fecha,
-            createdAt: h.created_at
-        };
-    },
-
-    // ==========================================
-    // ESTADÍSTICAS
-    // ==========================================
-
     async cargarEstadisticas() {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
             return {
                 totalTurnos: 0,
                 turnosEspera: 0,
                 turnosAtendiendo: 0,
-                totalProveedores: 0,
-                promedioEspera: 0
+                totalProveedores: 0
             };
         }
         
@@ -817,10 +624,10 @@ const SupabaseDB = {
             const hoy = new Date().toISOString().split('T')[0];
             
             const [
-                { count: totalTurnosHoy, error: error1 },
-                { count: turnosEspera, error: error2 },
-                { count: turnosAtendiendo, error: error3 },
-                { count: totalProveedores, error: error4 }
+                { count: totalTurnosHoy },
+                { count: turnosEspera },
+                { count: turnosAtendiendo },
+                { count: totalProveedores }
             ] = await Promise.all([
                 window.supabaseClient
                     .from('historial_turnos')
@@ -843,11 +650,6 @@ const SupabaseDB = {
                     .eq('activo', true)
             ]);
 
-            if (error1) throw error1;
-            if (error2) throw error2;
-            if (error3) throw error3;
-            if (error4) throw error4;
-
             return {
                 totalTurnos: totalTurnosHoy || 0,
                 turnosEspera: turnosEspera || 0,
@@ -865,10 +667,6 @@ const SupabaseDB = {
         }
     },
 
-    // ==========================================
-    // SUSCRIPCIONES REALTIME - CORREGIDO
-    // ==========================================
-
     suscribirCambiosTurnos(callback) {
         if (!window.supabaseClient) {
             console.error('❌ Supabase no está disponible');
@@ -877,12 +675,7 @@ const SupabaseDB = {
         
         try {
             const channel = window.supabaseClient
-                .channel('turnos-changes', {
-                    config: {
-                        broadcast: { self: true },
-                        presence: { key: '' }
-                    }
-                })
+                .channel('turnos-changes')
                 .on('postgres_changes', 
                     { 
                         event: '*', 
@@ -904,13 +697,8 @@ const SupabaseDB = {
                     } else if (status === 'CHANNEL_ERROR') {
                         console.error('❌ Error en canal de turnos:', err);
                         setTimeout(() => {
-                            console.log('🔄 Intentando reconectar turnos...');
                             this.suscribirCambiosTurnos(callback);
                         }, 3000);
-                    } else if (status === 'CLOSED') {
-                        console.warn('🔌 Canal de turnos cerrado');
-                    } else if (status === 'TIMED_OUT') {
-                        console.warn('⏱️ Timeout en suscripción de turnos');
                     }
                 });
             
@@ -929,11 +717,7 @@ const SupabaseDB = {
         
         try {
             const channel = window.supabaseClient
-                .channel('historial-changes', {
-                    config: {
-                        broadcast: { self: true }
-                    }
-                })
+                .channel('historial-changes')
                 .on('postgres_changes', 
                     { 
                         event: 'INSERT', 
@@ -947,17 +731,8 @@ const SupabaseDB = {
                         }
                     }
                 )
-                .subscribe((status, err) => {
+                .subscribe((status) => {
                     console.log('📡 Estado canal historial:', status);
-                    
-                    if (status === 'SUBSCRIBED') {
-                        console.log('✅ Suscripción a historial activada');
-                    } else if (status === 'CHANNEL_ERROR') {
-                        console.error('❌ Error en canal historial:', err);
-                        setTimeout(() => {
-                            this.suscribirCambiosHistorial(callback);
-                        }, 3000);
-                    }
                 });
             
             return channel;
@@ -965,89 +740,17 @@ const SupabaseDB = {
             console.error('❌ Error al suscribirse a historial:', error);
             return null;
         }
-    },
-
-    // ==========================================
-    // SINCRONIZACIÓN - CORREGIDA
-    // ==========================================
-
-    async sincronizarTodo() {
-        if (!window.supabaseClient) {
-            return { success: false, message: 'Supabase no está configurado' };
-        }
-
-        try {
-            console.log('🔄 Sincronizando datos desde la nube...');
-            
-            const todosLosTurnos = await this.cargarTurnos();
-            
-            const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera');
-            const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
-            
-            AppState.turnos = turnosEnEspera;
-            AppState.turnoActual = turnoAtendiendo || null;
-            
-            LocalStorage.guardarTurnos(turnosEnEspera);
-            if (turnoAtendiendo) {
-                LocalStorage.guardarTurnoActual(turnoAtendiendo);
-            }
-            
-            console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total (${turnosEnEspera.length} en espera, ${turnoAtendiendo ? 1 : 0} atendiendo)`);
-            
-            const proveedores = await this.cargarProveedores();
-            console.log(`✅ Proveedores sincronizados: ${proveedores.length}`);
-            
-            const historial = await this.cargarHistorial();
-            console.log(`✅ Historial sincronizado: ${historial.length}`);
-            
-            const contador = await this.obtenerContadorTurnos();
-            console.log(`✅ Contador sincronizado: ${contador}`);
-            
-            return { 
-                success: true, 
-                message: `Sincronización completada: ${todosLosTurnos.length} turnos (${turnosEnEspera.length} espera, ${turnoAtendiendo ? 1 : 0} atendiendo), ${proveedores.length} proveedores, ${historial.length} historial` 
-            };
-        } catch (error) {
-            console.error('❌ Error al sincronizar:', error);
-            return { success: false, message: error.message };
-        }
-    },
-
-    async limpiarDatosAntiguos(dias = 30) {
-        if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
-        }
-        
-        try {
-            const fechaLimite = new Date();
-            fechaLimite.setDate(fechaLimite.getDate() - dias);
-            
-            const { error } = await window.supabaseClient
-                .from('historial_turnos')
-                .delete()
-                .lt('fecha', fechaLimite.toISOString());
-            
-            if (error) throw error;
-            
-            console.log(`🧹 Datos antiguos eliminados (> ${dias} días)`);
-            return true;
-        } catch (error) {
-            console.error('Error al limpiar datos:', error);
-            return false;
-        }
     }
 };
 
 // ============================================
-// GESTIÓN DE TURNOS - CORREGIDO COMPLETAMENTE
+// GESTIÓN DE TURNOS
 // ============================================
 
 const Turnos = {
     async solicitar(datosProveedor, motivo = '') {
         console.log('=== CREANDO TURNO ===');
         
-        // Validaciones mejoradas
         if (!datosProveedor.nit) {
             throw new Error('La placa es requerida');
         }
@@ -1065,16 +768,13 @@ const Turnos = {
         datosProveedor.nit = placa;
         datosProveedor.nombreEmpresa = datosProveedor.nombreEmpresa.trim();
 
-        // Guardar/actualizar proveedor
         await SupabaseDB.guardarProveedor(datosProveedor);
 
-        // Generar número de turno con manejo de errores
         let nuevoContador;
         try {
             nuevoContador = await SupabaseDB.incrementarContadorTurnos();
         } catch (error) {
             console.error('Error al incrementar contador:', error);
-            // Fallback a contador local
             AppState.contadorTurnos++;
             nuevoContador = AppState.contadorTurnos;
             LocalStorage.guardarContador(nuevoContador);
@@ -1096,19 +796,14 @@ const Turnos = {
             estado: 'espera'
         };
 
-        // Guardar en Supabase
         const turnoSupabase = await SupabaseDB.guardarTurno(turno);
         
         if (turnoSupabase && turnoSupabase.id) {
             turno.id = turnoSupabase.id;
-            console.log('Turno guardado en Supabase con ID:', turno.id);
         } else {
-            // Fallback: generar ID local
             turno.id = Date.now();
-            console.warn('Turno guardado localmente con ID:', turno.id);
         }
 
-        // Actualizar estado local
         const existeTurno = AppState.turnos.find(t => t.numero === turno.numero);
         if (!existeTurno) {
             AppState.turnos.push(turno);
@@ -1122,13 +817,11 @@ const Turnos = {
     async llamarSiguiente() {
         console.log('=== LLAMANDO SIGUIENTE TURNO ===');
         
-        // CORRECCIÓN CRÍTICA: Verificar si hay un turno actual que debe completarse
         if (AppState.turnoActual) {
             Utils.mostrarNotificacion(`Hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
             return null;
         }
         
-        // Recargar turnos desde Supabase para asegurar datos actualizados
         const todosLosTurnos = await SupabaseDB.cargarTurnos('espera');
         console.log('Turnos en espera cargados:', todosLosTurnos.length);
         
@@ -1137,17 +830,15 @@ const Turnos = {
             return null;
         }
         
-        // CORRECCIÓN: Ordenar por fecha de solicitud (más antiguo primero) con manejo seguro
         todosLosTurnos.sort((a, b) => {
-            const fechaA = new Date(a.fechaSolicitud || a.fecha_solicitud || 0);
-            const fechaB = new Date(b.fechaSolicitud || b.fecha_solicitud || 0);
+            const fechaA = new Date(a.fechaSolicitud || 0);
+            const fechaB = new Date(b.fechaSolicitud || 0);
             return fechaA - fechaB;
         });
         
         const siguiente = todosLosTurnos[0];
         console.log('Turno seleccionado:', siguiente);
         
-        // Actualizar en Supabase primero
         const horaLlamada = Utils.obtenerHoraActual();
         const actualizado = await SupabaseDB.llamarTurno(siguiente.id);
         
@@ -1156,14 +847,12 @@ const Turnos = {
             return null;
         }
         
-        // Actualizar estado local
         siguiente.estado = 'atendiendo';
         siguiente.horaLlamada = horaLlamada;
         
         AppState.turnoActual = siguiente;
         AppState.turnos = todosLosTurnos.filter(t => t.id !== siguiente.id);
         
-        // Guardar en localStorage
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
         
@@ -1173,7 +862,7 @@ const Turnos = {
 
     async cancelar(turnoId) {
         try {
-            await SupabaseDB.eliminarTurno(turnoId);
+            await SupabaseDB.cancelarTurno(turnoId);
             AppState.turnos = AppState.turnos.filter(t => t.id !== turnoId);
             LocalStorage.guardarTurnos(AppState.turnos);
             return true;
@@ -1193,19 +882,13 @@ const Turnos = {
         console.log('Completando turno:', turnoCompletado.numero);
         
         try {
-            // 1. Guardar en historial PRIMERO
-            const historialGuardado = await SupabaseDB.guardarEnHistorial(turnoCompletado);
-            if (!historialGuardado) {
-                console.warn('No se pudo guardar en historial, continuando...');
-            }
+            await SupabaseDB.guardarEnHistorial(turnoCompletado);
             
-            // 2. Eliminar de turnos activos
-            const eliminado = await SupabaseDB.eliminarTurno(turnoCompletado.id);
+            const eliminado = await SupabaseDB.completarTurno(turnoCompletado.id);
             if (!eliminado) {
                 throw new Error('No se pudo eliminar el turno de la base de datos');
             }
             
-            // 3. Verificar si el usuario tenía este turno y limpiarlo
             const miTurno = LocalStorage.obtenerMiTurno();
             if (miTurno && miTurno.numero === turnoCompletado.numero) {
                 LocalStorage.eliminarMiTurno();
@@ -1214,7 +897,6 @@ const Turnos = {
                 }
             }
             
-            // 4. Limpiar estado local
             AppState.turnoActual = null;
             LocalStorage.guardarTurnoActual(null);
             
@@ -1231,7 +913,7 @@ const Turnos = {
     async reiniciarCola() {
         try {
             for (const turno of AppState.turnos) {
-                await SupabaseDB.eliminarTurno(turno.id);
+                await SupabaseDB.cancelarTurno(turno.id);
             }
             
             AppState.turnos = [];
@@ -1254,7 +936,6 @@ const Turnos = {
         console.log('=== CARGANDO TURNOS ===');
         
         try {
-            // Intentar cargar desde Supabase primero
             if (window.supabaseClient) {
                 const todosLosTurnos = await SupabaseDB.cargarTurnos();
                 
@@ -1265,7 +946,6 @@ const Turnos = {
                     AppState.turnos = turnosEnEspera;
                     AppState.turnoActual = turnoAtendiendo || null;
                     
-                    // Sincronizar localStorage
                     LocalStorage.guardarTurnos(turnosEnEspera);
                     if (turnoAtendiendo) {
                         LocalStorage.guardarTurnoActual(turnoAtendiendo);
@@ -1274,32 +954,25 @@ const Turnos = {
                     }
                     
                     console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total`);
-                    console.log(`   - En espera: ${turnosEnEspera.length}`);
-                    console.log(`   - Atendiendo: ${turnoAtendiendo ? 1 : 0}`);
                     
-                    // Actualizar contador
                     AppState.contadorTurnos = await SupabaseDB.obtenerContadorTurnos();
                     return;
                 }
             }
             
-            // Fallback a localStorage
-            console.warn('Usando datos locales');
             AppState.turnos = LocalStorage.obtenerTurnos();
             AppState.turnoActual = LocalStorage.obtenerTurnoActual();
             
         } catch (error) {
             console.error('❌ Error al cargar turnos:', error);
-            // Usar datos locales como respaldo
             AppState.turnos = LocalStorage.obtenerTurnos();
             AppState.turnoActual = LocalStorage.obtenerTurnoActual();
-            Utils.mostrarNotificacion('Error de conexión. Usando datos locales.', 'error');
         }
     }
 };
 
 // ============================================
-// RENDERIZADO USUARIO - CORREGIDO CON NOTIFICACIÓN INMEDIATA
+// RENDERIZADO USUARIO - ULTRA RÁPIDO
 // ============================================
 
 const RenderUsuario = {
@@ -1310,13 +983,10 @@ const RenderUsuario = {
         if (!container) return;
 
         if (miTurno) {
-            // Verificar si el turno aún existe en el sistema
             const enCola = AppState.turnos.find(t => t.numero === miTurno.numero);
             const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
             
-            // Si no está en cola ni siendo atendido, el turno fue completado
             if (!enCola && !siendoAtendido) {
-                // Limpiar turno completado
                 LocalStorage.eliminarMiTurno();
                 container.innerHTML = `
                     <div class="no-turn-message">
@@ -1326,12 +996,10 @@ const RenderUsuario = {
                     </div>
                 `;
                 
-                // Desactivar modo espera si está activo
                 if (typeof ModoEspera !== 'undefined') {
                     ModoEspera.desactivar();
                 }
                 
-                // Limpiar después de 5 segundos
                 setTimeout(() => {
                     this.miTurno();
                 }, 5000);
@@ -1422,27 +1090,48 @@ const RenderUsuario = {
         this.turnosEnEspera();
     },
     
-    // CORRECCIÓN: Función mejorada para verificar si es el turno del usuario
-    verificarMiTurnoLlamado() {
-        const miTurno = LocalStorage.obtenerMiTurno();
-        if (!miTurno) return false;
+    // PROCESAMIENTO INMEDIATO DE TURNO LLAMADO
+    procesarTurnoLlamado(payload) {
+        console.log('🎯 Procesando turno llamado en tiempo real:', payload);
         
-        // Verificar si mi turno es el que está siendo atendido ahora
-        if (AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero) {
-            console.log('🎉 ¡Mi turno está siendo atendido!');
+        const miTurno = LocalStorage.obtenerMiTurno();
+        if (!miTurno) return;
+        
+        const turnoActualizado = payload.new;
+        
+        if (turnoActualizado && turnoActualizado.numero === miTurno.numero && turnoActualizado.estado === 'atendiendo') {
+            console.log('🎉 ¡ES MI TURNO! Mostrando notificación inmediata...');
             
-            // Actualizar la UI inmediatamente
+            // Actualizar AppState inmediatamente
+            AppState.turnoActual = {
+                id: turnoActualizado.id,
+                numero: turnoActualizado.numero,
+                nombreEmpresa: turnoActualizado.nombre_empresa,
+                nit: turnoActualizado.nit,
+                motivo: turnoActualizado.motivo,
+                horaSolicitud: turnoActualizado.hora_solicitud,
+                horaLlamada: turnoActualizado.hora_llamada,
+                estado: 'atendiendo'
+            };
+            
+            // Remover de la lista de espera
+            AppState.turnos = AppState.turnos.filter(t => t.numero !== miTurno.numero);
+            
+            // Actualizar localStorage
+            LocalStorage.guardarTurnoActual(AppState.turnoActual);
+            LocalStorage.guardarTurnos(AppState.turnos);
+            
+            // Actualizar UI inmediatamente
             this.todo();
             
-            // Mostrar notificación grande
+            // Mostrar notificación grande con sonido
             if (typeof ModoEspera !== 'undefined') {
+                ModoEspera.miTurno = miTurno;
+                ModoEspera.activo = true;
+                ModoEspera.notificacionMostrada = false;
                 ModoEspera.mostrarNotificacionLlamado();
             }
-            
-            return true;
         }
-        
-        return false;
     },
     
     suscribirCambios() {
@@ -1454,74 +1143,49 @@ const RenderUsuario = {
         try {
             const subscription = window.supabaseClient
                 .channel('turnos-changes-user')
+                // INSERT: Nuevos turnos
                 .on('postgres_changes', 
-                    { event: '*', schema: 'public', table: 'turnos' },
+                    { event: 'INSERT', schema: 'public', table: 'turnos' },
                     async (payload) => {
-                        console.log('📡 Actualización en tiempo real (usuario):', payload);
-                        try {
-                            // Recargar datos
-                            await Turnos.cargarTurnos();
-                            
-                            // Actualizar UI
-                            this.todo();
-                            
-                            // CORRECCIÓN CRÍTICA: Verificar inmediatamente si es mi turno
-                            if (payload.eventType === 'UPDATE' && payload.new && payload.new.estado === 'atendiendo') {
-                                const miTurno = LocalStorage.obtenerMiTurno();
-                                if (miTurno && payload.new.numero === miTurno.numero) {
-                                    console.log('🎯 ¡Mi turno fue llamado!');
-                                    
-                                    // Actualizar AppState con el turno actual
-                                    AppState.turnoActual = {
-                                        id: payload.new.id,
-                                        numero: payload.new.numero,
-                                        nombreEmpresa: payload.new.nombre_empresa,
-                                        nit: payload.new.nit,
-                                        motivo: payload.new.motivo,
-                                        horaSolicitud: payload.new.hora_solicitud,
-                                        horaLlamada: payload.new.hora_llamada,
-                                        estado: 'atendiendo'
-                                    };
-                                    
-                                    // Mostrar notificación inmediatamente
-                                    if (typeof ModoEspera !== 'undefined') {
-                                        ModoEspera.miTurno = miTurno;
-                                        ModoEspera.activo = true;
-                                        ModoEspera.mostrarNotificacionLlamado();
-                                    }
-                                }
-                            }
-                            
-                            // Si hay un turno actual y tengo un turno guardado, verificar
-                            if (AppState.turnoActual) {
-                                this.verificarMiTurnoLlamado();
-                            }
-                            
-                        } catch (error) {
-                            console.error('Error al procesar actualización:', error);
-                        }
+                        console.log('📡 Nuevo turno insertado:', payload);
+                        await Turnos.cargarTurnos();
+                        this.todo();
                     }
                 )
-                // También escuchar cambios en historial para detectar turnos completados
+                // UPDATE: Turnos llamados - PROCESAMIENTO INMEDIATO
+                .on('postgres_changes',
+                    { event: 'UPDATE', schema: 'public', table: 'turnos' },
+                    async (payload) => {
+                        console.log('📡 Turno actualizado:', payload);
+                        
+                        // Procesar inmediatamente sin esperar recargar
+                        this.procesarTurnoLlamado(payload);
+                    }
+                )
+                // DELETE: Turnos cancelados
+                .on('postgres_changes',
+                    { event: 'DELETE', schema: 'public', table: 'turnos' },
+                    async (payload) => {
+                        console.log('📡 Turno eliminado:', payload);
+                        await Turnos.cargarTurnos();
+                        this.todo();
+                    }
+                )
+                // INSERT en historial: Turnos completados
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
                     async (payload) => {
-                        console.log('📝 Nuevo turno completado detectado:', payload);
-                        try {
-                            await Turnos.cargarTurnos();
-                            this.todo();
-                            
-                            // Verificar si es el turno del usuario actual
-                            const miTurno = LocalStorage.obtenerMiTurno();
-                            if (miTurno && payload.new && payload.new.numero === miTurno.numero) {
-                                if (typeof ModoEspera !== 'undefined') {
-                                    ModoEspera.desactivar();
-                                }
-                                LocalStorage.eliminarMiTurno();
-                                this.todo();
+                        console.log('📝 Nuevo turno completado:', payload);
+                        await Turnos.cargarTurnos();
+                        this.todo();
+                        
+                        const miTurno = LocalStorage.obtenerMiTurno();
+                        if (miTurno && payload.new && payload.new.numero === miTurno.numero) {
+                            if (typeof ModoEspera !== 'undefined') {
+                                ModoEspera.desactivar();
                             }
-                        } catch (error) {
-                            console.error('Error al procesar historial:', error);
+                            LocalStorage.eliminarMiTurno();
+                            this.todo();
                         }
                     }
                 )
@@ -1541,7 +1205,7 @@ const RenderUsuario = {
 };
 
 // ============================================
-// RENDERIZADO ADMIN - CORREGIDO CON MANEJO DE ERRORES
+// RENDERIZADO ADMIN
 // ============================================
 
 const RenderAdmin = {
@@ -1678,18 +1342,14 @@ const RenderAdmin = {
             if (totalTurnosEl) totalTurnosEl.textContent = stats.totalTurnos;
             if (turnosEsperaEl) turnosEsperaEl.textContent = stats.turnosEspera;
             if (totalProveedoresEl) totalProveedoresEl.textContent = stats.totalProveedores;
-            
-            console.log('Estadísticas actualizadas:', stats);
         } catch (error) {
             console.error('Error al cargar estadísticas:', error);
         }
     },
 
-    // CORRECCIÓN: Manejo de errores individual para cada función
     async todo() {
         console.log('=== ACTUALIZANDO VISTA ADMIN ===');
         
-        // Ejecutar cada función independientemente (si una falla, las demás continúan)
         try { this.turnoActual(); } catch (e) { console.error('Error turnoActual:', e); }
         try { this.listaTurnosEspera(); } catch (e) { console.error('Error listaTurnosEspera:', e); }
         try { await this.proveedores(); } catch (e) { console.error('Error proveedores:', e); }
@@ -1793,7 +1453,7 @@ const UsuarioHandlers = {
 };
 
 // ============================================
-// HANDLERS ADMIN - CORREGIDO CON BROADCAST INMEDIATO
+// HANDLERS ADMIN
 // ============================================
 
 const AdminHandlers = {
@@ -1801,7 +1461,6 @@ const AdminHandlers = {
         const turno = await Turnos.llamarSiguiente();
         
         if (turno) {
-            // CORRECCIÓN: Mostrar modal inmediatamente en admin
             const modal = document.getElementById('turnoModal');
             if (modal) {
                 const modalTurnNumber = document.getElementById('modalTurnNumber');
@@ -1815,58 +1474,8 @@ const AdminHandlers = {
             Utils.mostrarNotificacion(`Turno ${turno.numero} llamado`, 'success');
             await RenderAdmin.todo();
             
-            // 🔄 ENVIAR NOTIFICACIÓN INMEDIATA A TODOS LOS USUARIOS
-            this.notificarTurnoLlamado(turno);
-            
         } else {
             console.log('No se pudo llamar turno');
-        }
-    },
-    
-    // NUEVA FUNCIÓN: Notificar a todos los usuarios que un turno fue llamado
-    notificarTurnoLlamado(turno) {
-        console.log('📢 Notificando turno llamado:', turno.numero);
-        
-        // Opción 1: BroadcastChannel (más moderno y rápido)
-        try {
-            const bc = new BroadcastChannel('turnos_channel');
-            bc.postMessage({ 
-                action: 'turno-llamado', 
-                turno: turno,
-                timestamp: Date.now() 
-            });
-            console.log('✅ Notificación enviada via BroadcastChannel');
-        } catch (e) {
-            console.log('BroadcastChannel no soportado');
-        }
-        
-        // Opción 2: postMessage para ventanas hijas/padres
-        try {
-            window.postMessage({ 
-                action: 'turno-llamado', 
-                turno: turno,
-                timestamp: Date.now() 
-            }, '*');
-        } catch (e) {}
-        
-        // Opción 3: Supabase Realtime broadcast
-        if (window.supabaseClient) {
-            try {
-                window.supabaseClient
-                    .channel('admin-commands')
-                    .send({
-                        type: 'broadcast',
-                        event: 'turno-llamado',
-                        payload: { 
-                            turno: turno,
-                            timestamp: Date.now() 
-                        }
-                    })
-                    .then(() => console.log('✅ Broadcast Supabase enviado'))
-                    .catch(err => console.log('Supabase broadcast error:', err));
-            } catch (e) {
-                console.error('Error en Supabase broadcast:', e);
-            }
         }
     },
     
@@ -1943,7 +1552,7 @@ window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
 
 // ============================================
-// ACCESO ADMIN (CONTINUACIÓN)
+// ACCESO ADMIN
 // ============================================
 
 const AdminAccess = {
@@ -2065,7 +1674,7 @@ const ConnectionStatus = {
 };
 
 // ============================================
-// MODO DE ESPERA Y NOTIFICACIONES - CORREGIDO
+// MODO DE ESPERA Y NOTIFICACIONES - CON SONIDO
 // ============================================
 
 const ModoEspera = {
@@ -2084,7 +1693,6 @@ const ModoEspera = {
             waitingSection.style.display = 'block';
             this.actualizar();
             
-            // Limpiar intervalo anterior si existe
             if (this.intervaloActualizacion) {
                 clearInterval(this.intervaloActualizacion);
             }
@@ -2114,11 +1722,9 @@ const ModoEspera = {
     actualizar() {
         if (!this.activo || !this.miTurno) return;
         
-        // Verificar si el turno sigue existiendo
         const enCola = AppState.turnos.find(t => t.numero === this.miTurno.numero);
         const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === this.miTurno.numero;
         
-        // Si el turno no está en cola ni siendo atendido, fue completado
         if (!enCola && !siendoAtendido) {
             console.log('Turno completado detectado en ModoEspera');
             LocalStorage.eliminarMiTurno();
@@ -2130,7 +1736,6 @@ const ModoEspera = {
         const turnoActual = AppState.turnoActual;
         const turnosEspera = AppState.turnos;
         
-        // CORRECCIÓN: Verificar inmediatamente si es mi turno
         if (turnoActual && turnoActual.numero === this.miTurno.numero) {
             this.mostrarNotificacionLlamado();
             return;
@@ -2157,11 +1762,61 @@ const ModoEspera = {
         }
     },
 
+    reproducirSonido() {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) {
+                const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=');
+                audio.volume = 1.0;
+                audio.play().catch(() => {});
+                return;
+            }
+            
+            const ctx = new AudioContext();
+            
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(1046.5, ctx.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0, ctx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.8, ctx.currentTime + 0.05);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
+            
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 1.5);
+            
+            setTimeout(() => {
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(659.25, ctx.currentTime);
+                osc2.frequency.exponentialRampToValueAtTime(1318.5, ctx.currentTime + 0.1);
+                gain2.gain.setValueAtTime(0, ctx.currentTime);
+                gain2.gain.linearRampToValueAtTime(0.8, ctx.currentTime + 0.05);
+                gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.5);
+                osc2.start(ctx.currentTime);
+                osc2.stop(ctx.currentTime + 1.5);
+            }, 200);
+            
+        } catch (e) {
+            console.log('Error al reproducir sonido:', e);
+        }
+    },
+
     mostrarNotificacionLlamado() {
         if (this.notificacionMostrada) return;
         this.notificacionMostrada = true;
         
-        // Eliminar notificación anterior si existe
+        this.reproducirSonido();
+        
         const notificacionAnterior = document.querySelector('.turn-called-notification');
         if (notificacionAnterior) {
             notificacionAnterior.remove();
@@ -2170,7 +1825,6 @@ const ModoEspera = {
         const notificacion = document.createElement('div');
         notificacion.className = 'turn-called-notification';
 
-        // Estilos para centrar perfectamente en pantalla
         Object.assign(notificacion.style, {
             position: 'fixed',
             top: '50%',
@@ -2204,18 +1858,9 @@ const ModoEspera = {
                     onclick="this.closest('.turn-called-notification').remove(); document.body.style.overflow = '';">Entendido</button>
         `;
         
-        // Prevenir scroll del body
         document.body.style.overflow = 'hidden';
         document.body.appendChild(notificacion);
         
-        // Sonido de notificación
-        try {
-            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQkALpPp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcBkANJvp6pZwGQA0m+nqlnAZADSb6eqWcGQ==');
-            audio.volume = 0.5;
-            audio.play().catch(() => {});
-        } catch (e) {}
-        
-        // Auto-cerrar después de 15 segundos
         setTimeout(() => {
             if (notificacion.parentElement) {
                 notificacion.remove();
@@ -2226,11 +1871,11 @@ const ModoEspera = {
 };
 
 // ============================================
-// INICIALIZACIÓN - CORREGIDA CON BROADCAST
+// INICIALIZACIÓN - ULTRA RÁPIDA
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Sistema de Turnos cargado - Versión Corregida');
+    console.log('Sistema de Turnos cargado - Versión Ultra Rápida');
     
     try {
         let conexionOk = false;
@@ -2248,7 +1893,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             ConnectionStatus.actualizar('disconnected', '✗ Sin conexión');
         }
         
-        // Cargar turnos correctamente al inicio
         await Turnos.cargarTurnos();
         console.log('Datos cargados:', {
             turnos: AppState.turnos.length,
@@ -2277,107 +1921,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Verificar si el turno del usuario sigue siendo válido
             const miTurno = LocalStorage.obtenerMiTurno();
             if (miTurno) {
-                // Verificar si el turno aún existe en el sistema
                 const enCola = AppState.turnos.find(t => t.numero === miTurno.numero);
                 const siendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
                 
                 if (enCola || siendoAtendido) {
-                    // El turno existe, activar modo espera
                     ModoEspera.activar(miTurno);
                     
-                    // Si ya está siendo atendido, mostrar notificación inmediatamente
                     if (siendoAtendido) {
                         ModoEspera.mostrarNotificacionLlamado();
                     }
                 } else {
-                    // El turno ya no existe (fue completado o cancelado)
                     console.log('Turno guardado ya no existe en el sistema, limpiando...');
                     LocalStorage.eliminarMiTurno();
                 }
             }
             
-            // 🔄 ESCUCHAR COMANDOS DEL ADMIN VIA BROADCASTCHANNEL
-            try {
-                const bc = new BroadcastChannel('turnos_channel');
-                bc.onmessage = async (event) => {
-                    console.log('📡 Mensaje recibido via BroadcastChannel:', event.data);
-                    
-                    if (event.data && event.data.action === 'turno-llamado') {
-                        console.log('🎯 Turno llamado detectado via BroadcastChannel');
-                        
-                        // Actualizar datos inmediatamente
-                        await Turnos.cargarTurnos();
-                        
-                        // Verificar si es mi turno
-                        const miTurno = LocalStorage.obtenerMiTurno();
-                        if (miTurno && event.data.turno && event.data.turno.numero === miTurno.numero) {
-                            console.log('🎉 ¡Es mi turno! Mostrando notificación...');
-                            
-                            // Actualizar AppState
-                            AppState.turnoActual = event.data.turno;
-                            
-                            // Actualizar UI
-                            RenderUsuario.todo();
-                            
-                            // Mostrar notificación grande inmediatamente
-                            ModoEspera.miTurno = miTurno;
-                            ModoEspera.activo = true;
-                            ModoEspera.mostrarNotificacionLlamado();
-                        } else {
-                            // No es mi turno, solo actualizar la lista
-                            RenderUsuario.todo();
-                        }
-                    }
-                };
-                console.log('✅ BroadcastChannel configurado en usuario');
-            } catch (e) {
-                console.log('BroadcastChannel no soportado:', e);
-            }
-            
-            // Opción 2: postMessage como respaldo
-            window.addEventListener('message', async (event) => {
-                if (event.data && event.data.action === 'turno-llamado') {
-                    console.log('🔄 Turno llamado detectado via postMessage');
-                    await Turnos.cargarTurnos();
-                    RenderUsuario.todo();
-                    
-                    const miTurno = LocalStorage.obtenerMiTurno();
-                    if (miTurno && event.data.turno && event.data.turno.numero === miTurno.numero) {
-                        AppState.turnoActual = event.data.turno;
-                        ModoEspera.miTurno = miTurno;
-                        ModoEspera.activo = true;
-                        ModoEspera.mostrarNotificacionLlamado();
-                    }
-                }
-            });
-            
-            // Opción 3: Supabase Realtime como respaldo
+            // Suscripción en tiempo real para usuario - ULTRA RÁPIDA
             if (window.supabaseClient) {
-                try {
-                    // Canal para broadcast de admin
-                    window.supabaseClient
-                        .channel('admin-commands')
-                        .on('broadcast', { event: 'turno-llamado' }, async (payload) => {
-                            console.log('🔄 Turno llamado detectado via Supabase:', payload);
-                            await Turnos.cargarTurnos();
-                            RenderUsuario.todo();
-                            
-                            const miTurno = LocalStorage.obtenerMiTurno();
-                            if (miTurno && payload.payload && payload.payload.turno.numero === miTurno.numero) {
-                                AppState.turnoActual = payload.payload.turno;
-                                ModoEspera.miTurno = miTurno;
-                                ModoEspera.activo = true;
-                                ModoEspera.mostrarNotificacionLlamado();
-                            }
-                        })
-                        .subscribe();
-                        
-                    console.log('✅ Supabase broadcast configurado en usuario');
-                } catch (e) {
-                    console.log('Error al configurar Supabase broadcast:', e);
-                }
-                
-                // Suscripción principal a cambios en la tabla turnos
                 console.log('Configurando suscripción a tiempo real para usuario...');
                 AppState.subscription = RenderUsuario.suscribirCambios();
             } else {
@@ -2400,28 +1960,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const btnLimpiar = document.getElementById('btnLimpiarHistorial');
             if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
-            
-            const btnSincronizar = document.getElementById('btnSincronizarNube');
-            if (btnSincronizar) {
-                btnSincronizar.addEventListener('click', async () => {
-                    const originalText = btnSincronizar.textContent;
-                    btnSincronizar.textContent = 'Sincronizando...';
-                    btnSincronizar.disabled = true;
-                    
-                    const resultado = await SupabaseDB.sincronizarTodo();
-                    
-                    btnSincronizar.textContent = originalText;
-                    btnSincronizar.disabled = false;
-                    
-                    if (resultado.success) {
-                        Utils.mostrarNotificacion(resultado.message, 'success');
-                        await Turnos.cargarTurnos();
-                        await RenderAdmin.todo();
-                    } else {
-                        Utils.mostrarNotificacion('Error: ' + resultado.message, 'error');
-                    }
-                });
-            }
             
             console.log('Renderizando admin...');
             await RenderAdmin.todo();
@@ -2467,12 +2005,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// ❌ ELIMINADO: Recarga automática cada 20 segundos
-// setInterval(() => {
-//     location.reload();
-// }, 20000);
-
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
 window.RenderUsuario = RenderUsuario;
 window.ModoEspera = ModoEspera;
+
+                                                                  
