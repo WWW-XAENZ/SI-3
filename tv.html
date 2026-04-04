@@ -647,30 +647,28 @@
                 await RenderTV.todo();
             }
 
-            await cargarDatos();
+            await cargarDatos(true);
 
-            setInterval(() => cargarDatos(true), 5000);
+            setInterval(() => cargarDatos(true), 3000);
 
             if (window.supabaseClient) {
-                const channel = window.supabaseClient
-                    .channel('tv-turnos')
-                    .on('postgres_changes',
+                supabaseClient.channel('tv-turnos')
+                    .on('postgres_changes', 
                         { event: '*', schema: 'public', table: 'turnos' },
-                        async (payload) => {
-                            console.log('Cambio detectado en tiempo real:', payload);
-                            await cargarDatos(true);
+                        (payload) => {
+                            console.log('Realtime turnos:', payload);
+                            cargarDatos(true);
                         }
                     )
-                    .on('postgres_changes',
+                    .on('postgres_changes', 
                         { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
-                        async (payload) => {
-                            console.log('Turno completado:', payload);
-                            await cargarDatos(true);
+                        (payload) => {
+                            console.log('Realtime historial:', payload);
+                            cargarDatos(true);
                         }
                     )
-                    .subscribe((status) => {
-                        console.log('Suscripcion TV:', status);
-                    });
+                    .subscribe();
+                console.log('Realtime conectado');
             }
         });
     </script>

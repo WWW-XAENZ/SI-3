@@ -1171,12 +1171,12 @@ const RenderUsuario = {
         }
         
         try {
-            const subscription = window.supabaseClient
+            window.supabaseClient
                 .channel('turnos-changes-user')
                 .on('postgres_changes', 
                     { event: '*', schema: 'public', table: 'turnos' },
                     async (payload) => {
-                        console.log('Actualización en tiempo real (usuario):', payload);
+                        console.log('Realtime usuario:', payload);
                         try {
                             await Turnos.cargarTurnos();
                             this.todo();
@@ -1185,14 +1185,14 @@ const RenderUsuario = {
                                 ModoEspera.actualizar();
                             }
                         } catch (error) {
-                            console.error('Error al procesar actualización:', error);
+                            console.error('Error:', error);
                         }
                     }
                 )
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
                     async (payload) => {
-                        console.log('Nuevo turno completado detectado:', payload);
+                        console.log('Realtime historial:', payload);
                         try {
                             await Turnos.cargarTurnos();
                             this.todo();
@@ -1206,20 +1206,15 @@ const RenderUsuario = {
                                 this.todo();
                             }
                         } catch (error) {
-                            console.error('Error al procesar historial:', error);
+                            console.error('Error:', error);
                         }
                     }
                 )
-                .subscribe((status) => {
-                    console.log('Estado de suscripción (usuario):', status);
-                    if (status === 'SUBSCRIBED') {
-                        console.log('Suscripción a tiempo real activada (usuario)');
-                    }
-                });
-            
-            return subscription;
+                .subscribe();
+            console.log('Realtime usuario conectado');
+            return true;
         } catch (error) {
-            console.error('Error al suscribirse (usuario):', error);
+            console.error('Error:', error);
             return null;
         }
     }
@@ -1493,7 +1488,6 @@ const AdminHandlers = {
             }
             
             Utils.mostrarNotificacion(`Turno ${turno.numero} llamado`, 'success');
-            SonidoAlerta.reproducir(2);
             await RenderAdmin.todo();
             
         } else {
@@ -1906,6 +1900,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     
                     if (siendoAtendido) {
                         ModoEspera.mostrarNotificacionLlamado();
+                        SonidoAlerta.reproducir(3);
                     }
                 } else {
                     console.log('Turno guardado ya no existe en el sistema, limpiando...');
@@ -1916,6 +1911,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (window.supabaseClient) {
                 console.log('Configurando suscripción a tiempo real para usuario...');
                 AppState.subscription = RenderUsuario.suscribirCambios();
+                
+                setInterval(async () => {
+                    if (typeof ModoEspera !== 'undefined' && ModoEspera.activo) {
+                        try {
+                            await Turnos.cargarTurnos();
+                            await RenderUsuario.todo();
+                            ModoEspera.actualizar();
+                        } catch (e) {
+                            console.error('Error en actualización:', e);
+                        }
+                    }
+                }, 3000);
             } else {
                 console.warn('Supabase no disponible - verifica tu conexión y credenciales');
             }
