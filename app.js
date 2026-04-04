@@ -31,6 +31,39 @@ let logoClickCount = 0;
 let logoClickTimer = null;
 let syncInterval = null;
 
+const SonidoAlerta = {
+    contexto: null,
+    
+    inicializar() {
+        if (!this.contexto) {
+            this.contexto = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    },
+    
+    reproducir(veces = 3) {
+        this.inicializar();
+        
+        for (let i = 0; i < veces; i++) {
+            setTimeout(() => {
+                const oscilador = this.contexto.createOscillator();
+                const ganancia = this.contexto.createGain();
+                
+                oscilador.connect(ganancia);
+                ganancia.connect(this.contexto.destination);
+                
+                oscilador.frequency.value = 880;
+                oscilador.type = 'sine';
+                
+                ganancia.gain.setValueAtTime(0.3, this.contexto.currentTime);
+                ganancia.gain.exponentialRampToValueAtTime(0.01, this.contexto.currentTime + 0.5);
+                
+                oscilador.start(this.contexto.currentTime);
+                oscilador.stop(this.contexto.currentTime + 0.5);
+            }, i * 600);
+        }
+    }
+};
+
 // ============================================
 // UTILIDADES
 // ============================================
@@ -1143,10 +1176,14 @@ const RenderUsuario = {
                 .on('postgres_changes', 
                     { event: '*', schema: 'public', table: 'turnos' },
                     async (payload) => {
-                        console.log('📡 Actualización en tiempo real (usuario):', payload);
+                        console.log('Actualización en tiempo real (usuario):', payload);
                         try {
                             await Turnos.cargarTurnos();
                             this.todo();
+                            
+                            if (typeof ModoEspera !== 'undefined' && ModoEspera.activo) {
+                                ModoEspera.actualizar();
+                            }
                         } catch (error) {
                             console.error('Error al procesar actualización:', error);
                         }
@@ -1155,7 +1192,7 @@ const RenderUsuario = {
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
                     async (payload) => {
-                        console.log('📝 Nuevo turno completado detectado:', payload);
+                        console.log('Nuevo turno completado detectado:', payload);
                         try {
                             await Turnos.cargarTurnos();
                             this.todo();
@@ -1174,9 +1211,9 @@ const RenderUsuario = {
                     }
                 )
                 .subscribe((status) => {
-                    console.log('📡 Estado de suscripción (usuario):', status);
+                    console.log('Estado de suscripción (usuario):', status);
                     if (status === 'SUBSCRIBED') {
-                        console.log('✅ Suscripción a tiempo real activada (usuario)');
+                        console.log('Suscripción a tiempo real activada (usuario)');
                     }
                 });
             
@@ -1456,6 +1493,7 @@ const AdminHandlers = {
             }
             
             Utils.mostrarNotificacion(`Turno ${turno.numero} llamado`, 'success');
+            SonidoAlerta.reproducir(2);
             await RenderAdmin.todo();
             
         } else {
@@ -1688,7 +1726,7 @@ const ModoEspera = {
             
             this.intervaloActualizacion = setInterval(() => {
                 this.actualizar();
-            }, 3000);
+            }, 2000);
         }
     },
 
@@ -1754,6 +1792,8 @@ const ModoEspera = {
     mostrarNotificacionLlamado() {
         if (this.notificacionMostrada) return;
         this.notificacionMostrada = true;
+        
+        SonidoAlerta.reproducir(3);
         
         const notificacionAnterior = document.querySelector('.turn-called-notification');
         if (notificacionAnterior) {
@@ -1940,39 +1980,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// ✅ RECARGA AUTOMÁTICA CADA 50 SEGUNDOS (INTELIGENTE)
-
-let ultimaActividad = Date.now();
-
-// Detectar actividad del usuario
-['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach(evento => {
-    document.addEventListener(evento, () => {
-        ultimaActividad = Date.now();
-    });
-});
-
-setInterval(() => {
-    const esPaginaUsuario = document.getElementById('formSolicitarTurno') !== null;
-
-    // Verificar si está escribiendo (input o textarea enfocado)
-    const elementoActivo = document.activeElement;
-    const estaEscribiendo = elementoActivo.tagName === 'INPUT' || elementoActivo.tagName === 'TEXTAREA';
-
-    // Verificar inactividad (ej: 20 segundos sin hacer nada)
-    const tiempoInactivo = Date.now() - ultimaActividad;
-    const inactivo = tiempoInactivo > 7000;
-
-    if (esPaginaUsuario && !estaEscribiendo && inactivo) {
-        console.log('🔄 Recargando por inactividad...');
-        location.reload();
-    } else {
-        console.log('⏸️ No se recarga (actividad detectada o escribiendo)');
-    }
-}, 10000);
-
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
 window.RenderUsuario = RenderUsuario;
 window.ModoEspera = ModoEspera;
+window.SonidoAlerta = SonidoAlerta;
 
                         

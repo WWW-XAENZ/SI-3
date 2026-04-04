@@ -147,6 +147,28 @@
             50% { transform: scale(1.02); }
         }
 
+        @keyframes newTurnoCalled {
+            0% { transform: scale(1); opacity: 1; }
+            25% { transform: scale(1.05); }
+            50% { transform: scale(0.98); opacity: 0.8; }
+            75% { transform: scale(1.02); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .tv-turno-display.new-change {
+            animation: newTurnoCalled 1s ease-in-out;
+        }
+
+        @keyframes flashAlert {
+            0%, 100% { background: rgba(34, 197, 94, 0.1); }
+            50% { background: rgba(34, 197, 94, 0.3); }
+        }
+
+        .tv-panel.alert {
+            animation: flashAlert 0.5s ease-in-out 3;
+            border: 3px solid var(--accent-500);
+        }
+
         .tv-turno-company {
             font-size: 2.5rem;
             font-weight: 700;
@@ -402,7 +424,42 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script>
+        const SonidoAlerta = {
+            contexto: null,
+            
+            inicializar() {
+                if (!this.contexto) {
+                    this.contexto = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            
+            reproducir(veces = 3) {
+                this.inicializar();
+                
+                for (let i = 0; i < veces; i++) {
+                    setTimeout(() => {
+                        const oscilador = this.contexto.createOscillator();
+                        const ganancia = this.contexto.createGain();
+                        
+                        oscilador.connect(ganancia);
+                        ganancia.connect(this.contexto.destination);
+                        
+                        oscilador.frequency.value = 880;
+                        oscilador.type = 'sine';
+                        
+                        ganancia.gain.setValueAtTime(0.3, this.contexto.currentTime);
+                        ganancia.gain.exponentialRampToValueAtTime(0.01, this.contexto.currentTime + 0.5);
+                        
+                        oscilador.start(this.contexto.currentTime);
+                        oscilador.stop(this.contexto.currentTime + 0.5);
+                    }, i * 600);
+                }
+            }
+        };
+
         const RenderTV = {
+            ultimoTurnoId: null,
+            
             actualizarReloj() {
                 const clockEl = document.getElementById('tvClock');
                 if (clockEl) {
@@ -416,9 +473,10 @@
                 }
             },
 
-            turnoActual() {
+            turnoActual(animate = false) {
                 const container = document.getElementById('tvTurnoActual');
                 const badge = document.getElementById('panelBadge');
+                const panel = container?.closest('.tv-panel');
                 
                 if (!container) return;
 
@@ -433,6 +491,10 @@
                         badge.textContent = 'ATENDIENDO';
                         badge.className = 'tv-badge success';
                     }
+                    if (animate && panel) {
+                        panel.classList.add('alert');
+                        setTimeout(() => panel.classList.remove('alert'), 1500);
+                    }
                 } else {
                     container.innerHTML = `
                         <div class="tv-turno-empty">Sin turno</div>
@@ -445,7 +507,7 @@
                 }
             },
 
-            listaEspera() {
+            listaEspera(animate = false) {
                 const listaEl = document.getElementById('tvListaEspera');
                 const countEl = document.getElementById('tvEnEsperaCount');
                 
@@ -501,10 +563,10 @@
                 }
             },
 
-            async todo() {
+            async todo(animate = false) {
                 this.actualizarReloj();
-                this.turnoActual();
-                this.listaEspera();
+                this.turnoActual(animate);
+                this.listaEspera(animate);
                 this.estadisticas();
             }
         };
@@ -522,7 +584,7 @@
                 RenderTV.actualizarReloj();
             }, 1000);
 
-            async function cargarDatos() {
+            async function cargarDatos(showNotification = false) {
                 try {
                     if (window.supabaseClient) {
                         const { data, error } = await window.supabaseClient
@@ -535,6 +597,9 @@
                         const turnosFiltrados = data.filter(t => t.estado === 'espera');
                         const turnoAtendiendo = data.find(t => t.estado === 'atendiendo');
 
+                        const turnosAnterior = window.AppState.turnos.map(t => t.id);
+                        const turnoActualAnterior = window.AppState.turnoActual?.id;
+
                         window.AppState.turnos = turnosFiltrados.map(t => ({
                             id: t.id,
                             numero: t.numero,
@@ -545,7 +610,11 @@
                             estado: t.estado
                         }));
 
+                        let nuevoTurnoLlamado = false;
                         if (turnoAtendiendo) {
+                            if (turnoActualAnterior !== turnoAtendiendo.id) {
+                                nuevoTurnoLlamado = true;
+                            }
                             window.AppState.turnoActual = {
                                 id: turnoAtendiendo.id,
                                 numero: turnoAtendiendo.numero,
@@ -561,6 +630,14 @@
                         }
 
                         RenderTV.connectionStatus(true);
+
+                        if (showNotification || nuevoTurnoLlamado) {
+                            await RenderTV.todo(true);
+                            if (nuevoTurnoLlamado) {
+                                SonidoAlerta.reproducir(3);
+                            }
+                            return;
+                        }
                     }
                 } catch (error) {
                     console.error('Error al cargar datos:', error);
@@ -572,7 +649,7 @@
 
             await cargarDatos();
 
-            setInterval(cargarDatos, 5000);
+            setInterval(() => cargarDatos(true), 5000);
 
             if (window.supabaseClient) {
                 const channel = window.supabaseClient
@@ -580,15 +657,15 @@
                     .on('postgres_changes',
                         { event: '*', schema: 'public', table: 'turnos' },
                         async (payload) => {
-                            console.log('Cambio detectado:', payload);
-                            await cargarDatos();
+                            console.log('Cambio detectado en tiempo real:', payload);
+                            await cargarDatos(true);
                         }
                     )
                     .on('postgres_changes',
                         { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
                         async (payload) => {
                             console.log('Turno completado:', payload);
-                            await cargarDatos();
+                            await cargarDatos(true);
                         }
                     )
                     .subscribe((status) => {
