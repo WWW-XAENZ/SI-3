@@ -4,7 +4,7 @@
 // ============================================
 
 const CONFIG = {
-    ADMIN_PASSWORD: '12345',
+    ADMIN_PASSWORD: 'RECEPCIONCEDI2',
     LOGO_CLICKS_REQUIRED: 5,
     LOGO_CLICK_TIMEOUT: 2000,
     TURN_TIME_ESTIMATE: 5,
