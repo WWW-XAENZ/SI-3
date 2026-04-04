@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sistema de Turnos SI-3 - Vista para Television">
+    <meta name="keywords" content="turnos, television, pantalla, cola">
+    <title>Sistema de Turnos - Vista TV</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .tv-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: var(--space-4);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tv-header {
+            background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-800) 100%);
+            color: var(--text-inverse);
+            padding: var(--space-6) var(--space-8);
+            border-radius: var(--radius-2xl);
+            margin-bottom: var(--space-6);
+            box-shadow: var(--shadow-xl);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tv-logo-area {
+            display: flex;
+            align-items: center;
+            gap: var(--space-5);
+        }
+
+        .tv-logo-area img {
+            width: 70px;
+            height: 70px;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+            background: white;
+            padding: 8px;
+            border-radius: 16px;
+        }
+
+        .tv-header-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .tv-clock {
+            font-size: 2.5rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .tv-main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-6);
+            flex: 1;
+        }
+
+        .tv-panel {
+            background: var(--bg-primary);
+            border-radius: var(--radius-2xl);
+            padding: var(--space-6);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tv-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: var(--space-4);
+            border-bottom: 3px solid var(--primary-200);
+            margin-bottom: var(--space-5);
+        }
+
+        .tv-panel-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .tv-badge {
+            background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
+            color: white;
+            padding: var(--space-2) var(--space-5);
+            border-radius: var(--radius-full);
+            font-size: 1rem;
+            font-weight: 700;
+            box-shadow: var(--shadow-md);
+        }
+
+        .tv-badge.success {
+            background: linear-gradient(135deg, var(--accent-500) 0%, var(--accent-600) 100%);
+        }
+
+        .tv-badge.warning {
+            background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+        }
+
+        .tv-turno-display {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: var(--space-6);
+        }
+
+        .tv-turno-number {
+            font-size: 10rem;
+            font-weight: 900;
+            color: var(--primary-600);
+            line-height: 1;
+            letter-spacing: 8px;
+            text-shadow: 4px 4px 0 var(--primary-100);
+        }
+
+        .tv-turno-number.attending {
+            color: var(--accent-600);
+            text-shadow: 4px 4px 0 var(--accent-100);
+            animation: pulseAttend 2s ease-in-out infinite;
+        }
+
+        @keyframes pulseAttend {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .tv-turno-company {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--gray-700);
+            margin-top: var(--space-4);
+        }
+
+        .tv-turno-status {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent-600);
+            margin-top: var(--space-3);
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+
+        .tv-turno-empty {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+
+        .tv-turno-empty-hint {
+            font-size: 1.25rem;
+            color: var(--gray-500);
+            margin-top: var(--space-3);
+        }
+
+        .tv-cola-list {
+            flex: 1;
+            overflow-y: auto;
+            max-height: 55vh;
+        }
+
+        .tv-cola-item {
+            display: flex;
+            align-items: center;
+            padding: var(--space-4) var(--space-5);
+            background: var(--gray-50);
+            border-radius: var(--radius-xl);
+            margin-bottom: var(--space-3);
+            border-left: 5px solid var(--gray-300);
+            transition: all var(--transition-base);
+        }
+
+        .tv-cola-item:first-child {
+            border-left-color: var(--primary-500);
+            background: var(--primary-50);
+        }
+
+        .tv-cola-item:nth-child(2),
+        .tv-cola-item:nth-child(3) {
+            border-left-color: var(--primary-400);
+        }
+
+        .tv-cola-numero {
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: var(--gray-900);
+            min-width: 100px;
+        }
+
+        .tv-cola-info {
+            flex: 1;
+            padding: 0 var(--space-4);
+        }
+
+        .tv-cola-empresa {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--gray-900);
+        }
+
+        .tv-cola-hora {
+            font-size: 0.95rem;
+            color: var(--gray-500);
+            margin-top: 2px;
+        }
+
+        .tv-cola-posicion {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--gray-400);
+            min-width: 60px;
+            text-align: right;
+        }
+
+        .tv-empty-list {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex: 1;
+            padding: var(--space-8);
+            text-align: center;
+        }
+
+        .tv-empty-list-text {
+            font-size: 1.75rem;
+            color: var(--gray-400);
+            font-weight: 600;
+        }
+
+        .tv-footer-stats {
+            margin-top: var(--space-6);
+            background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-800) 100%);
+            color: var(--text-inverse);
+            padding: var(--space-5) var(--space-8);
+            border-radius: var(--radius-2xl);
+            box-shadow: var(--shadow-xl);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tv-stats-group {
+            display: flex;
+            gap: var(--space-10);
+        }
+
+        .tv-stat {
+            text-align: center;
+        }
+
+        .tv-stat-value {
+            font-size: 2.25rem;
+            font-weight: 800;
+            opacity: 0.95;
+        }
+
+        .tv-stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 2px;
+        }
+
+        .tv-connection-status {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .tv-connection-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent-500);
+            animation: blinkDot 2s ease-in-out infinite;
+        }
+
+        .tv-connection-dot.disconnected {
+            background: var(--danger-500);
+            animation: none;
+        }
+
+        @keyframes blinkDot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .tv-fullscreen-hint {
+            position: fixed;
+            bottom: var(--space-4);
+            right: var(--space-4);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: var(--space-3) var(--space-5);
+            border-radius: var(--radius-lg);
+            font-size: 0.875rem;
+            opacity: 0;
+            transition: opacity var(--transition-base);
+        }
+
+        body:hover .tv-fullscreen-hint {
+            opacity: 1;
+        }
+
+        @media (max-width: 1200px) {
+            .tv-main-content {
+                grid-template-columns: 1fr;
+            }
+            .tv-turno-number {
+                font-size: 7rem;
+            }
+            .tv-clock {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="tv-container">
+        <header class="tv-header">
+            <div class="tv-logo-area">
+                <img src="Logo-Web-SI3.png" alt="Logo SI-3">
+                <span class="tv-header-title">VISTA PUBLICA</span>
+            </div>
+            <div class="tv-clock" id="tvClock">--:--:--</div>
+        </header>
+
+        <main class="tv-main-content">
+            <section class="tv-panel">
+                <div class="tv-panel-header">
+                    <h2 class="tv-panel-title">Turno en Atencion</h2>
+                    <span class="tv-badge" id="panelBadge">ESPERA</span>
+                </div>
+                <div class="tv-turno-display" id="tvTurnoActual">
+                    <div class="tv-turno-empty">Sin turno</div>
+                    <div class="tv-turno-empty-hint">Aguarde ser llamado</div>
+                </div>
+            </section>
+
+            <section class="tv-panel">
+                <div class="tv-panel-header">
+                    <h2 class="tv-panel-title">En Espera</h2>
+                    <span class="tv-badge" id="tvEnEsperaCount">0</span>
+                </div>
+                <div class="tv-cola-list" id="tvListaEspera">
+                    <div class="tv-empty-list">
+                        <div class="tv-empty-list-text">No hay turnos en espera</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="tv-footer-stats">
+            <div class="tv-stats-group">
+                <div class="tv-stat">
+                    <div class="tv-stat-value" id="tvTotalHoy">0</div>
+                    <div class="tv-stat-label">Turnos Hoy</div>
+                </div>
+                <div class="tv-stat">
+                    <div class="tv-stat-value" id="tvEnCola">0</div>
+                    <div class="tv-stat-label">En Cola</div>
+                </div>
+            </div>
+            <div class="tv-connection-status">
+                <div class="tv-connection-dot" id="connectionDot"></div>
+                <span id="connectionText">Conectado</span>
+            </div>
+        </footer>
+
+        <div class="tv-fullscreen-hint">Presione F11 para pantalla completa</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        const RenderTV = {
+            actualizarReloj() {
+                const clockEl = document.getElementById('tvClock');
+                if (clockEl) {
+                    const ahora = new Date();
+                    clockEl.textContent = ahora.toLocaleTimeString('es-CO', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                }
+            },
+
+            turnoActual() {
+                const container = document.getElementById('tvTurnoActual');
+                const badge = document.getElementById('panelBadge');
+                
+                if (!container) return;
+
+                if (window.AppState && window.AppState.turnoActual) {
+                    const turno = window.AppState.turnoActual;
+                    container.innerHTML = `
+                        <div class="tv-turno-number attending">${turno.numero}</div>
+                        <div class="tv-turno-company">${turno.nombreEmpresa}</div>
+                        <div class="tv-turno-status">Ahora</div>
+                    `;
+                    if (badge) {
+                        badge.textContent = 'ATENDIENDO';
+                        badge.className = 'tv-badge success';
+                    }
+                } else {
+                    container.innerHTML = `
+                        <div class="tv-turno-empty">Sin turno</div>
+                        <div class="tv-turno-empty-hint">Aguarde ser llamado</div>
+                    `;
+                    if (badge) {
+                        badge.textContent = 'ESPERA';
+                        badge.className = 'tv-badge warning';
+                    }
+                }
+            },
+
+            listaEspera() {
+                const listaEl = document.getElementById('tvListaEspera');
+                const countEl = document.getElementById('tvEnEsperaCount');
+                
+                if (!listaEl) return;
+
+                const turnos = window.AppState ? window.AppState.turnos : [];
+                
+                if (countEl) countEl.textContent = turnos.length;
+
+                if (turnos.length === 0) {
+                    listaEl.innerHTML = `
+                        <div class="tv-empty-list">
+                            <div class="tv-empty-list-text">No hay turnos en espera</div>
+                        </div>
+                    `;
+                } else {
+                    listaEl.innerHTML = turnos.map((turno, index) => `
+                        <div class="tv-cola-item">
+                            <div class="tv-cola-numero">${turno.numero}</div>
+                            <div class="tv-cola-info">
+                                <div class="tv-cola-empresa">${turno.nombreEmpresa}</div>
+                                <div class="tv-cola-hora">${turno.horaSolicitud}</div>
+                            </div>
+                            <div class="tv-cola-posicion">#${index + 1}</div>
+                        </div>
+                    `).join('');
+                }
+            },
+
+            estadisticas() {
+                const totalEl = document.getElementById('tvTotalHoy');
+                const colaEl = document.getElementById('tvEnCola');
+                
+                const turnos = window.AppState ? window.AppState.turnos : [];
+                const turnoActual = window.AppState ? window.AppState.turnoActual : null;
+                
+                if (totalEl) {
+                    const total = turnos.length + (turnoActual ? 1 : 0);
+                    totalEl.textContent = total;
+                }
+                if (colaEl) colaEl.textContent = turnos.length;
+            },
+
+            connectionStatus(connected) {
+                const dot = document.getElementById('connectionDot');
+                const text = document.getElementById('connectionText');
+                
+                if (dot) {
+                    dot.classList.toggle('disconnected', !connected);
+                }
+                if (text) {
+                    text.textContent = connected ? 'Conectado' : 'Sin conexion';
+                }
+            },
+
+            async todo() {
+                this.actualizarReloj();
+                this.turnoActual();
+                this.listaEspera();
+                this.estadisticas();
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('Vista TV cargada');
+
+            window.AppState = {
+                turnos: [],
+                turnoActual: null,
+                contadorTurnos: 0
+            };
+
+            const clockInterval = setInterval(() => {
+                RenderTV.actualizarReloj();
+            }, 1000);
+
+            async function cargarDatos() {
+                try {
+                    if (window.supabaseClient) {
+                        const { data, error } = await window.supabaseClient
+                            .from('turnos')
+                            .select('*')
+                            .order('fecha_solicitud', { ascending: true });
+
+                        if (error) throw error;
+
+                        const turnosFiltrados = data.filter(t => t.estado === 'espera');
+                        const turnoAtendiendo = data.find(t => t.estado === 'atendiendo');
+
+                        window.AppState.turnos = turnosFiltrados.map(t => ({
+                            id: t.id,
+                            numero: t.numero,
+                            nombreEmpresa: t.nombre_empresa,
+                            nit: t.nit,
+                            horaSolicitud: t.hora_solicitud,
+                            fechaSolicitud: t.fecha_solicitud,
+                            estado: t.estado
+                        }));
+
+                        if (turnoAtendiendo) {
+                            window.AppState.turnoActual = {
+                                id: turnoAtendiendo.id,
+                                numero: turnoAtendiendo.numero,
+                                nombreEmpresa: turnoAtendiendo.nombre_empresa,
+                                nit: turnoAtendiendo.nit,
+                                horaSolicitud: turnoAtendiendo.hora_solicitud,
+                                horaLlamada: turnoAtendiendo.hora_llamada,
+                                fechaSolicitud: turnoAtendiendo.fecha_solicitud,
+                                estado: turnoAtendiendo.estado
+                            };
+                        } else {
+                            window.AppState.turnoActual = null;
+                        }
+
+                        RenderTV.connectionStatus(true);
+                    }
+                } catch (error) {
+                    console.error('Error al cargar datos:', error);
+                    RenderTV.connectionStatus(false);
+                }
+
+                await RenderTV.todo();
+            }
+
+            await cargarDatos();
+
+            setInterval(cargarDatos, 5000);
+
+            if (window.supabaseClient) {
+                const channel = window.supabaseClient
+                    .channel('tv-turnos')
+                    .on('postgres_changes',
+                        { event: '*', schema: 'public', table: 'turnos' },
+                        async (payload) => {
+                            console.log('Cambio detectado:', payload);
+                            await cargarDatos();
+                        }
+                    )
+                    .on('postgres_changes',
+                        { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
+                        async (payload) => {
+                            console.log('Turno completado:', payload);
+                            await cargarDatos();
+                        }
+                    )
+                    .subscribe((status) => {
+                        console.log('Suscripcion TV:', status);
+                    });
+            }
+        });
+    </script>
+</body>
+</html>
