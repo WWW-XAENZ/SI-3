@@ -469,7 +469,9 @@ const SupabaseDB = {
                 motivo: turno.motivo || '',
                 hora_solicitud: turno.horaSolicitud,
                 fecha_solicitud: turno.fechaSolicitud || new Date().toISOString(),
-                estado: turno.estado || 'espera'
+                estado: turno.estado || 'espera',
+                destino: turno.destino || null,
+                fecha_cita: turno.fechaCita || null
             };
             
             const { data, error } = await window.supabaseClient
@@ -609,6 +611,8 @@ const SupabaseDB = {
             horaLlamada: t.hora_llamada,
             fechaSolicitud: t.fecha_solicitud,
             estado: t.estado,
+            destino: t.destino,
+            fechaCita: t.fecha_cita,
             createdAt: t.created_at,
             updatedAt: t.updated_at
         };
@@ -636,6 +640,8 @@ const SupabaseDB = {
                 hora_llamada: turno.horaLlamada || null,
                 hora_finalizacion: horaFinalizacion,
                 estado: 'completado',
+                destino: turno.destino || null,
+                fecha_cita: turno.fechaCita || null,
                 fecha: new Date().toISOString()
             };
             
@@ -676,6 +682,8 @@ const SupabaseDB = {
                 horaLlamada: h.hora_llamada,
                 horaFinalizacion: h.hora_finalizacion,
                 estado: h.estado,
+                destino: h.destino,
+                fechaCita: h.fecha_cita,
                 fecha: h.fecha
             }));
         } catch (error) {
@@ -864,10 +872,12 @@ const Turnos = {
             contacto: datosProveedor.contacto,
             telefono: datosProveedor.telefono,
             servicio: datosProveedor.servicio,
+            destino: datosProveedor.destino || null,
+            fechaCita: datosProveedor.fechaCita || null,
             motivo: motivo || '',
             horaSolicitud: Utils.obtenerHoraActual(),
             fechaSolicitud: new Date().toISOString(),
-            estado: 'espera'
+            estado: datosProveedor.fechaCita ? 'citado' : 'espera'
         };
 
         const turnoSupabase = await SupabaseDB.guardarTurno(turno);
@@ -956,8 +966,6 @@ const Turnos = {
         console.log('Completando turno:', turnoCompletado.numero);
         
         try {
-            await SupabaseDB.guardarEnHistorial(turnoCompletado);
-            
             const eliminado = await SupabaseDB.completarTurno(turnoCompletado.id);
             if (!eliminado) {
                 throw new Error('No se pudo eliminar el turno de la base de datos');
@@ -1255,12 +1263,19 @@ const RenderAdmin = {
         if (AppState.turnos.length === 0) {
             listaDiv.innerHTML = '<p class="empty-message">No hay turnos en espera</p>';
         } else {
+            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
             listaDiv.innerHTML = AppState.turnos.map(turno => `
                 <div class="turn-item">
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
                         <div class="turn-item-company">${turno.nombreEmpresa}</div>
-                        <div class="turn-item-time">${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}</div>
+                        <div class="turn-item-time">
+                            ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
+                        </div>
+                        <div class="turn-item-details">
+                            <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
+                            ${turno.fechaCita ? `<span class="turn-cita">📅 ${new Date(turno.fechaCita).toLocaleString('es-CO')}</span>` : ''}
+                        </div>
                     </div>
                     <div class="turn-item-actions">
                         <button class="btn btn-danger btn-small" onclick="AdminHandlers.cancelarTurno(${turno.id})">
@@ -1317,18 +1332,22 @@ const RenderAdmin = {
             if (historial.length === 0) {
                 historialDiv.innerHTML = '<p class="empty-message">No hay historial de turnos</p>';
             } else {
+                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
                 historialDiv.innerHTML = historial.map(h => `
                     <div class="history-item">
                         <div class="history-item-header">
                             <span class="history-item-number">${h.numero}</span>
                             <span class="history-item-status status-${h.estado}">${h.estado}</span>
+                            ${h.fechaCita ? '<span class="history-item-badge">CITADO</span>' : ''}
                         </div>
                         <div class="history-item-info">
                             <div class="history-item-company">${h.nombreEmpresa}</div>
                             <div class="history-item-details">
                                 <span><strong>Placa:</strong> ${h.nit || 'N/A'}</span>
+                                <span><strong>Destino:</strong> ${h.destino ? destinoLabel[h.destino] || h.destino : 'N/A'}</span>
                                 <span><strong>Motivo:</strong> ${h.motivo || 'N/A'}</span>
                             </div>
+                            ${h.fechaCita ? `<div class="history-item-details"><span><strong>Cita:</strong> ${new Date(h.fechaCita).toLocaleString('es-CO')}</span></div>` : ''}
                             <div class="history-item-time">
                                 <span><strong>Solicitud:</strong> ${Utils.formatearHora(h.horaSolicitud)}</span>
                                 <span><strong>Llamada:</strong> ${Utils.formatearHora(h.horaLlamada)}</span>
@@ -1400,8 +1419,12 @@ const UsuarioHandlers = {
                 nit: placaInput,
                 contacto: document.getElementById('contacto')?.value?.trim(),
                 telefono: document.getElementById('telefono')?.value?.trim(),
-                servicio: document.getElementById('servicio')?.value
+                servicio: document.getElementById('servicio')?.value,
+                destino: document.getElementById('destino')?.value,
+                fechaCita: document.getElementById('fechaCita')?.value || null
             };
+
+            if (!datosProveedor.destino) throw new Error('El destino es requerido');
 
             if (!datosProveedor.nombreEmpresa) throw new Error('El nombre de la empresa es requerido');
 
@@ -1652,6 +1675,15 @@ const InputConfig = {
                 }
             });
         }
+    },
+
+    configurarFechaCita() {
+        const fechaInput = document.getElementById('fechaCita');
+        if (fechaInput) {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            fechaInput.min = now.toISOString().slice(0, 16);
+        }
     }
 };
 
@@ -1882,6 +1914,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (document.getElementById('formSolicitarTurno')) {
             InputConfig.configurarPlacaInput();
             InputConfig.configurarServicioSelect();
+            InputConfig.configurarFechaCita();
             document.getElementById('formSolicitarTurno').addEventListener('submit', UsuarioHandlers.solicitarTurno);
             RenderUsuario.todo();
             
@@ -1947,11 +1980,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Renderizando admin...');
             await RenderAdmin.todo();
             
-            setInterval(async () => {
-                await RenderAdmin.historial();
-                await RenderAdmin.estadisticas();
-            }, 5000);
-            
             if (window.supabaseClient) {
                 console.log('Configurando suscripción a tiempo real para admin...');
                 AppState.subscription = SupabaseDB.suscribirCambiosTurnos(async (payload) => {
@@ -1965,16 +1993,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     } catch (error) {
                         console.error('Error al procesar actualización en tiempo real:', error);
-                    }
-                });
-                
-                SupabaseDB.suscribirCambiosHistorial(async (payload) => {
-                    console.log('Nuevo turno completado:', payload);
-                    try {
-                        await RenderAdmin.historial();
-                        await RenderAdmin.estadisticas();
-                    } catch (error) {
-                        console.error('Error al actualizar historial:', error);
                     }
                 });
             } else {

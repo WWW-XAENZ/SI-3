@@ -39,9 +39,11 @@ CREATE TABLE IF NOT EXISTS turnos (
     fecha_solicitud TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     hora_llamada TEXT,
     hora_finalizacion TEXT,
-    estado TEXT NOT NULL DEFAULT 'espera' CHECK (estado IN ('espera', 'atendiendo', 'completado', 'cancelado')),
+    estado TEXT NOT NULL DEFAULT 'espera' CHECK (estado IN ('espera', 'atendiendo', 'completado', 'cancelado', 'citado')),
     prioridad INTEGER DEFAULT 0,
     notas TEXT,
+    destino TEXT,
+    fecha_cita TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -60,6 +62,8 @@ CREATE TABLE IF NOT EXISTS historial_turnos (
     estado TEXT NOT NULL CHECK (estado IN ('completado', 'cancelado')),
     tiempo_espera_minutos INTEGER,
     tiempo_atencion_minutos INTEGER,
+    destino TEXT,
+    fecha_cita TIMESTAMP WITH TIME ZONE,
     fecha TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -203,6 +207,8 @@ COMMENT ON TABLE turnos IS 'Tabla de turnos activos en el sistema';
 COMMENT ON TABLE historial_turnos IS 'Tabla de historial de turnos para reportes';
 COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema';
 
-COMMENT ON COLUMN turnos.estado IS 'Estados: espera, atendiendo, completado, cancelado';
+COMMENT ON COLUMN turnos.estado IS 'Estados: espera, atendiendo, completado, cancelado, citado';
 COMMENT ON COLUMN turnos.prioridad IS 'Prioridad del turno (0=normal, 1=alta, 2=urgente)';
+COMMENT ON COLUMN turnos.destino IS 'Destino: SI ENSAMBLES, SI PLÁSTICOS, AMBOS';
+COMMENT ON COLUMN turnos.fecha_cita IS 'Fecha y hora de la cita programada';
 COMMENT ON COLUMN usuarios.rol IS 'Roles: admin, operador, visualizador';

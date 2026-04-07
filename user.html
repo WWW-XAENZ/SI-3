@@ -89,6 +89,24 @@
                                 <option value="otro">Otro</option>
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label for="destino">Destino: <span aria-hidden="true">*</span></label>
+                            <select id="destino" required aria-required="true">
+                                <option value="">Seleccione...</option>
+                                <option value="ensambles">SI ENSAMBLES</option>
+                                <option value="plasticos">SI PLÁSTICOS</option>
+                                <option value="ambos">AMBOS</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="fechaCita">Fecha y Hora de la Cita:</label>
+                            <input 
+                                type="datetime-local" 
+                                id="fechaCita"
+                                min=""
+                            >
+                            <small class="form-hint">Deje en blanco para turno inmediato (hoy)</small>
+                        </div>
                         <div class="form-group" id="motivoGroup" style="display: none;">
                             <label for="motivoVisita">Motivo de la Visita: <span aria-hidden="true">*</span></label>
                             <textarea 
