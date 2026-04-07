@@ -749,6 +749,94 @@ const SupabaseDB = {
         }
     },
 
+    async obtenerMesesConDatos() {
+        if (!window.supabaseClient) return [];
+        
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('historial_turnos')
+                .select('fecha')
+                .order('fecha', { ascending: false });
+            
+            if (error) throw error;
+            
+            const mesesSet = new Set();
+            data.forEach(h => {
+                const fecha = new Date(h.fecha);
+                mesesSet.add(fecha.getFullYear() + '-' + (fecha.getMonth() + 1));
+            });
+            
+            return Array.from(mesesSet).map(m => {
+                const [anio, mes] = m.split('-').map(Number);
+                return { anio, mes };
+            }).sort((a, b) => {
+                if (b.anio !== a.anio) return b.anio - a.anio;
+                return b.mes - a.mes;
+            });
+        } catch (error) {
+            console.error('Error al obtener meses:', error);
+            return [];
+        }
+    },
+
+    async obtenerEstadisticasMes(anio, mes) {
+        if (!window.supabaseClient) {
+            return { totalTurnos: 0, totalProveedores: 0, promedioDiario: 0, detalle: [] };
+        }
+        
+        try {
+            const inicioMes = `${anio}-${mes.toString().padStart(2, '0')}-01`;
+            const finMes = mes === 12 
+                ? `${anio + 1}-01-01` 
+                : `${anio}-${(mes + 1).toString().padStart(2, '0')}-01`;
+
+            const { data: historial, error } = await window.supabaseClient
+                .from('historial_turnos')
+                .select('fecha, nombre_empresa')
+                .gte('fecha', inicioMes)
+                .lt('fecha', finMes)
+                .order('fecha');
+
+            if (error) throw error;
+
+            const diasMap = {};
+            const proveedoresSet = new Set();
+            let totalTurnos = 0;
+
+            historial.forEach(h => {
+                const fecha = new Date(h.fecha);
+                const fechaStr = fecha.toLocaleDateString('es-CO');
+                
+                if (!diasMap[fechaStr]) {
+                    diasMap[fechaStr] = { turnos: 0, proveedores: new Set() };
+                }
+                diasMap[fechaStr].turnos++;
+                if (h.nombre_empresa) diasMap[fechaStr].proveedores.add(h.nombre_empresa);
+                proveedoresSet.add(h.nombre_empresa);
+                totalTurnos++;
+            });
+
+            const detalle = Object.entries(diasMap).map(([fecha, datos]) => ({
+                fecha,
+                turnos: datos.turnos,
+                proveedores: datos.proveedores.size
+            })).sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+            const diasConDatos = Object.keys(diasMap).length;
+            const promedioDiario = diasConDatos > 0 ? Math.round(totalTurnos / diasConDatos) : 0;
+
+            return {
+                totalTurnos,
+                totalProveedores: proveedoresSet.size,
+                promedioDiario,
+                detalle
+            };
+        } catch (error) {
+            console.error('Error al obtener estadísticas del mes:', error);
+            return { totalTurnos: 0, totalProveedores: 0, promedioDiario: 0, detalle: [] };
+        }
+    },
+
     suscribirCambiosTurnos(callback) {
         if (!window.supabaseClient) {
             console.error('❌ Supabase no está disponible');
@@ -906,21 +994,23 @@ const Turnos = {
             return null;
         }
         
-        const todosLosTurnos = await SupabaseDB.cargarTurnos('espera');
-        console.log('Turnos en espera cargados:', todosLosTurnos.length);
+        const todosLosTurnos = await SupabaseDB.cargarTurnos();
+        const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado');
         
-        if (!todosLosTurnos || todosLosTurnos.length === 0) {
+        console.log('Turnos en espera/citados cargados:', turnosEnEspera.length);
+        
+        if (!turnosEnEspera || turnosEnEspera.length === 0) {
             Utils.mostrarNotificacion('No hay turnos en espera', 'error');
             return null;
         }
         
-        todosLosTurnos.sort((a, b) => {
+        turnosEnEspera.sort((a, b) => {
             const fechaA = new Date(a.fechaSolicitud || 0);
             const fechaB = new Date(b.fechaSolicitud || 0);
             return fechaA - fechaB;
         });
         
-        const siguiente = todosLosTurnos[0];
+        const siguiente = turnosEnEspera[0];
         console.log('Turno seleccionado:', siguiente);
         
         const horaLlamada = Utils.obtenerHoraActual();
@@ -1022,7 +1112,7 @@ const Turnos = {
                 const todosLosTurnos = await SupabaseDB.cargarTurnos();
                 
                 if (todosLosTurnos && Array.isArray(todosLosTurnos)) {
-                    const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera');
+                    const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado');
                     const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
                     
                     AppState.turnos = turnosEnEspera;
@@ -1089,22 +1179,42 @@ const RenderUsuario = {
             }
 
             try {
-                const posicion = AppState.turnos.findIndex(t => t.numero === miTurno.numero) + 1;
-                const tiempoEstimado = posicion > 0 ? posicion * CONFIG.TURN_TIME_ESTIMATE : 0;
+                const esCitado = miTurno.estado === 'citado' || miTurno.fechaCita;
+                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
                 
-                const estaSiendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
-                
-                container.innerHTML = `
-                    <div class="my-turn-active ${estaSiendoAtendido ? 'being-served' : ''}">
-                        <div class="my-turn-number">${miTurno.numero}</div>
-                        <div class="my-turn-status">${miTurno.nombreEmpresa}</div>
-                        <div class="my-turn-position">
-                            ${estaSiendoAtendido ? '¡Es tu turno! Diríjase al punto de atención' : 
-                              posicion > 0 ? `Posición en cola: ${posicion}` : 'Esperando confirmación'}
+                if (esCitado && !siendoAtendido) {
+                    container.innerHTML = `
+                        <div class="my-turn-active">
+                            <div class="my-turn-number">${miTurno.numero}</div>
+                            <div class="my-turn-status">${miTurno.nombreEmpresa}</div>
+                            <div class="my-turn-position">
+                                <strong>Cita Reservada</strong><br>
+                                ${miTurno.fechaCita ? `📅 ${new Date(miTurno.fechaCita).toLocaleString('es-CO')}` : 'Esperando ser llamado'}
+                            </div>
+                            <div class="my-turn-position">
+                                Destino: ${miTurno.destino ? destinoLabel[miTurno.destino] || miTurno.destino : 'N/A'}
+                            </div>
+                            <p class="hint">Un administrador te llamará el día de tu cita</p>
                         </div>
-                        ${posicion > 0 && !estaSiendoAtendido ? `<div class="my-turn-position">Tiempo estimado: ${tiempoEstimado} min</div>` : ''}
-                    </div>
-                `;
+                    `;
+                } else {
+                    const posicion = AppState.turnos.findIndex(t => t.numero === miTurno.numero) + 1;
+                    const tiempoEstimado = posicion > 0 ? posicion * CONFIG.TURN_TIME_ESTIMATE : 0;
+                    
+                    const estaSiendoAtendido = AppState.turnoActual && AppState.turnoActual.numero === miTurno.numero;
+                    
+                    container.innerHTML = `
+                        <div class="my-turn-active ${estaSiendoAtendido ? 'being-served' : ''}">
+                            <div class="my-turn-number">${miTurno.numero}</div>
+                            <div class="my-turn-status">${miTurno.nombreEmpresa}</div>
+                            <div class="my-turn-position">
+                                ${estaSiendoAtendido ? '¡Es tu turno! Diríjase al punto de atención' : 
+                                  posicion > 0 ? `Posición en cola: ${posicion}` : 'Esperando confirmación'}
+                            </div>
+                            ${posicion > 0 && !estaSiendoAtendido ? `<div class="my-turn-position">Tiempo estimado: ${tiempoEstimado} min</div>` : ''}
+                        </div>
+                    `;
+                }
             } catch (e) {
                 container.innerHTML = `
                     <div class="no-turn-message">
@@ -1147,14 +1257,23 @@ const RenderUsuario = {
         const listaDiv = document.getElementById('listaTurnosUsuario');
         if (!listaDiv) return;
 
-        if (AppState.turnos.length === 0) {
+        const hoy = new Date().toISOString().split('T')[0];
+        const turnosHoy = AppState.turnos.filter(t => {
+            if (t.estado === 'citado' && t.fechaCita) {
+                const fechaCitaDia = t.fechaCita.split('T')[0];
+                return fechaCitaDia === hoy;
+            }
+            return t.estado === 'espera';
+        });
+
+        if (turnosHoy.length === 0) {
             listaDiv.innerHTML = '<p class="empty-message">No hay turnos en espera</p>';
         } else {
             const miTurno = LocalStorage.obtenerMiTurno();
             let miNumero = null;
             try { miNumero = miTurno.numero; } catch(e) {}
             
-            listaDiv.innerHTML = AppState.turnos.map(turno => `
+            listaDiv.innerHTML = turnosHoy.map(turno => `
                 <div class="turn-item-user ${turno.numero === miNumero ? 'current' : ''}">
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
@@ -1256,15 +1375,16 @@ const RenderAdmin = {
         const listaDiv = document.getElementById('listaTurnosEspera');
         const contadorDiv = document.getElementById('contadorTurnosEspera');
         
-        if (contadorDiv) contadorDiv.textContent = AppState.turnos.length;
+        const turnosNormales = AppState.turnos.filter(t => t.estado === 'espera');
+        
+        if (contadorDiv) contadorDiv.textContent = turnosNormales.length;
         
         if (!listaDiv) return;
 
-        if (AppState.turnos.length === 0) {
+        if (turnosNormales.length === 0) {
             listaDiv.innerHTML = '<p class="empty-message">No hay turnos en espera</p>';
         } else {
-            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
-            listaDiv.innerHTML = AppState.turnos.map(turno => `
+            listaDiv.innerHTML = turnosNormales.map(turno => `
                 <div class="turn-item">
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
@@ -1272,12 +1392,51 @@ const RenderAdmin = {
                         <div class="turn-item-time">
                             ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
                         </div>
+                    </div>
+                    <div class="turn-item-actions">
+                        <button class="btn btn-primary btn-small" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})">
+                            Llamar
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="AdminHandlers.cancelarTurno(${turno.id})">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    },
+
+    listaTurnosCitados() {
+        const listaDiv = document.getElementById('listaTurnosCitados');
+        const contadorDiv = document.getElementById('contadorTurnosCitados');
+        
+        const turnosCitados = AppState.turnos.filter(t => t.estado === 'citado');
+        
+        if (contadorDiv) contadorDiv.textContent = turnosCitados.length;
+        
+        if (!listaDiv) return;
+
+        if (turnosCitados.length === 0) {
+            listaDiv.innerHTML = '<p class="empty-message">No hay citas reservadas</p>';
+        } else {
+            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
+            listaDiv.innerHTML = turnosCitados.map(turno => `
+                <div class="turn-item turn-item-citado">
+                    <span class="turn-item-number">${turno.numero}</span>
+                    <div class="turn-item-info">
+                        <div class="turn-item-company">${turno.nombreEmpresa}</div>
+                        <div class="turn-item-time">
+                            ${turno.horaSolicitud}
+                        </div>
                         <div class="turn-item-details">
                             <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
-                            ${turno.fechaCita ? `<span class="turn-cita">📅 ${new Date(turno.fechaCita).toLocaleString('es-CO')}</span>` : ''}
+                            ${turno.fechaCita ? `<span class="turn-ci">📅 ${new Date(turno.fechaCita).toLocaleString('es-CO')}</span>` : ''}
                         </div>
                     </div>
                     <div class="turn-item-actions">
+                        <button class="btn btn-primary btn-small" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})">
+                            Llamar
+                        </button>
                         <button class="btn btn-danger btn-small" onclick="AdminHandlers.cancelarTurno(${turno.id})">
                             Cancelar
                         </button>
@@ -1382,11 +1541,62 @@ const RenderAdmin = {
         }
     },
 
+    async cargarMesesDisponibles() {
+        try {
+            const meses = await SupabaseDB.obtenerMesesConDatos();
+            const mesSelect = document.getElementById('mesSelect');
+            if (!mesSelect) return;
+            
+            mesSelect.innerHTML = '<option value="">Seleccionar mes...</option>';
+            
+            meses.forEach(mes => {
+                const option = document.createElement('option');
+                option.value = mes.anio + '-' + mes.mes;
+                const nombreMes = new Date(mes.anio, mes.mes - 1).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+                option.textContent = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
+                mesSelect.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error al cargar meses:', error);
+        }
+    },
+
+    async verEstadisticasMes() {
+        const mesSelect = document.getElementById('mesSelect');
+        if (!mesSelect || !mesSelect.value) {
+            Utils.mostrarNotificacion('Seleccione un mes', 'error');
+            return;
+        }
+
+        const [anio, mes] = mesSelect.value.split('-').map(Number);
+        const stats = await SupabaseDB.obtenerEstadisticasMes(anio, mes);
+
+        document.getElementById('totalTurnosMes').textContent = stats.totalTurnos;
+        document.getElementById('totalProveedoresMes').textContent = stats.totalProveedores;
+        document.getElementById('promedioDiario').textContent = stats.promedioDiario;
+
+        const detalleDiario = document.getElementById('detalleDiario');
+        if (detalleDiario) {
+            if (stats.detalle.length === 0) {
+                detalleDiario.innerHTML = '<tr><td colspan="3" class="empty-message">No hay datos para este mes</td></tr>';
+            } else {
+                detalleDiario.innerHTML = stats.detalle.map(d => `
+                    <tr>
+                        <td>${d.fecha}</td>
+                        <td>${d.turnos}</td>
+                        <td>${d.proveedores}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+    },
+
     async todo() {
         console.log('=== ACTUALIZANDO VISTA ADMIN ===');
         
         try { this.turnoActual(); } catch (e) { console.error('Error turnoActual:', e); }
         try { this.listaTurnosEspera(); } catch (e) { console.error('Error listaTurnosEspera:', e); }
+        try { this.listaTurnosCitados(); } catch (e) { console.error('Error listaTurnosCitados:', e); }
         try { await this.proveedores(); } catch (e) { console.error('Error proveedores:', e); }
         try { await this.historial(); } catch (e) { console.error('Error historial:', e); }
         try { await this.estadisticas(); } catch (e) { console.error('Error estadisticas:', e); }
@@ -1414,17 +1624,20 @@ const UsuarioHandlers = {
                 throw new Error('La placa debe tener exactamente 6 caracteres');
             }
             
+            const destino = document.getElementById('destino')?.value;
+            const fechaCitaInput = document.getElementById('fechaCita')?.value;
+            
             const datosProveedor = {
                 nombreEmpresa: document.getElementById('nombreEmpresa')?.value?.trim(),
                 nit: placaInput,
                 contacto: document.getElementById('contacto')?.value?.trim(),
                 telefono: document.getElementById('telefono')?.value?.trim(),
                 servicio: document.getElementById('servicio')?.value,
-                destino: document.getElementById('destino')?.value,
-                fechaCita: document.getElementById('fechaCita')?.value || null
+                destino: destino,
+                fechaCita: fechaCitaInput || null
             };
 
-            if (!datosProveedor.destino) throw new Error('El destino es requerido');
+            if (!destino) throw new Error('El destino es requerido');
 
             if (!datosProveedor.nombreEmpresa) throw new Error('El nombre de la empresa es requerido');
 
@@ -1516,6 +1729,49 @@ const AdminHandlers = {
         } else {
             console.log('No se pudo llamar turno');
         }
+    },
+
+    async llamarTurnoEspecifico(turnoId) {
+        const turno = AppState.turnos.find(t => t.id === turnoId);
+        if (!turno) {
+            Utils.mostrarNotificacion('Turno no encontrado', 'error');
+            return;
+        }
+
+        if (AppState.turnoActual) {
+            Utils.mostrarNotificacion(`Ya hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
+            return;
+        }
+
+        const horaLlamada = Utils.obtenerHoraActual();
+        const actualizado = await SupabaseDB.llamarTurno(turnoId);
+        
+        if (!actualizado) {
+            Utils.mostrarNotificacion('Error al llamar turno en la base de datos', 'error');
+            return;
+        }
+
+        turno.estado = 'atendiendo';
+        turno.horaLlamada = horaLlamada;
+        
+        AppState.turnoActual = turno;
+        AppState.turnos = AppState.turnos.filter(t => t.id !== turnoId);
+        
+        LocalStorage.guardarTurnoActual(AppState.turnoActual);
+        LocalStorage.guardarTurnos(AppState.turnos);
+
+        const modal = document.getElementById('turnoModal');
+        if (modal) {
+            const modalTurnNumber = document.getElementById('modalTurnNumber');
+            const modalTurnInfo = document.getElementById('modalTurnInfo');
+            
+            if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
+            if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}\n${turno.motivo || ''}`;
+            modal.style.display = 'flex';
+        }
+
+        Utils.mostrarNotificacion(`Turno ${turno.numero} llamado`, 'success');
+        await RenderAdmin.todo();
     },
     
     async completarTurno() {
@@ -1977,8 +2233,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             const btnLimpiar = document.getElementById('btnLimpiarHistorial');
             if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
             
+            const btnVerMes = document.getElementById('btnVerMes');
+            if (btnVerMes) btnVerMes.addEventListener('click', RenderAdmin.verEstadisticasMes);
+            
             console.log('Renderizando admin...');
             await RenderAdmin.todo();
+            await RenderAdmin.cargarMesesDisponibles();
             
             if (window.supabaseClient) {
                 console.log('Configurando suscripción a tiempo real para admin...');

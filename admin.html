@@ -51,29 +51,28 @@
                             </svg>
                             Reiniciar Cola
                         </button>
-                        <button id="btnSincronizarNube" class="btn btn-secondary" aria-label="Sincronizar con la nube">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="17 8 12 3 7 8"></polyline>
-                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                            </svg>
-                            Sincronizar con Nube
-                        </button>
                     </div>
                     
                     <div class="current-turn-display" aria-live="polite">
                         <h3>Turno Actual</h3>
                         <div id="turnoActual" class="turn-number">--</div>
                         <div id="turnoInfo" class="turn-info">Ningún turno en atención</div>
-                        <div id="connectionStatus" class="connection-status">Verificando conexión...</div>
                     </div>
                 </section>
 
-                <!-- Lista de Turnos en Espera -->
+                <!-- Turnos en Espera ( normales) -->
                 <section class="admin-section waiting-list" aria-labelledby="waiting-list-title">
                     <h2 id="waiting-list-title">Turnos en Espera (<span id="contadorTurnosEspera">0</span>)</h2>
                     <div id="listaTurnosEspera" class="turn-list" aria-live="polite">
                         <p class="empty-message">Cargando turnos...</p>
+                    </div>
+                </section>
+
+                <!-- Turnos Citados/Reservados -->
+                <section class="admin-section cited-list" aria-labelledby="cited-list-title">
+                    <h2 id="cited-list-title">Citas Reservadas (<span id="contadorTurnosCitados">0</span>)</h2>
+                    <div id="listaTurnosCitados" class="turn-list" aria-live="polite">
+                        <p class="empty-message">Cargando citas...</p>
                     </div>
                 </section>
 
@@ -133,6 +132,48 @@
                         <div class="stat-card" role="listitem">
                             <div class="stat-number" id="totalProveedores" aria-live="polite">0</div>
                             <div class="stat-label">Proveedores</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Estadísticas Mensuales -->
+                <section class="admin-section monthly-stats" aria-labelledby="monthly-stats-title">
+                    <h2 id="monthly-stats-title">Estadísticas por Mes</h2>
+                    <div class="monthly-controls">
+                        <select id="mesSelect" class="month-select">
+                            <option value="">Seleccionar mes...</option>
+                        </select>
+                        <button id="btnVerMes" class="btn btn-primary btn-small">Ver</button>
+                    </div>
+                    <div id="statsMensuales" class="monthly-stats-content">
+                        <div class="stats-grid" role="list">
+                            <div class="stat-card" role="listitem">
+                                <div class="stat-number" id="totalTurnosMes">0</div>
+                                <div class="stat-label">Turnos del Mes</div>
+                            </div>
+                            <div class="stat-card" role="listitem">
+                                <div class="stat-number" id="totalProveedoresMes">0</div>
+                                <div class="stat-label">Proveedores Atendidos</div>
+                            </div>
+                            <div class="stat-card" role="listitem">
+                                <div class="stat-number" id="promedioDiario">0</div>
+                                <div class="stat-label">Promedio Diario</div>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <h3>Detalle por Día</h3>
+                            <table class="monthly-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Turnos</th>
+                                        <th>Proveedores</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="detalleDiario">
+                                    <tr><td colspan="3" class="empty-message">Seleccione un mes para ver el detalle</td></tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </section>

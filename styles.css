@@ -1175,6 +1175,60 @@ input[type="datetime-local"]:focus {
     border-bottom: 2px solid var(--border-light);
 }
 
+.monthly-controls {
+    display: flex;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.month-select {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    background: var(--bg-primary);
+}
+
+.monthly-stats-content {
+    margin-top: var(--space-4);
+}
+
+.monthly-stats-content h3 {
+    font-size: 1rem;
+    margin-bottom: var(--space-3);
+    color: var(--text-secondary);
+}
+
+.monthly-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--space-3);
+}
+
+.monthly-table th,
+.monthly-table td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.monthly-table th {
+    background: var(--bg-tertiary);
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.monthly-table td {
+    font-size: 0.9rem;
+}
+
+.chart-container {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-light);
+}
+
 /* Panel de control */
 .control-panel {
     grid-column: 1 / -1;
