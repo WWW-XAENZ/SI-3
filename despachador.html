@@ -138,13 +138,16 @@
             }
             
             function mostrarProveedorListo(data) {
+                console.log('=== mostrarProveedorListo ===');
+                console.log('Full data object:', data);
+                console.log('tipoVehiculo in data:', data.tipoVehiculo);
                 const turnoListoDiv = document.getElementById('turnoListoSalir');
                 const infoDespachoDiv = document.getElementById('infoDespachoActual');
                 const btnAutorizar = document.getElementById('btnAutorizarSalida');
                 
                 const mostrarCampo = (valor) => valor && valor !== '' && valor !== 'undefined' ? valor : 'N/A';
                 
-                if (turnoListoDiv && !turnoListoDiv.querySelector('.turno-listo-content')) {
+                if (turnoListoDiv) {
                     turnoListoDiv.innerHTML = `
                         <div class="turno-listo-content">
                             <div class="turn-number-large">${mostrarCampo(data.numero)}</div>
@@ -154,7 +157,7 @@
                     `;
                 }
                 
-                if (infoDespachoDiv && !infoDespachoDiv.querySelector('.despacho-detalle')) {
+                if (infoDespachoDiv) {
                     infoDespachoDiv.innerHTML = `
                         <div class="despacho-detalle">
                             <p><strong>Empresa:</strong> ${mostrarCampo(data.nombre)}</p>

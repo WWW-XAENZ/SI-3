@@ -569,8 +569,10 @@ const SupabaseDB = {
             };
             
             if (infoDespacho) {
+                console.log('infoDespacho.tipoVehiculo antes de asignar:', infoDespacho.tipoVehiculo);
                 updateData.num_factura = infoDespacho.numFactura || null;
                 updateData.tipo_vehiculo = infoDespacho.tipoVehiculo || null;
+                console.log('updateData.tipo_vehiculo:', updateData.tipo_vehiculo);
                 updateData.bultos = infoDespacho.bultos ? parseInt(infoDespacho.bultos) : null;
                 updateData.peso = infoDespacho.peso || null;
                 updateData.responsable = infoDespacho.responsable || null;
@@ -587,9 +589,13 @@ const SupabaseDB = {
                 .select()
                 .single();
             
+            console.log('llamarTurno - DB response data:', data);
+            console.log('llamarTurno - tipo_vehiculo from update:', updateData.tipo_vehiculo);
+            
             if (error) throw error;
             
             const turnoActualizado = this._mapearTurno(data);
+            console.log('Turno actualizado desde DB:', turnoActualizado);
             
             Object.assign(updateData, turnoActualizado);
             return updateData;
@@ -612,9 +618,16 @@ const SupabaseDB = {
                 .eq('id', turnoId)
                 .single();
             
+            console.log('completarTurno - turno desde DB:', turno);
+            console.log('completarTurno - tipo_vehiculo desde DB:', turno?.tipo_vehiculo);
+            
             if (errorGet) throw errorGet;
             
-            await this.guardarEnHistorial(this._mapearTurno(turno));
+            const turnoMapeado = this._mapearTurno(turno);
+            console.log('completarTurno - turno mapeado:', turnoMapeado);
+            console.log('completarTurno - tipoVehiculo mapeado:', turnoMapeado?.tipoVehiculo);
+            
+            await this.guardarEnHistorial(turnoMapeado);
             
             const { error } = await window.supabaseClient
                 .from('turnos')
@@ -651,6 +664,7 @@ const SupabaseDB = {
     },
 
     _mapearTurno(t) {
+        console.log('Mapping turno, tipo_vehiculo from DB:', t.tipo_vehiculo);
         return {
             id: t.id,
             numero: t.numero,
@@ -702,6 +716,7 @@ const SupabaseDB = {
                 destino: turno.destino || null,
                 fecha_cita: turno.fechaCita || null,
                 num_factura: turno.numFactura || null,
+                tipo_vehiculo: turno.tipoVehiculo || null,
                 bultos: turno.bultos ? parseInt(turno.bultos) : null,
                 peso: turno.peso || null,
                 responsable: turno.responsable || null,
@@ -711,6 +726,8 @@ const SupabaseDB = {
                 autorizado_salida: false,
                 fecha: new Date().toISOString()
             };
+            
+            console.log('Guardando en historial - tipoVehiculo:', turno.tipoVehiculo);
             
             const { error } = await window.supabaseClient
                 .from('historial_turnos')
@@ -738,6 +755,9 @@ const SupabaseDB = {
                 .limit(limite);
             
             if (error) throw error;
+            
+            console.log('Raw historial data from DB:', data);
+            console.log('tipo_vehiculo in first item:', data?.[0]?.tipo_vehiculo);
             
             return data.map(h => ({
                 id: h.id,
@@ -1653,6 +1673,7 @@ const RenderAdmin = {
 
         try {
             const historial = await SupabaseDB.cargarHistorial();
+            console.log('Historial cargado:', historial);
             
             if (historial.length === 0) {
                 historialDiv.innerHTML = '<p class="empty-message">No hay historial de turnos</p>';
@@ -1668,7 +1689,9 @@ const RenderAdmin = {
                         });
                     } catch(e) { return fechaHora; }
                 };
-                historialDiv.innerHTML = historial.map(h => `
+                historialDiv.innerHTML = historial.map(h => {
+                    console.log('Historial item tipoVehiculo:', h.tipoVehiculo);
+                    return `
                     <div class="history-item">
                         <div class="history-item-header">
                             <span class="history-item-number">${h.numero}</span>
@@ -1704,7 +1727,7 @@ const RenderAdmin = {
                             </div>
                         </div>
                     </div>
-                `).join('');
+                `}).join('');
             }
         } catch (error) {
             console.error('Error al cargar historial:', error);
@@ -1999,7 +2022,7 @@ const AdminHandlers = {
 
         const infoDespacho = {
             numFactura: numFacturaInput?.value?.trim() || null,
-            tipoVehiculo: tipoVehiculoInput?.value?.trim() || null,
+            tipoVehiculo: tipoVehiculoInput?.value ? tipoVehiculoInput.value.trim() : null,
             bultos: bultosInput?.value?.trim() || null,
             peso: pesoInput?.value?.trim() || null,
             responsable: responsableInput?.value?.trim() || null,
@@ -2009,6 +2032,11 @@ const AdminHandlers = {
             nit: turnoActual?.nit || null,
             destino: turnoActual?.destino || null
         };
+        
+        console.log('=== guardarDespacho ===');
+        console.log('tipoVehiculoInput value:', tipoVehiculoInput?.value);
+        console.log('tipoVehiculoInput trimmed:', tipoVehiculoInput?.value?.trim());
+        console.log('infoDespacho:', infoDespacho);
 
         const horaLlamada = Utils.obtenerHoraActual();
 
@@ -2078,16 +2106,22 @@ const AdminHandlers = {
         
         const turnoNumero = AppState.turnoActual.numero;
         const turnoNombre = AppState.turnoActual.nombreEmpresa;
-        const despachoInfo = AppState.turnoActual.numFactura || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable;
+        const despachoInfo = AppState.turnoActual.numFactura || AppState.turnoActual.tipoVehiculo || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable;
+        
+        console.log('=== completesTurno ===');
+        console.log('AppState.turnoActual:', AppState.turnoActual);
+        console.log('despachoInfo:', despachoInfo);
         
         const turnoParaDespacho = { ...AppState.turnoActual };
         
         if (confirm(`¿Completar turno ${turnoNumero}?`)) {
             const resultado = await Turnos.completarTurnoActual();
-            if (resultado) {
+                if (resultado) {
                 Utils.mostrarNotificacion(`Turno ${turnoNumero} completado`, 'success');
                 
-                if (despachoInfo && typeof despachoInfo === 'string' && despachoInfo !== 'undefined') {
+                console.log('despachoInfo value:', despachoInfo, 'type:', typeof despachoInfo);
+                
+                if (despachoInfo) {
                     setTimeout(() => {
                         Utils.mostrarNotificacion(`📦 ¡Proveedor ${turnoNombre} completado! Esperando autorización de salida.`, 'info');
                     }, 1000);
