@@ -198,6 +198,38 @@
         </div>
     </div>
 
+    <!-- Modal para información de despacho -->
+    <div id="despachoModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="despacho-modal-title">
+        <div class="modal-content">
+            <button class="close-modal" aria-label="Cerrar modal">&times;</button>
+            <h2 id="despacho-modal-title">Información de Despacho</h2>
+            <div class="modal-turn-number" id="despachoTurnNumber">--</div>
+            <div class="modal-turn-info" id="despachoTurnInfo"></div>
+            <div id="despachoInfo" class="despacho-info"></div>
+            <form id="formDespacho">
+                <div class="form-group">
+                    <label for="despachoNumFactura">Número de Factura:</label>
+                    <input type="text" id="despachoNumFactura" placeholder="Número de factura">
+                </div>
+                <div class="form-group">
+                    <label for="despachoBultos">Bultos:</label>
+                    <input type="number" id="despachoBultos" placeholder="Cantidad de bultos" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="despachoPeso">Peso (kg):</label>
+                    <input type="text" id="despachoPeso" placeholder="Peso en kg">
+                </div>
+                <div class="form-group">
+                    <label for="despachoResponsable">Responsable:</label>
+                    <input type="text" id="despachoResponsable" placeholder="Nombre del responsable">
+                </div>
+                <button type="button" class="btn btn-primary" onclick="AdminHandlers.guardarDespacho()">
+                    Confirmar y Llamar
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- Modal para editar proveedor -->
     <div id="editarProveedorModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="editar-proveedor-title">
         <div class="modal-content">

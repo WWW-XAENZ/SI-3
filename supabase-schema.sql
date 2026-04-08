@@ -37,6 +37,16 @@ CREATE TABLE IF NOT EXISTS turnos (
     fecha_solicitud TIMESTAMP WITH TIME ZONE NOT NULL,
     hora_llamada TIME,
     estado VARCHAR(20) DEFAULT 'espera' CHECK (estado IN ('espera', 'atendiendo', 'completado', 'cancelado')),
+    destino VARCHAR(50),
+    fecha_cita TIMESTAMP WITH TIME ZONE,
+    num_factura VARCHAR(50),
+    bultos INTEGER,
+    peso VARCHAR(50),
+    responsable VARCHAR(255),
+    contacto VARCHAR(255),
+    telefono VARCHAR(50),
+    servicio VARCHAR(50),
+    autorizado_salida BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -52,6 +62,16 @@ CREATE TABLE IF NOT EXISTS historial_turnos (
     hora_llamada TIME,
     hora_finalizacion TIME,
     estado VARCHAR(20) DEFAULT 'completado',
+    destino VARCHAR(50),
+    fecha_cita TIMESTAMP WITH TIME ZONE,
+    num_factura VARCHAR(50),
+    bultos INTEGER,
+    peso VARCHAR(50),
+    responsable VARCHAR(255),
+    contacto VARCHAR(255),
+    telefono VARCHAR(50),
+    servicio VARCHAR(50),
+    autorizado_salida BOOLEAN DEFAULT false,
     fecha TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

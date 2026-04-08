@@ -122,8 +122,15 @@
     <div id="adminAccessModal" class="modal">
         <div class="modal-content">
             <button class="close-modal">&times;</button>
-            <h2>Acceso Administrador</h2>
+            <h2>Acceso</h2>
             <form id="adminLoginForm">
+                <div class="form-group">
+                    <label for="accessType">Tipo de acceso:</label>
+                    <select id="accessType" class="form-control">
+                        <option value="admin">Administrador</option>
+                        <option value="despachador">Despachador</option>
+                    </select>
+                </div>
                 <div class="form-group">
                     <label for="adminPassword">Contraseña:</label>
                     <input type="password" id="adminPassword" required>

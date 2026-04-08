@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Panel de Despachador - Sistema de Turnos SI-3">
+    <meta name="keywords" content="despachador, turnos, gestión, autorización">
+    <title>Panel de Despachador - Sistema de Turnos SI-3</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo">
+            <h1>Panel de Despachador</h1>
+        </header>
+        
+        <nav class="main-nav" role="navigation" aria-label="Navegación principal">
+            <a href="index.html" class="nav-link">Inicio</a>
+            <a href="admin.html" class="nav-link">Panel Admin</a>
+            <a href="despachador.html" class="nav-link active" aria-current="page">Panel Despachador</a>
+        </nav>
+
+        <main class="admin-content" role="main">
+            <div class="admin-grid">
+                <!-- Panel de Turno Listo para Salir -->
+                <section class="admin-section control-panel" aria-labelledby="control-panel-title">
+                    <h2 id="control-panel-title">Proveedor Listo para Salir</h2>
+                    <div class="current-turn-display" aria-live="polite">
+                        <div id="turnoListoSalir" class="turno-listo">
+                            <div class="esperando-mensaje">Esperando que admin complete un turno...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="despacho-actions">
+                        <button id="btnAutorizarSalida" class="btn btn-success btn-large" disabled aria-label="Autorizar salida del proveedor">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            Autorizar Salida
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Información de Despacho -->
+                <section class="admin-section despacho-actual" aria-labelledby="despacho-title">
+                    <h2 id="despacho-title">Información de Despacho</h2>
+                    <div id="infoDespachoActual" class="despacho-form">
+                        <div class="despacho-empty">No hay proveedor esperando autorización</div>
+                    </div>
+                </section>
+
+                <!-- Lista de Turnos Atendidos Hoy -->
+                <section class="admin-section turn-history" aria-labelledby="turn-history-title">
+                    <h2 id="turn-history-title">Turnos Atendidos Hoy</h2>
+                    <div class="history-header">
+                        <button id="btnActualizarHistorial" class="btn btn-secondary btn-small">
+                            Actualizar
+                        </button>
+                    </div>
+                    <div id="historialTurnosDespachador" class="history-list" aria-live="polite">
+                        <p class="empty-message">Cargando...</p>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <footer role="contentinfo">
+            <p>&copy; 2026 Sistema de Turnos SI-3 - Panel Despachador</p>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            let ultimoTurnoCompletado = null;
+            
+            const intervalo = setInterval(() => {
+                if (window.AppState) {
+                    clearInterval(intervalo);
+                    inicializarDespachador();
+                }
+            }, 500);
+            
+            setTimeout(() => clearInterval(intervalo), 10000);
+            
+            async function inicializarDespachador() {
+                console.log('Inicializando panel de despachador...');
+                
+                await window.RenderAdmin.todo();
+                
+                const btnAutorizar = document.getElementById('btnAutorizarSalida');
+                if (btnAutorizar) {
+                    btnAutorizar.addEventListener('click', async () => {
+                        if (ultimoTurnoCompletado) {
+                            await window.DespachadorHandlers.autorizarSalida(ultimoTurnoCompletado);
+                        }
+                    });
+                }
+                
+                verificarProveedorListo();
+                
+                setInterval(verificarProveedorListo, 3000);
+            }
+            
+            function verificarProveedorListo() {
+                const datos = localStorage.getItem('proveedorListoSalir');
+                if (datos) {
+                    try {
+                        const data = JSON.parse(datos);
+                        const ahora = Date.now();
+                        const hace5min = 5 * 60 * 1000;
+                        
+                        if (ahora - data.timestamp < hace5min) {
+                            ultimoTurnoCompletado = data;
+                            mostrarProveedorListo(data);
+                        } else {
+                            localStorage.removeItem('proveedorListoSalir');
+                        }
+                    } catch (e) {
+                        console.error('Error al leer proveedorListoSalir:', e);
+                    }
+                }
+            }
+            
+            function mostrarProveedorListo(data) {
+                const turnoListoDiv = document.getElementById('turnoListoSalir');
+                const infoDespachoDiv = document.getElementById('infoDespachoActual');
+                const btnAutorizar = document.getElementById('btnAutorizarSalida');
+                
+                const mostrarCampo = (valor) => valor && valor !== '' && valor !== 'undefined' ? valor : 'N/A';
+                
+                if (turnoListoDiv && !turnoListoDiv.querySelector('.turno-listo-content')) {
+                    turnoListoDiv.innerHTML = `
+                        <div class="turno-listo-content">
+                            <div class="turn-number-large">${mostrarCampo(data.numero)}</div>
+                            <div class="turn-empresa">${mostrarCampo(data.nombre)}</div>
+                            <div class="turn-badge">✓ COMPLETADO - ESPERANDO AUTORIZACIÓN DE SALIDA</div>
+                        </div>
+                    `;
+                }
+                
+                if (infoDespachoDiv && !infoDespachoDiv.querySelector('.despacho-detalle')) {
+                    infoDespachoDiv.innerHTML = `
+                        <div class="despacho-detalle">
+                            <p><strong>Empresa:</strong> ${mostrarCampo(data.nombre)}</p>
+                            <p><strong>Placa:</strong> ${mostrarCampo(data.nit)}</p>
+                            <p><strong>Destino:</strong> ${mostrarCampo(data.destino)}</p>
+                            <p><strong>Contacto:</strong> ${mostrarCampo(data.contacto)}</p>
+                            <p><strong>Teléfono:</strong> ${mostrarCampo(data.telefono)}</p>
+                            <p><strong>Servicio:</strong> ${mostrarCampo(data.servicio)}</p>
+                            <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ccc;">
+                            <p><strong>N° Factura:</strong> ${mostrarCampo(data.numFactura)}</p>
+                            <p><strong>Bultos:</strong> ${mostrarCampo(data.bultos)}</p>
+                            <p><strong>Peso:</strong> ${mostrarCampo(data.peso)} kg</p>
+                            <p><strong>Responsable:</strong> ${mostrarCampo(data.responsable)}</p>
+                        </div>
+                    `;
+                }
+                
+                if (btnAutorizar) {
+                    btnAutorizar.disabled = false;
+                    btnAutorizar.textContent = 'Autorizar Salida';
+                }
+                
+                if (window.Utils) {
+                    window.Utils.mostrarNotificacion(`📦 Proveedor ${mostrarCampo(data.nombre)} completado!`, 'success');
+                }
+                
+                if (window.SonidoAlerta) {
+                    window.SonidoAlerta.reproducir(2);
+                }
+            }
+            
+            setInterval(async () => {
+                if (window.RenderAdmin && window.RenderAdmin.todo) {
+                    await window.RenderAdmin.todo();
+                }
+                await cargarHistorialDespachador();
+            }, 5000);
+            
+            async function cargarHistorialDespachador() {
+                const historialDiv = document.getElementById('historialTurnosDespachador');
+                if (!historialDiv) return;
+                
+                if (!window.supabaseClient) {
+                    historialDiv.innerHTML = '<p class="empty-message">Sin conexión a base de datos</p>';
+                    return;
+                }
+                
+                try {
+                    const hoy = new Date().toISOString().split('T')[0];
+                    const { data, error } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .select('*')
+                        .gte('fecha', `${hoy}T00:00:00`)
+                        .order('fecha', { ascending: false });
+                    
+                    if (error) throw error;
+                    
+                    if (!data || data.length === 0) {
+                        historialDiv.innerHTML = '<p class="empty-message">No hay turnos atendidos hoy</p>';
+                    } else {
+                        historialDiv.innerHTML = data.map(h => `
+                            <div class="history-item">
+                                <div class="history-item-header">
+                                    <span class="history-item-number">${h.numero}</span>
+                                    <span class="history-item-status status-${h.estado}">${h.autorizado_salida ? '✓ SALIDA AUTORIZADA' : h.estado}</span>
+                                </div>
+                                <div class="history-item-info">
+                                    <div class="history-item-company">${h.nombre_empresa}</div>
+                                    <div class="history-item-details">
+                                        <span><strong>Placa:</strong> ${h.nit || 'N/A'}</span>
+                                        <span><strong>Destino:</strong> ${h.destino || 'N/A'}</span>
+                                        ${h.num_factura ? `<span><strong>Fact:</strong> ${h.num_factura}</span>` : ''}
+                                        ${h.bultos ? `<span><strong>Bultos:</strong> ${h.bultos}</span>` : ''}
+                                        ${h.peso ? `<span><strong>Peso:</strong> ${h.peso} kg</span>` : ''}
+                                        ${h.responsable ? `<span><strong>Responsable:</strong> ${h.responsable}</span>` : ''}
+                                        ${h.contacto ? `<span><strong>Contacto:</strong> ${h.contacto}</span>` : ''}
+                                        ${h.telefono ? `<span><strong>Teléfono:</strong> ${h.telefono}</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                } catch (e) {
+                    console.error('Error al cargar historial:', e);
+                    historialDiv.innerHTML = '<p class="empty-message">Error al cargar historial</p>';
+                }
+            }
+            
+            cargarHistorialDespachador();
+            
+            const btnActualizar = document.getElementById('btnActualizarHistorial');
+            if (btnActualizar) {
+                btnActualizar.addEventListener('click', cargarHistorialDespachador);
+            }
+        });
+    </script>
+</body>
+</html>

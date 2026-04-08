@@ -5,6 +5,7 @@
 
 const CONFIG = {
     ADMIN_PASSWORD: 'RECEPCIONCEDI2',
+    DESPACHADOR_PASSWORD: 'RECEPCIONDESPACHO',
     LOGO_CLICKS_REQUIRED: 5,
     LOGO_CLICK_TIMEOUT: 2000,
     TURN_TIME_ESTIMATE: 5,
@@ -471,7 +472,15 @@ const SupabaseDB = {
                 fecha_solicitud: turno.fechaSolicitud || new Date().toISOString(),
                 estado: turno.estado || 'espera',
                 destino: turno.destino || null,
-                fecha_cita: turno.fechaCita || null
+                fecha_cita: turno.fechaCita || null,
+                num_factura: turno.numFactura || null,
+                bultos: turno.bultos || null,
+                peso: turno.peso || null,
+                responsable: turno.responsable || null,
+                contacto: turno.contacto || null,
+                telefono: turno.telefono || null,
+                servicio: turno.servicio || null,
+                autorizado_salida: turno.autorizadoSalida || false
             };
             
             const { data, error } = await window.supabaseClient
@@ -516,7 +525,7 @@ const SupabaseDB = {
         }
     },
 
-    async llamarTurno(turnoId) {
+    async llamarTurno(turnoId, infoDespacho = null) {
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible');
             return null;
@@ -529,20 +538,32 @@ const SupabaseDB = {
                 hour12: false 
             });
             
+            const updateData = { 
+                estado: 'atendiendo',
+                hora_llamada: horaLlamada,
+                updated_at: new Date().toISOString()
+            };
+            
+            if (infoDespacho) {
+                updateData.num_factura = infoDespacho.numFactura || null;
+                updateData.bultos = infoDespacho.bultos ? parseInt(infoDespacho.bultos) : null;
+                updateData.peso = infoDespacho.peso || null;
+                updateData.responsable = infoDespacho.responsable || null;
+            }
+            
             const { data, error } = await window.supabaseClient
                 .from('turnos')
-                .update({ 
-                    estado: 'atendiendo',
-                    hora_llamada: horaLlamada,
-                    updated_at: new Date().toISOString()
-                })
+                .update(updateData)
                 .eq('id', turnoId)
                 .select()
                 .single();
             
             if (error) throw error;
             
-            return this._mapearTurno(data);
+            const turnoActualizado = this._mapearTurno(data);
+            
+            Object.assign(updateData, turnoActualizado);
+            return updateData;
         } catch (error) {
             console.error('Error al llamar turno:', error);
             return null;
@@ -613,6 +634,14 @@ const SupabaseDB = {
             estado: t.estado,
             destino: t.destino,
             fechaCita: t.fecha_cita,
+            numFactura: t.num_factura,
+            bultos: t.bultos,
+            peso: t.peso,
+            responsable: t.responsable,
+            contacto: t.contacto,
+            telefono: t.telefono,
+            servicio: t.servicio,
+            autorizadoSalida: t.autorizado_salida,
             createdAt: t.created_at,
             updatedAt: t.updated_at
         };
@@ -642,6 +671,14 @@ const SupabaseDB = {
                 estado: 'completado',
                 destino: turno.destino || null,
                 fecha_cita: turno.fechaCita || null,
+                num_factura: turno.numFactura || null,
+                bultos: turno.bultos ? parseInt(turno.bultos) : null,
+                peso: turno.peso || null,
+                responsable: turno.responsable || null,
+                contacto: turno.contacto || null,
+                telefono: turno.telefono || null,
+                servicio: turno.servicio || null,
+                autorizado_salida: false,
                 fecha: new Date().toISOString()
             };
             
@@ -684,6 +721,14 @@ const SupabaseDB = {
                 estado: h.estado,
                 destino: h.destino,
                 fechaCita: h.fecha_cita,
+                numFactura: h.num_factura,
+                bultos: h.bultos,
+                peso: h.peso,
+                responsable: h.responsable,
+                contacto: h.contacto,
+                telefono: h.telefono,
+                servicio: h.servicio,
+                autorizadoSalida: h.autorizado_salida,
                 fecha: h.fecha
             }));
         } catch (error) {
@@ -963,7 +1008,7 @@ const Turnos = {
             destino: datosProveedor.destino || null,
             fechaCita: datosProveedor.fechaCita || null,
             motivo: motivo || '',
-            horaSolicitud: Utils.obtenerHoraActual(),
+            horaSolicitud: datosProveedor.fechaCita ? new Date(datosProveedor.fechaCita).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }) : Utils.obtenerHoraActual(),
             fechaSolicitud: new Date().toISOString(),
             estado: datosProveedor.fechaCita ? 'citado' : 'espera'
         };
@@ -1014,12 +1059,6 @@ const Turnos = {
         console.log('Turno seleccionado:', siguiente);
         
         const horaLlamada = Utils.obtenerHoraActual();
-        const actualizado = await SupabaseDB.llamarTurno(siguiente.id);
-        
-        if (!actualizado) {
-            Utils.mostrarNotificacion('Error al llamar turno en la base de datos', 'error');
-            return null;
-        }
         
         siguiente.estado = 'atendiendo';
         siguiente.horaLlamada = horaLlamada;
@@ -1030,7 +1069,7 @@ const Turnos = {
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
         
-        console.log('✅ Turno llamado exitosamente:', siguiente.numero);
+        console.log('✅ Turno seleccionado, esperando confirmación de despacho:', siguiente.numero);
         return siguiente;
     },
 
@@ -1364,9 +1403,40 @@ const RenderAdmin = {
             if (AppState.turnoActual) {
                 const motivo = AppState.turnoActual.motivo ? ` - ${AppState.turnoActual.motivo}` : '';
                 const placa = AppState.turnoActual.nit ? ` (Placa: ${AppState.turnoActual.nit})` : '';
-                turnoInfoDiv.textContent = `${AppState.turnoActual.nombreEmpresa}${motivo}${placa}`;
+                
+                let despachoInfo = '';
+                if (AppState.turnoActual.numFactura || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable) {
+                    const partes = [];
+                    if (AppState.turnoActual.numFactura) partes.push(`Fact: ${AppState.turnoActual.numFactura}`);
+                    if (AppState.turnoActual.bultos) partes.push(`Bultos: ${AppState.turnoActual.bultos}`);
+                    if (AppState.turnoActual.peso) partes.push(`Peso: ${AppState.turnoActual.peso}`);
+                    if (AppState.turnoActual.responsable) partes.push(`Resp: ${AppState.turnoActual.responsable}`);
+                    despachoInfo = `\n(${partes.join(', ')})`;
+                }
+                
+                turnoInfoDiv.textContent = `${AppState.turnoActual.nombreEmpresa}${motivo}${placa}${despachoInfo}`;
+                
+                const despachoDetail = document.getElementById('despachoDetail');
+                if (despachoDetail) {
+                    if (AppState.turnoActual.numFactura || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable || AppState.turnoActual.autorizadoSalida) {
+                        despachoDetail.innerHTML = `
+                            ${AppState.turnoActual.numFactura ? `<div><strong>Factura:</strong> ${AppState.turnoActual.numFactura}</div>` : ''}
+                            ${AppState.turnoActual.bultos ? `<div><strong>Bultos:</strong> ${AppState.turnoActual.bultos}</div>` : ''}
+                            ${AppState.turnoActual.peso ? `<div><strong>Peso:</strong> ${AppState.turnoActual.peso} kg</div>` : ''}
+                            ${AppState.turnoActual.responsable ? `<div><strong>Responsable:</strong> ${AppState.turnoActual.responsable}</div>` : ''}
+                            ${AppState.turnoActual.autorizadoSalida ? `<div class="autorizado-badge">✓ SALIDA AUTORIZADA</div>` : ''}
+                        `;
+                    } else {
+                        despachoDetail.innerHTML = '<div class="empty-message">Sin información de despacho</div>';
+                    }
+                }
             } else {
                 turnoInfoDiv.textContent = 'Ningún turno en atención';
+                
+                const despachoDetail = document.getElementById('despachoDetail');
+                if (despachoDetail) {
+                    despachoDetail.innerHTML = '';
+                }
             }
         }
     },
@@ -1420,13 +1490,15 @@ const RenderAdmin = {
             listaDiv.innerHTML = '<p class="empty-message">No hay citas reservadas</p>';
         } else {
             const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
-            listaDiv.innerHTML = turnosCitados.map(turno => `
+            listaDiv.innerHTML = turnosCitados.map(turno => {
+                const horaCita = turno.fechaCita ? new Date(turno.fechaCita).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : turno.horaSolicitud;
+                return `
                 <div class="turn-item turn-item-citado">
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
                         <div class="turn-item-company">${turno.nombreEmpresa}</div>
                         <div class="turn-item-time">
-                            ${turno.horaSolicitud}
+                            📅 ${horaCita}
                         </div>
                         <div class="turn-item-details">
                             <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
@@ -1442,7 +1514,7 @@ const RenderAdmin = {
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
     },
 
@@ -1496,7 +1568,7 @@ const RenderAdmin = {
                     <div class="history-item">
                         <div class="history-item-header">
                             <span class="history-item-number">${h.numero}</span>
-                            <span class="history-item-status status-${h.estado}">${h.estado}</span>
+                            <span class="history-item-status status-${h.estado}">${h.autorizadoSalida ? '✓ SALIDA AUTORIZADA' : h.estado}</span>
                             ${h.fechaCita ? '<span class="history-item-badge">CITADO</span>' : ''}
                         </div>
                         <div class="history-item-info">
@@ -1504,7 +1576,17 @@ const RenderAdmin = {
                             <div class="history-item-details">
                                 <span><strong>Placa:</strong> ${h.nit || 'N/A'}</span>
                                 <span><strong>Destino:</strong> ${h.destino ? destinoLabel[h.destino] || h.destino : 'N/A'}</span>
-                                <span><strong>Motivo:</strong> ${h.motivo || 'N/A'}</span>
+                                <span><strong>Servicio:</strong> ${h.servicio || 'N/A'}</span>
+                            </div>
+                            <div class="history-item-details">
+                                <span><strong>Contacto:</strong> ${h.contacto || 'N/A'}</span>
+                                <span><strong>Teléfono:</strong> ${h.telefono || 'N/A'}</span>
+                            </div>
+                            <div class="history-item-details" style="background: #f0fdf4; padding: 8px; border-radius: 4px; margin-top: 4px;">
+                                <span><strong>N° Factura:</strong> ${h.numFactura || 'N/A'}</span>
+                                <span><strong>Bultos:</strong> ${h.bultos || 'N/A'}</span>
+                                <span><strong>Peso:</strong> ${h.peso || 'N/A'} kg</span>
+                                <span><strong>Responsable:</strong> ${h.responsable || 'N/A'}</span>
                             </div>
                             ${h.fechaCita ? `<div class="history-item-details"><span><strong>Cita:</strong> ${new Date(h.fechaCita).toLocaleString('es-CO')}</span></div>` : ''}
                             <div class="history-item-time">
@@ -1713,19 +1795,7 @@ const AdminHandlers = {
         const turno = await Turnos.llamarSiguiente();
         
         if (turno) {
-            const modal = document.getElementById('turnoModal');
-            if (modal) {
-                const modalTurnNumber = document.getElementById('modalTurnNumber');
-                const modalTurnInfo = document.getElementById('modalTurnInfo');
-                
-                if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
-                if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}\n${turno.motivo || ''}`;
-                modal.style.display = 'flex';
-            }
-            
-            Utils.mostrarNotificacion(`Turno ${turno.numero} llamado`, 'success');
-            await RenderAdmin.todo();
-            
+            this.mostrarModalDespacho(turno, 'llamar');
         } else {
             console.log('No se pudo llamar turno');
         }
@@ -1743,37 +1813,133 @@ const AdminHandlers = {
             return;
         }
 
-        const horaLlamada = Utils.obtenerHoraActual();
-        const actualizado = await SupabaseDB.llamarTurno(turnoId);
-        
-        if (!actualizado) {
-            Utils.mostrarNotificacion('Error al llamar turno en la base de datos', 'error');
+        this.mostrarModalDespacho(turno, 'especifico', turnoId);
+    },
+
+    mostrarModalDespacho(turno, tipo, turnoId = null) {
+        const modal = document.getElementById('despachoModal');
+        if (!modal) {
+            Utils.mostrarNotificacion('Error: Modal de despacho no encontrado', 'error');
             return;
         }
 
-        turno.estado = 'atendiendo';
-        turno.horaLlamada = horaLlamada;
-        
-        AppState.turnoActual = turno;
-        AppState.turnos = AppState.turnos.filter(t => t.id !== turnoId);
-        
+        const modalTurnNumber = document.getElementById('despachoTurnNumber');
+        const modalTurnInfo = document.getElementById('despachoTurnInfo');
+        const infoDespachoDiv = document.getElementById('despachoInfo');
+
+        if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
+        if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}${turno.nit ? ' - ' + turno.nit : ''}`;
+
+        if (turno.numFactura || turno.bultos || turno.peso || turno.responsable) {
+            if (infoDespachoDiv) {
+                infoDespachoDiv.innerHTML = `
+                    ${turno.numFactura ? `<p><strong>Factura:</strong> ${turno.numFactura}</p>` : ''}
+                    ${turno.bultos ? `<p><strong>Bultos:</strong> ${turno.bultos}</p>` : ''}
+                    ${turno.peso ? `<p><strong>Peso:</strong> ${turno.peso}</p>` : ''}
+                    ${turno.responsable ? `<p><strong>Responsable:</strong> ${turno.responsable}</p>` : ''}
+                `;
+            }
+        } else {
+            if (infoDespachoDiv) {
+                infoDespachoDiv.innerHTML = '<p class="empty-message">Sin información de despacho</p>';
+            }
+        }
+
+        const numFacturaInput = document.getElementById('despachoNumFactura');
+        const bultosInput = document.getElementById('despachoBultos');
+        const pesoInput = document.getElementById('despachoPeso');
+        const responsableInput = document.getElementById('despachoResponsable');
+
+        if (numFacturaInput) numFacturaInput.value = turno.numFactura || '';
+        if (bultosInput) bultosInput.value = turno.bultos || '';
+        if (pesoInput) pesoInput.value = turno.peso || '';
+        if (responsableInput) responsableInput.value = turno.responsable || '';
+
+        modal.dataset.turnoId = turnoId || turno.id;
+        modal.dataset.tipo = tipo;
+        modal.style.display = 'flex';
+    },
+
+    async guardarDespacho() {
+        const modal = document.getElementById('despachoModal');
+        if (!modal) return;
+
+        const turnoId = parseInt(modal.dataset.turnoId);
+        const tipo = modal.dataset.tipo;
+
+        const numFacturaInput = document.getElementById('despachoNumFactura');
+        const bultosInput = document.getElementById('despachoBultos');
+        const pesoInput = document.getElementById('despachoPeso');
+        const responsableInput = document.getElementById('despachoResponsable');
+
+        const infoDespacho = {
+            numFactura: numFacturaInput?.value?.trim() || null,
+            bultos: bultosInput?.value?.trim() || null,
+            peso: pesoInput?.value?.trim() || null,
+            responsable: responsableInput?.value?.trim() || null
+        };
+
+        const horaLlamada = Utils.obtenerHoraActual();
+
+        if (tipo === 'especifico') {
+            const turno = AppState.turnos.find(t => t.id === turnoId);
+            if (!turno) {
+                Utils.mostrarNotificacion('Turno no encontrado', 'error');
+                return;
+            }
+
+            const actualizado = await SupabaseDB.llamarTurno(turnoId, infoDespacho);
+            if (!actualizado) {
+                Utils.mostrarNotificacion('Error al llamar turno', 'error');
+                return;
+            }
+
+            Object.assign(turno, {
+                estado: 'atendiendo',
+                horaLlamada: horaLlamada,
+                ...infoDespacho
+            });
+
+            AppState.turnoActual = turno;
+            AppState.turnos = AppState.turnos.filter(t => t.id !== turnoId);
+        } else {
+            if (AppState.turnoActual) {
+                const actualizado = await SupabaseDB.llamarTurno(AppState.turnoActual.id, infoDespacho);
+                if (actualizado) {
+                    Object.assign(AppState.turnoActual, {
+                        horaLlamada: horaLlamada,
+                        ...infoDespacho
+                    });
+                } else {
+                    Object.assign(AppState.turnoActual, {
+                        horaLlamada: horaLlamada,
+                        ...infoDespacho
+                    });
+                }
+            }
+        }
+
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
 
-        const modal = document.getElementById('turnoModal');
-        if (modal) {
-            const modalTurnNumber = document.getElementById('modalTurnNumber');
-            const modalTurnInfo = document.getElementById('modalTurnInfo');
+        modal.style.display = 'none';
+
+        const confirmModal = document.getElementById('turnoModal');
+        if (confirmModal) {
+            const confirmTurnNumber = document.getElementById('modalTurnNumber');
+            const confirmTurnInfo = document.getElementById('modalTurnInfo');
             
-            if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
-            if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}\n${turno.motivo || ''}`;
-            modal.style.display = 'flex';
+            if (confirmTurnNumber) confirmTurnNumber.textContent = AppState.turnoActual?.numero || '--';
+            if (confirmTurnInfo) confirmTurnInfo.textContent = AppState.turnoActual ? 
+                `${AppState.turnoActual.nombreEmpresa}\n${infoDespacho.numFactura ? 'Factura: ' + infoDespacho.numFactura : ''}` : '';
+            
+            confirmModal.style.display = 'flex';
         }
 
-        Utils.mostrarNotificacion(`Turno ${turno.numero} llamado`, 'success');
+        Utils.mostrarNotificacion(`Turno ${AppState.turnoActual?.numero} llamado`, 'success');
         await RenderAdmin.todo();
     },
-    
+
     async completarTurno() {
         if (!AppState.turnoActual) {
             Utils.mostrarNotificacion('No hay turno en atención', 'error');
@@ -1781,11 +1947,40 @@ const AdminHandlers = {
         }
         
         const turnoNumero = AppState.turnoActual.numero;
+        const turnoNombre = AppState.turnoActual.nombreEmpresa;
+        const despachoInfo = AppState.turnoActual.numFactura || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable;
         
         if (confirm(`¿Completar turno ${turnoNumero}?`)) {
             const resultado = await Turnos.completarTurnoActual();
             if (resultado) {
                 Utils.mostrarNotificacion(`Turno ${turnoNumero} completado`, 'success');
+                
+                if (despachoInfo && typeof despachoInfo === 'string' && despachoInfo !== 'undefined') {
+                    setTimeout(() => {
+                        Utils.mostrarNotificacion(`📦 ¡Proveedor ${turnoNombre} completado! Esperando autorización de salida.`, 'info');
+                    }, 1000);
+                    
+                    localStorage.setItem('proveedorListoSalir', JSON.stringify({
+                        numero: turnoNumero,
+                        nombre: turnoNombre,
+                        nit: AppState.turnoActual?.nit || '',
+                        motivo: AppState.turnoActual?.motivo || '',
+                        horaSolicitud: AppState.turnoActual?.horaSolicitud || '',
+                        horaLlamada: AppState.turnoActual?.horaLlamada || '',
+                        destino: AppState.turnoActual?.destino || '',
+                        contacto: AppState.turnoActual?.contacto || '',
+                        telefono: AppState.turnoActual?.telefono || '',
+                        servicio: AppState.turnoActual?.servicio || '',
+                        numFactura: AppState.turnoActual?.numFactura || '',
+                        bultos: AppState.turnoActual?.bultos || '',
+                        peso: AppState.turnoActual?.peso || '',
+                        responsable: AppState.turnoActual?.responsable || '',
+                        timestamp: Date.now()
+                    }));
+                } else {
+                    Utils.mostrarNotificacion(`Turno ${turnoNumero} completado sin información de despacho`, 'info');
+                }
+                
                 await RenderAdmin.todo();
             } else {
                 Utils.mostrarNotificacion('Error al completar turno', 'error');
@@ -1866,11 +2061,15 @@ const AdminAccess = {
             logoClickCount = 0;
             const modal = document.getElementById('adminAccessModal');
             if (modal) {
+                const accessTypeSelect = document.getElementById('accessType');
                 modal.style.display = 'flex';
                 const input = document.getElementById('adminPassword');
                 if (input) {
                     input.value = '';
                     input.focus();
+                }
+                if (accessTypeSelect) {
+                    accessTypeSelect.value = 'admin';
                 }
             }
         }
@@ -1879,16 +2078,30 @@ const AdminAccess = {
     handleLogin(e) {
         e.preventDefault();
         const password = document.getElementById('adminPassword')?.value;
+        const accessType = document.getElementById('accessType')?.value || 'admin';
         
-        if (password === CONFIG.ADMIN_PASSWORD) {
-            window.location.href = 'admin.html';
-        } else {
-            const errorEl = document.getElementById('loginError');
-            if (errorEl) {
-                errorEl.textContent = 'Contraseña incorrecta';
-                errorEl.style.display = 'block';
+        if (accessType === 'despachador') {
+            if (password === CONFIG.DESPACHADOR_PASSWORD) {
+                window.location.href = 'despachador.html';
+            } else {
+                const errorEl = document.getElementById('loginError');
+                if (errorEl) {
+                    errorEl.textContent = 'Contraseña de despachador incorrecta';
+                    errorEl.style.display = 'block';
+                }
+                Utils.mostrarNotificacion('Contraseña incorrecta', 'error');
             }
-            Utils.mostrarNotificacion('Contraseña incorrecta', 'error');
+        } else {
+            if (password === CONFIG.ADMIN_PASSWORD) {
+                window.location.href = 'admin.html';
+            } else {
+                const errorEl = document.getElementById('loginError');
+                if (errorEl) {
+                    errorEl.textContent = 'Contraseña de administrador incorrecta';
+                    errorEl.style.display = 'block';
+                }
+                Utils.mostrarNotificacion('Contraseña incorrecta', 'error');
+            }
         }
     }
 };
@@ -2255,8 +2468,67 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.error('Error al procesar actualización en tiempo real:', error);
                     }
                 });
+                
+                window.supabaseClient.channel('notificacion_admin')
+                    .on('broadcast', { event: 'salida_autorizada' }, (payload) => {
+                        console.log('Salida autorizada:', payload);
+                        const numero = payload.payload?.numero || '---';
+                        const nombre = payload.payload?.nombre || payload.payload?.nombreEmpresa || 'Proveedor';
+                        Utils.mostrarNotificacion(`🚚 Salida autorizada para ${numero} - ${nombre}`, 'success');
+                    })
+                    .subscribe();
             } else {
                 console.warn('Supabase no disponible - verifica tu conexión y credenciales');
+            }
+            
+            verificarSalidaAutorizada();
+        }
+        
+        function verificarSalidaAutorizada() {
+            setInterval(() => {
+                const datos = localStorage.getItem('salidaAutorizada');
+                if (datos) {
+                    try {
+                        const data = JSON.parse(datos);
+                        const ahora = Date.now();
+                        const hace10seg = 10 * 1000;
+                        
+                        if (ahora - data.timestamp < hace10seg) {
+                            const numeroMostrar = data.numero || '---';
+                            const nombreMostrar = data.nombre || data.nombreEmpresa || 'Proveedor';
+                            Utils.mostrarNotificacion(`🚚 Salida autorizada para ${numeroMostrar} - ${nombreMostrar}`, 'success');
+                            localStorage.removeItem('salidaAutorizada');
+                        }
+                    } catch (e) {
+                        console.error('Error al leer salidaAutorizada:', e);
+                    }
+                }
+            }, 2000);
+        }
+        
+        // Página de despachador (despachador.html)
+        const btnAutorizarSalida = document.getElementById('btnAutorizarSalida');
+        if (btnAutorizarSalida) {
+            console.log('Configurando página de despachador...');
+            
+            btnAutorizarSalida.addEventListener('click', DespachadorHandlers.autorizarSalida);
+            
+            console.log('Renderizando despachador...');
+            await RenderAdmin.todo();
+            
+            if (window.supabaseClient) {
+                console.log('Configurando suscripción a tiempo real para despachador...');
+                AppState.subscription = SupabaseDB.suscribirCambiosTurnos(async (payload) => {
+                    console.log('Actualización en tiempo real recibida (despachador):', payload);
+                    try {
+                        await Turnos.cargarTurnos();
+                        await RenderAdmin.todo();
+                        
+                        actualizarBotonAutorizar();
+                    } catch (error) {
+                        console.error('Error al procesar actualización en tiempo real:', error);
+                    }
+                });
             }
         }
     } catch (error) {
@@ -2268,7 +2540,116 @@ document.addEventListener('DOMContentLoaded', async () => {
 window.AdminHandlers = AdminHandlers;
 window.UsuarioHandlers = UsuarioHandlers;
 window.RenderUsuario = RenderUsuario;
+window.RenderAdmin = RenderAdmin;
 window.ModoEspera = ModoEspera;
 window.SonidoAlerta = SonidoAlerta;
+window.AppState = AppState;
+
+// ============================================
+// HANDLERS DESPACHADOR
+// ============================================
+
+const DespachadorHandlers = {
+    async autorizarSalida(turnoData = null) {
+        const turno = turnoData || AppState.turnoActual;
+        
+        if (!turno) {
+            Utils.mostrarNotificacion('No hay proveedor esperando', 'error');
+            return;
+        }
+        
+        try {
+            if (window.supabaseClient) {
+                try {
+                    const { error } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .insert([{
+                            numero: turno.numero,
+                            nombre_empresa: turno.nombre || turno.nombreEmpresa || turno.nombre,
+                            nit: turno.nit || '',
+                            motivo: turno.motivo || '',
+                            hora_solicitud: turno.horaSolicitud || '',
+                            hora_llamada: turno.horaLlamada || null,
+                            hora_finalizacion: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                            estado: 'completado',
+                            destino: turno.destino || null,
+                            num_factura: turno.numFactura || null,
+                            bultos: turno.bultos ? parseInt(turno.bultos) : null,
+                            peso: turno.peso || null,
+                            responsable: turno.responsable || null,
+                            autorizado_salida: true,
+                            fecha: new Date().toISOString()
+                        }]);
+                    
+                    if (error) {
+                        console.warn('No se pudo guardar en historial_turnos:', error.message);
+                    }
+                } catch (e) {
+                    console.warn('Error al guardar en historial:', e.message);
+                }
+            }
+            
+            localStorage.setItem('salidaAutorizada', JSON.stringify({
+                numero: turno.numero,
+                nombre: turno.nombre || turno.nombreEmpresa || turno.nombre,
+                nit: turno.nit || '',
+                timestamp: Date.now()
+            }));
+            localStorage.removeItem('proveedorListoSalir');
+            
+            const numeroMostrar = turno.numero || '---';
+            const nombreMostrar = turno.nombre || turno.nombreEmpresa || turno.nombre || 'Proveedor';
+            Utils.mostrarNotificacion(`✅ Salida autorizada para ${numeroMostrar} - ${nombreMostrar}`, 'success');
+            
+            const btnAutorizar = document.getElementById('btnAutorizarSalida');
+            if (btnAutorizar) {
+                btnAutorizar.disabled = true;
+                btnAutorizar.textContent = 'Salida Autorizada';
+            }
+            
+            setTimeout(() => {
+                const turnoListoDiv = document.getElementById('turnoListoSalir');
+                const infoDespachoDiv = document.getElementById('infoDespachoActual');
+                if (turnoListoDiv) {
+                    turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Esperando que admin complete un turno...</div>';
+                }
+                if (infoDespachoDiv) {
+                    infoDespachoDiv.innerHTML = '<div class="despacho-empty">No hay proveedor esperando autorización</div>';
+                }
+                if (btnAutorizar) {
+                    btnAutorizar.disabled = true;
+                    btnAutorizar.textContent = 'Autorizar Salida';
+                }
+            }, 3000);
+            
+        } catch (error) {
+            console.error('Error al autorizar salida:', error);
+            localStorage.setItem('salidaAutorizada', JSON.stringify({
+                numero: turno?.numero || '---',
+                nombre: turno?.nombre || turno?.nombreEmpresa || 'Proveedor',
+                timestamp: Date.now()
+            }));
+            localStorage.removeItem('proveedorListoSalir');
+            Utils.mostrarNotificacion(`✅ Salida autorizada`, 'success');
+        }
+    }
+};
+
+window.DespachadorHandlers = DespachadorHandlers;
+
+function actualizarBotonAutorizar() {
+    const btnAutorizar = document.getElementById('btnAutorizarSalida');
+    if (!btnAutorizar) return;
+    
+    if (window.AppState && window.AppState.turnoActual) {
+        btnAutorizar.disabled = window.AppState.turnoActual.autorizadoSalida === true;
+        btnAutorizar.textContent = window.AppState.turnoActual.autorizadoSalida ? 'Salida Autorizada' : 'Autorizar Salida';
+    } else {
+        btnAutorizar.disabled = true;
+        btnAutorizar.textContent = 'Autorizar Salida';
+    }
+}
+
+window.actualizarBotonAutorizar = actualizarBotonAutorizar;
 
                         

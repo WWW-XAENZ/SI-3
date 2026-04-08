@@ -44,6 +44,11 @@ CREATE TABLE IF NOT EXISTS turnos (
     notas TEXT,
     destino TEXT,
     fecha_cita TIMESTAMP WITH TIME ZONE,
+    num_factura TEXT,
+    bultos INTEGER,
+    peso TEXT,
+    responsable TEXT,
+    autorizado_salida BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -64,6 +69,14 @@ CREATE TABLE IF NOT EXISTS historial_turnos (
     tiempo_atencion_minutos INTEGER,
     destino TEXT,
     fecha_cita TIMESTAMP WITH TIME ZONE,
+    num_factura TEXT,
+    bultos INTEGER,
+    peso TEXT,
+    responsable TEXT,
+    contacto TEXT,
+    telefono TEXT,
+    servicio TEXT,
+    autorizado_salida BOOLEAN DEFAULT false,
     fecha TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
