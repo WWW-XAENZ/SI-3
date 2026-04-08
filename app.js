@@ -78,11 +78,9 @@ const Utils = {
 
     obtenerHoraActual() {
         const ahora = new Date();
-        return ahora.toLocaleTimeString('es-CO', { 
-            hour: 'numeric', 
-            minute: '2-digit',
-            hour12: true
-        });
+        const horas = ahora.getHours().toString().padStart(2, '0');
+        const minutos = ahora.getMinutes().toString().padStart(2, '0');
+        return `${horas}:${minutos}`;
     },
 
     obtenerFechaActual() {
@@ -308,15 +306,20 @@ const SupabaseDB = {
     },
 
     async incrementarContadorTurnos() {
+        console.log('=== Incrementando contador ===');
         const contadorLocal = LocalStorage.obtenerContador();
+        console.log('Contador local actual:', contadorLocal);
         const nuevoContador = contadorLocal + 1;
+        console.log('Nuevo contador (local):', nuevoContador);
         LocalStorage.guardarContador(nuevoContador);
         
         if (!window.supabaseClient) {
+            console.log('Supabase no disponible, usando contador local');
             return nuevoContador;
         }
         
         try {
+            console.log('Actualizando contador en Supabase...');
             const { error } = await window.supabaseClient
                 .from('configuracion')
                 .upsert({ 
@@ -328,6 +331,8 @@ const SupabaseDB = {
             
             if (error) {
                 console.warn('Error al actualizar contador en Supabase:', error.message);
+            } else {
+                console.log('Contador actualizado en Supabase');
             }
             
             return nuevoContador;
@@ -457,9 +462,15 @@ const SupabaseDB = {
     },
 
     async guardarTurno(turno) {
+        console.log('=== SupabaseDB.guardarTurno ===');
+        console.log('turno:', JSON.stringify(turno, null, 2));
+        
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return null;
+            console.error('Supabase no está disponible - guardando en localStorage');
+            turno.id = Date.now();
+            AppState.turnos.push(turno);
+            LocalStorage.guardarTurnos(AppState.turnos);
+            return turno;
         }
         
         try {
@@ -484,18 +495,30 @@ const SupabaseDB = {
                 autorizado_salida: turno.autorizadoSalida || false
             };
             
+            console.log('Insertando en Supabase:', JSON.stringify(turnoData, null, 2));
+            
             const { data, error } = await window.supabaseClient
                 .from('turnos')
                 .insert([turnoData])
                 .select()
                 .single();
             
-            if (error) throw error;
+            if (error) {
+                console.error('Error de Supabase:', error);
+                console.error('Código de error:', error.code);
+                console.error('Mensaje de error:', error.message);
+                throw error;
+            }
             
+            console.log('Turno guardado exitosamente:', data);
             return this._mapearTurno(data);
         } catch (error) {
             console.error('Error al guardar turno:', error);
-            return null;
+            console.log('Guardando turno en localStorage como fallback...');
+            turno.id = Date.now();
+            AppState.turnos.push(turno);
+            LocalStorage.guardarTurnos(AppState.turnos);
+            return turno;
         }
     },
 
@@ -973,6 +996,7 @@ const SupabaseDB = {
 const Turnos = {
     async solicitar(datosProveedor, motivo = '') {
         console.log('=== CREANDO TURNO ===');
+        console.log('datosProveedor:', datosProveedor);
         
         if (!datosProveedor.nit) {
             throw new Error('La placa es requerida');
@@ -991,11 +1015,14 @@ const Turnos = {
         datosProveedor.nit = placa;
         datosProveedor.nombreEmpresa = datosProveedor.nombreEmpresa.trim();
 
+        console.log('Guardando proveedor en Supabase...');
         await SupabaseDB.guardarProveedor(datosProveedor);
 
         let nuevoContador;
         try {
+            console.log('Incrementando contador de turnos...');
             nuevoContador = await SupabaseDB.incrementarContadorTurnos();
+            console.log('Nuevo contador:', nuevoContador);
         } catch (error) {
             console.error('Error al incrementar contador:', error);
             AppState.contadorTurnos++;
@@ -1027,7 +1054,9 @@ const Turnos = {
             estado: datosProveedor.fechaCita ? 'citado' : 'espera'
         };
 
+        console.log('Guardando turno en Supabase:', turno);
         const turnoSupabase = await SupabaseDB.guardarTurno(turno);
+        console.log('Resultado guardarTurno:', turnoSupabase);
         
         if (turnoSupabase && turnoSupabase.id) {
             turno.id = turnoSupabase.id;
@@ -1163,10 +1192,14 @@ const Turnos = {
         try {
             if (window.supabaseClient) {
                 const todosLosTurnos = await SupabaseDB.cargarTurnos();
+                console.log('Turnos cargados de Supabase:', todosLosTurnos);
                 
                 if (todosLosTurnos && Array.isArray(todosLosTurnos)) {
                     const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado');
                     const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
+                    
+                    console.log('Turnos en espera:', turnosEnEspera.length);
+                    console.log('Turno atendiendo:', turnoAtendiendo);
                     
                     AppState.turnos = turnosEnEspera;
                     AppState.turnoActual = turnoAtendiendo || null;
