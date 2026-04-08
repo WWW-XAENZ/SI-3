@@ -464,12 +464,11 @@
                 const clockEl = document.getElementById('tvClock');
                 if (clockEl) {
                     const ahora = new Date();
-                    clockEl.textContent = ahora.toLocaleTimeString('es-CO', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                        hour12: false
-                    });
+                    const h = ahora.getHours();
+                    const m = ahora.getMinutes().toString().padStart(2, '0');
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    const h12 = h % 12 || 12;
+                    clockEl.textContent = `${h12}:${m} ${ampm}`;
                 }
             },
 
@@ -524,12 +523,26 @@
                         </div>
                     `;
                 } else {
+                    const formatearHora = (hora) => {
+                        if (!hora) return '';
+                        try {
+                            const fechaHora = hora.split('T');
+                            if (fechaHora.length >= 2) {
+                                const [horas, minutos] = fechaHora[1].split(':');
+                                const h = parseInt(horas);
+                                const ampm = h >= 12 ? 'PM' : 'AM';
+                                const h12 = h % 12 || 12;
+                                return `${h12}:${minutos} ${ampm}`;
+                            }
+                            return hora;
+                        } catch(e) { return hora; }
+                    };
                     listaEl.innerHTML = turnos.map((turno, index) => `
                         <div class="tv-cola-item">
                             <div class="tv-cola-numero">${turno.numero}</div>
                             <div class="tv-cola-info">
                                 <div class="tv-cola-empresa">${turno.nombreEmpresa}</div>
-                                <div class="tv-cola-hora">${turno.horaSolicitud}</div>
+                                <div class="tv-cola-hora">${formatearHora(turno.horaSolicitud)}</div>
                             </div>
                             <div class="tv-cola-posicion">#${index + 1}</div>
                         </div>

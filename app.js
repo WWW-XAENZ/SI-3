@@ -78,10 +78,10 @@ const Utils = {
 
     obtenerHoraActual() {
         const ahora = new Date();
-        return ahora.toLocaleTimeString('es-ES', { 
-            hour: '2-digit', 
+        return ahora.toLocaleTimeString('es-CO', { 
+            hour: 'numeric', 
             minute: '2-digit',
-            second: '2-digit'
+            hour12: true
         });
     },
 
@@ -549,6 +549,10 @@ const SupabaseDB = {
                 updateData.bultos = infoDespacho.bultos ? parseInt(infoDespacho.bultos) : null;
                 updateData.peso = infoDespacho.peso || null;
                 updateData.responsable = infoDespacho.responsable || null;
+                updateData.contacto = infoDespacho.contacto || null;
+                updateData.telefono = infoDespacho.telefono || null;
+                updateData.servicio = infoDespacho.servicio || null;
+                updateData.destino = infoDespacho.destino || null;
             }
             
             const { data, error } = await window.supabaseClient
@@ -995,7 +999,8 @@ const Turnos = {
             LocalStorage.guardarContador(nuevoContador);
         }
         
-        const numeroTurno = 'T' + nuevoContador.toString().padStart(3, '0');
+        const prefijoTurno = datosProveedor.fechaCita ? 'C' : 'T';
+        const numeroTurno = prefijoTurno + nuevoContador.toString().padStart(3, '0');
         console.log('Nuevo número de turno:', numeroTurno);
         
         const turno = {
@@ -1008,7 +1013,12 @@ const Turnos = {
             destino: datosProveedor.destino || null,
             fechaCita: datosProveedor.fechaCita || null,
             motivo: motivo || '',
-            horaSolicitud: datosProveedor.fechaCita ? new Date(datosProveedor.fechaCita).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }) : Utils.obtenerHoraActual(),
+            horaSolicitud: datosProveedor.fechaCita ? (() => {
+                const fecha = new Date(datosProveedor.fechaCita);
+                const horas = fecha.getHours().toString().padStart(2, '0');
+                const minutos = fecha.getMinutes().toString().padStart(2, '0');
+                return `${horas}:${minutos}`;
+            })() : Utils.obtenerHoraActual(),
             fechaSolicitud: new Date().toISOString(),
             estado: datosProveedor.fechaCita ? 'citado' : 'espera'
         };
@@ -1222,18 +1232,31 @@ const RenderUsuario = {
                 const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
                 
                 if (esCitado && !siendoAtendido) {
+                    const fechaHoraMostrar = miTurno.fechaCita ? (() => {
+                        const fechaHora = miTurno.fechaCita.split('T');
+                        if (fechaHora.length >= 2) {
+                            const [horas, minutos] = fechaHora[1].split(':');
+                            const h = parseInt(horas);
+                            const ampm = h >= 12 ? 'PM' : 'AM';
+                            const h12 = h % 12 || 12;
+                            const fecha = new Date(fechaHora[0] + 'T00:00:00');
+                            const fechaStr = fecha.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                            return `${fechaStr} a las ${h12}:${minutos} ${ampm}`;
+                        }
+                        return new Date(miTurno.fechaCita).toLocaleString('es-CO');
+                    })() : 'Esperando ser llamado';
                     container.innerHTML = `
                         <div class="my-turn-active">
                             <div class="my-turn-number">${miTurno.numero}</div>
                             <div class="my-turn-status">${miTurno.nombreEmpresa}</div>
                             <div class="my-turn-position">
                                 <strong>Cita Reservada</strong><br>
-                                ${miTurno.fechaCita ? `📅 ${new Date(miTurno.fechaCita).toLocaleString('es-CO')}` : 'Esperando ser llamado'}
+                                📅 ${fechaHoraMostrar}
                             </div>
                             <div class="my-turn-position">
                                 Destino: ${miTurno.destino ? destinoLabel[miTurno.destino] || miTurno.destino : 'N/A'}
                             </div>
-                            <p class="hint">Un administrador te llamará el día de tu cita</p>
+                            <p class="hint">Estás atent@ a ser llamado el día de tu cita</p>
                         </div>
                     `;
                 } else {
@@ -1312,12 +1335,27 @@ const RenderUsuario = {
             let miNumero = null;
             try { miNumero = miTurno.numero; } catch(e) {}
             
+            const formatearHora = (hora) => {
+                if (!hora) return '';
+                try {
+                    const fechaHora = hora.split('T');
+                    if (fechaHora.length >= 2) {
+                        const [horas, minutos] = fechaHora[1].split(':');
+                        const h = parseInt(horas);
+                        const ampm = h >= 12 ? 'PM' : 'AM';
+                        const h12 = h % 12 || 12;
+                        return `${h12}:${minutos} ${ampm}`;
+                    }
+                    return hora;
+                } catch(e) { return hora; }
+            };
+            
             listaDiv.innerHTML = turnosHoy.map(turno => `
                 <div class="turn-item-user ${turno.numero === miNumero ? 'current' : ''}">
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
                         <div class="turn-item-company">${turno.nombreEmpresa}</div>
-                        <div class="turn-item-time">${turno.horaSolicitud}</div>
+                        <div class="turn-item-time">${formatearHora(turno.horaSolicitud)}</div>
                     </div>
                 </div>
             `).join('');
@@ -1491,7 +1529,25 @@ const RenderAdmin = {
         } else {
             const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
             listaDiv.innerHTML = turnosCitados.map(turno => {
-                const horaCita = turno.fechaCita ? new Date(turno.fechaCita).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : turno.horaSolicitud;
+                const horaCita = turno.fechaCita ? (() => {
+                    const fechaHora = turno.fechaCita.split('T');
+                    if (fechaHora.length >= 2) {
+                        const [horas, minutos] = fechaHora[1].split(':');
+                        const h = parseInt(horas);
+                        const ampm = h >= 12 ? 'PM' : 'AM';
+                        const h12 = h % 12 || 12;
+                        return `${h12}:${minutos} ${ampm}`;
+                    }
+                    return turno.horaSolicitud;
+                })() : turno.horaSolicitud;
+                const fechaCompleta = turno.fechaCita ? (() => {
+                    const fechaHora = turno.fechaCita.split('T');
+                    if (fechaHora.length >= 2) {
+                        const fecha = new Date(turno.fechaCita);
+                        return fecha.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                    }
+                    return '';
+                })() : '';
                 return `
                 <div class="turn-item turn-item-citado">
                     <span class="turn-item-number">${turno.numero}</span>
@@ -1500,9 +1556,9 @@ const RenderAdmin = {
                         <div class="turn-item-time">
                             📅 ${horaCita}
                         </div>
+                        ${fechaCompleta ? `<div class="turn-item-time">${fechaCompleta}</div>` : ''}
                         <div class="turn-item-details">
                             <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
-                            ${turno.fechaCita ? `<span class="turn-ci">📅 ${new Date(turno.fechaCita).toLocaleString('es-CO')}</span>` : ''}
                         </div>
                     </div>
                     <div class="turn-item-actions">
@@ -1709,6 +1765,14 @@ const UsuarioHandlers = {
             const destino = document.getElementById('destino')?.value;
             const fechaCitaInput = document.getElementById('fechaCita')?.value;
             
+            const esCita = fechaCitaInput && fechaCitaInput.trim() !== '';
+            
+            let fechaCitaISO = null;
+            if (esCita && fechaCitaInput) {
+                const fechaLocal = new Date(fechaCitaInput);
+                fechaCitaISO = fechaLocal.toISOString();
+            }
+            
             const datosProveedor = {
                 nombreEmpresa: document.getElementById('nombreEmpresa')?.value?.trim(),
                 nit: placaInput,
@@ -1716,7 +1780,7 @@ const UsuarioHandlers = {
                 telefono: document.getElementById('telefono')?.value?.trim(),
                 servicio: document.getElementById('servicio')?.value,
                 destino: destino,
-                fechaCita: fechaCitaInput || null
+                fechaCita: fechaCitaISO
             };
 
             if (!destino) throw new Error('El destino es requerido');
@@ -1872,18 +1936,30 @@ const AdminHandlers = {
         const pesoInput = document.getElementById('despachoPeso');
         const responsableInput = document.getElementById('despachoResponsable');
 
+        let turnoActual = null;
+        
+        if (tipo === 'especifico') {
+            turnoActual = AppState.turnos.find(t => t.id === turnoId);
+        } else {
+            turnoActual = AppState.turnoActual;
+        }
+
         const infoDespacho = {
             numFactura: numFacturaInput?.value?.trim() || null,
             bultos: bultosInput?.value?.trim() || null,
             peso: pesoInput?.value?.trim() || null,
-            responsable: responsableInput?.value?.trim() || null
+            responsable: responsableInput?.value?.trim() || null,
+            contacto: turnoActual?.contacto || null,
+            telefono: turnoActual?.telefono || null,
+            servicio: turnoActual?.servicio || null,
+            nit: turnoActual?.nit || null,
+            destino: turnoActual?.destino || null
         };
 
         const horaLlamada = Utils.obtenerHoraActual();
 
         if (tipo === 'especifico') {
-            const turno = AppState.turnos.find(t => t.id === turnoId);
-            if (!turno) {
+            if (!turnoActual) {
                 Utils.mostrarNotificacion('Turno no encontrado', 'error');
                 return;
             }
@@ -1894,13 +1970,13 @@ const AdminHandlers = {
                 return;
             }
 
-            Object.assign(turno, {
+            Object.assign(turnoActual, {
                 estado: 'atendiendo',
                 horaLlamada: horaLlamada,
                 ...infoDespacho
             });
 
-            AppState.turnoActual = turno;
+            AppState.turnoActual = turnoActual;
             AppState.turnos = AppState.turnos.filter(t => t.id !== turnoId);
         } else {
             if (AppState.turnoActual) {
@@ -1950,6 +2026,8 @@ const AdminHandlers = {
         const turnoNombre = AppState.turnoActual.nombreEmpresa;
         const despachoInfo = AppState.turnoActual.numFactura || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable;
         
+        const turnoParaDespacho = { ...AppState.turnoActual };
+        
         if (confirm(`¿Completar turno ${turnoNumero}?`)) {
             const resultado = await Turnos.completarTurnoActual();
             if (resultado) {
@@ -1960,25 +2038,47 @@ const AdminHandlers = {
                         Utils.mostrarNotificacion(`📦 ¡Proveedor ${turnoNombre} completado! Esperando autorización de salida.`, 'info');
                     }, 1000);
                     
+                    console.log('Guardando turno completado:', turnoParaDespacho);
+                    
                     localStorage.setItem('proveedorListoSalir', JSON.stringify({
-                        numero: turnoNumero,
-                        nombre: turnoNombre,
-                        nit: AppState.turnoActual?.nit || '',
-                        motivo: AppState.turnoActual?.motivo || '',
-                        horaSolicitud: AppState.turnoActual?.horaSolicitud || '',
-                        horaLlamada: AppState.turnoActual?.horaLlamada || '',
-                        destino: AppState.turnoActual?.destino || '',
-                        contacto: AppState.turnoActual?.contacto || '',
-                        telefono: AppState.turnoActual?.telefono || '',
-                        servicio: AppState.turnoActual?.servicio || '',
-                        numFactura: AppState.turnoActual?.numFactura || '',
-                        bultos: AppState.turnoActual?.bultos || '',
-                        peso: AppState.turnoActual?.peso || '',
-                        responsable: AppState.turnoActual?.responsable || '',
+                        numero: turnoParaDespacho.numero,
+                        nombre: turnoParaDespacho.nombreEmpresa,
+                        nit: turnoParaDespacho.nit || '',
+                        motivo: turnoParaDespacho.motivo || '',
+                        horaSolicitud: turnoParaDespacho.horaSolicitud || '',
+                        horaLlamada: turnoParaDespacho.horaLlamada || '',
+                        destino: turnoParaDespacho.destino || '',
+                        contacto: turnoParaDespacho.contacto || '',
+                        telefono: turnoParaDespacho.telefono || '',
+                        servicio: turnoParaDespacho.servicio || '',
+                        numFactura: turnoParaDespacho.numFactura || '',
+                        bultos: turnoParaDespacho.bultos || '',
+                        peso: turnoParaDespacho.peso || '',
+                        responsable: turnoParaDespacho.responsable || '',
                         timestamp: Date.now()
                     }));
                 } else {
                     Utils.mostrarNotificacion(`Turno ${turnoNumero} completado sin información de despacho`, 'info');
+                    
+                    console.log('Guardando turno sin despacho:', turnoParaDespacho);
+                    
+                    localStorage.setItem('proveedorListoSalir', JSON.stringify({
+                        numero: turnoParaDespacho.numero,
+                        nombre: turnoParaDespacho.nombreEmpresa,
+                        nit: turnoParaDespacho.nit || '',
+                        motivo: turnoParaDespacho.motivo || '',
+                        horaSolicitud: turnoParaDespacho.horaSolicitud || '',
+                        horaLlamada: turnoParaDespacho.horaLlamada || '',
+                        destino: turnoParaDespacho.destino || '',
+                        contacto: turnoParaDespacho.contacto || '',
+                        telefono: turnoParaDespacho.telefono || '',
+                        servicio: turnoParaDespacho.servicio || '',
+                        numFactura: '',
+                        bultos: '',
+                        peso: '',
+                        responsable: '',
+                        timestamp: Date.now()
+                    }));
                 }
                 
                 await RenderAdmin.todo();
@@ -2474,7 +2574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.log('Salida autorizada:', payload);
                         const numero = payload.payload?.numero || '---';
                         const nombre = payload.payload?.nombre || payload.payload?.nombreEmpresa || 'Proveedor';
-                        Utils.mostrarNotificacion(`🚚 Salida autorizada para ${numero} - ${nombre}`, 'success');
+                        Utils.mostrarNotificacion(`🚚 Salida autorizada para turno ${numero} - ${nombre}`, 'success');
                     })
                     .subscribe();
             } else {
@@ -2496,7 +2596,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (ahora - data.timestamp < hace10seg) {
                             const numeroMostrar = data.numero || '---';
                             const nombreMostrar = data.nombre || data.nombreEmpresa || 'Proveedor';
-                            Utils.mostrarNotificacion(`🚚 Salida autorizada para ${numeroMostrar} - ${nombreMostrar}`, 'success');
+                            Utils.mostrarNotificacion(`🚚 Salida autorizada para turno ${numeroMostrar} - ${nombreMostrar}`, 'success');
                             localStorage.removeItem('salidaAutorizada');
                         }
                     } catch (e) {
@@ -2599,7 +2699,7 @@ const DespachadorHandlers = {
             
             const numeroMostrar = turno.numero || '---';
             const nombreMostrar = turno.nombre || turno.nombreEmpresa || turno.nombre || 'Proveedor';
-            Utils.mostrarNotificacion(`✅ Salida autorizada para ${numeroMostrar} - ${nombreMostrar}`, 'success');
+            Utils.mostrarNotificacion(`✅ Salida autorizada para turno ${numeroMostrar} - ${nombreMostrar}`, 'success');
             
             const btnAutorizar = document.getElementById('btnAutorizarSalida');
             if (btnAutorizar) {

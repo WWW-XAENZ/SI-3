@@ -21,7 +21,6 @@
         
         <nav class="main-nav" role="navigation" aria-label="Navegación principal">
             <a href="index.html" class="nav-link">Inicio</a>
-            <a href="admin.html" class="nav-link">Panel Admin</a>
             <a href="despachador.html" class="nav-link active" aria-current="page">Panel Despachador</a>
         </nav>
 
@@ -51,6 +50,14 @@
                     <h2 id="despacho-title">Información de Despacho</h2>
                     <div id="infoDespachoActual" class="despacho-form">
                         <div class="despacho-empty">No hay proveedor esperando autorización</div>
+                    </div>
+                </section>
+
+                <!-- Citas Reservadas -->
+                <section class="admin-section cited-list" aria-labelledby="cited-list-despachador">
+                    <h2 id="cited-list-despachador">Citas Reservadas (<span id="contadorTurnosCitadosDespachador">0</span>)</h2>
+                    <div id="listaTurnosCitadosDespachador" class="turn-list" aria-live="polite">
+                        <p class="empty-message">Cargando citas...</p>
                     </div>
                 </section>
 
@@ -238,10 +245,82 @@
             
             cargarHistorialDespachador();
             
+            async function cargarCitasDespachador() {
+                const listaDiv = document.getElementById('listaTurnosCitadosDespachador');
+                const contadorDiv = document.getElementById('contadorTurnosCitadosDespachador');
+                if (!listaDiv) return;
+                
+                if (!window.supabaseClient) {
+                    listaDiv.innerHTML = '<p class="empty-message">Sin conexión a base de datos</p>';
+                    return;
+                }
+                
+                try {
+                    const { data, error } = await window.supabaseClient
+                        .from('turnos')
+                        .select('*')
+                        .eq('estado', 'citado')
+                        .order('fecha_cita', { ascending: true });
+                    
+                    if (error) throw error;
+                    
+                    if (contadorDiv) contadorDiv.textContent = data?.length || 0;
+                    
+                    if (!data || data.length === 0) {
+                        listaDiv.innerHTML = '<p class="empty-message">No hay citas reservadas</p>';
+                    } else {
+                        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
+                        listaDiv.innerHTML = data.map(turno => {
+                            const horaCita = turno.fecha_cita ? (() => {
+                                const fechaHora = turno.fecha_cita.split('T');
+                                if (fechaHora.length >= 2) {
+                                    const [horas, minutos] = fechaHora[1].split(':');
+                                    const h = parseInt(horas);
+                                    const ampm = h >= 12 ? 'PM' : 'AM';
+                                    const h12 = h % 12 || 12;
+                                    return `${h12}:${minutos} ${ampm}`;
+                                }
+                                return turno.hora_solicitud;
+                            })() : turno.hora_solicitud;
+                            const fechaCompleta = turno.fecha_cita ? (() => {
+                                const fechaHora = turno.fecha_cita.split('T');
+                                if (fechaHora.length >= 2) {
+                                    const fecha = new Date(turno.fecha_cita);
+                                    return fecha.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                                }
+                                return '';
+                            })() : '';
+                            return `
+                            <div class="turn-item turn-item-citado">
+                                <span class="turn-item-number">${turno.numero}</span>
+                                <div class="turn-item-info">
+                                    <div class="turn-item-company">${turno.nombre_empresa}</div>
+                                    <div class="turn-item-time">📅 ${horaCita}</div>
+                                    ${fechaCompleta ? `<div class="turn-item-time">${fechaCompleta}</div>` : ''}
+                                    <div class="turn-item-details">
+                                        <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `}).join('');
+                    }
+                } catch (e) {
+                    console.error('Error al cargar citas:', e);
+                    listaDiv.innerHTML = '<p class="empty-message">Error al cargar citas</p>';
+                }
+            }
+            
+            cargarCitasDespachador();
+            
             const btnActualizar = document.getElementById('btnActualizarHistorial');
             if (btnActualizar) {
-                btnActualizar.addEventListener('click', cargarHistorialDespachador);
+                btnActualizar.addEventListener('click', () => {
+                    cargarHistorialDespachador();
+                    cargarCitasDespachador();
+                });
             }
+            
+            setInterval(cargarCitasDespachador, 10000);
         });
     </script>
 </body>
