@@ -474,6 +474,7 @@ const SupabaseDB = {
                 destino: turno.destino || null,
                 fecha_cita: turno.fechaCita || null,
                 num_factura: turno.numFactura || null,
+                tipo_vehiculo: turno.tipoVehiculo || null,
                 bultos: turno.bultos || null,
                 peso: turno.peso || null,
                 responsable: turno.responsable || null,
@@ -546,6 +547,7 @@ const SupabaseDB = {
             
             if (infoDespacho) {
                 updateData.num_factura = infoDespacho.numFactura || null;
+                updateData.tipo_vehiculo = infoDespacho.tipoVehiculo || null;
                 updateData.bultos = infoDespacho.bultos ? parseInt(infoDespacho.bultos) : null;
                 updateData.peso = infoDespacho.peso || null;
                 updateData.responsable = infoDespacho.responsable || null;
@@ -639,6 +641,7 @@ const SupabaseDB = {
             destino: t.destino,
             fechaCita: t.fecha_cita,
             numFactura: t.num_factura,
+            tipoVehiculo: t.tipo_vehiculo,
             bultos: t.bultos,
             peso: t.peso,
             responsable: t.responsable,
@@ -726,6 +729,7 @@ const SupabaseDB = {
                 destino: h.destino,
                 fechaCita: h.fecha_cita,
                 numFactura: h.num_factura,
+                tipoVehiculo: h.tipo_vehiculo,
                 bultos: h.bultos,
                 peso: h.peso,
                 responsable: h.responsable,
@@ -1456,9 +1460,10 @@ const RenderAdmin = {
                 
                 const despachoDetail = document.getElementById('despachoDetail');
                 if (despachoDetail) {
-                    if (AppState.turnoActual.numFactura || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable || AppState.turnoActual.autorizadoSalida) {
+                    if (AppState.turnoActual.numFactura || AppState.turnoActual.tipoVehiculo || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable || AppState.turnoActual.autorizadoSalida) {
                         despachoDetail.innerHTML = `
                             ${AppState.turnoActual.numFactura ? `<div><strong>Factura:</strong> ${AppState.turnoActual.numFactura}</div>` : ''}
+                            ${AppState.turnoActual.tipoVehiculo ? `<div><strong>Tipo Vehículo:</strong> ${AppState.turnoActual.tipoVehiculo}</div>` : ''}
                             ${AppState.turnoActual.bultos ? `<div><strong>Bultos:</strong> ${AppState.turnoActual.bultos}</div>` : ''}
                             ${AppState.turnoActual.peso ? `<div><strong>Peso:</strong> ${AppState.turnoActual.peso} kg</div>` : ''}
                             ${AppState.turnoActual.responsable ? `<div><strong>Responsable:</strong> ${AppState.turnoActual.responsable}</div>` : ''}
@@ -1620,6 +1625,16 @@ const RenderAdmin = {
                 historialDiv.innerHTML = '<p class="empty-message">No hay historial de turnos</p>';
             } else {
                 const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
+                const formatearFechaHora = (fechaHora) => {
+                    if (!fechaHora) return 'N/A';
+                    try {
+                        const fecha = new Date(fechaHora);
+                        return fecha.toLocaleString('es-CO', { 
+                            day: '2-digit', month: '2-digit', year: 'numeric',
+                            hour: 'numeric', minute: '2-digit', hour12: true 
+                        });
+                    } catch(e) { return fechaHora; }
+                };
                 historialDiv.innerHTML = historial.map(h => `
                     <div class="history-item">
                         <div class="history-item-header">
@@ -1640,11 +1655,12 @@ const RenderAdmin = {
                             </div>
                             <div class="history-item-details" style="background: #f0fdf4; padding: 8px; border-radius: 4px; margin-top: 4px;">
                                 <span><strong>N° Factura:</strong> ${h.numFactura || 'N/A'}</span>
+                                <span><strong>Tipo Vehículo:</strong> ${h.tipoVehiculo || 'N/A'}</span>
                                 <span><strong>Bultos:</strong> ${h.bultos || 'N/A'}</span>
                                 <span><strong>Peso:</strong> ${h.peso || 'N/A'} kg</span>
                                 <span><strong>Responsable:</strong> ${h.responsable || 'N/A'}</span>
                             </div>
-                            ${h.fechaCita ? `<div class="history-item-details"><span><strong>Cita:</strong> ${new Date(h.fechaCita).toLocaleString('es-CO')}</span></div>` : ''}
+                            ${h.fechaCita ? `<div class="history-item-details"><span><strong>Cita:</strong> ${formatearFechaHora(h.fechaCita)}</span></div>` : ''}
                             <div class="history-item-time">
                                 <span><strong>Solicitud:</strong> ${Utils.formatearHora(h.horaSolicitud)}</span>
                                 <span><strong>Llamada:</strong> ${Utils.formatearHora(h.horaLlamada)}</span>
@@ -1894,10 +1910,11 @@ const AdminHandlers = {
         if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
         if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}${turno.nit ? ' - ' + turno.nit : ''}`;
 
-        if (turno.numFactura || turno.bultos || turno.peso || turno.responsable) {
+        if (turno.numFactura || turno.tipoVehiculo || turno.bultos || turno.peso || turno.responsable) {
             if (infoDespachoDiv) {
                 infoDespachoDiv.innerHTML = `
                     ${turno.numFactura ? `<p><strong>Factura:</strong> ${turno.numFactura}</p>` : ''}
+                    ${turno.tipoVehiculo ? `<p><strong>Tipo Vehículo:</strong> ${turno.tipoVehiculo}</p>` : ''}
                     ${turno.bultos ? `<p><strong>Bultos:</strong> ${turno.bultos}</p>` : ''}
                     ${turno.peso ? `<p><strong>Peso:</strong> ${turno.peso}</p>` : ''}
                     ${turno.responsable ? `<p><strong>Responsable:</strong> ${turno.responsable}</p>` : ''}
@@ -1910,11 +1927,13 @@ const AdminHandlers = {
         }
 
         const numFacturaInput = document.getElementById('despachoNumFactura');
+        const tipoVehiculoInput = document.getElementById('despachoTipoVehiculo');
         const bultosInput = document.getElementById('despachoBultos');
         const pesoInput = document.getElementById('despachoPeso');
         const responsableInput = document.getElementById('despachoResponsable');
 
         if (numFacturaInput) numFacturaInput.value = turno.numFactura || '';
+        if (tipoVehiculoInput) tipoVehiculoInput.value = turno.tipoVehiculo || '';
         if (bultosInput) bultosInput.value = turno.bultos || '';
         if (pesoInput) pesoInput.value = turno.peso || '';
         if (responsableInput) responsableInput.value = turno.responsable || '';
@@ -1932,6 +1951,7 @@ const AdminHandlers = {
         const tipo = modal.dataset.tipo;
 
         const numFacturaInput = document.getElementById('despachoNumFactura');
+        const tipoVehiculoInput = document.getElementById('despachoTipoVehiculo');
         const bultosInput = document.getElementById('despachoBultos');
         const pesoInput = document.getElementById('despachoPeso');
         const responsableInput = document.getElementById('despachoResponsable');
@@ -1946,6 +1966,7 @@ const AdminHandlers = {
 
         const infoDespacho = {
             numFactura: numFacturaInput?.value?.trim() || null,
+            tipoVehiculo: tipoVehiculoInput?.value?.trim() || null,
             bultos: bultosInput?.value?.trim() || null,
             peso: pesoInput?.value?.trim() || null,
             responsable: responsableInput?.value?.trim() || null,
@@ -2052,6 +2073,7 @@ const AdminHandlers = {
                         telefono: turnoParaDespacho.telefono || '',
                         servicio: turnoParaDespacho.servicio || '',
                         numFactura: turnoParaDespacho.numFactura || '',
+                        tipoVehiculo: turnoParaDespacho.tipoVehiculo || '',
                         bultos: turnoParaDespacho.bultos || '',
                         peso: turnoParaDespacho.peso || '',
                         responsable: turnoParaDespacho.responsable || '',
@@ -2074,6 +2096,7 @@ const AdminHandlers = {
                         telefono: turnoParaDespacho.telefono || '',
                         servicio: turnoParaDespacho.servicio || '',
                         numFactura: '',
+                        tipoVehiculo: '',
                         bultos: '',
                         peso: '',
                         responsable: '',

@@ -165,6 +165,7 @@
                             <p><strong>Servicio:</strong> ${mostrarCampo(data.servicio)}</p>
                             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ccc;">
                             <p><strong>N° Factura:</strong> ${mostrarCampo(data.numFactura)}</p>
+                            <p><strong>Tipo Vehículo:</strong> ${mostrarCampo(data.tipoVehiculo)}</p>
                             <p><strong>Bultos:</strong> ${mostrarCampo(data.bultos)}</p>
                             <p><strong>Peso:</strong> ${mostrarCampo(data.peso)} kg</p>
                             <p><strong>Responsable:</strong> ${mostrarCampo(data.responsable)}</p>
@@ -215,23 +216,50 @@
                     if (!data || data.length === 0) {
                         historialDiv.innerHTML = '<p class="empty-message">No hay turnos atendidos hoy</p>';
                     } else {
+                        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
+                        const formatearFechaHora = (fechaHora) => {
+                            if (!fechaHora) return 'N/A';
+                            try {
+                                const fecha = new Date(fechaHora);
+                                return fecha.toLocaleString('es-CO', { 
+                                    day: '2-digit', month: '2-digit', year: 'numeric',
+                                    hour: 'numeric', minute: '2-digit', hour12: true 
+                                });
+                            } catch(e) { return fechaHora; }
+                        };
                         historialDiv.innerHTML = data.map(h => `
                             <div class="history-item">
                                 <div class="history-item-header">
                                     <span class="history-item-number">${h.numero}</span>
                                     <span class="history-item-status status-${h.estado}">${h.autorizado_salida ? '✓ SALIDA AUTORIZADA' : h.estado}</span>
+                                    ${h.fecha_cita ? '<span class="history-item-badge">CITADO</span>' : ''}
                                 </div>
                                 <div class="history-item-info">
                                     <div class="history-item-company">${h.nombre_empresa}</div>
                                     <div class="history-item-details">
                                         <span><strong>Placa:</strong> ${h.nit || 'N/A'}</span>
-                                        <span><strong>Destino:</strong> ${h.destino || 'N/A'}</span>
-                                        ${h.num_factura ? `<span><strong>Fact:</strong> ${h.num_factura}</span>` : ''}
-                                        ${h.bultos ? `<span><strong>Bultos:</strong> ${h.bultos}</span>` : ''}
-                                        ${h.peso ? `<span><strong>Peso:</strong> ${h.peso} kg</span>` : ''}
-                                        ${h.responsable ? `<span><strong>Responsable:</strong> ${h.responsable}</span>` : ''}
-                                        ${h.contacto ? `<span><strong>Contacto:</strong> ${h.contacto}</span>` : ''}
-                                        ${h.telefono ? `<span><strong>Teléfono:</strong> ${h.telefono}</span>` : ''}
+                                        <span><strong>Destino:</strong> ${h.destino ? destinoLabel[h.destino] || h.destino : 'N/A'}</span>
+                                        <span><strong>Servicio:</strong> ${h.servicio || 'N/A'}</span>
+                                    </div>
+                                    <div class="history-item-details">
+                                        <span><strong>Contacto:</strong> ${h.contacto || 'N/A'}</span>
+                                        <span><strong>Teléfono:</strong> ${h.telefono || 'N/A'}</span>
+                                    </div>
+                                    <div class="history-item-details" style="background: #f0fdf4; padding: 8px; border-radius: 4px; margin-top: 4px;">
+                                        <span><strong>N° Factura:</strong> ${h.num_factura || 'N/A'}</span>
+                                        <span><strong>Tipo Vehículo:</strong> ${h.tipo_vehiculo || 'N/A'}</span>
+                                        <span><strong>Bultos:</strong> ${h.bultos || 'N/A'}</span>
+                                        <span><strong>Peso:</strong> ${h.peso || 'N/A'} kg</span>
+                                        <span><strong>Responsable:</strong> ${h.responsable || 'N/A'}</span>
+                                    </div>
+                                    ${h.fecha_cita ? `<div class="history-item-details"><span><strong>Cita:</strong> ${formatearFechaHora(h.fecha_cita)}</span></div>` : ''}
+                                    <div class="history-item-time">
+                                        <span><strong>Solicitud:</strong> ${h.hora_solicitud || 'N/A'}</span>
+                                        <span><strong>Llamada:</strong> ${h.hora_llamada || 'N/A'}</span>
+                                        <span><strong>Finalización:</strong> ${h.hora_finalizacion || 'N/A'}</span>
+                                    </div>
+                                    <div class="history-item-date">
+                                        <strong>Fecha:</strong> ${h.fecha ? new Date(h.fecha).toLocaleDateString('es-CO') : 'N/A'}
                                     </div>
                                 </div>
                             </div>
