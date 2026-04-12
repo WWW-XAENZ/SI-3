@@ -10,10 +10,11 @@ const CONFIG = {
     LOGO_CLICK_TIMEOUT: 2000,
     TURN_TIME_ESTIMATE: 5,
     SYNC_INTERVAL: 10000,
-    MAX_RETRY_ATTEMPTS: 3,
-    RETRY_DELAY: 2000,
+    MAX_RETRY_ATTEMPTS: 5,
+    RETRY_DELAY: 3000,
     MAX_HISTORIAL: 200,
-    MAX_PROVEEDORES: 500
+    MAX_PROVEEDORES: 500,
+    OFFLINE_CHECK_INTERVAL: 15000
 };
 
 const AppState = {
@@ -25,7 +26,12 @@ const AppState = {
     lastSync: null,
     syncInProgress: false,
     proveedores: [],
-    historial: []
+    historial: [],
+    isOffline: false,
+    conexionPerdida: false,
+    lastConnectionCheck: null,
+    recoveryMode: false,
+    pendingOperations: []
 };
 
 let logoClickCount = 0;
@@ -175,6 +181,50 @@ const Utils = {
 
     formatearHora(hora) {
         return hora || 'N/A';
+    },
+
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
+
+    throttle(func, limit) {
+        let inThrottle;
+        return function executedFunction(...args) {
+            if (!inThrottle) {
+                func(...args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
+    },
+
+    isValidEmail(email) {
+        if (!email) return true;
+        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return re.test(email);
+    },
+
+    isValidPhone(phone) {
+        if (!phone) return true;
+        const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+        return /^\d{7,15}$/.test(cleaned);
+    },
+
+    sanitizeInput(input) {
+        if (typeof input !== 'string') return '';
+        return input.replace(/[<>'"]/g, '').trim();
+    },
+
+    getNetStatus() {
+        return navigator.onLine;
     }
 };
 
@@ -244,6 +294,12 @@ const LocalStorage = {
 
 const SupabaseDB = {
     async verificarConexion() {
+        if (!Utils.getNetStatus()) {
+            console.warn('Sin conexión a internet');
+            this.setOfflineMode(true);
+            return false;
+        }
+
         if (!window.supabaseClient) {
             console.warn('Supabase no está inicializado');
             return false;
@@ -257,15 +313,71 @@ const SupabaseDB = {
             
             if (error) {
                 console.warn('Error al conectar con Supabase:', error.message);
+                this.setOfflineMode(true);
                 return false;
             }
             
             console.log('✅ Conexión con Supabase exitosa');
+            this.setOfflineMode(false);
             return true;
         } catch (error) {
             console.warn('Error de conexión:', error.message);
+            this.setOfflineMode(true);
             return false;
         }
+    },
+
+    setOfflineMode(offline) {
+        const cambio = AppState.isOffline !== offline;
+        AppState.isOffline = offline;
+        
+        if (offline && cambio) {
+            Utils.mostrarNotificacion('⚠️ Sin conexión. Usando modo offline. Los cambios se sincronizarán cuando se restablezca la conexión.', 'error');
+            console.log('🔴 Modo offline activado');
+        } else if (!offline && cambio && AppState.conexionPerdida) {
+            AppState.conexionPerdida = false;
+            Utils.mostrarNotificacion('✅ Conexión restablecida', 'success');
+            console.log('🟢 Conexión恢复ada');
+            this.procesarOperacionesPendientes();
+        }
+    },
+
+    async procesarOperacionesPendientes() {
+        if (AppState.isOffline || AppState.pendingOperations.length === 0) return;
+        
+        const operaciones = [...AppState.pendingOperations];
+        console.log(`Procesando ${operaciones.length} operaciones pendientes...`);
+        
+        for (const op of operaciones) {
+            try {
+                await op();
+                console.log('✅ Operación pendiente procesada');
+            } catch (e) {
+                console.error('Error en operación pendiente:', e);
+            }
+        }
+        
+        AppState.pendingOperations = [];
+    },
+
+    agregarOperacionPendiente(operacion) {
+        AppState.pendingOperations.push(operacion);
+        console.log('📝 Operación agregada a cola离线');
+    },
+
+    async verificarConexionRobusta() {
+        for (let intento = 1; intento <= CONFIG.MAX_RETRY_ATTEMPTS; intento++) {
+            const conexionOk = await this.verificarConexion();
+            if (conexionOk) return true;
+            
+            console.log(`Intento de conexión ${intento}/${CONFIG.MAX_RETRY_ATTEMPTS} falló`);
+            if (intento < CONFIG.MAX_RETRY_ATTEMPTS) {
+                await new Promise(r => setTimeout(r, CONFIG.RETRY_DELAY));
+            }
+        }
+        
+        this.setOfflineMode(true);
+        return false;
     },
 
     async obtenerContadorTurnos() {
@@ -461,10 +573,19 @@ const SupabaseDB = {
         };
     },
 
-    async guardarTurno(turno) {
+    async guardarTurno(turno, reintento = true) {
         console.log('=== SupabaseDB.guardarTurno ===');
         console.log('turno:', JSON.stringify(turno, null, 2));
         
+        if (AppState.isOffline) {
+            console.warn('Modo offline - guardando localmente');
+            turno.id = Date.now();
+            turno._pendingSync = true;
+            AppState.turnos.push(turno);
+            LocalStorage.guardarTurnos(AppState.turnos);
+            return turno;
+        }
+
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible - guardando en localStorage');
             turno.id = Date.now();
@@ -514,8 +635,23 @@ const SupabaseDB = {
             return this._mapearTurno(data);
         } catch (error) {
             console.error('Error al guardar turno:', error);
+            
+            if (reintento && !AppState.isOffline) {
+                console.log('Reintentando en 3 segundos...');
+                await new Promise(r => setTimeout(r, 3000));
+                try {
+                    const conexionOk = await this.verificarConexion();
+                    if (conexionOk) {
+                        return await this.guardarTurno(turno, false);
+                    }
+                } catch (e) {
+                    console.error('Reintento fallido:', e);
+                }
+            }
+            
             console.log('Guardando turno en localStorage como fallback...');
             turno.id = Date.now();
+            turno._pendingSync = true;
             AppState.turnos.push(turno);
             LocalStorage.guardarTurnos(AppState.turnos);
             return turno;
@@ -1103,7 +1239,7 @@ const Turnos = {
         }
         
         const todosLosTurnos = await SupabaseDB.cargarTurnos();
-        const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado');
+        const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado' || t.estado === 'llegado');
         
         console.log('Turnos en espera/citados cargados:', turnosEnEspera.length);
         
@@ -1215,7 +1351,8 @@ const Turnos = {
                 console.log('Turnos cargados de Supabase:', todosLosTurnos);
                 
                 if (todosLosTurnos && Array.isArray(todosLosTurnos)) {
-                    const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado');
+const todosEnCola = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado' || t.estado === 'llegado');
+        const turnosEnEspera = todosEnCola;
                     const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
                     
                     console.log('Turnos en espera:', turnosEnEspera.length);
@@ -1308,7 +1445,7 @@ const RenderUsuario = {
                             <div class="my-turn-status">${miTurno.nombreEmpresa}</div>
                             <div class="my-turn-position">
                                 <strong>Cita Reservada</strong><br>
-                                📅 ${fechaHoraMostrar}
+                                ${fechaHoraMostrar}
                             </div>
                             <div class="my-turn-position">
                                 Destino: ${miTurno.destino ? destinoLabel[miTurno.destino] || miTurno.destino : 'N/A'}
@@ -1382,7 +1519,7 @@ const RenderUsuario = {
                 const fechaCitaDia = t.fechaCita.split('T')[0];
                 return fechaCitaDia === hoy;
             }
-            return t.estado === 'espera';
+            return t.estado === 'espera' || t.estado === 'llegado';
         });
 
         if (turnosHoy.length === 0) {
@@ -1407,15 +1544,28 @@ const RenderUsuario = {
                 } catch(e) { return hora; }
             };
             
-            listaDiv.innerHTML = turnosHoy.map(turno => `
+            const getStateBadge = (estado) => {
+                const badges = {
+                    'espera': { label: '⏳ Esperando', class: 'turn-state-espera' },
+                    'citado': { label: '📅 Citado', class: 'turn-state-citado' },
+                    'llegado': { label: '✓ LLEGADO', class: 'turn-state-llegado', bg: '#10b981' },
+                    'atendiendo': { label: '🔔 En Atención', class: 'turn-state-atendiendo' }
+                };
+                return badges[estado] || badges['espera'];
+            };
+            
+            listaDiv.innerHTML = turnosHoy.map(turno => {
+                const badge = getStateBadge(turno.estado || 'espera');
+                return `
                 <div class="turn-item-user ${turno.numero === miNumero ? 'current' : ''}">
+                    <span class="turn-state-badge ${badge.class}">${badge.label}</span>
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
                         <div class="turn-item-company">${turno.nombreEmpresa}</div>
                         <div class="turn-item-time">${formatearHora(turno.horaSolicitud)}</div>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
     },
 
@@ -1572,6 +1722,38 @@ const RenderAdmin = {
         }
     },
 
+    listaTurnosLlegados() {
+        const listaDiv = document.getElementById('listaTurnosLlegados');
+        const contadorDiv = document.getElementById('contadorTurnosLlegados');
+        
+        const turnosLlegados = AppState.turnos.filter(t => t.estado === 'llegado');
+        
+        if (contadorDiv) contadorDiv.textContent = turnosLlegados.length;
+        
+        if (!listaDiv) return;
+
+        if (turnosLlegados.length === 0) {
+            listaDiv.innerHTML = '<p class="empty-message">No hay proveedores llegados</p>';
+        } else {
+            listaDiv.innerHTML = turnosLlegados.map(turno => `
+                <div class="turn-item" style="background: #dcfce7; border-left: 4px solid #10b981;">
+                    <span class="turn-item-number" style="color: #10b981;">${turno.numero}</span>
+                    <div class="turn-item-info">
+                        <div class="turn-item-company">${turno.nombreEmpresa}</div>
+                        <div class="turn-item-time">
+                            Llegó: ${turno.horaLlegada || turno.horaSolicitud}
+                        </div>
+                    </div>
+                    <div class="turn-item-actions">
+                        <button class="btn btn-success btn-small" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})">
+                            📞 Llamar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    },
+
     listaTurnosCitados() {
         const listaDiv = document.getElementById('listaTurnosCitados');
         const contadorDiv = document.getElementById('contadorTurnosCitados');
@@ -1612,7 +1794,7 @@ const RenderAdmin = {
                     <div class="turn-item-info">
                         <div class="turn-item-company">${turno.nombreEmpresa}</div>
                         <div class="turn-item-time">
-                            📅 ${horaCita}
+                            ${horaCita}
                         </div>
                         ${fechaCompleta ? `<div class="turn-item-time">${fechaCompleta}</div>` : ''}
                         <div class="turn-item-details">
@@ -1644,7 +1826,7 @@ const RenderAdmin = {
             if (contadorDiv) contadorDiv.textContent = proveedores.length;
             
             if (proveedores.length === 0) {
-                proveedoresBody.innerHTML = '<tr><td colspan="6" class="empty-message">No hay proveedores registrados</td></tr>';
+                proveedoresBody.innerHTML = '<tr><td colspan="5" class="empty-message">No hay proveedores registrados</td></tr>';
             } else {
                 proveedoresBody.innerHTML = proveedores.map(p => `
                     <tr>
@@ -1652,7 +1834,6 @@ const RenderAdmin = {
                         <td>${p.nit || '-'}</td>
                         <td>${p.contacto || '-'}</td>
                         <td>${p.telefono || '-'}</td>
-                        <td>${p.servicio || '-'}</td>
                         <td>
                             <button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarProveedor(${p.id})">
                                 Eliminar
@@ -1663,7 +1844,7 @@ const RenderAdmin = {
             }
         } catch (error) {
             console.error('Error al cargar proveedores:', error);
-            proveedoresBody.innerHTML = '<tr><td colspan="6" class="empty-message">Error al cargar proveedores</td></tr>';
+            proveedoresBody.innerHTML = '<tr><td colspan="5" class="empty-message">Error al cargar proveedores</td></tr>';
         }
     },
 
@@ -1805,7 +1986,10 @@ const RenderAdmin = {
         console.log('=== ACTUALIZANDO VISTA ADMIN ===');
         
         try { this.turnoActual(); } catch (e) { console.error('Error turnoActual:', e); }
-        try { this.listaTurnosEspera(); } catch (e) { console.error('Error listaTurnosEspera:', e); }
+        try { 
+                this.listaTurnosEspera(); 
+                this.listaTurnosLlegados();
+            } catch (e) { console.error('Error listas:', e); }
         try { this.listaTurnosCitados(); } catch (e) { console.error('Error listaTurnosCitados:', e); }
         try { await this.proveedores(); } catch (e) { console.error('Error proveedores:', e); }
         try { await this.historial(); } catch (e) { console.error('Error historial:', e); }
@@ -1824,7 +2008,7 @@ const UsuarioHandlers = {
         Utils.setLoading(true);
         
         try {
-            const placaInput = document.getElementById('nit')?.value?.trim().toUpperCase();
+            const placaInput = Utils.sanitizeInput(document.getElementById('nit')?.value?.trim().toUpperCase());
             
             if (!placaInput) {
                 throw new Error('La placa es requerida');
@@ -1832,6 +2016,15 @@ const UsuarioHandlers = {
             
             if (placaInput.length !== 6) {
                 throw new Error('La placa debe tener exactamente 6 caracteres');
+            }
+            
+            if (!/^[A-Z0-9]+$/.test(placaInput)) {
+                throw new Error('La placa solo debe contener letras y números');
+            }
+
+            const telefonoInput = document.getElementById('telefono')?.value?.trim();
+            if (telefonoInput && !Utils.isValidPhone(telefonoInput)) {
+                throw new Error('Número de teléfono inválido');
             }
             
             const destino = document.getElementById('destino')?.value;
@@ -1842,14 +2035,26 @@ const UsuarioHandlers = {
             let fechaCitaISO = null;
             if (esCita && fechaCitaInput) {
                 const fechaLocal = new Date(fechaCitaInput);
+                const ahora = new Date();
+                if (fechaLocal < ahora) {
+                    throw new Error('La fecha de cita no puede ser anterior a ahora');
+                }
                 fechaCitaISO = fechaLocal.toISOString();
             }
             
+            const nombreEmpresa = Utils.sanitizeInput(document.getElementById('nombreEmpresa')?.value?.trim());
+            if (!nombreEmpresa) {
+                throw new Error('El nombre de la empresa es requerido');
+            }
+            if (nombreEmpresa.length < 2) {
+                throw new Error('El nombre de la empresa debe tener al menos 2 caracteres');
+            }
+            
             const datosProveedor = {
-                nombreEmpresa: document.getElementById('nombreEmpresa')?.value?.trim(),
+                nombreEmpresa: nombreEmpresa,
                 nit: placaInput,
-                contacto: document.getElementById('contacto')?.value?.trim(),
-                telefono: document.getElementById('telefono')?.value?.trim(),
+                contacto: Utils.sanitizeInput(document.getElementById('contacto')?.value?.trim()),
+                telefono: telefonoInput,
                 servicio: document.getElementById('servicio')?.value,
                 destino: destino,
                 fechaCita: fechaCitaISO
@@ -1857,10 +2062,8 @@ const UsuarioHandlers = {
 
             if (!destino) throw new Error('El destino es requerido');
 
-            if (!datosProveedor.nombreEmpresa) throw new Error('El nombre de la empresa es requerido');
-
             const motivoInput = document.getElementById('motivoVisita');
-            const motivoPersonalizado = motivoInput ? motivoInput.value?.trim() : '';
+            const motivoPersonalizado = motivoInput ? Utils.sanitizeInput(motivoInput.value?.trim()) : '';
             
             const motivo = motivoPersonalizado || datosProveedor.servicio;
 
@@ -1875,6 +2078,17 @@ const UsuarioHandlers = {
             if (modal && modalMiTurno) {
                 modalMiTurno.textContent = turno.numero;
                 if (modalTurnoInfo) modalTurnoInfo.textContent = `${turno.nombreEmpresa}\n${turno.motivo || ''}`;
+                
+                const qrContainer = document.getElementById('modalQRContainer');
+                const qrCanvas = document.getElementById('modalQRCanvas');
+                if (qrContainer && qrCanvas && typeof QRCode !== 'undefined') {
+                    qrContainer.style.display = 'block';
+                    const qrData = JSON.stringify({ turno: turno.numero, nit: turno.nit });
+                    QRCode.toCanvas(qrCanvas, qrData, { width: 150, margin: 1 }, (error) => {
+                        if (error) console.error('Error generando QR:', error);
+                    });
+                }
+                
                 modal.style.display = 'flex';
             }
 
@@ -2108,73 +2322,60 @@ const AdminHandlers = {
         const turnoNombre = AppState.turnoActual.nombreEmpresa;
         const despachoInfo = AppState.turnoActual.numFactura || AppState.turnoActual.tipoVehiculo || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable;
         
-        console.log('=== completesTurno ===');
+        console.log('=== completarTurno ===');
         console.log('AppState.turnoActual:', AppState.turnoActual);
         console.log('despachoInfo:', despachoInfo);
         
+        if (!confirm(`¿Completar turno ${turnoNumero}?`)) {
+            return;
+        }
+        
         const turnoParaDespacho = { ...AppState.turnoActual };
         
-        if (confirm(`¿Completar turno ${turnoNumero}?`)) {
-            const resultado = await Turnos.completarTurnoActual();
-                if (resultado) {
-                Utils.mostrarNotificacion(`Turno ${turnoNumero} completado`, 'success');
-                
-                console.log('despachoInfo value:', despachoInfo, 'type:', typeof despachoInfo);
-                
-                if (despachoInfo) {
-                    setTimeout(() => {
-                        Utils.mostrarNotificacion(`📦 ¡Proveedor ${turnoNombre} completado! Esperando autorización de salida.`, 'info');
-                    }, 1000);
-                    
-                    console.log('Guardando turno completado:', turnoParaDespacho);
-                    
-                    localStorage.setItem('proveedorListoSalir', JSON.stringify({
-                        numero: turnoParaDespacho.numero,
-                        nombre: turnoParaDespacho.nombreEmpresa,
-                        nit: turnoParaDespacho.nit || '',
-                        motivo: turnoParaDespacho.motivo || '',
-                        horaSolicitud: turnoParaDespacho.horaSolicitud || '',
-                        horaLlamada: turnoParaDespacho.horaLlamada || '',
-                        destino: turnoParaDespacho.destino || '',
-                        contacto: turnoParaDespacho.contacto || '',
-                        telefono: turnoParaDespacho.telefono || '',
-                        servicio: turnoParaDespacho.servicio || '',
-                        numFactura: turnoParaDespacho.numFactura || '',
-                        tipoVehiculo: turnoParaDespacho.tipoVehiculo || '',
-                        bultos: turnoParaDespacho.bultos || '',
-                        peso: turnoParaDespacho.peso || '',
-                        responsable: turnoParaDespacho.responsable || '',
-                        timestamp: Date.now()
-                    }));
-                } else {
-                    Utils.mostrarNotificacion(`Turno ${turnoNumero} completado sin información de despacho`, 'info');
-                    
-                    console.log('Guardando turno sin despacho:', turnoParaDespacho);
-                    
-                    localStorage.setItem('proveedorListoSalir', JSON.stringify({
-                        numero: turnoParaDespacho.numero,
-                        nombre: turnoParaDespacho.nombreEmpresa,
-                        nit: turnoParaDespacho.nit || '',
-                        motivo: turnoParaDespacho.motivo || '',
-                        horaSolicitud: turnoParaDespacho.horaSolicitud || '',
-                        horaLlamada: turnoParaDespacho.horaLlamada || '',
-                        destino: turnoParaDespacho.destino || '',
-                        contacto: turnoParaDespacho.contacto || '',
-                        telefono: turnoParaDespacho.telefono || '',
-                        servicio: turnoParaDespacho.servicio || '',
-                        numFactura: '',
-                        tipoVehiculo: '',
-                        bultos: '',
-                        peso: '',
-                        responsable: '',
-                        timestamp: Date.now()
-                    }));
-                }
-                
-                await RenderAdmin.todo();
+        const proveedorData = {
+            numero: turnoParaDespacho.numero,
+            nombre: turnoParaDespacho.nombreEmpresa,
+            nit: turnoParaDespacho.nit || '',
+            motivo: turnoParaDespacho.motivo || '',
+            horaSolicitud: turnoParaDespacho.horaSolicitud || '',
+            horaLlamada: turnoParaDespacho.horaLlamada || '',
+            destino: turnoParaDespacho.destino || '',
+            contacto: turnoParaDespacho.contacto || '',
+            telefono: turnoParaDespacho.telefono || '',
+            servicio: turnoParaDespacho.servicio || '',
+            numFactura: turnoParaDespacho.numFactura || '',
+            tipoVehiculo: turnoParaDespacho.tipoVehiculo || '',
+            bultos: turnoParaDespacho.bultos || '',
+            peso: turnoParaDespacho.peso || '',
+            responsable: turnoParaDespacho.responsable || '',
+            timestamp: Date.now()
+        };
+        
+        console.log('Guardando proveedorListoSalir ANTES de completar:', proveedorData);
+        
+        try {
+            localStorage.setItem('proveedorListoSalir', JSON.stringify(proveedorData));
+            console.log('✅ Guardado en localStorage exitosamente');
+        } catch (e) {
+            console.error('❌ Error al guardar en localStorage:', e);
+        }
+        
+        const resultado = await Turnos.completarTurnoActual();
+        
+        if (resultado) {
+            Utils.mostrarNotificacion(`Turno ${turnoNumero} completado`, 'success');
+            
+            if (despachoInfo) {
+                setTimeout(() => {
+                    Utils.mostrarNotificacion(`Proveedor ${turnoNombre} completado! Esperando autorización de salida.`, 'info');
+                }, 1000);
             } else {
-                Utils.mostrarNotificacion('Error al completar turno', 'error');
+                Utils.mostrarNotificacion(`Turno ${turnoNumero} completado sin información de despacho`, 'info');
             }
+            
+            await RenderAdmin.todo();
+        } else {
+            Utils.mostrarNotificacion('Error al completar turno', 'error');
         }
     },
 
@@ -2343,8 +2544,95 @@ const InputConfig = {
             now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
             fechaInput.min = now.toISOString().slice(0, 16);
         }
+    },
+
+    configurarMayusculas() {
+        document.querySelectorAll('input[type="text"], textarea').forEach(input => {
+            input.addEventListener('input', function() {
+                this.value = this.value.toUpperCase();
+            });
+            if (input.value) {
+                input.value = input.value.toUpperCase();
+            }
+        });
+    },
+
+    configurarTelefono() {
+        const telefonoInput = document.getElementById('telefono');
+        if (telefonoInput) {
+            telefonoInput.addEventListener('input', function(e) {
+                let value = this.value.replace(/\D/g, '');
+                if (value.length > 10) value = value.slice(0, 10);
+                
+                if (value.length >= 4) {
+                    value = value.slice(0, 3) + ' ' + value.slice(3);
+                }
+                if (value.length >= 7) {
+                    value = value.slice(0, 7) + ' ' + value.slice(7);
+                }
+                
+                this.value = value;
+            });
+        }
+    },
+
+    configurarPasswordToggle() {
+        console.log('🔐 configurando password toggle...');
+        const agregarToggle = () => {
+            const inputs = document.querySelectorAll('input[type="password"]');
+            console.log('🔍 Encontrados inputs de password:', inputs.length);
+            
+            inputs.forEach(input => {
+                if (input.parentNode.classList.contains('password-wrapper')) return;
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = 'password-wrapper';
+                
+                input.parentNode.insertBefore(wrapper, input);
+                wrapper.appendChild(input);
+                
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'password-toggle-btn';
+                btn.innerHTML = `
+                    <svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <svg class="eye-off-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                `;
+                btn.style.cssText = 'background:none;border:none;cursor:pointer;padding:4px 8px;display:flex;align-items:center;justify-content:center;';
+                
+                btn.addEventListener('click', function() {
+                    if (input.type === 'password') {
+                        input.type = 'text';
+                        btn.querySelector('.eye-icon').style.display = 'none';
+                        btn.querySelector('.eye-off-icon').style.display = 'block';
+                    } else {
+                        input.type = 'password';
+                        btn.querySelector('.eye-icon').style.display = 'block';
+                        btn.querySelector('.eye-off-icon').style.display = 'none';
+                    }
+                });
+                
+                wrapper.appendChild(btn);
+                console.log('✅ Toggle agregado');
+            });
+        };
+        
+        agregarToggle();
+        
+        const observer = new MutationObserver(() => {
+            agregarToggle();
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
     }
 };
+
+window.InputConfig = InputConfig;
 
 // ============================================
 // CONFIGURACIÓN DE MODALES
@@ -2368,6 +2656,27 @@ const ModalConfig = {
         if (loginForm) {
             loginForm.addEventListener('submit', AdminAccess.handleLogin);
         }
+        
+        if (window.InputConfig) {
+            setTimeout(() => {
+                InputConfig.configurarPasswordToggle();
+            }, 500);
+        }
+        
+        document.querySelectorAll('.modal').forEach(modal => {
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                        if (modal.style.display !== 'none' && window.InputConfig) {
+                            setTimeout(() => {
+                                InputConfig.configurarPasswordToggle();
+                            }, 100);
+                        }
+                    }
+                });
+            });
+            observer.observe(modal, { attributes: true });
+        });
     }
 };
 
@@ -2380,8 +2689,24 @@ const ConnectionStatus = {
         const statusEl = document.getElementById('connectionStatus');
         if (!statusEl) return;
         
-        statusEl.textContent = mensaje;
-        statusEl.className = 'connection-status ' + estado;
+        const dot = statusEl.querySelector('.status-dot');
+        const text = statusEl.querySelector('.status-text');
+        
+        if (dot && text) {
+            if (estado === 'connected') {
+                dot.style.background = '#10b981';
+                text.textContent = mensaje || 'En línea';
+            } else if (estado === 'disconnected') {
+                dot.style.background = '#ef4444';
+                text.textContent = mensaje || 'Sin conexión';
+            } else {
+                dot.style.background = '#f59e0b';
+                text.textContent = mensaje || 'Reconectando...';
+            }
+        } else {
+            statusEl.textContent = mensaje;
+            statusEl.className = 'connection-status ' + estado;
+        }
     }
 };
 
@@ -2538,22 +2863,33 @@ const ModoEspera = {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Sistema de Turnos cargado - Versión con Recarga Auto');
+    console.log('Sistema de Turnos cargado - Versión con Recuperación Robusta');
     
+    window.addEventListener('online', () => {
+        console.log('🟢 Conexión a internet恢复');
+        AppState.conexionPerdida = true;
+        SupabaseDB.verificarConexionRobusta();
+    });
+
+    window.addEventListener('offline', () => {
+        console.log('🔴 Conexión a internet perdida');
+        SupabaseDB.setOfflineMode(true);
+    });
+
     try {
         let conexionOk = false;
         try {
-            conexionOk = await SupabaseDB.verificarConexion();
+            conexionOk = await SupabaseDB.verificarConexionRobusta();
             console.log(conexionOk ? 'Supabase conectado' : 'Modo local');
             
             if (conexionOk) {
                 ConnectionStatus.actualizar('connected', '✓ Conectado a Supabase');
             } else {
-                ConnectionStatus.actualizar('disconnected', '✗ Sin conexión a Supabase');
+                ConnectionStatus.actualizar('disconnected', '⚠ Modo offline');
             }
         } catch (error) {
             console.log('Error al verificar Supabase:', error.message);
-            ConnectionStatus.actualizar('disconnected', '✗ Sin conexión');
+            ConnectionStatus.actualizar('disconnected', '⚠ Modo offline');
         }
         
         await Turnos.cargarTurnos();
@@ -2574,7 +2910,211 @@ document.addEventListener('DOMContentLoaded', async () => {
             InputConfig.configurarPlacaInput();
             InputConfig.configurarServicioSelect();
             InputConfig.configurarFechaCita();
+            InputConfig.configurarMayusculas();
+            InputConfig.configurarPasswordToggle();
+            InputConfig.configurarTelefono();
             document.getElementById('formSolicitarTurno').addEventListener('submit', UsuarioHandlers.solicitarTurno);
+            
+            const arrivalForm = document.getElementById('arrivalForm');
+            
+            const navLlegada = document.getElementById('navLlegada');
+            if (navLlegada) {
+                navLlegada.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const qrSection = document.getElementById('qr-scan-section');
+                    if (qrSection) {
+                        qrSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                });
+            }
+            
+            const btnScanQR = document.getElementById('btnScanQR');
+            const qrScanner = document.getElementById('qrScanner');
+            let html5QrCode = null;
+            
+            const btnConfirmarManual = document.getElementById('btnConfirmarManual');
+            
+            if (btnConfirmarManual) {
+                btnConfirmarManual.addEventListener('click', async () => {
+                    const turnoNum = document.getElementById('arrivalTurnoManual')?.value?.trim().toUpperCase();
+                    const placa = document.getElementById('arrivalPlacaManual')?.value?.trim().toUpperCase();
+                    
+                    if (!turnoNum || !placa) {
+                        Utils.mostrarNotificacion('Ingrese turno y placa', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        let turno = AppState.turnos.find(t => t.numero === turnoNum);
+                        
+                        if (!turno && window.supabaseClient) {
+                            const { data: turnoData } = await window.supabaseClient
+                                .from('turnos')
+                                .select('*')
+                                .eq('numero', turnoNum)
+                                .single();
+                            
+                            if (turnoData) {
+                                turno = {
+                                    id: turnoData.id,
+                                    numero: turnoData.numero,
+                                    nombreEmpresa: turnoData.nombre_empresa,
+                                    nit: turnoData.nit
+                                };
+                            }
+                        }
+                        
+                        if (turno && window.supabaseClient) {
+                            await window.supabaseClient
+                                .from('turnos')
+                                .update({ 
+                                    hora_llegada: Utils.obtenerHoraActual(),
+                                    estado: 'llegado',
+                                    updated_at: new Date().toISOString()
+                                })
+                                .eq('id', turno.id);
+                            
+                            if (AppState.turnos.find(t => t.id === turno.id)) {
+                                AppState.turnos.find(t => t.id === turno.id).estado = 'llegado';
+                            }
+                        }
+                        
+                        const qrSection = document.getElementById('qr-scan-section');
+                        const arrivalSection = document.getElementById('arrival-section');
+                        const arrivalTurnoDisplay = document.getElementById('arrivalTurnoDisplay');
+                        const arrivalCompanyDisplay = document.getElementById('arrivalCompanyDisplay');
+                        
+                        if (qrSection) qrSection.style.display = 'none';
+                        if (arrivalSection) {
+                            arrivalSection.style.display = 'block';
+                            if (arrivalTurnoDisplay) arrivalTurnoDisplay.textContent = turno?.numero || turnoNum;
+                            if (arrivalCompanyDisplay) arrivalCompanyDisplay.textContent = turno?.nombreEmpresa || '';
+                        }
+                        
+                        Utils.mostrarNotificacion('✓ Llegada confirmada', 'success');
+                        
+                    } catch (err) {
+                        console.error('Error:', err);
+                        Utils.mostrarNotificacion('Error al confirmar llegada', 'error');
+                    }
+                });
+            }
+            
+            if (btnScanQR && qrScanner) {
+                btnScanQR.addEventListener('click', async () => {
+                    if (qrScanner.style.display === 'none') {
+                        qrScanner.style.display = 'block';
+                        btnScanQR.textContent = '📷 Cerrar Cámara';
+                        
+                        try {
+                            html5QrCode = new Html5Qrcode('reader');
+                            await html5QrCode.start(
+                                { facingMode: 'environment' },
+                                { fps: 10, qrbox: { width: 250, height: 250 } },
+                                async (decodedText) => {
+                                    console.log('QR escaneado:', decodedText);
+                                    
+                                    let turnoNum = '';
+                                    let placa = '';
+                                    
+                                    try {
+                                        const data = JSON.parse(decodedText);
+                                        turnoNum = data.turno || '';
+                                        placa = data.nit || data.placa || '';
+                                    } catch (e) {
+                                        const match = decodedText.match(/T\d+/i);
+                                        if (match) turnoNum = match[0].toUpperCase();
+                                    }
+                                    
+                                    if (!turnoNum) {
+                                        Utils.mostrarNotificacion('QR inválido', 'error');
+                                        return;
+                                    }
+                                    
+                                    try {
+                                        const turno = AppState.turnos.find(t => t.numero === turnoNum);
+                                        
+                                        if (!turno && window.supabaseClient) {
+                                            const { data: turnoData } = await window.supabaseClient
+                                                .from('turnos')
+                                                .select('*')
+                                                .eq('numero', turnoNum)
+                                                .single();
+                                            
+                                            if (turnoData) {
+                                                turno = {
+                                                    id: turnoData.id,
+                                                    numero: turnoData.numero,
+                                                    nombreEmpresa: turnoData.nombre_empresa,
+                                                    nit: turnoData.nit
+                                                };
+                                            }
+                                        }
+                                        
+                                        if (turno && window.supabaseClient) {
+                                            await window.supabaseClient
+                                                .from('turnos')
+                                                .update({ 
+                                                    hora_llegada: Utils.obtenerHoraActual(),
+                                                    estado: 'llegado',
+                                                    updated_at: new Date().toISOString()
+                                                })
+                                                .eq('id', turno.id);
+                                            
+                                            turno.estado = 'llegado';
+                                            turno.horaLlegada = Utils.obtenerHoraActual();
+                                            
+                                            if (AppState.turnos.find(t => t.id === turno.id)) {
+                                                AppState.turnos.find(t => t.id === turno.id).estado = 'llegado';
+                                            }
+                                        }
+                                        
+                                        const qrSection = document.getElementById('qr-scan-section');
+                                        const arrivalSection = document.getElementById('arrival-section');
+                                        const arrivalTurnoDisplay = document.getElementById('arrivalTurnoDisplay');
+                                        const arrivalCompanyDisplay = document.getElementById('arrivalCompanyDisplay');
+                                        
+                                        if (qrSection) qrSection.style.display = 'none';
+                                        if (arrivalSection) {
+                                            arrivalSection.style.display = 'block';
+                                            if (arrivalTurnoDisplay) arrivalTurnoDisplay.textContent = turno?.numero || turnoNum;
+                                            if (arrivalCompanyDisplay) arrivalCompanyDisplay.textContent = turno?.nombreEmpresa || '';
+                                            arrivalSection.scrollIntoView({ behavior: 'smooth' });
+                                        }
+                                        
+                                        Utils.mostrarNotificacion('✓ Llegada confirmada', 'success');
+                                        
+                                    } catch (err) {
+                                        console.error('Error:', err);
+                                        Utils.mostrarNotificacion('Error al confirmar llegada', 'error');
+                                    }
+                                    
+                                    if (html5QrCode) {
+                                        html5QrCode.stop();
+                                        html5QrCode = null;
+                                    }
+                                    qrScanner.style.display = 'none';
+                                    btnScanQR.textContent = '📷 Escanear QR para Confirmar Llegada';
+                                },
+                                (errorMessage) => {}
+                            );
+                        } catch (e) {
+                            console.error('Error al iniciar cámara:', e);
+                            Utils.mostrarNotificacion('Error al acceder a la cámara', 'error');
+                            qrScanner.style.display = 'none';
+                            btnScanQR.textContent = '📷 Escanear QR para Confirmar Llegada';
+                        }
+                    } else {
+                        if (html5QrCode) {
+                            await html5QrCode.stop();
+                            html5QrCode = null;
+                        }
+                        qrScanner.style.display = 'none';
+                        btnScanQR.textContent = '📷 Escanear QR para Confirmar Llegada';
+                    }
+                });
+            }
+            
             RenderUsuario.todo();
             
             const btnCancelarEspera = document.getElementById('btnCancelarEspera');
@@ -2636,8 +3176,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             const btnLimpiar = document.getElementById('btnLimpiarHistorial');
             if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
             
+            InputConfig.configurarMayusculas();
+            InputConfig.configurarPasswordToggle();
+            
             const btnVerMes = document.getElementById('btnVerMes');
             if (btnVerMes) btnVerMes.addEventListener('click', RenderAdmin.verEstadisticasMes);
+            
+            const btnGenerarCertificado = document.getElementById('btnGenerarCertificado');
+            if (btnGenerarCertificado) {
+                btnGenerarCertificado.addEventListener('click', async () => {
+                    const mesSelect = document.getElementById('mesSelect');
+                    if (mesSelect && mesSelect.value) {
+                        await GenerarCertificado.generar(mesSelect.value);
+                    } else {
+                        const mesActual = new Date();
+                        const mesString = mesActual.getFullYear() + '-' + (mesActual.getMonth() + 1);
+                        await GenerarCertificado.generar(mesString);
+                    }
+                });
+            }
             
             console.log('Renderizando admin...');
             await RenderAdmin.todo();
@@ -2664,7 +3221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.log('Salida autorizada:', payload);
                         const numero = payload.payload?.numero || '---';
                         const nombre = payload.payload?.nombre || payload.payload?.nombreEmpresa || 'Proveedor';
-                        Utils.mostrarNotificacion(`🚚 Salida autorizada para turno ${numero} - ${nombre}`, 'success');
+                        Utils.mostrarNotificacion(`Salida autorizada para turno ${numero} - ${nombre}`, 'success');
                     })
                     .subscribe();
             } else {
@@ -2686,7 +3243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (ahora - data.timestamp < hace10seg) {
                             const numeroMostrar = data.numero || '---';
                             const nombreMostrar = data.nombre || data.nombreEmpresa || 'Proveedor';
-                            Utils.mostrarNotificacion(`🚚 Salida autorizada para turno ${numeroMostrar} - ${nombreMostrar}`, 'success');
+                            Utils.mostrarNotificacion(`Salida autorizada para turno ${numeroMostrar} - ${nombreMostrar}`, 'success');
                             localStorage.removeItem('salidaAutorizada');
                         }
                     } catch (e) {
@@ -2751,28 +3308,50 @@ const DespachadorHandlers = {
         try {
             if (window.supabaseClient) {
                 try {
-                    const { error } = await window.supabaseClient
+                    const { data: historialActual, error: errorGet } = await window.supabaseClient
                         .from('historial_turnos')
-                        .insert([{
-                            numero: turno.numero,
-                            nombre_empresa: turno.nombre || turno.nombreEmpresa || turno.nombre,
-                            nit: turno.nit || '',
-                            motivo: turno.motivo || '',
-                            hora_solicitud: turno.horaSolicitud || '',
-                            hora_llamada: turno.horaLlamada || null,
-                            hora_finalizacion: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
-                            estado: 'completado',
-                            destino: turno.destino || null,
-                            num_factura: turno.numFactura || null,
-                            bultos: turno.bultos ? parseInt(turno.bultos) : null,
-                            peso: turno.peso || null,
-                            responsable: turno.responsable || null,
-                            autorizado_salida: true,
-                            fecha: new Date().toISOString()
-                        }]);
+                        .select('id')
+                        .eq('numero', turno.numero)
+                        .gte('fecha', new Date().toISOString().split('T')[0] + 'T00:00:00')
+                        .single();
                     
-                    if (error) {
-                        console.warn('No se pudo guardar en historial_turnos:', error.message);
+                    if (historialActual && !errorGet) {
+                        const { error: errorUpdate } = await window.supabaseClient
+                            .from('historial_turnos')
+                            .update({ autorizado_salida: true })
+                            .eq('id', historialActual.id);
+                        
+                        if (errorUpdate) {
+                            console.warn('No se pudo actualizar historial:', errorUpdate.message);
+                        }
+                    } else {
+                        const { error } = await window.supabaseClient
+                            .from('historial_turnos')
+                            .insert([{
+                                numero: turno.numero,
+                                nombre_empresa: turno.nombre || turno.nombreEmpresa || turno.nombre,
+                                nit: turno.nit || '',
+                                motivo: turno.motivo || '',
+                                hora_solicitud: turno.horaSolicitud || '',
+                                hora_llamada: turno.horaLlamada || null,
+                                hora_finalizacion: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                                estado: 'completado',
+                                destino: turno.destino || null,
+                                num_factura: turno.numFactura || null,
+                                tipo_vehiculo: turno.tipoVehiculo || null,
+                                bultos: turno.bultos ? parseInt(turno.bultos) : null,
+                                peso: turno.peso || null,
+                                responsable: turno.responsable || null,
+                                contacto: turno.contacto || null,
+                                telefono: turno.telefono || null,
+                                servicio: turno.servicio || null,
+                                autorizado_salida: true,
+                                fecha: new Date().toISOString()
+                            }]);
+                        
+                        if (error) {
+                            console.warn('No se pudo guardar en historial_turnos:', error.message);
+                        }
                     }
                 } catch (e) {
                     console.warn('Error al guardar en historial:', e.message);
@@ -2841,5 +3420,423 @@ function actualizarBotonAutorizar() {
 }
 
 window.actualizarBotonAutorizar = actualizarBotonAutorizar;
+
+// ============================================
+// GENERAR CERTIFICADO MENSUAL
+// ============================================
+
+const GenerarCertificado = {
+    async generar(mesString) {
+        console.log('=== Generando certificado para:', mesString);
+        
+        if (!window.supabaseClient) {
+            console.error('❌ No hay conexión a Supabase');
+            Utils.mostrarNotificacion('No hay conexión a la base de datos', 'error');
+            return;
+        }
+
+        if (!mesString || typeof mesString !== 'string') {
+            console.error('❌ Mes inválido:', mesString);
+            Utils.mostrarNotificacion('Seleccione un mes válido', 'error');
+            return;
+        }
+        
+        const partes = mesString.split('-');
+        if (partes.length !== 2) {
+            console.error('❌ Formato de mes inválido:', mesString);
+            Utils.mostrarNotificacion('Formato de mes inválido', 'error');
+            return;
+        }
+        
+        const [anio, mes] = partes.map(Number);
+        
+        if (isNaN(anio) || isNaN(mes) || mes < 1 || mes > 12) {
+            console.error('❌ Año o mes inválido:', anio, mes);
+            Utils.mostrarNotificacion('Año o mes inválido', 'error');
+            return;
+        }
+        
+        console.log('Consultando para:', anio, 'mes:', mes);
+        
+        const inicioMes = `${anio}-${mes.toString().padStart(2, '0')}-01`;
+        const finMes = mes === 12 
+            ? `${anio + 1}-01-01` 
+            : `${anio}-${(mes + 1).toString().padStart(2, '0')}-01`;
+
+        try {
+            const { data: historial, error } = await window.supabaseClient
+                .from('historial_turnos')
+                .select('*')
+                .gte('fecha', inicioMes)
+                .lt('fecha', finMes)
+                .order('fecha', { ascending: true });
+
+            if (error) throw error;
+
+            if (!historial || historial.length === 0) {
+                Utils.mostrarNotificacion('No hay datos para el mes seleccionado', 'error');
+                return;
+            }
+
+            const nombreMes = new Date(anio, mes - 1).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+            const nombreMesMayus = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
+
+            // Totales
+            const totalVehiculos = historial.length;
+            const totalPeso = historial.reduce((sum, h) => sum + (parseFloat(h.peso) || 0), 0);
+            const totalBultos = historial.reduce((sum, h) => sum + (parseInt(h.bultos) || 0), 0);
+            const vehiculosConFactura = historial.filter(h => h.num_factura).length;
+            const vehiculosConSalida = historial.filter(h => h.autorizado_salida).length;
+            
+            // Conteo por tipo de vehiculo
+            const tipoVehiculoCount = {};
+            // Conteo por destino
+            const destinoCount = {};
+            // Empresas unicas
+            const empresaSet = new Set();
+            // Servicios
+            const servicioCount = {};
+            // Dias operativos
+            const diasOperativos = new Set();
+
+            historial.forEach(h => {
+                if (h.tipo_vehiculo) {
+                    tipoVehiculoCount[h.tipo_vehiculo] = (tipoVehiculoCount[h.tipo_vehiculo] || 0) + 1;
+                }
+                if (h.destino) {
+                    destinoCount[h.destino] = (destinoCount[h.destino] || 0) + 1;
+                }
+                if (h.nombre_empresa) {
+                    empresaSet.add(h.nombre_empresa);
+                }
+                if (h.servicio) {
+                    servicioCount[h.servicio] = (servicioCount[h.servicio] || 0) + 1;
+                }
+                if (h.fecha) {
+                    diasOperativos.add(h.fecha.split('T')[0]);
+                }
+            });
+
+            // Agrupar por dia
+            const diasAgrupados = {};
+            historial.forEach(h => {
+                const fecha = new Date(h.fecha).toLocaleDateString('es-CO');
+                if (!diasAgrupados[fecha]) {
+                    diasAgrupados[fecha] = { turnos: 0, peso: 0, bultos: 0, facturas: 0, salidas: 0 };
+                }
+                diasAgrupados[fecha].turnos++;
+                diasAgrupados[fecha].peso += parseFloat(h.peso) || 0;
+                diasAgrupados[fecha].bultos += parseInt(h.bultos) || 0;
+                if (h.num_factura) diasAgrupados[fecha].facturas++;
+                if (h.autorizado_salida) diasAgrupados[fecha].salidas++;
+            });
+
+            // Promedio diario
+            const numDias = Object.keys(diasAgrupados).length;
+            const promedioTurnosDia = numDias > 0 ? (totalVehiculos / numDias).toFixed(1) : 0;
+            const promedioPesoDia = numDias > 0 ? (totalPeso / numDias).toFixed(0) : 0;
+            const promedioBultosDia = numDias > 0 ? (totalBultos / numDias).toFixed(1) : 0;
+
+            // Primer y ultimo dia
+            const fechas = Object.keys(diasAgrupados).sort();
+            const primerDia = fechas[0] || 'N/A';
+            const ultimoDia = fechas[fechas.length - 1] || 'N/A';
+
+            let contenidoHTML = `
+    <div class="certificado-container" style="font-family: Arial, sans-serif; padding: 20px; max-width: 100%;">
+        <h1 style="text-align: center; color: #1e3a8a; font-size: 22px; margin-bottom: 5px;">CERTIFICADO MENSUAL DE DESPACHOS</h1>
+        <p class="subtitle" style="text-align: center; color: #666; margin-bottom: 15px;">Periodo: ${nombreMesMayus.toUpperCase()}</p>
+        
+        <div class="empresa-info" style="text-align: center; margin-bottom: 15px; padding: 10px; background: #f8fafc; border-radius: 8px;">
+            <p><strong>SI ENSAMBLES Y PLASTICOS INDUSTRIALES S.A.S.</strong></p>
+            <p>NIT: 901.378.558-5</p>
+            <p>Dirección: Zona Franca Bodegas SIE 240, 251 y SIP 221</p>
+        </div>
+        
+        <div class="section" style="margin-bottom: 15px;">
+            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">RESUMEN EJECUTIVO</h2>
+            <div class="summary-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0;">
+                <div class="summary-item" style="background: #eff6ff; padding: 10px; text-align: center; border: 1px solid #bfdbfe; border-radius: 6px;">
+                    <div class="summary-number" style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${totalVehiculos}</div>
+                    <div class="summary-label" style="font-size: 10px; color: #64748b;">Vehiculos</div>
+                </div>
+                <div class="summary-item" style="background: #eff6ff; padding: 10px; text-align: center; border: 1px solid #bfdbfe; border-radius: 6px;">
+                    <div class="summary-number" style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${totalPeso.toLocaleString('es-CO')}</div>
+                    <div class="summary-label" style="font-size: 10px; color: #64748b;">Kg</div>
+                </div>
+                <div class="summary-item" style="background: #eff6ff; padding: 10px; text-align: center; border: 1px solid #bfdbfe; border-radius: 6px;">
+                    <div class="summary-number" style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${totalBultos.toLocaleString('es-CO')}</div>
+                    <div class="summary-label" style="font-size: 10px; color: #64748b;">Bultos</div>
+                </div>
+                <div class="summary-item" style="background: #eff6ff; padding: 10px; text-align: center; border: 1px solid #bfdbfe; border-radius: 6px;">
+                    <div class="summary-number" style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${diasOperativos.size}</div>
+                    <div class="summary-label" style="font-size: 10px; color: #64748b;">Dias</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section" style="margin-bottom: 15px;">
+            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">INFORMACION ADICIONAL</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <tr><td style="border: 1px solid #ccc; padding: 6px;"><strong>Proveedores:</strong></td><td style="border: 1px solid #ccc; padding: 6px;">${empresaSet.size}</td></tr>
+                <tr><td style="border: 1px solid #ccc; padding: 6px;"><strong>Con Factura:</strong></td><td style="border: 1px solid #ccc; padding: 6px;">${vehiculosConFactura}</td></tr>
+                <tr><td style="border: 1px solid #ccc; padding: 6px;"><strong>Salidas OK:</strong></td><td style="border: 1px solid #ccc; padding: 6px;">${vehiculosConSalida}</td></tr>
+            </table>
+        </div>
+        
+        <div class="section" style="margin-bottom: 15px;">
+            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">TIPO DE VEHICULOS</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <tr style="background: #f1f5f9;"><th style="border: 1px solid #ccc; padding: 6px;">Tipo</th><th style="border: 1px solid #ccc; padding: 6px;">Cantidad</th><th style="border: 1px solid #ccc; padding: 6px;">%</th></tr>
+`;
+
+            Object.entries(tipoVehiculoCount).forEach(([tipo, count]) => {
+                const porcentaje = ((count / totalVehiculos) * 100).toFixed(1);
+                contenidoHTML += `<tr><td style="border:1px solid #ccc;padding:6px;">${tipo}</td><td style="border:1px solid #ccc;padding:6px;">${count}</td><td style="border:1px solid #ccc;padding:6px;">${porcentaje}%</td></tr>`;
+            });
+
+            contenidoHTML += `
+            </table>
+        </div>
+        
+        <div class="section" style="margin-bottom: 15px;">
+            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">DESTINOS</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <tr style="background: #f1f5f9;"><th style="border:1px solid #ccc;padding:6px;">Destino</th><th style="border:1px solid #ccc;padding:6px;">Cantidad</th><th style="border:1px solid #ccc;padding:6px;">%</th></tr>
+`;
+
+            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLASTICOS', 'ambos': 'AMBOS' };
+            Object.entries(destinoCount).forEach(([destino, count]) => {
+                const porcentaje = ((count / totalVehiculos) * 100).toFixed(1);
+                contenidoHTML += `<tr><td style="border:1px solid #ccc;padding:6px;">${destinoLabel[destino] || destino}</td><td style="border:1px solid #ccc;padding:6px;">${count}</td><td style="border:1px solid #ccc;padding:6px;">${porcentaje}%</td></tr>`;
+            });
+
+            contenidoHTML += `
+            </table>
+        </div>
+        
+        <div class="section" style="margin-bottom: 15px;">
+            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">SERVICIOS</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <tr style="background: #f1f5f9;"><th style="border:1px solid #ccc;padding:6px;">Tipo de Servicio</th><th style="border:1px solid #ccc;padding:6px;">Cantidad</th></tr>
+`;
+
+            const servicioLabel = { 'entrega': 'Entrega de Mercancia', 'servicio': 'Servicio Tecnico', 'reunion': 'Reunion', 'otro': 'Otro' };
+            Object.entries(servicioCount).forEach(([servicio, count]) => {
+                contenidoHTML += `<tr><td style="border:1px solid #ccc;padding:6px;">${servicioLabel[servicio] || servicio}</td><td style="border:1px solid #ccc;padding:6px;">${count}</td></tr>`;
+            });
+
+            contenidoHTML += `
+            </table>
+        </div>
+        
+        <div class="section" style="margin-bottom: 15px;">
+            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">DETALLE DIARIO</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <tr style="background: #f1f5f9;"><th style="border:1px solid #ccc;padding:6px;">Fecha</th><th style="border:1px solid #ccc;padding:6px;">Turnos</th><th style="border:1px solid #ccc;padding:6px;">Peso</th><th style="border:1px solid #ccc;padding:6px;">Bultos</th><th style="border:1px solid #ccc;padding:6px;">Facturas</th><th style="border:1px solid #ccc;padding:6px;">Salidas</th></tr>
+`;
+
+            Object.entries(diasAgrupados).forEach(([fecha, datos]) => {
+                contenidoHTML += `<tr><td style="border:1px solid #ccc;padding:6px;">${fecha}</td><td style="border:1px solid #ccc;padding:6px;">${datos.turnos}</td><td style="border:1px solid #ccc;padding:6px;">${datos.peso.toLocaleString('es-CO')}</td><td style="border:1px solid #ccc;padding:6px;">${datos.bultos}</td><td style="border:1px solid #ccc;padding:6px;">${datos.facturas}</td><td style="border:1px solid #ccc;padding:6px;">${datos.salidas}</td></tr>`;
+            });
+
+            const fechaActual = new Date().toLocaleDateString('es-CO', { 
+                year: 'numeric', month: 'long', day: 'numeric' 
+            });
+
+            contenidoHTML += `
+            </table>
+        </div>
+        
+        <div class="section" style="margin-bottom: 15px;">
+            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">LISTADO DE PROVEEDORES</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+                <tr style="background: #f1f5f9;"><th style="border:1px solid #ccc;padding:4px;">#</th><th style="border:1px solid #ccc;padding:4px;">Fecha</th><th style="border:1px solid #ccc;padding:4px;">Turno</th><th style="border:1px solid #ccc;padding:4px;">Empresa</th><th style="border:1px solid #ccc;padding:4px;">Placa</th><th style="border:1px solid #ccc;padding:4px;">Tipo</th><th style="border:1px solid #ccc;padding:4px;">Peso</th></tr>
+`;
+
+            historial.forEach((h, index) => {
+                contenidoHTML += `<tr>
+                    <td style="border:1px solid #ccc;padding:4px;">${index + 1}</td>
+                    <td style="border:1px solid #ccc;padding:4px;">${new Date(h.fecha).toLocaleDateString('es-CO')}</td>
+                    <td style="border:1px solid #ccc;padding:4px;">${h.numero}</td>
+                    <td style="border:1px solid #ccc;padding:4px;">${h.nombre_empresa || 'N/A'}</td>
+                    <td style="border:1px solid #ccc;padding:4px;">${h.nit || 'N/A'}</td>
+                    <td style="border:1px solid #ccc;padding:4px;">${h.tipo_vehiculo || 'N/A'}</td>
+                    <td style="border:1px solid #ccc;padding:4px;">${h.peso || '0'}</td>
+                </tr>`;
+            });
+
+            const fechaHora = new Date().toLocaleString('es-CO');
+
+            contenidoHTML += `
+            </table>
+        </div>
+
+        <div style="text-align: center; margin-top: 20px; font-size: 10px; color: #666;">
+            <p>Certificado generado el ${fechaHora}</p>
+            <p>Sistema de Turnos SI-3</p>
+        </div>
+    </div>`;
+
+            console.log('Generando certificado...');
+            
+            const modalCertificado = document.getElementById('modalCertificado');
+            const contenidoCertificado = document.getElementById('contenidoCertificado');
+            
+            if (!modalCertificado || !contenidoCertificado) {
+                console.error('❌ No se encontró el modal del certificado');
+                Utils.mostrarNotificacion('Error: Modal de certificado no encontrado', 'error');
+                return;
+            }
+            
+            contenidoCertificado.innerHTML = contenidoHTML;
+            modalCertificado.style.display = 'flex';
+            
+            const btnCerrarCertificado = document.getElementById('btnCerrarCertificado');
+            if (btnCerrarCertificado) {
+                btnCerrarCertificado.onclick = () => {
+                    modalCertificado.style.display = 'none';
+                };
+            }
+            
+            const btnImprimirCertificado = document.getElementById('btnImprimirCertificado');
+            if (btnImprimirCertificado) {
+                btnImprimirCertificado.onclick = () => {
+                    try {
+                        const printWindow = window.open('', '_blank');
+                        if (!printWindow) {
+                            Utils.mostrarNotificacion('Bloqueador detectado. Permita ventanas emergentes.', 'error');
+                            return;
+                        }
+                        printWindow.document.write(`
+                            <!DOCTYPE html>
+                            <html lang="es">
+                            <head>
+                                <meta charset="UTF-8">
+                                <title>Certificado - ${nombreMesMayus}</title>
+                                <style>
+                                    * { box-sizing: border-box; }
+                                    body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; }
+                                    h1 { text-align: center; color: #1e3a8a; font-size: 24px; }
+                                    h2 { color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin-top: 15px; }
+                                    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 11px; }
+                                    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+                                    th { background: #f1f5f9; }
+                                    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0; }
+                                    .summary-item { background: #eff6ff; padding: 10px; text-align: center; }
+                                    .summary-number { font-size: 18px; font-weight: bold; color: #1e3a8a; }
+                                    .summary-label { font-size: 10px; }
+                                    @media print { body { padding: 10px; } }
+                                </style>
+                            </head>
+                            <body>${contenidoHTML}</body>
+                            </html>
+                        `);
+                        printWindow.document.close();
+                        printWindow.focus();
+                        setTimeout(() => printWindow.print(), 300);
+                    } catch (e) {
+                        console.error('Error al imprimir:', e);
+                        Utils.mostrarNotificacion('Error al imprimir: ' + e.message, 'error');
+                    }
+                };
+            }
+            
+            Utils.mostrarNotificacion('Certificado generado correctamente', 'success');
+
+        } catch (error) {
+            console.error('Error al generar certificado:', error);
+            Utils.mostrarNotificacion('Error al generar certificado: ' + error.message, 'error');
+        }
+    }
+};
+
+window.GenerarCertificado = GenerarCertificado;
+
+// ============================================
+// GESTIÓN DE LLEGADA
+// ============================================
+
+const LlegadaHandlers = {
+    async confirmarLlegada(e) {
+        e.preventDefault();
+        
+        const turnoNum = document.getElementById('arrivalTurno')?.value?.trim().toUpperCase();
+        const placa = document.getElementById('arrivalPlaca')?.value?.trim().toUpperCase();
+        
+        if (!turnoNum) {
+            Utils.mostrarNotificacion('Ingrese su número de turno', 'error');
+            return;
+        }
+        
+        if (!placa) {
+            Utils.mostrarNotificacion('Ingrese la placa del vehículo', 'error');
+            return;
+        }
+        
+        Utils.setLoading(true);
+        
+        try {
+            const turno = AppState.turnos.find(t => t.numero === turnoNum);
+            
+            if (!turno) {
+                const historial = await SupabaseDB.cargarHistorial(50);
+                const turnoEnHistorial = historial.find(t => t.numero === turnoNum && t.estado === 'completado');
+                
+                if (turnoEnHistorial) {
+                    Utils.mostrarNotificacion('Este turno ya fue atendido', 'error');
+                    return;
+                }
+                throw new Error('Turno no encontrado');
+            }
+            
+            if (turno.nit && turno.nit.toUpperCase() !== placa) {
+                throw new Error('La placa no coincide con el turno');
+            }
+            
+            if (window.supabaseClient) {
+                const { error } = await window.supabaseClient
+                    .from('turnos')
+                    .update({ 
+                        hora_llegada: Utils.obtenerHoraActual(),
+                        estado: 'llegado',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', turno.id);
+                
+                if (error) throw error;
+            }
+            
+            turno.horaLlegada = Utils.obtenerHoraActual();
+            turno.estado = 'llegado';
+            
+            const form = document.getElementById('arrivalForm');
+            const success = document.getElementById('arrivalSuccess');
+            
+            if (form) form.style.display = 'none';
+            if (success) success.style.display = 'block';
+            
+            Utils.mostrarNotificacion('Llegada confirmada', 'success');
+            
+            document.getElementById('arrivalTurno').value = '';
+            document.getElementById('arrivalPlaca').value = '';
+            
+        } catch (error) {
+            console.error('Error al confirmar llegada:', error);
+            Utils.mostrarNotificacion(error.message || 'Error al confirmar llegada', 'error');
+        } finally {
+            Utils.setLoading(false);
+        }
+    },
+
+    mostrarSeccion() {
+        const section = document.getElementById('arrival-section');
+        if (section) {
+            section.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+};
+
+window.LlegadaHandlers = LlegadaHandlers;
 
                         

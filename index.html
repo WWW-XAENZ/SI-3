@@ -3,122 +3,498 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Sistema de Turnos SI-3 - Gestión profesional de turnos para proveedores">
-    <meta name="keywords" content="turnos, proveedores, gestión, cola, atención">
-    <title>Sistema de Turnos - Proveedores</title>
+    <meta name="description" content="Sistema de Turnos SI-3">
+    <title>Sistema de Turnos - SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        .welcome-banner {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            border-radius: 20px;
+            padding: 50px 40px;
+            text-align: center;
+            margin-bottom: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .qr-section {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin: 30px 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+            text-align: center;
+        }
+        
+        .qr-section.active {
+            display: block;
+        }
+        
+        .qr-section h3 {
+            color: #1e293b;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .qr-section canvas {
+            margin: 20px auto;
+            border-radius: 12px;
+        }
+        
+        .qr-section p {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        
+        .arrival-section {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin: 30px 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        }
+        
+        .arrival-section h3 {
+            color: #1e293b;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        
+        .arrival-section .turno-info {
+            background: #f0f9ff;
+            border: 2px solid #0ea5e9;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .arrival-section .turno-number {
+            font-size: 36px;
+            font-weight: 800;
+            color: #0369a1;
+        }
+        
+        .arrival-section .company-name {
+            font-size: 16px;
+            color: #475569;
+            margin-top: 5px;
+        }
+        
+        .arrival-section .btn-arrive {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s;
+        }
+        
+        .arrival-section .btn-arrive:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+        
+        .arrival-section .btn-arrive:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        
+        .arrival-section .arrived-badge {
+            background: #10b981;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            display: inline-block;
+            margin-top: 15px;
+        }
+        
+        .turn-state-badge {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        
+        .turn-state-espera {
+            background: #dbeafe;
+            color: #1d4ed8;
+            border: 2px solid #3b82f6;
+        }
+        
+        .turn-state-llegado {
+            background: #dcfce7;
+            color: #15803d;
+            border: 2px solid #22c55e;
+        }
+        
+        .turn-state-atendiendo {
+            background: #fef3c7;
+            color: #b45309;
+            border: 2px solid #f59e0b;
+        }
+        
+        .turn-state-citado {
+            background: #f3e8ff;
+            color: #7c3aed;
+            border: 2px solid #8b5cf6;
+        }
+        
+        .welcome-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: shimmer 3s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translate(-30%, -30%); }
+            100% { transform: translate(30%, 30%); }
+        }
+        
+        .welcome-banner h2 {
+            font-size: 36px;
+            color: white;
+            margin-bottom: 10px;
+            font-weight: 800;
+            position: relative;
+        }
+        
+        .welcome-banner p {
+            font-size: 16px;
+            color: rgba(255,255,255,0.9);
+            max-width: 500px;
+            margin: 0 auto;
+            position: relative;
+        }
+        
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+            margin: 40px 0;
+        }
+        
+        .option-card {
+            background: white;
+            border-radius: 16px;
+            padding: 35px 25px;
+            text-align: center;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            display: block;
+        }
+        
+        .option-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.12);
+        }
+        
+        .option-card.blue:hover { border-color: #3b82f6; }
+        .option-card.red:hover { border-color: #ef4444; }
+        .option-card.purple:hover { border-color: #8b5cf6; }
+        
+        .option-card .icon-wrap {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .option-card.blue .icon-wrap { background: #eff6ff; }
+        .option-card.blue .icon-wrap svg { stroke: #3b82f6; }
+        
+        .option-card.red .icon-wrap { background: #fef2f2; }
+        .option-card.red .icon-wrap svg { stroke: #ef4444; }
+        
+        .option-card.purple .icon-wrap { background: #f5f3ff; }
+        .option-card.purple .icon-wrap svg { stroke: #8b5cf6; }
+        
+        .option-card h3 {
+            font-size: 20px;
+            color: #1e293b;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+        
+        .option-card p {
+            font-size: 14px;
+            color: #64748b;
+        }
+        
+        .how-it-works {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            margin: 40px 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        }
+        
+        .how-it-works h3 {
+            font-size: 22px;
+            color: #1e293b;
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: 700;
+        }
+        
+        .steps-row {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8fafc;
+            padding: 12px 20px;
+            border-radius: 30px;
+            font-size: 14px;
+            color: #475569;
+        }
+        
+        .step-item .num {
+            width: 28px;
+            height: 28px;
+            background: #3b82f6;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+        }
+        
+        .step-item .arrow {
+            color: #cbd5e1;
+        }
+        
+        .about-section {
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+            border-radius: 16px;
+            padding: 40px;
+            margin: 40px 0;
+            text-align: center;
+        }
+        
+        .about-section h3 {
+            font-size: 20px;
+            color: white;
+            margin-bottom: 15px;
+        }
+        
+        .about-section p {
+            font-size: 14px;
+            color: rgba(255,255,255,0.85);
+            line-height: 1.7;
+            max-width: 700px;
+            margin: 0 auto 20px;
+        }
+        
+        .about-section .details {
+            display: flex;
+            justify-content: center;
+            gap: 50px;
+            flex-wrap: wrap;
+        }
+        
+        .about-section .detail {
+            color: rgba(255,255,255,0.9);
+        }
+        
+        .about-section .detail strong {
+            display: block;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        
+        .about-section .detail span {
+            font-size: 13px;
+            opacity: 0.8;
+        }
+        
+        .help-section {
+            background: white;
+            border-radius: 16px;
+            padding: 35px;
+            margin: 40px 0;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        }
+        
+        .help-section h3 {
+            font-size: 18px;
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+        
+        .help-section p {
+            font-size: 14px;
+            color: #64748b;
+            margin-bottom: 20px;
+        }
+        
+        .help-items {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+        
+        .help-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #475569;
+        }
+        
+        .help-item svg {
+            stroke: #3b82f6;
+        }
+        
+        @media (max-width: 800px) {
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+            .welcome-banner { padding: 35px 20px; }
+            .welcome-banner h2 { font-size: 26px; }
+            .steps-row { gap: 10px; }
+            .step-item { padding: 10px 15px; font-size: 13px; }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo" id="logoClick">
+            <img src="Logo-Web-SI3.png" alt="SI-3" class="logo" id="logoClick">
             <h1>Sistema de Turnos SI-3</h1>
         </header>
         
-        <nav class="main-nav" role="navigation" aria-label="Navegación principal">
-            <a href="index.html" class="nav-link active" aria-current="page">Inicio</a>
+        <nav class="main-nav">
+            <a href="index.html" class="nav-link active">Inicio</a>
             <a href="user.html" class="nav-link">Solicitar Turno</a>
             <a href="tv.html" class="nav-link" target="_blank">Vista TV</a>
+            <a href="https://www.si-3.tech/nosotros" class="nav-link" target="_blank">Nosotros</a>
         </nav>
+        
+        <a href="llegada.html" class="nav-link" style="display: none;" id="linkLlegada">Llegada</a>
 
-        <main class="home-content" role="main">
-            <section class="welcome-section" aria-labelledby="welcome-title">
-                <h2 id="welcome-title">Bienvenido al Sistema de Turnos</h2>
-                <p>Gestione su turno de forma rápida y sencilla. Nuestro sistema le permite solicitar un turno y consultar su estado en cualquier momento.</p>
-            </section>
+        <main class="home-content">
+            <div class="welcome-banner">
+                <h2>Bienvenido</h2>
+                <p>Sistema de gestión de turnos para proveedores. Obtenga su turno de forma rápida y sencilla.</p>
+            </div>
 
-            <section class="cards-container cards-centered" aria-label="Opciones principales">
-                <article class="card">
-                    <div class="card-icon">
-                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div class="cards-grid">
+                <a href="user.html" class="option-card blue">
+                    <div class="icon-wrap">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
                             <circle cx="9" cy="7" r="4"></circle>
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            <line x1="19" y1="8" x2="19" y2="14"></line>
+                            <line x1="22" y1="11" x2="16" y2="11"></line>
                         </svg>
                     </div>
                     <h3>Solicitar Turno</h3>
-                    <p>Ingrese sus datos de proveedor y solicite un turno para ser atendido en nuestro punto de atención.</p>
-                    <a href="user.html" class="btn btn-primary">Solicitar Turno</a>
-                </article>
+                    <p>Regístrese y obtenga su número de atención</p>
+                </a>
 
-                <article class="card">
-                    <div class="card-icon">
-                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <polyline points="12 6 12 12 16 14"></polyline>
-                        </svg>
-                    </div>
-                    <h3>Mi Turno</h3>
-                    <p>Consulte el estado de su turno, su posición en la cola y el tiempo estimado de espera.</p>
-                    <a href="user.html" class="btn btn-secondary">Ver Mi Turno</a>
-                </article>
-
-                <article class="card">
-                    <div class="card-icon">
-                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <a href="tv.html" class="option-card red" target="_blank">
+                    <div class="icon-wrap">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                             <line x1="8" y1="21" x2="16" y2="21"></line>
                             <line x1="12" y1="17" x2="12" y2="21"></line>
                         </svg>
                     </div>
-                    <h3>Ver en Pantalla</h3>
-                    <p>Visualice los turnos en pantalla grande. Ideal para salas de espera y televisores.</p>
-                    <a href="tv.html" class="btn btn-secondary" target="_blank">Abrir Vista TV</a>
-                </article>
-            </section>
+                    <h3>Pantalla TV</h3>
+                    <p>Ver turnos en pantalla grande</p>
+                </a>
 
-            <section class="info-section" aria-labelledby="how-it-works-title">
-                <h3 id="how-it-works-title">¿Cómo funciona?</h3>
-                <div class="steps" role="list">
-                    <div class="step" role="listitem">
-                        <span class="step-number" aria-hidden="true">1</span>
-                        <p>Ingrese sus datos de proveedor</p>
+                <a href="#contacto" class="option-card purple">
+                    <div class="icon-wrap">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
                     </div>
-                    <div class="step" role="listitem">
-                        <span class="step-number" aria-hidden="true">2</span>
-                        <p>Solicite un turno</p>
+                    <h3>Contacto</h3>
+                    <p>¿Tiene dudas? Contáctenos</p>
+</a>
+            </div>
+
+            <div class="about-section">
+                <h3>SI ENSAMBLES Y PLÁSTICOS INDUSTRIALES S.A.S.</h3>
+                <p>Somos un grupo industrial experto en el diseño de procesos productivos bajo metodologías avanzadas de calidad.</p>
+                <div class="details">
+                    <div class="detail">
+                        <strong>Zona Franca</strong>
+                        <span>Bodegas SIE 240, 251 y SIP 221</span>
                     </div>
-                    <div class="step" role="listitem">
-                        <span class="step-number" aria-hidden="true">3</span>
-                        <p>Espere su turno</p>
-                    </div>
-                    <div class="step" role="listitem">
-                        <span class="step-number" aria-hidden="true">4</span>
-                        <p>Diríjase a atención</p>
+                    <div class="detail">
+                        <strong>NIT</strong>
+                        <span>901.378.558-5</span>
                     </div>
                 </div>
-            </section>
+            </div>
 
-            <section class="info-section about-company" aria-labelledby="about-title">
-                <h3 id="about-title">Acerca de Nosotros</h3>
-                <div class="about-content">
-                    <div class="about-text">
-                        <p>Somos un grupo industrial experto en el diseño de procesos productivos bajo las metodologías avanzadas de la calidad usadas en el sector automotriz, brindamos soluciones integrales para la fabricación de partes en diferentes tecnologías a clientes de diversos sectores.</p>
-                        <a href="https://www.si-3.tech/nosotros" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                <polyline points="15 3 21 3 21 9"></polyline>
-                                <line x1="10" y1="14" x2="21" y2="3"></line>
-                            </svg>
-                            Conocer más sobre nosotros
-                        </a>
+            <div class="help-section" id="contacto">
+                <h3>¿Necesita ayuda?</h3>
+                <p>Contáctenos para cualquier consulta</p>
+                <div class="help-items">
+                    <div class="help-item">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                        <span>contacto@si-3.tech</span>
+                    </div>
+                    <div class="help-item">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                        <span>Malambo, Atlántico</span>
                     </div>
                 </div>
-            </section>
+            </div>
         </main>
 
-        <footer role="contentinfo">
-            <p>&copy; 2026 Sistema de Turnos SI-3 - Todos los derechos reservados</p>
-            <p>Desarrollado con tecnología moderna para una experiencia óptima</p>
+        <footer>
+            <p>&copy; 2026 Sistema de Turnos SI-3</p>
+            <div id="connectionStatus" class="connection-indicator" style="display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px;">
+                <span class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                <span class="status-text">Conectado</span>
+            </div>
         </footer>
     </div>
 
-    <!-- Modal Acceso Admin -->
     <div id="adminAccessModal" class="modal">
         <div class="modal-content">
             <button class="close-modal">&times;</button>
@@ -141,7 +517,6 @@
         </div>
     </div>
 
-    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>

@@ -4,13 +4,77 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Panel de Administrador - Sistema de Turnos SI-3">
-    <meta name="keywords" content="admin, turnos, gestión, estadísticas">
     <title>Panel de Administrador - Sistema de Turnos SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .admin-grid { 
+            grid-template-columns: 320px 1fr; 
+            gap: 25px;
+            padding: 20px;
+        }
+        .control-panel { grid-column: 1; grid-row: 1 / 4; }
+        .statistics { grid-column: 2; }
+        .waiting-list { grid-column: 2; }
+        .cited-list { grid-column: 1; }
+        .providers-list { grid-column: 1 / -1; }
+        .turn-history { grid-column: 2; }
+        
+        .admin-section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .current-turn-display { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; padding: 25px 20px; text-align: center; border: 2px solid #2563eb; margin-bottom: 20px; }
+        .current-turn-display h3 { font-size: 12px; color: #64748b; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .current-turn-display .turn-number { font-size: 56px; font-weight: 700; color: #2563eb; }
+        .current-turn-display .turn-info { font-size: 14px; color: #334155; margin-top: 8px; }
+        
+        .control-buttons { display: flex; flex-direction: column; gap: 12px; }
+        .control-buttons .btn { padding: 14px; font-size: 14px; border-radius: 8px; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .stat-card { background: #f8fafc; padding: 20px 15px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; }
+        .stat-card .stat-number { font-size: 32px; font-weight: 700; color: #2563eb; }
+        .stat-card .stat-label { font-size: 12px; color: #64748b; margin-top: 6px; text-transform: uppercase; }
+        
+        .monthly-controls { display: flex; gap: 10px; margin-top: 20px; align-items: center; flex-wrap: wrap; }
+        .month-select { flex: 1; min-width: 120px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
+        
+        .turn-list { max-height: 180px; overflow-y: auto; padding-right: 5px; }
+        .turn-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0; transition: all 0.2s; }
+        .turn-item:hover { background: #f1f5f9; border-color: #2563eb; }
+        .turn-item-number { font-size: 22px; font-weight: 700; color: #2563eb; min-width: 55px; }
+        .turn-item-info { flex: 1; }
+        .turn-item-company { font-weight: 600; font-size: 13px; color: #1e293b; }
+        .turn-item-time { font-size: 11px; color: #64748b; margin-top: 4px; }
+        .turn-item-actions { display: flex; gap: 6px; }
+        
+        .providers-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .providers-table th { background: #f1f5f9; padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-size: 11px; text-transform: uppercase; color: #475569; }
+        .providers-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
+        .providers-table tr:hover { background: #f8fafc; }
+        
+        .admin-section h2 { font-size: 15px; color: #1e293b; border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 15px; font-weight: 600; }
+        
+        .history-list { max-height: 200px; overflow-y: auto; }
+        
+        @media (max-width: 1000px) {
+            .admin-grid { grid-template-columns: 1fr; }
+            .control-panel { grid-column: 1; grid-row: auto; }
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        
+        @media (max-width: 600px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .admin-grid { gap: 15px; padding: 10px; }
+            .admin-section { padding: 15px; }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -19,270 +83,186 @@
             <h1>Panel de Administrador</h1>
         </header>
         
-        <nav class="main-nav" role="navigation" aria-label="Navegación principal">
+        <nav class="main-nav">
             <a href="index.html" class="nav-link">Inicio</a>
-            <a href="admin.html" class="nav-link active" aria-current="page">Panel Administrador</a>
+            <a href="admin.html" class="nav-link active">Panel Administrador</a>
         </nav>
 
-        <main class="admin-content" role="main">
+        <main>
             <div class="admin-grid">
                 <!-- Panel de Control -->
-                <section class="admin-section control-panel" aria-labelledby="control-panel-title">
-                    <h2 id="control-panel-title">Panel de Control</h2>
-                    <div class="control-buttons" role="group" aria-label="Acciones de control">
-                        <button id="btnLlamarTurno" class="btn btn-primary btn-large" aria-label="Llamar siguiente turno">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                            </svg>
-                            Llamar Siguiente Turno
-                        </button>
-                        <button id="btnCompletarTurno" class="btn btn-success" aria-label="Completar turno actual">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                            Completar Turno Actual
-                        </button>
-                        <button id="btnReiniciarCola" class="btn btn-danger" aria-label="Reiniciar cola de turnos">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-                                <path d="M21 3v5h-5"></path>
-                                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-                                <path d="M8 16H3v5"></path>
-                            </svg>
-                            Reiniciar Cola
-                        </button>
-                    </div>
-                    
-                    <div class="current-turn-display" aria-live="polite">
-                        <h3>Turno Actual</h3>
+                <section class="admin-section control-panel">
+                    <h2>Panel de Control</h2>
+                    <div class="current-turn-display">
+                        <h3>Turno en Atencion</h3>
                         <div id="turnoActual" class="turn-number">--</div>
-                        <div id="turnoInfo" class="turn-info">Ningún turno en atención</div>
+                        <div id="turnoInfo" class="turn-info">Sin turno en atencion</div>
+                    </div>
+                    <div class="control-buttons">
+                        <button id="btnLlamarTurno" class="btn btn-primary">Llamar Siguiente</button>
+                        <button id="btnCompletarTurno" class="btn btn-success">Completar Turno</button>
+                        <button id="btnReiniciarCola" class="btn btn-danger">Reiniciar Cola</button>
                     </div>
                 </section>
 
-                <!-- Turnos en Espera ( normales) -->
-                <section class="admin-section waiting-list" aria-labelledby="waiting-list-title">
-                    <h2 id="waiting-list-title">Turnos en Espera (<span id="contadorTurnosEspera">0</span>)</h2>
-                    <div id="listaTurnosEspera" class="turn-list" aria-live="polite">
-                        <p class="empty-message">Cargando turnos...</p>
+                <!-- Estadisticas Hoy -->
+                <section class="admin-section statistics">
+                    <h2>Hoy</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalTurnos">0</div>
+                            <div class="stat-label">Atendidos</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="turnosEspera">0</div>
+                            <div class="stat-label">En Espera</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalProveedores">0</div>
+                            <div class="stat-label">Proveedores</div>
+                        </div>
+                    </div>
+                    <div class="monthly-controls">
+                        <select id="mesSelect" class="month-select">
+                            <option value="">Mes...</option>
+                        </select>
+                        <button id="btnVerMes" class="btn btn-secondary btn-small">Ver</button>
+                        <button id="btnGenerarCertificado" class="btn btn-primary">Certificado</button>
                     </div>
                 </section>
 
-                <!-- Turnos Citados/Reservados -->
-                <section class="admin-section cited-list" aria-labelledby="cited-list-title">
-                    <h2 id="cited-list-title">Citas Reservadas (<span id="contadorTurnosCitados">0</span>)</h2>
-                    <div id="listaTurnosCitados" class="turn-list" aria-live="polite">
-                        <p class="empty-message">Cargando citas...</p>
+                <!-- Turnos Llegados -->
+                <section class="admin-section waiting-list" style="border-color: #10b981;">
+                    <h2 style="color: #10b981;">✓ Turnos Llegados (<span id="contadorTurnosLlegados">0</span>)</h2>
+                    <div id="listaTurnosLlegados" class="turn-list">
+                        <p class="empty-message">Sin proveedores llegados</p>
                     </div>
                 </section>
 
-                <!-- Lista de Proveedores Registrados -->
-                <section class="admin-section providers-list" aria-labelledby="providers-list-title">
-                    <h2 id="providers-list-title">Proveedores Registrados (<span id="contadorProveedores">0</span>)</h2>
-                    <div id="listaProveedores" class="providers-table-container">
-                        <table class="providers-table" role="table">
+                <!-- Turnos en Espera -->
+                <section class="admin-section waiting-list">
+                    <h2>Turnos en Espera (<span id="contadorTurnosEspera">0</span>)</h2>
+                    <div id="listaTurnosEspera" class="turn-list">
+                        <p class="empty-message">Sin turnos en espera</p>
+                    </div>
+                </section>
+
+                <!-- Citas Reservadas -->
+                <section class="admin-section cited-list">
+                    <h2>Citas Reservadas (<span id="contadorTurnosCitados">0</span>)</h2>
+                    <div id="listaTurnosCitados" class="turn-list">
+                        <p class="empty-message">Sin citas reservadas</p>
+                    </div>
+                </section>
+
+                <!-- Proveedores -->
+                <section class="admin-section providers-list">
+                    <h2>Proveedores (<span id="contadorProveedores">0</span>)</h2>
+                    <div style="overflow-x: auto;">
+                        <table class="providers-table">
                             <thead>
                                 <tr>
-                                    <th scope="col">Empresa</th>
-                                    <th scope="col">Placa</th>
-                                    <th scope="col">Contacto</th>
-                                    <th scope="col">Teléfono</th>
-                                    <th scope="col">Servicio</th>
-                                    <th scope="col">Acciones</th>
+                                    <th>Empresa</th>
+                                    <th>Placa</th>
+                                    <th>Contacto</th>
+                                    <th>Telefono</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody id="proveedoresBody">
-                                <tr>
-                                    <td colspan="6" class="empty-message">Cargando proveedores...</td>
-                                </tr>
+                                <tr><td colspan="5" class="empty-message">Cargando...</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </section>
 
-                <!-- Historial de Turnos -->
-                <section class="admin-section turn-history" aria-labelledby="turn-history-title">
-                    <h2 id="turn-history-title">Historial de Turnos</h2>
-                    <div class="history-header">
-                        <button id="btnLimpiarHistorial" class="btn btn-secondary btn-small" aria-label="Limpiar historial de turnos">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <polyline points="3 6 5 6 21 6"></polyline>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            </svg>
-                            Limpiar Historial
-                        </button>
+                <!-- Historial -->
+                <section class="admin-section turn-history">
+                    <h2>Historial Reciente</h2>
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                        <button id="btnLimpiarHistorial" class="btn btn-secondary btn-small">Limpiar</button>
                     </div>
-                    <div id="historialTurnos" class="history-list" aria-live="polite">
+                    <div id="historialTurnos" class="history-list" style="max-height: 250px; overflow-y: auto;">
                         <p class="empty-message">Cargando historial...</p>
-                    </div>
-                </section>
-
-                <!-- Estadísticas -->
-                <section class="admin-section statistics" aria-labelledby="statistics-title">
-                    <h2 id="statistics-title">Estadísticas del Día</h2>
-                    <div class="stats-grid" role="list">
-                        <div class="stat-card" role="listitem">
-                            <div class="stat-number" id="totalTurnos" aria-live="polite">0</div>
-                            <div class="stat-label">Turnos Atendidos</div>
-                        </div>
-                        <div class="stat-card" role="listitem">
-                            <div class="stat-number" id="turnosEspera" aria-live="polite">0</div>
-                            <div class="stat-label">En Espera</div>
-                        </div>
-                        <div class="stat-card" role="listitem">
-                            <div class="stat-number" id="totalProveedores" aria-live="polite">0</div>
-                            <div class="stat-label">Proveedores</div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Estadísticas Mensuales -->
-                <section class="admin-section monthly-stats" aria-labelledby="monthly-stats-title">
-                    <h2 id="monthly-stats-title">Estadísticas por Mes</h2>
-                    <div class="monthly-controls">
-                        <select id="mesSelect" class="month-select">
-                            <option value="">Seleccionar mes...</option>
-                        </select>
-                        <button id="btnVerMes" class="btn btn-primary btn-small">Ver</button>
-                    </div>
-                    <div id="statsMensuales" class="monthly-stats-content">
-                        <div class="stats-grid" role="list">
-                            <div class="stat-card" role="listitem">
-                                <div class="stat-number" id="totalTurnosMes">0</div>
-                                <div class="stat-label">Turnos del Mes</div>
-                            </div>
-                            <div class="stat-card" role="listitem">
-                                <div class="stat-number" id="totalProveedoresMes">0</div>
-                                <div class="stat-label">Proveedores Atendidos</div>
-                            </div>
-                            <div class="stat-card" role="listitem">
-                                <div class="stat-number" id="promedioDiario">0</div>
-                                <div class="stat-label">Promedio Diario</div>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <h3>Detalle por Día</h3>
-                            <table class="monthly-table">
-                                <thead>
-                                    <tr>
-                                        <th>Fecha</th>
-                                        <th>Turnos</th>
-                                        <th>Proveedores</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="detalleDiario">
-                                    <tr><td colspan="3" class="empty-message">Seleccione un mes para ver el detalle</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
                     </div>
                 </section>
             </div>
         </main>
 
-        <footer role="contentinfo">
-            <p>&copy; 2026 Sistema de Turnos SI-3 - Todos los derechos reservados</p>
+        <footer>
+            <p>2026 Sistema de Turnos SI-3</p>
         </footer>
     </div>
 
-    <!-- Modal para mostrar información del turno llamado -->
-    <div id="turnoModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="turno-modal-title">
+    <!-- Modal Turno Llamado -->
+    <div id="turnoModal" class="modal">
         <div class="modal-content modal-turno">
-            <button class="close-modal" aria-label="Cerrar modal">&times;</button>
-            <h2 id="turno-modal-title">Turno Llamado</h2>
+            <button class="close-modal">&times;</button>
+            <h2>Turno Llamado</h2>
             <div class="modal-turn-number" id="modalTurnNumber">--</div>
             <div class="modal-turn-info" id="modalTurnInfo"></div>
-            <button class="btn btn-primary" onclick="document.getElementById('turnoModal').style.display='none'">
-                Aceptar
-            </button>
+            <button class="btn btn-primary" onclick="document.getElementById('turnoModal').style.display='none'">Aceptar</button>
         </div>
     </div>
 
-    <!-- Modal para información de despacho -->
-    <div id="despachoModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="despacho-modal-title">
+    <!-- Modal Despacho -->
+    <div id="despachoModal" class="modal">
         <div class="modal-content">
-            <button class="close-modal" aria-label="Cerrar modal">&times;</button>
-            <h2 id="despacho-modal-title">Información de Despacho</h2>
+            <button class="close-modal">&times;</button>
+            <h2>Informacion de Despacho</h2>
             <div class="modal-turn-number" id="despachoTurnNumber">--</div>
             <div class="modal-turn-info" id="despachoTurnInfo"></div>
             <div id="despachoInfo" class="despacho-info"></div>
             <form id="formDespacho">
                 <div class="form-group">
-                    <label for="despachoNumFactura">Número de Factura:</label>
-                    <input type="text" id="despachoNumFactura" placeholder="Número de factura">
+                    <label>Factura:</label>
+                    <input type="text" id="despachoNumFactura" placeholder="Numero de factura">
                 </div>
                 <div class="form-group">
-                    <label for="despachoTipoVehiculo">Tipo de Vehículo:</label>
+                    <label>Tipo Vehiculo:</label>
                     <select id="despachoTipoVehiculo">
                         <option value="">Seleccionar...</option>
                         <option value="MULA">MULA</option>
                         <option value="SENCILLO">SENCILLO</option>
                         <option value="CARPADO">CARPADO</option>
-                        <option value="FURGON">FURGÓN</option>
+                        <option value="FURGON">FURGON</option>
                         <option value="MOTO">MOTO</option>
                         <option value="PARTICULAR">PARTICULAR</option>
                         <option value="OTRO">OTRO</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="despachoBultos">Bultos:</label>
-                    <input type="number" id="despachoBultos" placeholder="Cantidad de bultos" min="0">
+                    <label>Bultos:</label>
+                    <input type="number" id="despachoBultos" placeholder="Cantidad" min="0">
                 </div>
                 <div class="form-group">
-                    <label for="despachoPeso">Peso (kg):</label>
+                    <label>Peso (kg):</label>
                     <input type="text" id="despachoPeso" placeholder="Peso en kg">
                 </div>
                 <div class="form-group">
-                    <label for="despachoResponsable">Responsable:</label>
+                    <label>Responsable:</label>
                     <input type="text" id="despachoResponsable" placeholder="Nombre del responsable">
                 </div>
-                <button type="button" class="btn btn-primary" onclick="AdminHandlers.guardarDespacho()">
-                    Confirmar y Llamar
-                </button>
+                <button type="button" class="btn btn-primary" onclick="AdminHandlers.guardarDespacho()">Confirmar y Llamar</button>
             </form>
         </div>
     </div>
 
-    <!-- Modal para editar proveedor -->
-    <div id="editarProveedorModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="editar-proveedor-title">
-        <div class="modal-content">
-            <button class="close-modal" aria-label="Cerrar modal">&times;</button>
-            <h2 id="editar-proveedor-title">Editar Proveedor</h2>
-            <form id="formEditarProveedor">
-                <input type="hidden" id="editProveedorId">
-                <div class="form-group">
-                    <label for="editNombreEmpresa">Nombre de la Empresa:</label>
-                    <input type="text" id="editNombreEmpresa" required placeholder="Nombre de la empresa">
-                </div>
-                <div class="form-group">
-                    <label for="editNit">Placa del Vehículo:</label>
-                    <input type="text" id="editNit" required maxlength="6" placeholder="Placa del vehículo">
-                </div>
-                <div class="form-group">
-                    <label for="editContacto">Persona de Contacto:</label>
-                    <input type="text" id="editContacto" placeholder="Nombre del contacto">
-                </div>
-                <div class="form-group">
-                    <label for="editTelefono">Teléfono:</label>
-                    <input type="tel" id="editTelefono" placeholder="Número de teléfono">
-                </div>
-                <div class="form-group">
-                    <label for="editServicio">Tipo de Servicio:</label>
-                    <select id="editServicio">
-                        <option value="entrega">Entrega de Mercancía</option>
-                        <option value="servicio">Servicio Técnico</option>
-                        <option value="reunion">Reunión</option>
-                        <option value="otro">Otro</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary">Guardar Cambios</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>
+
+    <!-- Modal Certificado -->
+    <div id="modalCertificado" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow: auto;">
+            <button class="close-modal" onclick="document.getElementById('modalCertificado').style.display='none'">&times;</button>
+            <h2>Certificado Mensual</h2>
+            <div id="contenidoCertificado" style="padding: 20px;"></div>
+            <div style="margin-top: 20px; text-align: center;">
+                <button id="btnImprimirCertificado" class="btn btn-primary">Imprimir</button>
+                <button id="btnCerrarCertificado" class="btn btn-secondary">Cerrar</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

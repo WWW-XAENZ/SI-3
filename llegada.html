@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmar Llegada - SI-3</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { background: white; border-radius: 20px; padding: 40px; max-width: 400px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); }
+        h1 { color: #1e3a8a; margin-bottom: 10px; font-size: 24px; }
+        p { color: #64748b; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; margin-bottom: 8px; color: #374151; font-weight: 500; }
+        input { width: 100%; padding: 14px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 16px; transition: border-color 0.3s; }
+        input:focus { outline: none; border-color: #3b82f6; }
+        .btn { width: 100%; padding: 16px; background: #10b981; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-top: 10px; }
+        .btn:hover { background: #059669; transform: translateY(-2px); }
+        .success { display: none; }
+        .success.show { display: block; }
+        .success h2 { color: #10b981; font-size: 22px; margin-bottom: 15px; }
+        .badge { background: #10b981; color: white; padding: 15px 25px; border-radius: 10px; font-size: 18px; font-weight: bold; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="formSection">
+            <h1>✓ Confirmar Llegada</h1>
+            <p>Ingrese sus datos para confirmar que ha llegado</p>
+            
+            <form id="llegadaForm">
+                <div class="form-group">
+                    <label for="turnoInput">Número de Turno:</label>
+                    <input type="text" id="turnoInput" placeholder="Ej: T001" required style="text-transform: uppercase;">
+                </div>
+                <div class="form-group">
+                    <label for="placaInput">Placa del vehículo:</label>
+                    <input type="text" id="placaInput" placeholder="ABC123" required style="text-transform: uppercase;">
+                </div>
+                <button type="submit" class="btn">Confirmar Llegada</button>
+            </form>
+        </div>
+        
+        <div id="successSection" class="success">
+            <h2>✓ Llegada Confirmada</h2>
+            <div class="badge" id="turnoDisplay">T000</div>
+            <p style="margin-top: 20px;">Aguarde su turno, lo llamaremos pronto</p>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const turnoParam = urlParams.get('turno');
+        const placaParam = urlParams.get('placa');
+        
+        if (turnoParam) document.getElementById('turnoInput').value = turnoParam.toUpperCase();
+        if (placaParam) document.getElementById('placaInput').value = placaParam.toUpperCase();
+        
+        document.getElementById('llegadaForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const numero = document.getElementById('turnoInput').value.trim().toUpperCase();
+            const placa = document.getElementById('placaInput').value.trim().toUpperCase();
+            
+            if (!numero || !placa) {
+                alert('Ingrese turno y placa');
+                return;
+            }
+            
+            try {
+                let turnoValido = false;
+                let nombreEmpresa = '';
+                
+                if (window.supabaseClient) {
+                    const { data: turnoData, error } = await window.supabaseClient
+                        .from('turnos')
+                        .select('numero, nombre_empresa, nit')
+                        .eq('numero', numero)
+                        .single();
+                    
+                    if (turnoData && turnoData.nit && turnoData.nit.toUpperCase() === placa.toUpperCase()) {
+                        turnoValido = true;
+                        nombreEmpresa = turnoData.nombre_empresa;
+                        
+                        await window.supabaseClient
+                            .from('turnos')
+                            .update({ 
+                                hora_llegada: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+                                estado: 'llegado',
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('numero', numero);
+                    }
+                }
+                
+                if (!turnoValido) {
+                    document.getElementById('turnoInput').style.borderColor = '#ef4444';
+                    document.getElementById('placaInput').style.borderColor = '#ef4444';
+                    alert('Turno o placa incorrectos. Verifique e intente de nuevo.');
+                    return;
+                }
+                
+                document.getElementById('formSection').style.display = 'none';
+                document.getElementById('turnoDisplay').textContent = numero;
+                document.getElementById('successSection').classList.add('show');
+                
+            } catch (err) {
+                console.error(err);
+                alert('Error al confirmar. Verifique los datos.');
+            }
+        });
+    </script>
+</body>
+</html>

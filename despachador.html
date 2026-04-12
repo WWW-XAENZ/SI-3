@@ -3,355 +3,474 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Panel de Despachador - Sistema de Turnos SI-3">
-    <meta name="keywords" content="despachador, turnos, gestión, autorización">
-    <title>Panel de Despachador - Sistema de Turnos SI-3</title>
+    <title>Panel Despachador - Sistema de Turnos SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .admin-grid { 
+            grid-template-columns: 320px 1fr; 
+            gap: 25px;
+            padding: 20px;
+        }
+        .control-panel { grid-column: 1; grid-row: 1 / 3; }
+        .statistics { grid-column: 2; }
+        .despacho-actual { grid-column: 2; }
+        .pending-exit { grid-column: 1; }
+        .cited-list { grid-column: 2; }
+        
+        .admin-section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .current-turn-display { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 25px 20px; text-align: center; border: 2px solid #22c55e; margin-bottom: 20px; }
+        .current-turn-display h3 { font-size: 12px; color: #64748b; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .turno-listo .turn-number-large { font-size: 48px; font-weight: 700; color: #16a34a; }
+        .turno-listo .turn-empresa { font-size: 15px; color: #334155; margin: 10px 0; }
+        .turno-listo .turn-badge { display: inline-block; background: #22c55e; color: white; padding: 8px 18px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        
+        .despacho-actions { margin-top: 20px; }
+        .despacho-actions .btn { width: 100%; padding: 14px; font-size: 15px; border-radius: 8px; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .stat-card { background: #f8fafc; padding: 20px 15px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; }
+        .stat-card .stat-number { font-size: 32px; font-weight: 700; color: #2563eb; }
+        .stat-card .stat-label { font-size: 12px; color: #64748b; margin-top: 6px; text-transform: uppercase; }
+        
+        .pending-exit-list { max-height: 250px; overflow-y: auto; padding-right: 5px; }
+        .pending-exit-item { background: #fffbeb; border: 2px solid #f59e0b; border-radius: 10px; padding: 15px; margin-bottom: 12px; transition: all 0.2s; }
+        .pending-exit-item:hover { box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2); }
+        .pending-exit-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .pending-exit-number { font-size: 24px; font-weight: 700; color: #d97706; }
+        .pending-exit-company { flex: 1; font-weight: 600; font-size: 14px; }
+        .pending-exit-status { background: #f59e0b; color: white; padding: 5px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .pending-exit-details { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; font-size: 12px; color: #64748b; margin-bottom: 12px; }
+        .pending-exit-item .btn-authorize { width: 100%; margin-top: 10px; padding: 12px; border-radius: 8px; }
+        
+        .despacho-detail { background: #f8fafc; padding: 18px; border-radius: 10px; font-size: 13px; line-height: 1.8; }
+        .despacho-detail p { margin: 6px 0; color: #475569; }
+        
+        .turn-list { max-height: 150px; overflow-y: auto; }
+        
+        .admin-section h2 { font-size: 15px; color: #1e293b; border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 15px; font-weight: 600; }
+        
+        @media (max-width: 1000px) {
+            .admin-grid { grid-template-columns: 1fr; }
+            .control-panel { grid-column: 1; grid-row: auto; }
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        
+        @media (max-width: 600px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .admin-grid { gap: 15px; padding: 10px; }
+            .admin-section { padding: 15px; }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <header>
             <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo">
-            <h1>Panel de Despachador</h1>
+            <h1>Panel Despachador</h1>
         </header>
         
-        <nav class="main-nav" role="navigation" aria-label="Navegación principal">
+        <nav class="main-nav">
             <a href="index.html" class="nav-link">Inicio</a>
-            <a href="despachador.html" class="nav-link active" aria-current="page">Panel Despachador</a>
+            <a href="despachador.html" class="nav-link active">Panel Despachador</a>
         </nav>
 
-        <main class="admin-content" role="main">
+        <main>
             <div class="admin-grid">
-                <!-- Panel de Turno Listo para Salir -->
-                <section class="admin-section control-panel" aria-labelledby="control-panel-title">
-                    <h2 id="control-panel-title">Proveedor Listo para Salir</h2>
-                    <div class="current-turn-display" aria-live="polite">
+                <!-- Proveedor Listo para Salir -->
+                <section class="admin-section control-panel">
+                    <h2>Proveedor Listo para Salir</h2>
+                    <div class="current-turn-display">
                         <div id="turnoListoSalir" class="turno-listo">
-                            <div class="esperando-mensaje">Esperando que admin complete un turno...</div>
+                            <div class="esperando-mensaje" style="color: #64748b; padding: 20px;">Esperando que completen un turno...</div>
                         </div>
                     </div>
-                    
                     <div class="despacho-actions">
-                        <button id="btnAutorizarSalida" class="btn btn-success btn-large" disabled aria-label="Autorizar salida del proveedor">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                            Autorizar Salida
-                        </button>
+                        <button id="btnAutorizarSalida" class="btn btn-success" disabled>Autorizar Salida</button>
                     </div>
                 </section>
 
-                <!-- Información de Despacho -->
-                <section class="admin-section despacho-actual" aria-labelledby="despacho-title">
-                    <h2 id="despacho-title">Información de Despacho</h2>
-                    <div id="infoDespachoActual" class="despacho-form">
-                        <div class="despacho-empty">No hay proveedor esperando autorización</div>
+                <!-- Estadisticas del Dia -->
+                <section class="admin-section statistics">
+                    <h2>Estadisticas de Hoy</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalTurnosDia">0</div>
+                            <div class="stat-label">Vehiculos</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalAutorizados">0</div>
+                            <div class="stat-label">Salidas OK</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="totalPendientes">0</div>
+                            <div class="stat-label">Pendientes</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Detalles del Proveedor -->
+                <section class="admin-section despacho-actual">
+                    <h2>Detalles del Proveedor</h2>
+                    <div id="infoDespachoActual" class="despacho-detail">
+                        <p style="color: #94a3b8;">Sin proveedor esperando</p>
+                    </div>
+                </section>
+
+                <!-- Turnos Pendientes de Salida -->
+                <section class="admin-section pending-exit">
+                    <h2>Turnos Pendientes de Salida</h2>
+                    <div style="margin-bottom: 10px;">
+                        <button id="btnActualizarPendientes" class="btn btn-secondary btn-small">Actualizar</button>
+                    </div>
+                    <div id="listaTurnosPendientesSalida" class="pending-exit-list">
+                        <p class="empty-message">Cargando...</p>
                     </div>
                 </section>
 
                 <!-- Citas Reservadas -->
-                <section class="admin-section cited-list" aria-labelledby="cited-list-despachador">
-                    <h2 id="cited-list-despachador">Citas Reservadas (<span id="contadorTurnosCitadosDespachador">0</span>)</h2>
-                    <div id="listaTurnosCitadosDespachador" class="turn-list" aria-live="polite">
-                        <p class="empty-message">Cargando citas...</p>
-                    </div>
-                </section>
-
-                <!-- Lista de Turnos Atendidos Hoy -->
-                <section class="admin-section turn-history" aria-labelledby="turn-history-title">
-                    <h2 id="turn-history-title">Turnos Atendidos Hoy</h2>
-                    <div class="history-header">
-                        <button id="btnActualizarHistorial" class="btn btn-secondary btn-small">
-                            Actualizar
-                        </button>
-                    </div>
-                    <div id="historialTurnosDespachador" class="history-list" aria-live="polite">
-                        <p class="empty-message">Cargando...</p>
+                <section class="admin-section cited-list">
+                    <h2>Citas Reservadas (<span id="contadorTurnosCitadosDespachador">0</span>)</h2>
+                    <div id="listaTurnosCitadosDespachador" class="turn-list" style="max-height: 150px; overflow-y: auto;">
+                        <p class="empty-message">Sin citas</p>
                     </div>
                 </section>
             </div>
         </main>
 
-        <footer role="contentinfo">
-            <p>&copy; 2026 Sistema de Turnos SI-3 - Panel Despachador</p>
+        <footer>
+            <p>2026 Sistema de Turnos SI-3 - Panel Despachador</p>
         </footer>
     </div>
 
-    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
-            let ultimoTurnoCompletado = null;
+            console.log('🔄 Iniciando despachador...');
+            
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'proveedorListoSalir' && e.newValue) {
+                    console.log('📥 Cambio detectado en localStorage desde otra pestaña');
+                    try {
+                        const proveedor = JSON.parse(e.newValue);
+                        console.log('📋 Proveedor recibido:', proveedor);
+                        mostrarProveedorListo(proveedor);
+                    } catch (err) {
+                        console.error('❌ Error al parsear:', err);
+                    }
+                }
+            });
             
             const intervalo = setInterval(() => {
-                if (window.AppState) {
+                if (window.AppState && window.RenderAdmin && window.DespachadorHandlers) {
                     clearInterval(intervalo);
+                    console.log('✅ AppState y handlers cargados');
                     inicializarDespachador();
                 }
-            }, 500);
-            
-            setTimeout(() => clearInterval(intervalo), 10000);
+            }, 200);
+            setTimeout(() => {
+                clearInterval(intervalo);
+                if (window.AppState) {
+                    inicializarDespachador();
+                } else {
+                    console.warn('⚠️ AppState no disponible después de 10s');
+                    inicializarDespachador();
+                }
+            }, 10000);
             
             async function inicializarDespachador() {
                 console.log('Inicializando panel de despachador...');
                 
-                await window.RenderAdmin.todo();
-                
-                const btnAutorizar = document.getElementById('btnAutorizarSalida');
-                if (btnAutorizar) {
-                    btnAutorizar.addEventListener('click', async () => {
-                        if (ultimoTurnoCompletado) {
-                            await window.DespachadorHandlers.autorizarSalida(ultimoTurnoCompletado);
-                        }
-                    });
+                if (window.InputConfig) {
+                    window.InputConfig.configurarMayusculas();
                 }
+                
+                if (window.RenderAdmin) {
+                    await window.RenderAdmin.todo();
+                }
+                cargarCitasDespachador();
+                cargarEstadisticasDespachador();
                 
                 verificarProveedorListo();
                 
-                setInterval(verificarProveedorListo, 3000);
-            }
-            
-            function verificarProveedorListo() {
-                const datos = localStorage.getItem('proveedorListoSalir');
-                if (datos) {
+                let conteo = 0;
+                const intervaloVerificacion = setInterval(() => {
+                    conteo++;
+                    verificarProveedorListo();
+                    if (conteo % 10 === 0) {
+                        console.log(`🔄 Verificación #${conteo} - Buscando proveedorListoSalir...`);
+                        const datos = localStorage.getItem('proveedorListoSalir');
+                        if (datos) {
+                            console.log('📦 Datos encontrados en localStorage');
+                        }
+                    }
+                }, 2000);
+                
+                function verificarProveedorListo() {
+                    console.log('🔍 Verificando proveedorListoSalir...');
+                    const datos = localStorage.getItem('proveedorListoSalir');
+                    if (datos) {
+                        try {
+                            const proveedor = JSON.parse(datos);
+                            console.log('📋 Proveedor encontrado:', proveedor);
+                            const ahora = Date.now();
+                            const tiempoTranscurrido = Math.round((ahora - proveedor.timestamp) / 1000);
+                            console.log(`⏱️ Tiempo transcurrido: ${tiempoTranscurrido} segundos`);
+                            
+                            if (ahora - proveedor.timestamp < 600000) {
+                                mostrarProveedorListo(proveedor);
+                            } else {
+                                console.log('⏰ Datos expirados (>10 min)');
+                                limpiarProveedorListo();
+                            }
+                        } catch (e) {
+                            console.error('❌ Error al parsear:', e);
+                        }
+                    } else {
+                        console.log('ℹ️ No hay datos en proveedorListoSalir');
+                    }
+                }
+                
+                function mostrarProveedorListo(proveedor) {
+                    const turnoListoDiv = document.getElementById('turnoListoSalir');
+                    const infoDespachoDiv = document.getElementById('infoDespachoActual');
+                    const btnAutorizar = document.getElementById('btnAutorizarSalida');
+                    
+                    if (turnoListoDiv) {
+                        turnoListoDiv.innerHTML = `
+                            <div class="turn-number-large">${proveedor.numero}</div>
+                            <div class="turn-empresa">${proveedor.nombre || 'Proveedor'}</div>
+                            <div class="turn-badge">COMPLETADO - Esperando Salida</div>
+                        `;
+                    }
+                    
+                    if (infoDespachoDiv) {
+                        infoDespachoDiv.innerHTML = `
+                            <p><strong>Placa:</strong> ${proveedor.nit || 'N/A'}</p>
+                            <p><strong>Factura:</strong> ${proveedor.numFactura || 'N/A'}</p>
+                            <p><strong>Tipo:</strong> ${proveedor.tipoVehiculo || 'N/A'}</p>
+                            <p><strong>Bultos:</strong> ${proveedor.bultos || 'N/A'}</p>
+                            <p><strong>Peso:</strong> ${proveedor.peso || 'N/A'} kg</p>
+                            <p><strong>Responsable:</strong> ${proveedor.responsable || 'N/A'}</p>
+                        `;
+                    }
+                    
+                    if (btnAutorizar) {
+                        btnAutorizar.disabled = false;
+                    }
+                }
+                
+                function limpiarProveedorListo() {
+                    const turnoListoDiv = document.getElementById('turnoListoSalir');
+                    const infoDespachoDiv = document.getElementById('infoDespachoActual');
+                    const btnAutorizar = document.getElementById('btnAutorizarSalida');
+                    
+                    if (turnoListoDiv) {
+                        turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Esperando que completen un turno...</div>';
+                    }
+                    if (infoDespachoDiv) {
+                        infoDespachoDiv.innerHTML = '<p style="color: #94a3b8;">Sin proveedor esperando</p>';
+                    }
+                    if (btnAutorizar) {
+                        btnAutorizar.disabled = true;
+                    }
+                }
+                
+                function mostrarCampo(valor) {
+                    return valor || 'N/A';
+                }
+                
+                async function cargarCitasDespachador() {
+                    const listaDiv = document.getElementById('listaTurnosCitadosDespachador');
+                    const contadorDiv = document.getElementById('contadorTurnosCitadosDespachador');
+                    
+                    if (!window.supabaseClient) {
+                        if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Sin conexion</p>';
+                        return;
+                    }
+                    
                     try {
-                        const data = JSON.parse(datos);
-                        const ahora = Date.now();
-                        const hace5min = 5 * 60 * 1000;
+                        const ahora = new Date().toISOString();
+                        const { data, error } = await window.supabaseClient
+                            .from('turnos')
+                            .select('*')
+                            .eq('estado', 'citado')
+                            .gte('fecha_cita', ahora)
+                            .order('fecha_cita', { ascending: true })
+                            .limit(10);
                         
-                        if (ahora - data.timestamp < hace5min) {
-                            ultimoTurnoCompletado = data;
-                            mostrarProveedorListo(data);
+                        if (error) throw error;
+                        
+                        if (contadorDiv) contadorDiv.textContent = data?.length || 0;
+                        
+                        if (!data || data.length === 0) {
+                            if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Sin citas reservadas</p>';
                         } else {
-                            localStorage.removeItem('proveedorListoSalir');
+                            const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'PLASTICOS', 'ambos': 'AMBOS' };
+                            
+                            if (listaDiv) listaDiv.innerHTML = data.map(turno => {
+                                const horaCita = turno.fecha_cita ? (() => {
+                                    const partes = turno.fecha_cita.split('T');
+                                    if (partes.length >= 2) {
+                                        const [h, m] = partes[1].split(':');
+                                        const hora = parseInt(h);
+                                        return `${hora}:${m}`;
+                                    }
+                                    return '';
+                                })() : '';
+                                
+                                return `
+                                    <div class="turn-item">
+                                        <span class="turn-item-number">${turno.numero}</span>
+                                        <div class="turn-item-info">
+                                            <div class="turn-item-company">${turno.nombreEmpresa}</div>
+                                            <div class="turn-item-time">${horaCita} - ${destinoLabel[turno.destino] || turno.destino}</div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('');
                         }
                     } catch (e) {
-                        console.error('Error al leer proveedorListoSalir:', e);
+                        console.error('Error:', e);
+                        if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
                     }
                 }
-            }
-            
-            function mostrarProveedorListo(data) {
-                console.log('=== mostrarProveedorListo ===');
-                console.log('Full data object:', data);
-                console.log('tipoVehiculo in data:', data.tipoVehiculo);
-                const turnoListoDiv = document.getElementById('turnoListoSalir');
-                const infoDespachoDiv = document.getElementById('infoDespachoActual');
-                const btnAutorizar = document.getElementById('btnAutorizarSalida');
                 
-                const mostrarCampo = (valor) => valor && valor !== '' && valor !== 'undefined' ? valor : 'N/A';
-                
-                if (turnoListoDiv) {
-                    turnoListoDiv.innerHTML = `
-                        <div class="turno-listo-content">
-                            <div class="turn-number-large">${mostrarCampo(data.numero)}</div>
-                            <div class="turn-empresa">${mostrarCampo(data.nombre)}</div>
-                            <div class="turn-badge">✓ COMPLETADO - ESPERANDO AUTORIZACIÓN DE SALIDA</div>
-                        </div>
-                    `;
-                }
-                
-                if (infoDespachoDiv) {
-                    infoDespachoDiv.innerHTML = `
-                        <div class="despacho-detalle">
-                            <p><strong>Empresa:</strong> ${mostrarCampo(data.nombre)}</p>
-                            <p><strong>Placa:</strong> ${mostrarCampo(data.nit)}</p>
-                            <p><strong>Destino:</strong> ${mostrarCampo(data.destino)}</p>
-                            <p><strong>Contacto:</strong> ${mostrarCampo(data.contacto)}</p>
-                            <p><strong>Teléfono:</strong> ${mostrarCampo(data.telefono)}</p>
-                            <p><strong>Servicio:</strong> ${mostrarCampo(data.servicio)}</p>
-                            <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ccc;">
-                            <p><strong>N° Factura:</strong> ${mostrarCampo(data.numFactura)}</p>
-                            <p><strong>Tipo Vehículo:</strong> ${mostrarCampo(data.tipoVehiculo)}</p>
-                            <p><strong>Bultos:</strong> ${mostrarCampo(data.bultos)}</p>
-                            <p><strong>Peso:</strong> ${mostrarCampo(data.peso)} kg</p>
-                            <p><strong>Responsable:</strong> ${mostrarCampo(data.responsable)}</p>
-                        </div>
-                    `;
-                }
-                
-                if (btnAutorizar) {
-                    btnAutorizar.disabled = false;
-                    btnAutorizar.textContent = 'Autorizar Salida';
-                }
-                
-                if (window.Utils) {
-                    window.Utils.mostrarNotificacion(`📦 Proveedor ${mostrarCampo(data.nombre)} completado!`, 'success');
-                }
-                
-                if (window.SonidoAlerta) {
-                    window.SonidoAlerta.reproducir(2);
-                }
-            }
-            
-            setInterval(async () => {
-                if (window.RenderAdmin && window.RenderAdmin.todo) {
-                    await window.RenderAdmin.todo();
-                }
-                await cargarHistorialDespachador();
-            }, 5000);
-            
-            async function cargarHistorialDespachador() {
-                const historialDiv = document.getElementById('historialTurnosDespachador');
-                if (!historialDiv) return;
-                
-                if (!window.supabaseClient) {
-                    historialDiv.innerHTML = '<p class="empty-message">Sin conexión a base de datos</p>';
-                    return;
-                }
-                
-                try {
-                    const hoy = new Date().toISOString().split('T')[0];
-                    const { data, error } = await window.supabaseClient
-                        .from('historial_turnos')
-                        .select('*')
-                        .gte('fecha', `${hoy}T00:00:00`)
-                        .order('fecha', { ascending: false });
+                async function cargarEstadisticasDespachador() {
+                    const totalDiaEl = document.getElementById('totalTurnosDia');
+                    const totalAutorizadosEl = document.getElementById('totalAutorizados');
+                    const totalPendientesEl = document.getElementById('totalPendientes');
                     
-                    if (error) throw error;
+                    if (!window.supabaseClient) return;
                     
-                    if (!data || data.length === 0) {
-                        historialDiv.innerHTML = '<p class="empty-message">No hay turnos atendidos hoy</p>';
-                    } else {
-                        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
-                        const formatearFechaHora = (fechaHora) => {
-                            if (!fechaHora) return 'N/A';
+                    try {
+                        const hoy = new Date().toISOString().split('T')[0];
+                        const { data, error } = await window.supabaseClient
+                            .from('historial_turnos')
+                            .select('autorizado_salida')
+                            .gte('fecha', `${hoy}T00:00:00`);
+                        
+                        if (error) throw error;
+                        
+                        const total = data?.length || 0;
+                        const autorizados = data?.filter(h => h.autorizado_salida === true).length || 0;
+                        const pendientes = total - autorizados;
+                        
+                        if (totalDiaEl) totalDiaEl.textContent = total;
+                        if (totalAutorizadosEl) totalAutorizadosEl.textContent = autorizados;
+                        if (totalPendientesEl) totalPendientesEl.textContent = pendientes;
+                    } catch (e) {
+                        console.error('Error:', e);
+                    }
+                }
+                
+                async function cargarTurnosPendientesSalida() {
+                    const listaDiv = document.getElementById('listaTurnosPendientesSalida');
+                    if (!listaDiv) return;
+                    
+                    if (!window.supabaseClient) {
+                        listaDiv.innerHTML = '<p class="empty-message">Sin conexion</p>';
+                        return;
+                    }
+                    
+                    try {
+                        const hoy = new Date().toISOString().split('T')[0];
+                        const { data, error } = await window.supabaseClient
+                            .from('historial_turnos')
+                            .select('*')
+                            .eq('autorizado_salida', false)
+                            .gte('fecha', `${hoy}T00:00:00`)
+                            .order('hora_finalizacion', { ascending: false });
+                        
+                        if (error) throw error;
+                        
+                        if (!data || data.length === 0) {
+                            listaDiv.innerHTML = '<p class="empty-message">Sin turnos pendientes</p>';
+                        } else {
+                            listaDiv.innerHTML = data.map(h => `
+                                <div class="pending-exit-item" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos || ''}" data-peso="${h.peso || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}">
+                                    <div class="pending-exit-header">
+                                        <span class="pending-exit-number">${h.numero}</span>
+                                        <span class="pending-exit-company">${h.nombre_empresa}</span>
+                                        <span class="pending-exit-status">PENDIENTE</span>
+                                    </div>
+                                    <div class="pending-exit-details">
+                                        <span>Placa: ${h.nit || 'N/A'}</span>
+                                        <span>Fact: ${h.num_factura || 'N/A'}</span>
+                                        <span>Peso: ${h.peso || '0'} kg</span>
+                                    </div>
+                                    <button class="btn btn-success btn-authorize" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button>
+                                </div>
+                            `).join('');
+                        }
+                    } catch (e) {
+                        console.error('Error:', e);
+                        listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
+                    }
+                }
+                
+                window.autorizarSalidaDesdeLista = async function(btn) {
+                    const item = btn.closest('.pending-exit-item');
+                    const turno = {
+                        numero: item.dataset.numero,
+                        nombre: item.dataset.nombre,
+                        nit: item.dataset.nit,
+                        motivo: item.dataset.motivo,
+                        destino: item.dataset.destino,
+                        contacto: item.dataset.contacto,
+                        telefono: item.dataset.telefono,
+                        servicio: item.dataset.servicio,
+                        numFactura: item.dataset.numfactura,
+                        tipoVehiculo: item.dataset.tipovehiculo,
+                        bultos: item.dataset.bultos,
+                        peso: item.dataset.peso,
+                        responsable: item.dataset.responsable,
+                        horaSolicitud: item.dataset.horasolicitud,
+                        horaLlamada: item.dataset.horallamada
+                    };
+                    
+                    await window.DespachadorHandlers.autorizarSalida(turno);
+                    cargarTurnosPendientesSalida();
+                    cargarEstadisticasDespachador();
+                };
+                
+                const btnActualizarPendientes = document.getElementById('btnActualizarPendientes');
+                if (btnActualizarPendientes) {
+                    btnActualizarPendientes.addEventListener('click', () => {
+                        cargarTurnosPendientesSalida();
+                        cargarEstadisticasDespachador();
+                    });
+                }
+                
+                cargarTurnosPendientesSalida();
+                
+                const btnAutorizarSalida = document.getElementById('btnAutorizarSalida');
+                if (btnAutorizarSalida) {
+                    btnAutorizarSalida.addEventListener('click', async () => {
+                        const datos = localStorage.getItem('proveedorListoSalir');
+                        if (datos) {
                             try {
-                                const fecha = new Date(fechaHora);
-                                return fecha.toLocaleString('es-CO', { 
-                                    day: '2-digit', month: '2-digit', year: 'numeric',
-                                    hour: 'numeric', minute: '2-digit', hour12: true 
-                                });
-                            } catch(e) { return fechaHora; }
-                        };
-                        historialDiv.innerHTML = data.map(h => `
-                            <div class="history-item">
-                                <div class="history-item-header">
-                                    <span class="history-item-number">${h.numero}</span>
-                                    <span class="history-item-status status-${h.estado}">${h.autorizado_salida ? '✓ SALIDA AUTORIZADA' : h.estado}</span>
-                                    ${h.fecha_cita ? '<span class="history-item-badge">CITADO</span>' : ''}
-                                </div>
-                                <div class="history-item-info">
-                                    <div class="history-item-company">${h.nombre_empresa}</div>
-                                    <div class="history-item-details">
-                                        <span><strong>Placa:</strong> ${h.nit || 'N/A'}</span>
-                                        <span><strong>Destino:</strong> ${h.destino ? destinoLabel[h.destino] || h.destino : 'N/A'}</span>
-                                        <span><strong>Servicio:</strong> ${h.servicio || 'N/A'}</span>
-                                    </div>
-                                    <div class="history-item-details">
-                                        <span><strong>Contacto:</strong> ${h.contacto || 'N/A'}</span>
-                                        <span><strong>Teléfono:</strong> ${h.telefono || 'N/A'}</span>
-                                    </div>
-                                    <div class="history-item-details" style="background: #f0fdf4; padding: 8px; border-radius: 4px; margin-top: 4px;">
-                                        <span><strong>N° Factura:</strong> ${h.num_factura || 'N/A'}</span>
-                                        <span><strong>Tipo Vehículo:</strong> ${h.tipo_vehiculo || 'N/A'}</span>
-                                        <span><strong>Bultos:</strong> ${h.bultos || 'N/A'}</span>
-                                        <span><strong>Peso:</strong> ${h.peso || 'N/A'} kg</span>
-                                        <span><strong>Responsable:</strong> ${h.responsable || 'N/A'}</span>
-                                    </div>
-                                    ${h.fecha_cita ? `<div class="history-item-details"><span><strong>Cita:</strong> ${formatearFechaHora(h.fecha_cita)}</span></div>` : ''}
-                                    <div class="history-item-time">
-                                        <span><strong>Solicitud:</strong> ${h.hora_solicitud || 'N/A'}</span>
-                                        <span><strong>Llamada:</strong> ${h.hora_llamada || 'N/A'}</span>
-                                        <span><strong>Finalización:</strong> ${h.hora_finalizacion || 'N/A'}</span>
-                                    </div>
-                                    <div class="history-item-date">
-                                        <strong>Fecha:</strong> ${h.fecha ? new Date(h.fecha).toLocaleDateString('es-CO') : 'N/A'}
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('');
-                    }
-                } catch (e) {
-                    console.error('Error al cargar historial:', e);
-                    historialDiv.innerHTML = '<p class="empty-message">Error al cargar historial</p>';
+                                const proveedor = JSON.parse(datos);
+                                await window.DespachadorHandlers.autorizarSalida(proveedor);
+                                cargarTurnosPendientesSalida();
+                                cargarEstadisticasDespachador();
+                            } catch (e) {
+                                console.error('Error:', e);
+                            }
+                        }
+                    });
                 }
             }
-            
-            cargarHistorialDespachador();
-            
-            async function cargarCitasDespachador() {
-                const listaDiv = document.getElementById('listaTurnosCitadosDespachador');
-                const contadorDiv = document.getElementById('contadorTurnosCitadosDespachador');
-                if (!listaDiv) return;
-                
-                if (!window.supabaseClient) {
-                    listaDiv.innerHTML = '<p class="empty-message">Sin conexión a base de datos</p>';
-                    return;
-                }
-                
-                try {
-                    const { data, error } = await window.supabaseClient
-                        .from('turnos')
-                        .select('*')
-                        .eq('estado', 'citado')
-                        .order('fecha_cita', { ascending: true });
-                    
-                    if (error) throw error;
-                    
-                    if (contadorDiv) contadorDiv.textContent = data?.length || 0;
-                    
-                    if (!data || data.length === 0) {
-                        listaDiv.innerHTML = '<p class="empty-message">No hay citas reservadas</p>';
-                    } else {
-                        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
-                        listaDiv.innerHTML = data.map(turno => {
-                            const horaCita = turno.fecha_cita ? (() => {
-                                const fechaHora = turno.fecha_cita.split('T');
-                                if (fechaHora.length >= 2) {
-                                    const [horas, minutos] = fechaHora[1].split(':');
-                                    const h = parseInt(horas);
-                                    const ampm = h >= 12 ? 'PM' : 'AM';
-                                    const h12 = h % 12 || 12;
-                                    return `${h12}:${minutos} ${ampm}`;
-                                }
-                                return turno.hora_solicitud;
-                            })() : turno.hora_solicitud;
-                            const fechaCompleta = turno.fecha_cita ? (() => {
-                                const fechaHora = turno.fecha_cita.split('T');
-                                if (fechaHora.length >= 2) {
-                                    const fecha = new Date(turno.fecha_cita);
-                                    return fecha.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-                                }
-                                return '';
-                            })() : '';
-                            return `
-                            <div class="turn-item turn-item-citado">
-                                <span class="turn-item-number">${turno.numero}</span>
-                                <div class="turn-item-info">
-                                    <div class="turn-item-company">${turno.nombre_empresa}</div>
-                                    <div class="turn-item-time">📅 ${horaCita}</div>
-                                    ${fechaCompleta ? `<div class="turn-item-time">${fechaCompleta}</div>` : ''}
-                                    <div class="turn-item-details">
-                                        <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        `}).join('');
-                    }
-                } catch (e) {
-                    console.error('Error al cargar citas:', e);
-                    listaDiv.innerHTML = '<p class="empty-message">Error al cargar citas</p>';
-                }
-            }
-            
-            cargarCitasDespachador();
-            
-            const btnActualizar = document.getElementById('btnActualizarHistorial');
-            if (btnActualizar) {
-                btnActualizar.addEventListener('click', () => {
-                    cargarHistorialDespachador();
-                    cargarCitasDespachador();
-                });
-            }
-            
-            setInterval(cargarCitasDespachador, 10000);
         });
     </script>
 </body>

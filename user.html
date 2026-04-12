@@ -11,6 +11,246 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .user-content {
+            padding: 30px 20px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        
+        .welcome-banner {
+            background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+            border-radius: 16px;
+            padding: 35px 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .welcome-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: shimmer 3s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translate(-30%, -30%); }
+            100% { transform: translate(30%, 30%); }
+        }
+        
+        .welcome-banner h2 {
+            font-size: 28px;
+            color: white;
+            margin-bottom: 8px;
+            font-weight: 700;
+            position: relative;
+        }
+        
+        .welcome-banner p {
+            font-size: 14px;
+            color: rgba(255,255,255,0.9);
+            position: relative;
+        }
+        
+        .user-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+        
+        .user-section {
+            background: #fff;
+            border-radius: 14px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.07);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .user-section h2 {
+            font-size: 18px;
+            color: #1e293b;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 3px solid #3b82f6;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .turn-form .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .turn-form label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        
+        .turn-form input,
+        .turn-form select,
+        .turn-form textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.2s;
+            background: #f8fafc;
+            font-family: inherit;
+        }
+        
+        .turn-form input:focus,
+        .turn-form select:focus,
+        .turn-form textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        
+        .turn-form .btn-large {
+            width: 100%;
+            padding: 14px 20px;
+            font-size: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-weight: 600;
+        }
+        
+        .my-turn-number {
+            font-size: 64px;
+            font-weight: 800;
+            color: #2563eb;
+            text-align: center;
+            padding: 25px;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-radius: 14px;
+            border: 3px solid #2563eb;
+            margin: 15px 0;
+        }
+        
+        .my-turn-info {
+            background: #f8fafc;
+            padding: 18px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        
+        .my-turn-info p {
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 13px;
+            color: #475569;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .my-turn-info p:last-child {
+            border-bottom: none;
+        }
+        
+        .my-turn-info strong {
+            color: #1e293b;
+        }
+        
+        .turn-status {
+            padding: 14px 18px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+            margin: 15px 0;
+        }
+        
+        .turn-status.en-cola {
+            background: #fef3c7;
+            color: #92400e;
+            border: 2px solid #f59e0b;
+        }
+        
+        .turn-status.llamado {
+            background: #dcfce7;
+            color: #166534;
+            border: 2px solid #22c55e;
+        }
+        
+        .form-hint {
+            display: block;
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        
+        .no-turn-message {
+            text-align: center;
+            padding: 30px 20px;
+            color: #64748b;
+        }
+        
+        .no-turn-message svg {
+            width: 50px;
+            height: 50px;
+            stroke: #cbd5e1;
+            margin-bottom: 15px;
+        }
+        
+        .no-turn-message p {
+            font-size: 14px;
+        }
+        
+        .no-turn-message .hint {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+        
+        .queue-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        
+        .queue-stat {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .queue-stat .queue-label {
+            display: block;
+            font-size: 11px;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+        
+        .queue-stat .queue-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+        
+        @media (max-width: 900px) {
+            .user-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .welcome-banner { padding: 25px 20px; }
+            .welcome-banner h2 { font-size: 22px; }
+            .user-section { padding: 20px; }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -25,6 +265,11 @@
         </nav>
 
         <main class="user-content" role="main">
+            <div class="welcome-banner">
+                <h2>Solicitar Turno</h2>
+                <p>Ingrese sus datos para obtener su número de atención</p>
+            </div>
+            
             <div class="user-grid">
                 <!-- Solicitar Turno -->
                 <section class="user-section request-turn" aria-labelledby="request-turn-title">
@@ -236,6 +481,10 @@
             <h2 id="confirm-modal-title">Turno Solicitado</h2>
             <div class="modal-turn-number" id="modalMiTurno">--</div>
             <div class="modal-turn-info" id="modalTurnoInfo"></div>
+            <div id="modalQRContainer" style="margin: 20px auto; text-align: center; display: none;">
+                <canvas id="modalQRCanvas"></canvas>
+                <p style="font-size: 12px; color: #64748b; margin-top: 10px;">Escanee este QR al llegar para confirmar</p>
+            </div>
             <p class="modal-message">Por favor, espere a que su número sea llamado. Recibirá una notificación cuando sea su turno.</p>
             <button class="btn btn-primary" onclick="document.getElementById('confirmacionModal').style.display='none'">
                 Entendido

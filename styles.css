@@ -2602,3 +2602,180 @@ footer {
     font-size: 1.1rem;
 }
 
+/* Panel Despachador - Turnos Pendientes de Salida */
+.pending-exit-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.pending-exit-item {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    border: 2px solid var(--warning);
+    transition: all var(--transition-base);
+    animation: pendingExitSlideIn 0.3s ease-out;
+}
+
+@keyframes pendingExitSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.pending-exit-item:hover {
+    background: var(--bg-primary);
+    border-color: var(--accent-500);
+    box-shadow: var(--shadow-md);
+}
+
+.pending-exit-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.pending-exit-number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-600);
+}
+
+.pending-exit-company {
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.pending-exit-status {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.pending-exit-status.status-pending {
+    background: var(--warning);
+    color: var(--gray-900);
+    animation: pendingPulse 2s infinite;
+}
+
+@keyframes pendingPulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
+    }
+}
+
+.pending-exit-status.status-authorized {
+    background: var(--accent-500);
+    color: white;
+}
+
+.pending-exit-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    padding: var(--space-3);
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);
+}
+
+.pending-exit-detail {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.pending-exit-detail strong {
+    color: var(--text-primary);
+}
+
+.pending-exit-time {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-3);
+}
+
+.pending-exit-item .btn-authorize {
+    width: 100%;
+    margin-top: var(--space-2);
+}
+
+.turn-list-empty {
+    text-align: center;
+    padding: var(--space-6);
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Panel Admin - Stats Grid 4 columns */
+.admin-grid .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.stats-grid-despachador {
+    grid-template-columns: repeat(3, 1fr) !important;
+}
+
+@media (max-width: 768px) {
+    .admin-grid .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .stats-grid-despachador {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Password Toggle */
+.password-wrapper {
+    position: relative !important;
+    display: inline-block !important;
+    width: 100% !important;
+}
+
+.password-wrapper input[type="password"],
+.password-wrapper input[type="text"] {
+    padding-right: 40px !important;
+}
+
+.password-toggle-btn {
+    position: absolute !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 4px 8px !important;
+    z-index: 100 !important;
+    transition: all 0.3s ease !important;
+    border-radius: 4px !important;
+    color: #64748b !important;
+}
+
+.password-toggle-btn:hover {
+    background: #f1f5f9 !important;
+    color: #2563eb !important;
+}
+
+.password-toggle-btn svg {
+    transition: all 0.3s ease !important;
+}
+
+.password-toggle-btn:hover svg {
+    transform: scale(1.1) !important;
+}
+
