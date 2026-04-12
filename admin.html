@@ -99,7 +99,6 @@
                         <div id="turnoInfo" class="turn-info">Sin turno en atencion</div>
                     </div>
                     <div class="control-buttons">
-                        <button id="btnLlamarTurno" class="btn btn-primary">Llamar Siguiente</button>
                         <button id="btnCompletarTurno" class="btn btn-success">Completar Turno</button>
                         <button id="btnReiniciarCola" class="btn btn-danger">Reiniciar Cola</button>
                     </div>
@@ -128,6 +127,15 @@
                         </select>
                         <button id="btnVerMes" class="btn btn-secondary btn-small">Ver</button>
                         <button id="btnGenerarCertificado" class="btn btn-primary">Certificado</button>
+                    </div>
+                </section>
+
+                <!-- Notificaciones Llegada -->
+                <section class="admin-section" style="border-color: #10b981; background: #ecfdf5;">
+                    <h2 style="color: #10b981;">🔔 Proveedores que llegaron (<span id="contadorNotificacionesLlegada">0</span>)</h2>
+                    <p style="color: #64748b; font-size: 12px;">Proveedores que confirmaron llegada</p>
+                    <div id="notificacionesLlegada" class="turn-list">
+                        <p class="empty-message">No hay notificaciones</p>
                     </div>
                 </section>
 

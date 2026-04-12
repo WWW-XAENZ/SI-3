@@ -1722,6 +1722,39 @@ const RenderAdmin = {
         }
     },
 
+    notificacionesLlegada() {
+        const listaDiv = document.getElementById('notificacionesLlegada');
+        const contadorDiv = document.getElementById('contadorNotificacionesLlegada');
+        
+        const turnosLlegados = AppState.turnos.filter(t => t.estado === 'llegado');
+        const turnosSinNotificar = turnosLlegados.filter(t => !t.notificadoAdmin);
+        
+        if (contadorDiv) contadorDiv.textContent = turnosLlegados.length;
+        
+        if (!listaDiv) return;
+
+        if (turnosSinNotificar.length === 0 && turnosLlegados.length === 0) {
+            listaDiv.innerHTML = '<p class="empty-message">No hay notificaciones</p>';
+        } else if (turnosSinNotificar.length > 0) {
+            listaDiv.innerHTML = turnosSinNotificar.map(turno => `
+                <div class="turn-item" style="background: #dcfce7; border-left: 4px solid #10b981; padding: 15px; margin-bottom: 10px;">
+                    <div style="font-size: 14px; color: #10b981; font-weight: bold; margin-bottom: 5px;">
+                        ✓ LLEGADA: ${turno.numero}
+                    </div>
+                    <div style="font-size: 13px;">${turno.nombreEmpresa}</div>
+                    <div style="font-size: 12px; color: #64748b;">Llegó a las ${turno.horaLlegada || turno.horaSolicitud}</div>
+                    <div style="margin-top: 10px;">
+                        <button class="btn btn-success btn-small" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})">
+                            Atender
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            listaDiv.innerHTML = '<p class="empty-message">No hay notificaciones nuevas</p>';
+        }
+    },
+
     listaTurnosLlegados() {
         const listaDiv = document.getElementById('listaTurnosLlegados');
         const contadorDiv = document.getElementById('contadorTurnosLlegados');
@@ -1989,6 +2022,7 @@ const RenderAdmin = {
         try { 
                 this.listaTurnosEspera(); 
                 this.listaTurnosLlegados();
+                this.notificacionesLlegada();
             } catch (e) { console.error('Error listas:', e); }
         try { this.listaTurnosCitados(); } catch (e) { console.error('Error listaTurnosCitados:', e); }
         try { await this.proveedores(); } catch (e) { console.error('Error proveedores:', e); }
