@@ -38,6 +38,39 @@ let logoClickCount = 0;
 let logoClickTimer = null;
 let syncInterval = null;
 
+const SonidoLlegada = {
+    reproducir() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.frequency.value = 660;
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.3);
+            
+            setTimeout(() => {
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.frequency.value = 880;
+                osc2.type = 'sine';
+                gain2.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc2.start(ctx.currentTime);
+                osc2.stop(ctx.currentTime + 0.3);
+            }, 400);
+        } catch(e) {}
+    }
+};
+
 const SonidoAlerta = {
     contexto: null,
     
@@ -1722,36 +1755,87 @@ const RenderAdmin = {
         }
     },
 
+    notificacionesSalida() {
+        const listaDiv = document.getElementById('notificacionesSalida');
+        const contadorDiv = document.getElementById('contadorNotificacionesSalida');
+        
+        if (!listaDiv) return;
+        
+        // Cargar salidas almacenadas en localStorage
+        const salidasData = localStorage.getItem('salidasAutorizadas');
+        const salidas = salidasData ? JSON.parse(salidasData) : [];
+        
+        const salidasNoVistas = salidas.filter(s => !s.visto);
+        
+        if (contadorDiv) contadorDiv.textContent = salidas.length;
+        
+        if (salidas.length === 0) {
+            listaDiv.innerHTML = '<p class="empty-message">No hay salidas autorizadas</p>';
+        } else {
+            listaDiv.innerHTML = salidas.map(s => `
+                <div class="turn-item" style="background: ${s.visto ? '#fffbeb' : '#fef3c7'}; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 20px; color: #92400e; font-weight: bold;">
+                                🚚 AUTORIZADO: ${s.numero}
+                            </div>
+                            <div style="font-size: 14px;">${s.nombre || ''}</div>
+                            <div style="font-size: 12px; color: #78716c;">${s.hora}</div>
+                        </div>
+                        <button class="btn" onclick="RenderAdmin.marcarSalidaVista('${s.id}');" style="background: #f59e0b; color: white;">
+                            ${s.visto ? 'Ya visto' : 'Aceptar'}
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            
+            if (salidasNoVistas.length > 0) {
+                Utils.mostrarNotificacion(`🚚 Salida autorizada: ${salidasNoVistas[0].numero}`, 'success');
+                SonidoLlegada.reproducir();
+            }
+        }
+    },
+
+    marcarSalidaVista(id) {
+        const salidasData = localStorage.getItem('salidasAutorizadas');
+        const salidas = salidasData ? JSON.parse(salidasData) : [];
+        const salida = salidas.find(s => s.id === id);
+        if (salida) {
+            salida.visto = true;
+            localStorage.setItem('salidasAutorizadas', JSON.stringify(salidas));
+            this.notificacionesSalida();
+        }
+    },
+
     notificacionesLlegada() {
         const listaDiv = document.getElementById('notificacionesLlegada');
         const contadorDiv = document.getElementById('contadorNotificacionesLlegada');
         
         const turnosLlegados = AppState.turnos.filter(t => t.estado === 'llegado');
-        const turnosSinNotificar = turnosLlegados.filter(t => !t.notificadoAdmin);
         
         if (contadorDiv) contadorDiv.textContent = turnosLlegados.length;
         
         if (!listaDiv) return;
 
-        if (turnosSinNotificar.length === 0 && turnosLlegados.length === 0) {
-            listaDiv.innerHTML = '<p class="empty-message">No hay notificaciones</p>';
-        } else if (turnosSinNotificar.length > 0) {
-            listaDiv.innerHTML = turnosSinNotificar.map(turno => `
+        if (turnosLlegados.length === 0) {
+            listaDiv.innerHTML = '<p class="empty-message">No hay proveedores llegados</p>';
+        } else {
+            listaDiv.innerHTML = turnosLlegados.map(turno => `
                 <div class="turn-item" style="background: #dcfce7; border-left: 4px solid #10b981; padding: 15px; margin-bottom: 10px;">
-                    <div style="font-size: 14px; color: #10b981; font-weight: bold; margin-bottom: 5px;">
-                        ✓ LLEGADA: ${turno.numero}
-                    </div>
-                    <div style="font-size: 13px;">${turno.nombreEmpresa}</div>
-                    <div style="font-size: 12px; color: #64748b;">Llegó a las ${turno.horaLlegada || turno.horaSolicitud}</div>
-                    <div style="margin-top: 10px;">
-                        <button class="btn btn-success btn-small" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 20px; color: #10b981; font-weight: bold;">
+                                ✓ LLEGADA: ${turno.numero}
+                            </div>
+                            <div style="font-size: 14px;">${turno.nombreEmpresa}</div>
+                            <div style="font-size: 12px; color: #64748b;">Llegó a las ${turno.horaLlegada || turno.horaSolicitud}</div>
+                        </div>
+                        <button class="btn btn-success" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})" style="padding: 12px 25px; font-size: 14px;">
                             Atender
                         </button>
                     </div>
                 </div>
             `).join('');
-        } else {
-            listaDiv.innerHTML = '<p class="empty-message">No hay notificaciones nuevas</p>';
         }
     },
 
@@ -2022,7 +2106,7 @@ const RenderAdmin = {
         try { 
                 this.listaTurnosEspera(); 
                 this.listaTurnosLlegados();
-                this.notificacionesLlegada();
+                
             } catch (e) { console.error('Error listas:', e); }
         try { this.listaTurnosCitados(); } catch (e) { console.error('Error listaTurnosCitados:', e); }
         try { await this.proveedores(); } catch (e) { console.error('Error proveedores:', e); }
@@ -3245,6 +3329,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (payload.eventType === 'INSERT') {
                             Utils.mostrarNotificacion(`Nuevo turno ${payload.new.numero} recibido`, 'info');
                         }
+                        
+                        if (payload.new?.estado === 'llegado') {
+                            Utils.mostrarNotificacion(`✓ LLEGADA: ${payload.new.numero} llegó a las ${payload.new.hora_llegada}`, 'success');
+                            SonidoLlegada.reproducir();
+                        }
                     } catch (error) {
                         console.error('Error al procesar actualización en tiempo real:', error);
                     }
@@ -3392,12 +3481,20 @@ const DespachadorHandlers = {
                 }
             }
             
-            localStorage.setItem('salidaAutorizada', JSON.stringify({
+            const salidaInfo = {
+                id: Date.now().toString(),
                 numero: turno.numero,
                 nombre: turno.nombre || turno.nombreEmpresa || turno.nombre,
                 nit: turno.nit || '',
-                timestamp: Date.now()
-            }));
+                hora: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                timestamp: Date.now(),
+                visto: false
+            };
+            
+            const salidasPrev = JSON.parse(localStorage.getItem('salidasAutorizadas') || '[]');
+            salidasPrev.push(salidaInfo);
+            localStorage.setItem('salidasAutorizadas', JSON.stringify(salidasPrev));
+            
             localStorage.removeItem('proveedorListoSalir');
             
             const numeroMostrar = turno.numero || '---';
