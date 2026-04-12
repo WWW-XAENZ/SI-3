@@ -53,9 +53,13 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script>
+        console.log('Supabase client:', typeof window.supabaseClient);
+        
         const urlParams = new URLSearchParams(window.location.search);
         const turnoParam = urlParams.get('turno');
         const placaParam = urlParams.get('placa');
+        
+        console.log('URL params - turno:', turnoParam, 'placa:', placaParam);
         
         if (turnoParam) document.getElementById('turnoInput').value = turnoParam.toUpperCase();
         if (placaParam) document.getElementById('placaInput').value = placaParam.toUpperCase();
@@ -65,6 +69,8 @@
             
             const numero = document.getElementById('turnoInput').value.trim().toUpperCase();
             const placa = document.getElementById('placaInput').value.trim().toUpperCase();
+            
+            console.log('Buscando turno:', numero, 'placa:', placa);
             
             if (!numero || !placa) {
                 alert('Ingrese turno y placa');
@@ -76,24 +82,36 @@
                 let nombreEmpresa = '';
                 
                 if (window.supabaseClient) {
+                    console.log('Buscando en Supabase...');
+                    
                     const { data: turnoData, error } = await window.supabaseClient
                         .from('turnos')
-                        .select('numero, nombre_empresa, nit')
+                        .select('id, numero, nombre_empresa, nit')
                         .eq('numero', numero)
                         .single();
                     
-                    if (turnoData && turnoData.nit && turnoData.nit.toUpperCase() === placa.toUpperCase()) {
-                        turnoValido = true;
-                        nombreEmpresa = turnoData.nombre_empresa;
+                    console.log('Turno encontrado:', turnoData, 'error:', error);
+                    
+                    if (turnoData) {
+                        console.log('Placa turno:', turnoData.nit, 'Placa ingresada:', placa);
                         
-                        await window.supabaseClient
-                            .from('turnos')
-                            .update({ 
-                                hora_llegada: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
-                                estado: 'llegado',
-                                updated_at: new Date().toISOString()
-                            })
-                            .eq('numero', numero);
+                        if (turnoData.nit && turnoData.nit.toUpperCase() === placa.toUpperCase()) {
+                            turnoValido = true;
+                            nombreEmpresa = turnoData.nombre_empresa;
+                            
+                            console.log('Actualizando a llegado...');
+                            
+                            const { error: updateError } = await window.supabaseClient
+                                .from('turnos')
+                                .update({ 
+                                    hora_llegada: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+                                    estado: 'llegado',
+                                    updated_at: new Date().toISOString()
+                                })
+                                .eq('numero', numero);
+                            
+                            console.log('Actualizado, error:', updateError);
+                        }
                     }
                 }
                 
@@ -109,7 +127,7 @@
                 document.getElementById('successSection').classList.add('show');
                 
             } catch (err) {
-                console.error(err);
+                console.error('Error:', err);
                 alert('Error al confirmar. Verifique los datos.');
             }
         });
