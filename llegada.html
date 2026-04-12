@@ -5,133 +5,99 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Confirmar Llegada - SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .container { background: white; border-radius: 20px; padding: 40px; max-width: 400px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); }
-        h1 { color: #1e3a8a; margin-bottom: 10px; font-size: 24px; }
-        p { color: #64748b; margin-bottom: 30px; }
-        .form-group { margin-bottom: 20px; text-align: left; }
-        label { display: block; margin-bottom: 8px; color: #374151; font-weight: 500; }
-        input { width: 100%; padding: 14px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 16px; transition: border-color 0.3s; }
-        input:focus { outline: none; border-color: #3b82f6; }
-        .btn { width: 100%; padding: 16px; background: #10b981; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-top: 10px; }
-        .btn:hover { background: #059669; transform: translateY(-2px); }
-        .success { display: none; }
-        .success.show { display: block; }
-        .success h2 { color: #10b981; font-size: 22px; margin-bottom: 15px; }
-        .badge { background: #10b981; color: white; padding: 15px 25px; border-radius: 10px; font-size: 18px; font-weight: bold; display: inline-block; }
+        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #1e3a8a, #3b82f6); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { background: white; border-radius: 20px; padding: 30px; max-width: 360px; width: 100%; }
+        h1 { color: #1e3a8a; text-align: center; }
+        p { color: #64748b; text-align: center; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px; text-transform: uppercase; }
+        input:focus { border-color: #3b82f6; }
+        .btn { width: 100%; padding: 14px; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        .success { display: none; text-align: center; }
+        .badge { background: #10b981; color: white; padding: 15px 30px; font-size: 24px; border-radius: 10px; display: inline-block; }
     </style>
 </head>
 <body>
     <div class="container">
         <div id="formSection">
-            <h1>✓ Confirmar Llegada</h1>
-            <p>Ingrese sus datos para confirmar que ha llegado</p>
-            
+            <h1>Confirmar Llegada</h1>
+            <p>Ingrese sus datos</p>
             <form id="llegadaForm">
                 <div class="form-group">
-                    <label for="turnoInput">Número de Turno:</label>
-                    <input type="text" id="turnoInput" placeholder="Ej: T001" required style="text-transform: uppercase;">
+                    <label>Turno:</label>
+                    <input type="text" id="turnoInput" placeholder="T001" required>
                 </div>
                 <div class="form-group">
-                    <label for="placaInput">Placa del vehículo:</label>
-                    <input type="text" id="placaInput" placeholder="ABC123" required style="text-transform: uppercase;">
+                    <label>Placa:</label>
+                    <input type="text" id="placaInput" placeholder="ABC123" required>
                 </div>
-                <button type="submit" class="btn">Confirmar Llegada</button>
+                <button type="submit" class="btn">Confirmar</button>
             </form>
+            <div id="status" style="font-size:12px; color:#666; margin-top:15px;"></div>
         </div>
-        
         <div id="successSection" class="success">
-            <h2>✓ Llegada Confirmada</h2>
-            <div class="badge" id="turnoDisplay">T000</div>
-            <p style="margin-top: 20px;">Aguarde su turno, lo llamaremos pronto</p>
+            <h2 style="color:#10b981;">✓ LLEGADA CONFIRMADA</h2>
+            <div class="badge" id="turnoDisplay">--</div>
+            <p>Aguarde su turno</p>
         </div>
     </div>
-    
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        // Configuración directa de Supabase
-        const SUPABASE_URL = 'https://antxwdmecfxhpyjtbbxl.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFudHh3ZG1lY2Z4aHB5anRiYnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MDUxNDUsImV4cCI6MjA5MTE4MTE0NX0.DjIccxaUx0hJUaV2h62RSB_O2W0T0dj98hS8I70eDj8';
-        
-        if (typeof supabase !== 'undefined') {
-            window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            console.log('Supabase inicializado');
-        }
-    </script>
-    <script>
-        console.log('Supabase client disponible:', !!window.supabaseClient);
-        
-        if (!window.supabaseClient) {
-            document.body.innerHTML = '<p style="color:red">Error: No hay conexión a Supabase</p>';
-        }
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        
-        if (urlParams.get('turno')) document.getElementById('turnoInput').value = urlParams.get('turno').toUpperCase();
-        if (urlParams.get('placa')) document.getElementById('placaInput').value = urlParams.get('placa').toUpperCase();
+        const client = supabase.createClient(
+            'https://antxwdmecfxhpyjtbbxl.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFudHh3ZG1lY2Z4aHB5anRiYnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MDUxNDUsImV4cCI6MjA5MTE4MTE0NX0.DjIccxaUx0hJUaV2h62RSB_O2W0T0dj98hS8I70eDj8'
+        );
         
         document.getElementById('llegadaForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+            const status = document.getElementById('status');
             const numero = document.getElementById('turnoInput').value.trim().toUpperCase();
             const placa = document.getElementById('placaInput').value.trim().toUpperCase();
             
-            if (!numero || !placa) {
-                alert('Ingrese turno y placa');
+            status.innerHTML = 'Buscando ' + numero + '...';
+            
+            // Buscar turno
+            const { data: turno, error: err1 } = await client
+                .from('turnos')
+                .select('*')
+                .eq('numero', numero)
+                .single();
+            
+            if (err1) {
+                status.innerHTML = 'Error: ' + err1.message;
                 return;
             }
             
-            if (!window.supabaseClient) {
-                alert('Sin conexión a la base de datos');
+            if (!turno) {
+                status.innerHTML = 'Turno no existe';
                 return;
             }
             
-            try {
-                // Buscar turno
-                const { data: turnoData, error: findError } = await window.supabaseClient
-                    .from('turnos')
-                    .select('id, numero, nombre_empresa, nit')
-                    .eq('numero', numero)
-                    .single();
-                
-                console.log('TurnoData:', turnoData, 'Error:', findError);
-                
-                if (findError || !turnoData) {
-                    alert('Turno no encontrado');
-                    return;
-                }
-                
-                // Verificar placa
-                if (turnoData.nit && turnoData.nit.toUpperCase() === placa.toUpperCase()) {
-                    const horaActual = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-                    
-                    console.log('Actualizando con hora:', horaActual, 'estado: llegado');
-                    
-                    const { error: upError } = await window.supabaseClient
-                        .from('turnos')
-                        .update({ 
-                            hora_llegada: horaActual,
-                            estado: 'llegado',
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('id', turnoData.id);
-                    
-                    console.log('Update error:', upError);
-                    
-                    document.getElementById('formSection').style.display = 'none';
-                    document.getElementById('turnoDisplay').textContent = numero;
-                    document.getElementById('successSection').classList.add('show');
-                } else {
-                    alert('Placa incorrecta');
-                }
-                
-            } catch (err) {
-                console.error('Error:', err);
-                alert('Error: ' + err.message);
+            if (turno.nit !== placa) {
+                status.innerHTML = 'Placa incorrecta (era: ' + turno.nit + ')';
+                return;
             }
+            
+            status.innerHTML = 'Confirmando llegada...';
+            
+            // Actualizar a llegado
+            const { data: up, error: err2 } = await client
+                .from('turnos')
+                .update({ estado: 'llegado' })
+                .eq('id', turno.id);
+            
+            if (err2) {
+                status.innerHTML = 'Error update: ' + err2.message;
+                return;
+            }
+            
+            status.innerHTML = '✓ Confirmado!';
+            document.getElementById('formSection').style.display = 'none';
+            document.getElementById('successSection').style.display = 'block';
+            document.getElementById('turnoDisplay').textContent = numero;
         });
     </script>
 </body>
