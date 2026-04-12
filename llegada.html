@@ -50,19 +50,28 @@
         </div>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        console.log('Supabase client:', typeof window.supabaseClient);
+        // Configuración directa de Supabase
+        const SUPABASE_URL = 'https://antxwdmecfxhpyjtbbxl.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFudHh3ZG1lY2Z4aHB5anRiYnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MDUxNDUsImV4cCI6MjA5MTE4MTE0NX0.DjIccxaUx0hJUaV2h62RSB_O2W0T0dj98hS8I70eDj8';
+        
+        if (typeof supabase !== 'undefined') {
+            window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log('Supabase inicializado');
+        }
+    </script>
+    <script>
+        console.log('Supabase client disponible:', !!window.supabaseClient);
+        
+        if (!window.supabaseClient) {
+            document.body.innerHTML = '<p style="color:red">Error: No hay conexión a Supabase</p>';
+        }
         
         const urlParams = new URLSearchParams(window.location.search);
-        const turnoParam = urlParams.get('turno');
-        const placaParam = urlParams.get('placa');
         
-        console.log('URL params - turno:', turnoParam, 'placa:', placaParam);
-        
-        if (turnoParam) document.getElementById('turnoInput').value = turnoParam.toUpperCase();
-        if (placaParam) document.getElementById('placaInput').value = placaParam.toUpperCase();
+        if (urlParams.get('turno')) document.getElementById('turnoInput').value = urlParams.get('turno').toUpperCase();
+        if (urlParams.get('placa')) document.getElementById('placaInput').value = urlParams.get('placa').toUpperCase();
         
         document.getElementById('llegadaForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -70,65 +79,58 @@
             const numero = document.getElementById('turnoInput').value.trim().toUpperCase();
             const placa = document.getElementById('placaInput').value.trim().toUpperCase();
             
-            console.log('Buscando turno:', numero, 'placa:', placa);
-            
             if (!numero || !placa) {
                 alert('Ingrese turno y placa');
                 return;
             }
             
+            if (!window.supabaseClient) {
+                alert('Sin conexión a la base de datos');
+                return;
+            }
+            
             try {
-                let turnoValido = false;
-                let nombreEmpresa = '';
+                // Buscar turno
+                const { data: turnoData, error: findError } = await window.supabaseClient
+                    .from('turnos')
+                    .select('id, numero, nombre_empresa, nit')
+                    .eq('numero', numero)
+                    .single();
                 
-                if (window.supabaseClient) {
-                    console.log('Buscando en Supabase...');
-                    
-                    const { data: turnoData, error } = await window.supabaseClient
-                        .from('turnos')
-                        .select('id, numero, nombre_empresa, nit')
-                        .eq('numero', numero)
-                        .single();
-                    
-                    console.log('Turno encontrado:', turnoData, 'error:', error);
-                    
-                    if (turnoData) {
-                        console.log('Placa turno:', turnoData.nit, 'Placa ingresada:', placa);
-                        
-                        if (turnoData.nit && turnoData.nit.toUpperCase() === placa.toUpperCase()) {
-                            turnoValido = true;
-                            nombreEmpresa = turnoData.nombre_empresa;
-                            
-                            console.log('Actualizando a llegado...');
-                            
-                            const { error: updateError } = await window.supabaseClient
-                                .from('turnos')
-                                .update({ 
-                                    hora_llegada: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
-                                    estado: 'llegado',
-                                    updated_at: new Date().toISOString()
-                                })
-                                .eq('numero', numero);
-                            
-                            console.log('Actualizado, error:', updateError);
-                        }
-                    }
-                }
+                console.log('TurnoData:', turnoData, 'Error:', findError);
                 
-                if (!turnoValido) {
-                    document.getElementById('turnoInput').style.borderColor = '#ef4444';
-                    document.getElementById('placaInput').style.borderColor = '#ef4444';
-                    alert('Turno o placa incorrectos. Verifique e intente de nuevo.');
+                if (findError || !turnoData) {
+                    alert('Turno no encontrado');
                     return;
                 }
                 
-                document.getElementById('formSection').style.display = 'none';
-                document.getElementById('turnoDisplay').textContent = numero;
-                document.getElementById('successSection').classList.add('show');
+                // Verificar placa
+                if (turnoData.nit && turnoData.nit.toUpperCase() === placa.toUpperCase()) {
+                    const horaActual = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+                    
+                    console.log('Actualizando con hora:', horaActual, 'estado: llegado');
+                    
+                    const { error: upError } = await window.supabaseClient
+                        .from('turnos')
+                        .update({ 
+                            hora_llegada: horaActual,
+                            estado: 'llegado',
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', turnoData.id);
+                    
+                    console.log('Update error:', upError);
+                    
+                    document.getElementById('formSection').style.display = 'none';
+                    document.getElementById('turnoDisplay').textContent = numero;
+                    document.getElementById('successSection').classList.add('show');
+                } else {
+                    alert('Placa incorrecta');
+                }
                 
             } catch (err) {
                 console.error('Error:', err);
-                alert('Error al confirmar. Verifique los datos.');
+                alert('Error: ' + err.message);
             }
         });
     </script>
