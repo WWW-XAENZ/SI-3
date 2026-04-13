@@ -10,11 +10,10 @@ const CONFIG = {
     LOGO_CLICK_TIMEOUT: 2000,
     TURN_TIME_ESTIMATE: 5,
     SYNC_INTERVAL: 10000,
-    MAX_RETRY_ATTEMPTS: 5,
-    RETRY_DELAY: 3000,
+    MAX_RETRY_ATTEMPTS: 3,
+    RETRY_DELAY: 2000,
     MAX_HISTORIAL: 200,
-    MAX_PROVEEDORES: 500,
-    OFFLINE_CHECK_INTERVAL: 15000
+    MAX_PROVEEDORES: 500
 };
 
 const AppState = {
@@ -26,50 +25,12 @@ const AppState = {
     lastSync: null,
     syncInProgress: false,
     proveedores: [],
-    historial: [],
-    isOffline: false,
-    conexionPerdida: false,
-    lastConnectionCheck: null,
-    recoveryMode: false,
-    pendingOperations: []
+    historial: []
 };
 
 let logoClickCount = 0;
 let logoClickTimer = null;
 let syncInterval = null;
-
-const SonidoLlegada = {
-    reproducir() {
-        try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            
-            osc.frequency.value = 660;
-            osc.type = 'sine';
-            gain.gain.setValueAtTime(0.3, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.3);
-            
-            setTimeout(() => {
-                const osc2 = ctx.createOscillator();
-                const gain2 = ctx.createGain();
-                osc2.connect(gain2);
-                gain2.connect(ctx.destination);
-                osc2.frequency.value = 880;
-                osc2.type = 'sine';
-                gain2.gain.setValueAtTime(0.3, ctx.currentTime);
-                gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-                osc2.start(ctx.currentTime);
-                osc2.stop(ctx.currentTime + 0.3);
-            }, 400);
-        } catch(e) {}
-    }
-};
 
 const SonidoAlerta = {
     contexto: null,
@@ -214,50 +175,6 @@ const Utils = {
 
     formatearHora(hora) {
         return hora || 'N/A';
-    },
-
-    debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    },
-
-    throttle(func, limit) {
-        let inThrottle;
-        return function executedFunction(...args) {
-            if (!inThrottle) {
-                func(...args);
-                inThrottle = true;
-                setTimeout(() => inThrottle = false, limit);
-            }
-        };
-    },
-
-    isValidEmail(email) {
-        if (!email) return true;
-        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return re.test(email);
-    },
-
-    isValidPhone(phone) {
-        if (!phone) return true;
-        const cleaned = phone.replace(/[\s\-\(\)]/g, '');
-        return /^\d{7,15}$/.test(cleaned);
-    },
-
-    sanitizeInput(input) {
-        if (typeof input !== 'string') return '';
-        return input.replace(/[<>'"]/g, '').trim();
-    },
-
-    getNetStatus() {
-        return navigator.onLine;
     }
 };
 
@@ -327,12 +244,6 @@ const LocalStorage = {
 
 const SupabaseDB = {
     async verificarConexion() {
-        if (!Utils.getNetStatus()) {
-            console.warn('Sin conexión a internet');
-            this.setOfflineMode(true);
-            return false;
-        }
-
         if (!window.supabaseClient) {
             console.warn('Supabase no está inicializado');
             return false;
@@ -346,71 +257,15 @@ const SupabaseDB = {
             
             if (error) {
                 console.warn('Error al conectar con Supabase:', error.message);
-                this.setOfflineMode(true);
                 return false;
             }
             
             console.log('✅ Conexión con Supabase exitosa');
-            this.setOfflineMode(false);
             return true;
         } catch (error) {
             console.warn('Error de conexión:', error.message);
-            this.setOfflineMode(true);
             return false;
         }
-    },
-
-    setOfflineMode(offline) {
-        const cambio = AppState.isOffline !== offline;
-        AppState.isOffline = offline;
-        
-        if (offline && cambio) {
-            Utils.mostrarNotificacion('⚠️ Sin conexión. Usando modo offline. Los cambios se sincronizarán cuando se restablezca la conexión.', 'error');
-            console.log('🔴 Modo offline activado');
-        } else if (!offline && cambio && AppState.conexionPerdida) {
-            AppState.conexionPerdida = false;
-            Utils.mostrarNotificacion('✅ Conexión restablecida', 'success');
-            console.log('🟢 Conexión恢复ada');
-            this.procesarOperacionesPendientes();
-        }
-    },
-
-    async procesarOperacionesPendientes() {
-        if (AppState.isOffline || AppState.pendingOperations.length === 0) return;
-        
-        const operaciones = [...AppState.pendingOperations];
-        console.log(`Procesando ${operaciones.length} operaciones pendientes...`);
-        
-        for (const op of operaciones) {
-            try {
-                await op();
-                console.log('✅ Operación pendiente procesada');
-            } catch (e) {
-                console.error('Error en operación pendiente:', e);
-            }
-        }
-        
-        AppState.pendingOperations = [];
-    },
-
-    agregarOperacionPendiente(operacion) {
-        AppState.pendingOperations.push(operacion);
-        console.log('📝 Operación agregada a cola离线');
-    },
-
-    async verificarConexionRobusta() {
-        for (let intento = 1; intento <= CONFIG.MAX_RETRY_ATTEMPTS; intento++) {
-            const conexionOk = await this.verificarConexion();
-            if (conexionOk) return true;
-            
-            console.log(`Intento de conexión ${intento}/${CONFIG.MAX_RETRY_ATTEMPTS} falló`);
-            if (intento < CONFIG.MAX_RETRY_ATTEMPTS) {
-                await new Promise(r => setTimeout(r, CONFIG.RETRY_DELAY));
-            }
-        }
-        
-        this.setOfflineMode(true);
-        return false;
     },
 
     async obtenerContadorTurnos() {
@@ -606,19 +461,10 @@ const SupabaseDB = {
         };
     },
 
-    async guardarTurno(turno, reintento = true) {
+    async guardarTurno(turno) {
         console.log('=== SupabaseDB.guardarTurno ===');
         console.log('turno:', JSON.stringify(turno, null, 2));
         
-        if (AppState.isOffline) {
-            console.warn('Modo offline - guardando localmente');
-            turno.id = Date.now();
-            turno._pendingSync = true;
-            AppState.turnos.push(turno);
-            LocalStorage.guardarTurnos(AppState.turnos);
-            return turno;
-        }
-
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible - guardando en localStorage');
             turno.id = Date.now();
@@ -668,23 +514,8 @@ const SupabaseDB = {
             return this._mapearTurno(data);
         } catch (error) {
             console.error('Error al guardar turno:', error);
-            
-            if (reintento && !AppState.isOffline) {
-                console.log('Reintentando en 3 segundos...');
-                await new Promise(r => setTimeout(r, 3000));
-                try {
-                    const conexionOk = await this.verificarConexion();
-                    if (conexionOk) {
-                        return await this.guardarTurno(turno, false);
-                    }
-                } catch (e) {
-                    console.error('Reintento fallido:', e);
-                }
-            }
-            
             console.log('Guardando turno en localStorage como fallback...');
             turno.id = Date.now();
-            turno._pendingSync = true;
             AppState.turnos.push(turno);
             LocalStorage.guardarTurnos(AppState.turnos);
             return turno;
@@ -1272,7 +1103,7 @@ const Turnos = {
         }
         
         const todosLosTurnos = await SupabaseDB.cargarTurnos();
-        const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado' || t.estado === 'llegado');
+        const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado');
         
         console.log('Turnos en espera/citados cargados:', turnosEnEspera.length);
         
@@ -1375,35 +1206,43 @@ const Turnos = {
         }
     },
 
-async cargarTurnos() {
-        console.log('Cargando turnos...');
+    async cargarTurnos() {
+        console.log('=== CARGANDO TURNOS ===');
         
         try {
             if (window.supabaseClient) {
-                const { data } = await window.supabaseClient
-                    .from('turnos')
-                    .select('*')
-                    .order('id', { ascending: true });
+                const todosLosTurnos = await SupabaseDB.cargarTurnos();
+                console.log('Turnos cargados de Supabase:', todosLosTurnos);
                 
-                const todosLosTurnos = data || [];
-                console.log('Turnos:', todosLosTurnos.length);
-                
-                const turnosEnCola = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado' || t.estado === 'llegado');
-                const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
-                
-                AppState.turnos = turnosEnCola;
-                AppState.turnoActual = turnoAtendiendo || null;
-                
-                LocalStorage.guardarTurnos(turnosEnCola);
-                LocalStorage.guardarTurnoActual(turnoAtendiendo);
-                
-                console.log('Cargados:', turnosEnCola.length);
-            } else {
-                AppState.turnos = LocalStorage.obtenerTurnos();
-                AppState.turnoActual = LocalStorage.obtenerTurnoActual();
+                if (todosLosTurnos && Array.isArray(todosLosTurnos)) {
+                    const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado');
+                    const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
+                    
+                    console.log('Turnos en espera:', turnosEnEspera.length);
+                    console.log('Turno atendiendo:', turnoAtendiendo);
+                    
+                    AppState.turnos = turnosEnEspera;
+                    AppState.turnoActual = turnoAtendiendo || null;
+                    
+                    LocalStorage.guardarTurnos(turnosEnEspera);
+                    if (turnoAtendiendo) {
+                        LocalStorage.guardarTurnoActual(turnoAtendiendo);
+                    } else {
+                        LocalStorage.guardarTurnoActual(null);
+                    }
+                    
+                    console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total`);
+                    
+                    AppState.contadorTurnos = await SupabaseDB.obtenerContadorTurnos();
+                    return;
+                }
             }
-        } catch (e) {
-            console.log('Error:', e.message);
+            
+            AppState.turnos = LocalStorage.obtenerTurnos();
+            AppState.turnoActual = LocalStorage.obtenerTurnoActual();
+            
+        } catch (error) {
+            console.error('❌ Error al cargar turnos:', error);
             AppState.turnos = LocalStorage.obtenerTurnos();
             AppState.turnoActual = LocalStorage.obtenerTurnoActual();
         }
@@ -1543,7 +1382,7 @@ const RenderUsuario = {
                 const fechaCitaDia = t.fechaCita.split('T')[0];
                 return fechaCitaDia === hoy;
             }
-            return t.estado === 'espera' || t.estado === 'llegado';
+            return t.estado === 'espera';
         });
 
         if (turnosHoy.length === 0) {
@@ -1568,35 +1407,22 @@ const RenderUsuario = {
                 } catch(e) { return hora; }
             };
             
-            const getStateBadge = (estado) => {
-                const badges = {
-                    'espera': { label: '⏳ Esperando', class: 'turn-state-espera' },
-                    'citado': { label: '📅 Citado', class: 'turn-state-citado' },
-                    'llegado': { label: '✓ LLEGADO', class: 'turn-state-llegado', bg: '#10b981' },
-                    'atendiendo': { label: '🔔 En Atención', class: 'turn-state-atendiendo' }
-                };
-                return badges[estado] || badges['espera'];
-            };
-            
-            listaDiv.innerHTML = turnosHoy.map(turno => {
-                const badge = getStateBadge(turno.estado || 'espera');
-                return `
+            listaDiv.innerHTML = turnosHoy.map(turno => `
                 <div class="turn-item-user ${turno.numero === miNumero ? 'current' : ''}">
-                    <span class="turn-state-badge ${badge.class}">${badge.label}</span>
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
                         <div class="turn-item-company">${turno.nombreEmpresa}</div>
                         <div class="turn-item-time">${formatearHora(turno.horaSolicitud)}</div>
                     </div>
                 </div>
-            `}).join('');
+            `).join('');
         }
     },
 
-todo() {
-try { 
-                this.listaTurnosEspera(); 
-            } catch (e) { console.error('Error listas:', e); }
+    todo() {
+        this.miTurno();
+        this.estadoCola();
+        this.turnosEnEspera();
     },
     
     suscribirCambios() {
@@ -1715,7 +1541,7 @@ const RenderAdmin = {
         const listaDiv = document.getElementById('listaTurnosEspera');
         const contadorDiv = document.getElementById('contadorTurnosEspera');
         
-        const turnosNormales = AppState.turnos.filter(t => t.estado === 'espera' || t.estado === 'llegado');
+        const turnosNormales = AppState.turnos.filter(t => t.estado === 'espera');
         
         if (contadorDiv) contadorDiv.textContent = turnosNormales.length;
         
@@ -1739,90 +1565,6 @@ const RenderAdmin = {
                         </button>
                         <button class="btn btn-danger btn-small" onclick="AdminHandlers.cancelarTurno(${turno.id})">
                             Cancelar
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-        }
-    },
-
-    notificacionesSalida() {
-        const listaDiv = document.getElementById('notificacionesSalida');
-        const contadorDiv = document.getElementById('contadorNotificacionesSalida');
-        
-        if (!listaDiv) return;
-        
-        // Cargar salidas almacenadas en localStorage
-        const salidasData = localStorage.getItem('salidasAutorizadas');
-        const salidas = salidasData ? JSON.parse(salidasData) : [];
-        
-        const salidasNoVistas = salidas.filter(s => !s.visto);
-        
-        if (contadorDiv) contadorDiv.textContent = salidas.length;
-        
-        if (salidas.length === 0) {
-            listaDiv.innerHTML = '<p class="empty-message">No hay salidas autorizadas</p>';
-        } else {
-            listaDiv.innerHTML = salidas.map(s => `
-                <div class="turn-item" style="background: ${s.visto ? '#fffbeb' : '#fef3c7'}; border-left: 4px solid #f59e0b; padding: 15px; margin-bottom: 10px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-size: 20px; color: #92400e; font-weight: bold;">
-                                🚚 AUTORIZADO: ${s.numero}
-                            </div>
-                            <div style="font-size: 14px;">${s.nombre || ''}</div>
-                            <div style="font-size: 12px; color: #78716c;">${s.hora}</div>
-                        </div>
-                        <button class="btn" onclick="RenderAdmin.marcarSalidaVista('${s.id}');" style="background: #f59e0b; color: white;">
-                            ${s.visto ? 'Ya visto' : 'Aceptar'}
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-            
-            if (salidasNoVistas.length > 0) {
-                Utils.mostrarNotificacion(`🚚 Salida autorizada: ${salidasNoVistas[0].numero}`, 'success');
-                SonidoLlegada.reproducir();
-            }
-        }
-    },
-
-    marcarSalidaVista(id) {
-        const salidasData = localStorage.getItem('salidasAutorizadas');
-        const salidas = salidasData ? JSON.parse(salidasData) : [];
-        const salida = salidas.find(s => s.id === id);
-        if (salida) {
-            salida.visto = true;
-            localStorage.setItem('salidasAutorizadas', JSON.stringify(salidas));
-            this.notificacionesSalida();
-        }
-    },
-
-    notificacionesLlegada() {
-        const listaDiv = document.getElementById('notificacionesLlegada');
-        const contadorDiv = document.getElementById('contadorNotificacionesLlegada');
-        
-        const turnosLlegados = AppState.turnos.filter(t => t.estado === 'llegado');
-        
-        if (contadorDiv) contadorDiv.textContent = turnosLlegados.length;
-        
-        if (!listaDiv) return;
-
-        if (turnosLlegados.length === 0) {
-            listaDiv.innerHTML = '<p class="empty-message">No hay proveedores llegados</p>';
-        } else {
-            listaDiv.innerHTML = turnosLlegados.map(turno => `
-                <div class="turn-item" style="background: #dcfce7; border-left: 4px solid #10b981; padding: 15px; margin-bottom: 10px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-size: 20px; color: #10b981; font-weight: bold;">
-                                ✓ LLEGADA: ${turno.numero}
-                            </div>
-                            <div style="font-size: 14px;">${turno.nombreEmpresa}</div>
-                            <div style="font-size: 12px; color: #64748b;">Llegó a las ${turno.horaLlegada || turno.horaSolicitud}</div>
-                        </div>
-                        <button class="btn btn-success" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})" style="padding: 12px 25px; font-size: 14px;">
-                            Atender
                         </button>
                     </div>
                 </div>
@@ -1875,6 +1617,48 @@ const RenderAdmin = {
                         ${fechaCompleta ? `<div class="turn-item-time">${fechaCompleta}</div>` : ''}
                         <div class="turn-item-details">
                             <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
+                        </div>
+                    </div>
+                    <div class="turn-item-actions">
+                        <button class="btn btn-primary btn-small" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})">
+                            Llamar
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="AdminHandlers.cancelarTurno(${turno.id})">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            `}).join('');
+        }
+    },
+
+    listaTurnosLlegados() {
+        const listaDiv = document.getElementById('listaTurnosLlegados');
+        const contadorDiv = document.getElementById('contadorTurnosLlegados');
+        
+        const turnosLlegados = AppState.turnos.filter(t => t.estado === 'llegado');
+        
+        if (contadorDiv) contadorDiv.textContent = turnosLlegados.length;
+        
+        if (!listaDiv) return;
+
+        if (turnosLlegados.length === 0) {
+            listaDiv.innerHTML = '<p class="empty-message">No hay turnos confirmados</p>';
+        } else {
+            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
+            listaDiv.innerHTML = turnosLlegados.map(turno => {
+                const horaLlegada = turno.hora_llegada ? turno.hora_llegada : turno.horaSolicitud;
+                return `
+                <div class="turn-item turn-item-llegado">
+                    <span class="turn-item-number">${turno.numero}</span>
+                    <div class="turn-item-info">
+                        <div class="turn-item-company">${turno.nombreEmpresa}</div>
+                        <div class="turn-item-time">
+                            Llegada: ${horaLlegada}
+                        </div>
+                        <div class="turn-item-details">
+                            <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
+                            <span class="turn-placa">${turno.placaVehiculo || '-'}</span>
                         </div>
                     </div>
                     <div class="turn-item-actions">
@@ -2062,12 +1846,9 @@ const RenderAdmin = {
         console.log('=== ACTUALIZANDO VISTA ADMIN ===');
         
         try { this.turnoActual(); } catch (e) { console.error('Error turnoActual:', e); }
-try { 
-                this.listaTurnosEspera(); 
-                this.notificacionesLlegada();
-                
-            } catch (e) { console.error('Error listas:', e); }
+        try { this.listaTurnosEspera(); } catch (e) { console.error('Error listaTurnosEspera:', e); }
         try { this.listaTurnosCitados(); } catch (e) { console.error('Error listaTurnosCitados:', e); }
+        try { this.listaTurnosLlegados(); } catch (e) { console.error('Error listaTurnosLlegados:', e); }
         try { await this.proveedores(); } catch (e) { console.error('Error proveedores:', e); }
         try { await this.historial(); } catch (e) { console.error('Error historial:', e); }
         try { await this.estadisticas(); } catch (e) { console.error('Error estadisticas:', e); }
@@ -2085,7 +1866,7 @@ const UsuarioHandlers = {
         Utils.setLoading(true);
         
         try {
-            const placaInput = Utils.sanitizeInput(document.getElementById('nit')?.value?.trim().toUpperCase());
+            const placaInput = document.getElementById('nit')?.value?.trim().toUpperCase();
             
             if (!placaInput) {
                 throw new Error('La placa es requerida');
@@ -2093,15 +1874,6 @@ const UsuarioHandlers = {
             
             if (placaInput.length !== 6) {
                 throw new Error('La placa debe tener exactamente 6 caracteres');
-            }
-            
-            if (!/^[A-Z0-9]+$/.test(placaInput)) {
-                throw new Error('La placa solo debe contener letras y números');
-            }
-
-            const telefonoInput = document.getElementById('telefono')?.value?.trim();
-            if (telefonoInput && !Utils.isValidPhone(telefonoInput)) {
-                throw new Error('Número de teléfono inválido');
             }
             
             const destino = document.getElementById('destino')?.value;
@@ -2112,26 +1884,14 @@ const UsuarioHandlers = {
             let fechaCitaISO = null;
             if (esCita && fechaCitaInput) {
                 const fechaLocal = new Date(fechaCitaInput);
-                const ahora = new Date();
-                if (fechaLocal < ahora) {
-                    throw new Error('La fecha de cita no puede ser anterior a ahora');
-                }
                 fechaCitaISO = fechaLocal.toISOString();
             }
             
-            const nombreEmpresa = Utils.sanitizeInput(document.getElementById('nombreEmpresa')?.value?.trim());
-            if (!nombreEmpresa) {
-                throw new Error('El nombre de la empresa es requerido');
-            }
-            if (nombreEmpresa.length < 2) {
-                throw new Error('El nombre de la empresa debe tener al menos 2 caracteres');
-            }
-            
             const datosProveedor = {
-                nombreEmpresa: nombreEmpresa,
+                nombreEmpresa: document.getElementById('nombreEmpresa')?.value?.trim(),
                 nit: placaInput,
-                contacto: Utils.sanitizeInput(document.getElementById('contacto')?.value?.trim()),
-                telefono: telefonoInput,
+                contacto: document.getElementById('contacto')?.value?.trim(),
+                telefono: document.getElementById('telefono')?.value?.trim(),
                 servicio: document.getElementById('servicio')?.value,
                 destino: destino,
                 fechaCita: fechaCitaISO
@@ -2139,8 +1899,10 @@ const UsuarioHandlers = {
 
             if (!destino) throw new Error('El destino es requerido');
 
+            if (!datosProveedor.nombreEmpresa) throw new Error('El nombre de la empresa es requerido');
+
             const motivoInput = document.getElementById('motivoVisita');
-            const motivoPersonalizado = motivoInput ? Utils.sanitizeInput(motivoInput.value?.trim()) : '';
+            const motivoPersonalizado = motivoInput ? motivoInput.value?.trim() : '';
             
             const motivo = motivoPersonalizado || datosProveedor.servicio;
 
@@ -2155,17 +1917,6 @@ const UsuarioHandlers = {
             if (modal && modalMiTurno) {
                 modalMiTurno.textContent = turno.numero;
                 if (modalTurnoInfo) modalTurnoInfo.textContent = `${turno.nombreEmpresa}\n${turno.motivo || ''}`;
-                
-                const qrContainer = document.getElementById('modalQRContainer');
-                const qrCanvas = document.getElementById('modalQRCanvas');
-                if (qrContainer && qrCanvas && typeof QRCode !== 'undefined') {
-                    qrContainer.style.display = 'block';
-                    const qrData = JSON.stringify({ turno: turno.numero, nit: turno.nit });
-                    QRCode.toCanvas(qrCanvas, qrData, { width: 150, margin: 1 }, (error) => {
-                        if (error) console.error('Error generando QR:', error);
-                    });
-                }
-                
                 modal.style.display = 'flex';
             }
 
@@ -2440,12 +2191,14 @@ const AdminHandlers = {
         const resultado = await Turnos.completarTurnoActual();
         
         if (resultado) {
-            Utils.mostrarNotificacion(`✓ Turno ${turnoNumero} COMPLETADO - ${turnoNombre}`, 'success');
+            Utils.mostrarNotificacion(`Turno ${turnoNumero} completado`, 'success');
             
             if (despachoInfo) {
                 setTimeout(() => {
-                    Utils.mostrarNotificacion(`⚠️ ${turnoNombre} esperando autorización de salida`, 'info');
-                }, 3000);
+                    Utils.mostrarNotificacion(`Proveedor ${turnoNombre} completado! Esperando autorización de salida.`, 'info');
+                }, 1000);
+            } else {
+                Utils.mostrarNotificacion(`Turno ${turnoNumero} completado sin información de despacho`, 'info');
             }
             
             await RenderAdmin.todo();
@@ -2764,24 +2517,8 @@ const ConnectionStatus = {
         const statusEl = document.getElementById('connectionStatus');
         if (!statusEl) return;
         
-        const dot = statusEl.querySelector('.status-dot');
-        const text = statusEl.querySelector('.status-text');
-        
-        if (dot && text) {
-            if (estado === 'connected') {
-                dot.style.background = '#10b981';
-                text.textContent = mensaje || 'En línea';
-            } else if (estado === 'disconnected') {
-                dot.style.background = '#ef4444';
-                text.textContent = mensaje || 'Sin conexión';
-            } else {
-                dot.style.background = '#f59e0b';
-                text.textContent = mensaje || 'Reconectando...';
-            }
-        } else {
-            statusEl.textContent = mensaje;
-            statusEl.className = 'connection-status ' + estado;
-        }
+        statusEl.textContent = mensaje;
+        statusEl.className = 'connection-status ' + estado;
     }
 };
 
@@ -2938,33 +2675,22 @@ const ModoEspera = {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Sistema de Turnos cargado - Versión con Recuperación Robusta');
+    console.log('Sistema de Turnos cargado - Versión con Recarga Auto');
     
-    window.addEventListener('online', () => {
-        console.log('🟢 Conexión a internet恢复');
-        AppState.conexionPerdida = true;
-        SupabaseDB.verificarConexionRobusta();
-    });
-
-    window.addEventListener('offline', () => {
-        console.log('🔴 Conexión a internet perdida');
-        SupabaseDB.setOfflineMode(true);
-    });
-
     try {
         let conexionOk = false;
         try {
-            conexionOk = await SupabaseDB.verificarConexionRobusta();
+            conexionOk = await SupabaseDB.verificarConexion();
             console.log(conexionOk ? 'Supabase conectado' : 'Modo local');
             
             if (conexionOk) {
                 ConnectionStatus.actualizar('connected', '✓ Conectado a Supabase');
             } else {
-                ConnectionStatus.actualizar('disconnected', '⚠ Modo offline');
+                ConnectionStatus.actualizar('disconnected', '✗ Sin conexión a Supabase');
             }
         } catch (error) {
             console.log('Error al verificar Supabase:', error.message);
-            ConnectionStatus.actualizar('disconnected', '⚠ Modo offline');
+            ConnectionStatus.actualizar('disconnected', '✗ Sin conexión');
         }
         
         await Turnos.cargarTurnos();
@@ -2989,207 +2715,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             InputConfig.configurarPasswordToggle();
             InputConfig.configurarTelefono();
             document.getElementById('formSolicitarTurno').addEventListener('submit', UsuarioHandlers.solicitarTurno);
-            
-            const arrivalForm = document.getElementById('arrivalForm');
-            
-            const navLlegada = document.getElementById('navLlegada');
-            if (navLlegada) {
-                navLlegada.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const qrSection = document.getElementById('qr-scan-section');
-                    if (qrSection) {
-                        qrSection.scrollIntoView({ behavior: 'smooth' });
-                    }
-                });
-            }
-            
-            const btnScanQR = document.getElementById('btnScanQR');
-            const qrScanner = document.getElementById('qrScanner');
-            let html5QrCode = null;
-            
-            const btnConfirmarManual = document.getElementById('btnConfirmarManual');
-            
-            if (btnConfirmarManual) {
-                btnConfirmarManual.addEventListener('click', async () => {
-                    const turnoNum = document.getElementById('arrivalTurnoManual')?.value?.trim().toUpperCase();
-                    const placa = document.getElementById('arrivalPlacaManual')?.value?.trim().toUpperCase();
-                    
-                    if (!turnoNum || !placa) {
-                        Utils.mostrarNotificacion('Ingrese turno y placa', 'error');
-                        return;
-                    }
-                    
-                    try {
-                        let turno = AppState.turnos.find(t => t.numero === turnoNum);
-                        
-                        if (!turno && window.supabaseClient) {
-                            const { data: turnoData } = await window.supabaseClient
-                                .from('turnos')
-                                .select('*')
-                                .eq('numero', turnoNum)
-                                .single();
-                            
-                            if (turnoData) {
-                                turno = {
-                                    id: turnoData.id,
-                                    numero: turnoData.numero,
-                                    nombreEmpresa: turnoData.nombre_empresa,
-                                    nit: turnoData.nit
-                                };
-                            }
-                        }
-                        
-                        if (turno && window.supabaseClient) {
-                            await window.supabaseClient
-                                .from('turnos')
-                                .update({ 
-                                    hora_llegada: Utils.obtenerHoraActual(),
-                                    estado: 'llegado',
-                                    updated_at: new Date().toISOString()
-                                })
-                                .eq('id', turno.id);
-                            
-                            if (AppState.turnos.find(t => t.id === turno.id)) {
-                                AppState.turnos.find(t => t.id === turno.id).estado = 'llegado';
-                            }
-                        }
-                        
-                        const qrSection = document.getElementById('qr-scan-section');
-                        const arrivalSection = document.getElementById('arrival-section');
-                        const arrivalTurnoDisplay = document.getElementById('arrivalTurnoDisplay');
-                        const arrivalCompanyDisplay = document.getElementById('arrivalCompanyDisplay');
-                        
-                        if (qrSection) qrSection.style.display = 'none';
-                        if (arrivalSection) {
-                            arrivalSection.style.display = 'block';
-                            if (arrivalTurnoDisplay) arrivalTurnoDisplay.textContent = turno?.numero || turnoNum;
-                            if (arrivalCompanyDisplay) arrivalCompanyDisplay.textContent = turno?.nombreEmpresa || '';
-                        }
-                        
-                        Utils.mostrarNotificacion('✓ Llegada confirmada', 'success');
-                        
-                    } catch (err) {
-                        console.error('Error:', err);
-                        Utils.mostrarNotificacion('Error al confirmar llegada', 'error');
-                    }
-                });
-            }
-            
-            if (btnScanQR && qrScanner) {
-                btnScanQR.addEventListener('click', async () => {
-                    if (qrScanner.style.display === 'none') {
-                        qrScanner.style.display = 'block';
-                        btnScanQR.textContent = '📷 Cerrar Cámara';
-                        
-                        try {
-                            html5QrCode = new Html5Qrcode('reader');
-                            await html5QrCode.start(
-                                { facingMode: 'environment' },
-                                { fps: 10, qrbox: { width: 250, height: 250 } },
-                                async (decodedText) => {
-                                    console.log('QR escaneado:', decodedText);
-                                    
-                                    let turnoNum = '';
-                                    let placa = '';
-                                    
-                                    try {
-                                        const data = JSON.parse(decodedText);
-                                        turnoNum = data.turno || '';
-                                        placa = data.nit || data.placa || '';
-                                    } catch (e) {
-                                        const match = decodedText.match(/T\d+/i);
-                                        if (match) turnoNum = match[0].toUpperCase();
-                                    }
-                                    
-                                    if (!turnoNum) {
-                                        Utils.mostrarNotificacion('QR inválido', 'error');
-                                        return;
-                                    }
-                                    
-                                    try {
-                                        const turno = AppState.turnos.find(t => t.numero === turnoNum);
-                                        
-                                        if (!turno && window.supabaseClient) {
-                                            const { data: turnoData } = await window.supabaseClient
-                                                .from('turnos')
-                                                .select('*')
-                                                .eq('numero', turnoNum)
-                                                .single();
-                                            
-                                            if (turnoData) {
-                                                turno = {
-                                                    id: turnoData.id,
-                                                    numero: turnoData.numero,
-                                                    nombreEmpresa: turnoData.nombre_empresa,
-                                                    nit: turnoData.nit
-                                                };
-                                            }
-                                        }
-                                        
-                                        if (turno && window.supabaseClient) {
-                                            await window.supabaseClient
-                                                .from('turnos')
-                                                .update({ 
-                                                    hora_llegada: Utils.obtenerHoraActual(),
-                                                    estado: 'llegado',
-                                                    updated_at: new Date().toISOString()
-                                                })
-                                                .eq('id', turno.id);
-                                            
-                                            turno.estado = 'llegado';
-                                            turno.horaLlegada = Utils.obtenerHoraActual();
-                                            
-                                            if (AppState.turnos.find(t => t.id === turno.id)) {
-                                                AppState.turnos.find(t => t.id === turno.id).estado = 'llegado';
-                                            }
-                                        }
-                                        
-                                        const qrSection = document.getElementById('qr-scan-section');
-                                        const arrivalSection = document.getElementById('arrival-section');
-                                        const arrivalTurnoDisplay = document.getElementById('arrivalTurnoDisplay');
-                                        const arrivalCompanyDisplay = document.getElementById('arrivalCompanyDisplay');
-                                        
-                                        if (qrSection) qrSection.style.display = 'none';
-                                        if (arrivalSection) {
-                                            arrivalSection.style.display = 'block';
-                                            if (arrivalTurnoDisplay) arrivalTurnoDisplay.textContent = turno?.numero || turnoNum;
-                                            if (arrivalCompanyDisplay) arrivalCompanyDisplay.textContent = turno?.nombreEmpresa || '';
-                                            arrivalSection.scrollIntoView({ behavior: 'smooth' });
-                                        }
-                                        
-                                        Utils.mostrarNotificacion('✓ Llegada confirmada', 'success');
-                                        
-                                    } catch (err) {
-                                        console.error('Error:', err);
-                                        Utils.mostrarNotificacion('Error al confirmar llegada', 'error');
-                                    }
-                                    
-                                    if (html5QrCode) {
-                                        html5QrCode.stop();
-                                        html5QrCode = null;
-                                    }
-                                    qrScanner.style.display = 'none';
-                                    btnScanQR.textContent = '📷 Escanear QR para Confirmar Llegada';
-                                },
-                                (errorMessage) => {}
-                            );
-                        } catch (e) {
-                            console.error('Error al iniciar cámara:', e);
-                            Utils.mostrarNotificacion('Error al acceder a la cámara', 'error');
-                            qrScanner.style.display = 'none';
-                            btnScanQR.textContent = '📷 Escanear QR para Confirmar Llegada';
-                        }
-                    } else {
-                        if (html5QrCode) {
-                            await html5QrCode.stop();
-                            html5QrCode = null;
-                        }
-                        qrScanner.style.display = 'none';
-                        btnScanQR.textContent = '📷 Escanear QR para Confirmar Llegada';
-                    }
-                });
-            }
-            
             RenderUsuario.todo();
             
             const btnCancelarEspera = document.getElementById('btnCancelarEspera');
@@ -3285,11 +2810,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         
                         if (payload.eventType === 'INSERT') {
                             Utils.mostrarNotificacion(`Nuevo turno ${payload.new.numero} recibido`, 'info');
-                        }
-                        
-                        if (payload.new?.estado === 'llegado') {
-                            Utils.mostrarNotificacion(`✓ LLEGADA: ${payload.new.numero} llegó a las ${payload.new.hora_llegada}`, 'success');
-                            SonidoLlegada.reproducir();
                         }
                     } catch (error) {
                         console.error('Error al procesar actualización en tiempo real:', error);
@@ -3438,20 +2958,12 @@ const DespachadorHandlers = {
                 }
             }
             
-            const salidaInfo = {
-                id: Date.now().toString(),
+            localStorage.setItem('salidaAutorizada', JSON.stringify({
                 numero: turno.numero,
                 nombre: turno.nombre || turno.nombreEmpresa || turno.nombre,
                 nit: turno.nit || '',
-                hora: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
-                timestamp: Date.now(),
-                visto: false
-            };
-            
-            const salidasPrev = JSON.parse(localStorage.getItem('salidasAutorizadas') || '[]');
-            salidasPrev.push(salidaInfo);
-            localStorage.setItem('salidasAutorizadas', JSON.stringify(salidasPrev));
-            
+                timestamp: Date.now()
+            }));
             localStorage.removeItem('proveedorListoSalir');
             
             const numeroMostrar = turno.numero || '---';

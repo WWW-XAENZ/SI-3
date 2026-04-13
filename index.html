@@ -8,8 +8,6 @@
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         .welcome-banner {
             background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
@@ -19,138 +17,6 @@
             margin-bottom: 40px;
             position: relative;
             overflow: hidden;
-        }
-        
-        .qr-section {
-            background: white;
-            border-radius: 16px;
-            padding: 30px;
-            margin: 30px 0;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-            text-align: center;
-        }
-        
-        .qr-section.active {
-            display: block;
-        }
-        
-        .qr-section h3 {
-            color: #1e293b;
-            margin-bottom: 15px;
-            font-size: 18px;
-        }
-        
-        .qr-section canvas {
-            margin: 20px auto;
-            border-radius: 12px;
-        }
-        
-        .qr-section p {
-            color: #64748b;
-            font-size: 14px;
-            margin-bottom: 20px;
-        }
-        
-        .arrival-section {
-            background: white;
-            border-radius: 16px;
-            padding: 30px;
-            margin: 30px 0;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-        }
-        
-        .arrival-section h3 {
-            color: #1e293b;
-            margin-bottom: 20px;
-            font-size: 18px;
-        }
-        
-        .arrival-section .turno-info {
-            background: #f0f9ff;
-            border: 2px solid #0ea5e9;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
-        .arrival-section .turno-number {
-            font-size: 36px;
-            font-weight: 800;
-            color: #0369a1;
-        }
-        
-        .arrival-section .company-name {
-            font-size: 16px;
-            color: #475569;
-            margin-top: 5px;
-        }
-        
-        .arrival-section .btn-arrive {
-            background: #10b981;
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            width: 100%;
-            transition: all 0.3s;
-        }
-        
-        .arrival-section .btn-arrive:hover {
-            background: #059669;
-            transform: translateY(-2px);
-        }
-        
-        .arrival-section .btn-arrive:disabled {
-            background: #94a3b8;
-            cursor: not-allowed;
-        }
-        
-        .arrival-section .arrived-badge {
-            background: #10b981;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            display: inline-block;
-            margin-top: 15px;
-        }
-        
-        .turn-state-badge {
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            display: inline-block;
-            margin-bottom: 10px;
-        }
-        
-        .turn-state-espera {
-            background: #dbeafe;
-            color: #1d4ed8;
-            border: 2px solid #3b82f6;
-        }
-        
-        .turn-state-llegado {
-            background: #dcfce7;
-            color: #15803d;
-            border: 2px solid #22c55e;
-        }
-        
-        .turn-state-atendiendo {
-            background: #fef3c7;
-            color: #b45309;
-            border: 2px solid #f59e0b;
-        }
-        
-        .turn-state-citado {
-            background: #f3e8ff;
-            color: #7c3aed;
-            border: 2px solid #8b5cf6;
         }
         
         .welcome-banner::before {
@@ -401,11 +267,9 @@
         <nav class="main-nav">
             <a href="index.html" class="nav-link active">Inicio</a>
             <a href="user.html" class="nav-link">Solicitar Turno</a>
-            <a href="tv.html" class="nav-link" target="_blank">Vista TV</a>
             <a href="https://www.si-3.tech/nosotros" class="nav-link" target="_blank">Nosotros</a>
+            <a href="tv.html" class="nav-link" target="_blank">Vista TV</a>
         </nav>
-        
-        <a href="llegada.html" class="nav-link" style="display: none;" id="linkLlegada">Llegada</a>
 
         <main class="home-content">
             <div class="welcome-banner">
@@ -439,15 +303,40 @@
                     <p>Ver turnos en pantalla grande</p>
                 </a>
 
-                <a href="#contacto" class="option-card purple">
+                <a href="https://www.si-3.tech/nosotros" class="option-card purple" target="_blank">
                     <div class="icon-wrap">
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                         </svg>
                     </div>
-                    <h3>Contacto</h3>
-                    <p>¿Tiene dudas? Contáctenos</p>
-</a>
+                    <h3>Nosotros</h3>
+                    <p>Conozca más sobre nosotros</p>
+                </a>
+            </div>
+
+            <div class="how-it-works">
+                <h3>¿Cómo funciona?</h3>
+                <div class="steps-row">
+                    <div class="step-item">
+                        <span class="num">1</span>
+                        <span>Registrese</span>
+                        <span class="arrow">→</span>
+                    </div>
+                    <div class="step-item">
+                        <span class="num">2</span>
+                        <span>Solicite</span>
+                        <span class="arrow">→</span>
+                    </div>
+                    <div class="step-item">
+                        <span class="num">3</span>
+                        <span>Espere</span>
+                        <span class="arrow">→</span>
+                    </div>
+                    <div class="step-item">
+                        <span class="num">4</span>
+                        <span>Sea atendido</span>
+                    </div>
+                </div>
             </div>
 
             <div class="about-section">
@@ -488,10 +377,6 @@
 
         <footer>
             <p>&copy; 2026 Sistema de Turnos SI-3</p>
-            <div id="connectionStatus" class="connection-indicator" style="display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px;">
-                <span class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
-                <span class="status-text">Conectado</span>
-            </div>
         </footer>
     </div>
 

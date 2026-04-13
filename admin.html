@@ -14,13 +14,12 @@
             gap: 25px;
             padding: 20px;
         }
-        .control-panel { grid-column: 1; grid-row: 1 / 3; }
+        .control-panel { grid-column: 1; grid-row: 1 / 4; }
         .statistics { grid-column: 2; }
-        .waiting-list { grid-column: 2; grid-row: 3; }
-        .arrived-list { grid-column: 2; grid-row: 4; }
+        .waiting-list { grid-column: 2; }
         .cited-list { grid-column: 1; }
         .providers-list { grid-column: 1 / -1; }
-        .turn-history { grid-column: 2; grid-row: 5; }
+        .turn-history { grid-column: 2; }
         
         .admin-section {
             background: #fff;
@@ -54,6 +53,9 @@
         .turn-item-company { font-weight: 600; font-size: 13px; color: #1e293b; }
         .turn-item-time { font-size: 11px; color: #64748b; margin-top: 4px; }
         .turn-item-actions { display: flex; gap: 6px; }
+        
+        .turn-item-llegado { border-left: 4px solid #10b981; background: #ecfdf5; }
+        .turn-item-llegado:hover { border-color: #059669; }
         
         .providers-table { width: 100%; border-collapse: collapse; font-size: 12px; }
         .providers-table th { background: #f1f5f9; padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-size: 11px; text-transform: uppercase; color: #475569; }
@@ -100,6 +102,7 @@
                         <div id="turnoInfo" class="turn-info">Sin turno en atencion</div>
                     </div>
                     <div class="control-buttons">
+                        <button id="btnLlamarTurno" class="btn btn-primary">Llamar Siguiente</button>
                         <button id="btnCompletarTurno" class="btn btn-success">Completar Turno</button>
                         <button id="btnReiniciarCola" class="btn btn-danger">Reiniciar Cola</button>
                     </div>
@@ -131,19 +134,11 @@
                     </div>
                 </section>
 
-<!-- Turnos en Espera -->
+                <!-- Turnos en Espera -->
                 <section class="admin-section waiting-list">
                     <h2>Turnos en Espera (<span id="contadorTurnosEspera">0</span>)</h2>
                     <div id="listaTurnosEspera" class="turn-list">
                         <p class="empty-message">Sin turnos en espera</p>
-                    </div>
-                </section>
-
-                <!-- Proveedores que Llegaron -->
-                <section class="admin-section arrived-list" style="border-color: #10b981; background: #dcfce7;">
-                    <h2 style="color: #10b981;">Llegados (<span id="contadorNotificacionesLlegada">0</span>)</h2>
-                    <div id="notificacionesLlegada" class="turn-list">
-                        <p class="empty-message">Sin proveedores llegados</p>
                     </div>
                 </section>
 
@@ -152,6 +147,14 @@
                     <h2>Citas Reservadas (<span id="contadorTurnosCitados">0</span>)</h2>
                     <div id="listaTurnosCitados" class="turn-list">
                         <p class="empty-message">Sin citas reservadas</p>
+                    </div>
+                </section>
+
+                <!-- Turnos Llegados -->
+                <section class="admin-section arrived-list">
+                    <h2>Turnos Confirmados (<span id="contadorTurnosLlegados">0</span>)</h2>
+                    <div id="listaTurnosLlegados" class="turn-list">
+                        <p class="empty-message">Sin turnos confirmados</p>
                     </div>
                 </section>
 

@@ -73,6 +73,24 @@
             
             if (!turno) {
                 status.innerHTML = 'Turno no existe pero puede confirmar sin turno';
+                return;
+            }
+            
+            const ahora = new Date();
+            const horaLlegada = ahora.toTimeString().split(' ')[0];
+            
+            const { error: err2 } = await client
+                .from('turnos')
+                .update({ 
+                    estado: 'llegado',
+                    hora_llegada: horaLlegada,
+                    placaVehiculo: placa
+                })
+                .eq('id', turno.id);
+            
+            if (err2) {
+                status.innerHTML = 'Error al confirmar: ' + err2.message;
+                return;
             }
             
             status.innerHTML = '✓ Confirmado!';
