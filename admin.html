@@ -57,6 +57,9 @@
         .turn-item-llegado { border-left: 4px solid #10b981; background: #ecfdf5; }
         .turn-item-llegado:hover { border-color: #059669; }
         
+        .turn-item-espera { border-left: 4px solid #f97316; background: #fff7ed; }
+        .turn-item-espera:hover { border-color: #ea580c; }
+        
         .providers-table { width: 100%; border-collapse: collapse; font-size: 12px; }
         .providers-table th { background: #f1f5f9; padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-size: 11px; text-transform: uppercase; color: #475569; }
         .providers-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
@@ -102,7 +105,6 @@
                         <div id="turnoInfo" class="turn-info">Sin turno en atencion</div>
                     </div>
                     <div class="control-buttons">
-                        <button id="btnLlamarTurno" class="btn btn-primary">Llamar Siguiente</button>
                         <button id="btnCompletarTurno" class="btn btn-success">Completar Turno</button>
                         <button id="btnReiniciarCola" class="btn btn-danger">Reiniciar Cola</button>
                     </div>
@@ -134,7 +136,15 @@
                     </div>
                 </section>
 
-                <!-- Turnos en Espera -->
+                <!-- Turnos Confirmados (verde) -->
+                <section class="admin-section arrived-list">
+                    <h2>Turnos Confirmados (<span id="contadorTurnosLlegados">0</span>)</h2>
+                    <div id="listaTurnosLlegados" class="turn-list">
+                        <p class="empty-message">Sin turnos confirmados</p>
+                    </div>
+                </section>
+
+                <!-- Turnos en Espera (naranja) -->
                 <section class="admin-section waiting-list">
                     <h2>Turnos en Espera (<span id="contadorTurnosEspera">0</span>)</h2>
                     <div id="listaTurnosEspera" class="turn-list">
@@ -147,14 +157,6 @@
                     <h2>Citas Reservadas (<span id="contadorTurnosCitados">0</span>)</h2>
                     <div id="listaTurnosCitados" class="turn-list">
                         <p class="empty-message">Sin citas reservadas</p>
-                    </div>
-                </section>
-
-                <!-- Turnos Llegados -->
-                <section class="admin-section arrived-list">
-                    <h2>Turnos Confirmados (<span id="contadorTurnosLlegados">0</span>)</h2>
-                    <div id="listaTurnosLlegados" class="turn-list">
-                        <p class="empty-message">Sin turnos confirmados</p>
                     </div>
                 </section>
 

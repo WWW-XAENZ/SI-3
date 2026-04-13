@@ -1551,7 +1551,7 @@ const RenderAdmin = {
             listaDiv.innerHTML = '<p class="empty-message">No hay turnos en espera</p>';
         } else {
             listaDiv.innerHTML = turnosNormales.map(turno => `
-                <div class="turn-item">
+                <div class="turn-item turn-item-espera">
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
                         <div class="turn-item-company">${turno.nombreEmpresa}</div>
@@ -1560,9 +1560,6 @@ const RenderAdmin = {
                         </div>
                     </div>
                     <div class="turn-item-actions">
-                        <button class="btn btn-primary btn-small" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})">
-                            Llamar
-                        </button>
                         <button class="btn btn-danger btn-small" onclick="AdminHandlers.cancelarTurno(${turno.id})">
                             Cancelar
                         </button>
@@ -1658,7 +1655,7 @@ const RenderAdmin = {
                         </div>
                         <div class="turn-item-details">
                             <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
-                            <span class="turn-placa">${turno.placaVehiculo || '-'}</span>
+                            <span class="turn-placa">${turno.placa_vehiculo || '-'}</span>
                         </div>
                     </div>
                     <div class="turn-item-actions">

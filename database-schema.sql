@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS turnos (
     peso TEXT,
     responsable TEXT,
     autorizado_salida BOOLEAN DEFAULT false,
+    placa_vehiculo TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
