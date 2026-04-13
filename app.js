@@ -98,16 +98,22 @@ const Utils = {
         });
     },
 
-    mostrarNotificacion(mensaje, tipo = 'info') {
+    mostrarNotificacion(mensaje, tipo = 'info', requireAccept = false) {
         const notificacionesAnteriores = document.querySelectorAll('.notificacion');
         notificacionesAnteriores.forEach(n => n.remove());
         
         const notificacion = document.createElement('div');
         notificacion.className = `notificacion notificacion-${tipo}`;
-        notificacion.innerHTML = `
-            <span class="notificacion-mensaje">${mensaje}</span>
-            <button class="notificacion-cerrar">&times;</button>
-        `;
+        
+        let contenido = `<span class="notificacion-mensaje">${mensaje}</span>`;
+        
+        if (requireAccept) {
+            contenido += `<button class="notificacion-aceptar">Aceptar</button>`;
+        } else {
+            contenido += `<button class="notificacion-cerrar">&times;</button>`;
+        }
+        
+        notificacion.innerHTML = contenido;
 
         Object.assign(notificacion.style, {
             position: 'fixed',
@@ -128,11 +134,18 @@ const Utils = {
 
         document.body.appendChild(notificacion);
 
-        const btnCerrar = notificacion.querySelector('.notificacion-cerrar');
-        btnCerrar.style.cssText = 'background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 0; margin-left: auto;';
-        btnCerrar.onclick = () => notificacion.remove();
-
-        setTimeout(() => notificacion.remove(), 4000);
+        if (requireAccept) {
+            const btnAceptar = notificacion.querySelector('.notificacion-aceptar');
+            btnAceptar.style.cssText = 'background: white; border: none; color: ' + (tipo === 'success' ? '#10b981' : tipo === 'error' ? '#ef4444' : '#3b82f6') + '; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: 600; margin-left: auto;';
+            btnAceptar.onclick = () => notificacion.remove();
+        } else {
+            const btnCerrar = notificacion.querySelector('.notificacion-cerrar');
+            btnCerrar.style.cssText = 'background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 0; margin-left: auto;';
+            btnCerrar.onclick = () => notificacion.remove();
+            setTimeout(() => notificacion.remove(), 4000);
+        }
+    },
+        }
     },
 
     setLoading(isLoading) {
@@ -1215,7 +1228,7 @@ const Turnos = {
                 console.log('Turnos cargados de Supabase:', todosLosTurnos);
                 
                 if (todosLosTurnos && Array.isArray(todosLosTurnos)) {
-                    const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado');
+                    const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado' || t.estado === 'llegado');
                     const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
                     
                     console.log('Turnos en espera:', turnosEnEspera.length);
@@ -2133,7 +2146,7 @@ const AdminHandlers = {
             confirmModal.style.display = 'flex';
         }
 
-        Utils.mostrarNotificacion(`Turno ${AppState.turnoActual?.numero} llamado`, 'success');
+        Utils.mostrarNotificacion(`TURNO ${AppState.turnoActual?.numero} LLAMADO - Por favor dirijase al punto de atencion`, 'success');
         await RenderAdmin.todo();
     },
 
@@ -2188,14 +2201,14 @@ const AdminHandlers = {
         const resultado = await Turnos.completarTurnoActual();
         
         if (resultado) {
-            Utils.mostrarNotificacion(`Turno ${turnoNumero} completado`, 'success');
+            Utils.mostrarNotificacion(`Turno ${turnoNumero} completado`, 'success', true);
             
             if (despachoInfo) {
                 setTimeout(() => {
-                    Utils.mostrarNotificacion(`Proveedor ${turnoNombre} completado! Esperando autorización de salida.`, 'info');
+                    Utils.mostrarNotificacion(`El turno ${turnoNumero} ya puede salir - Esperando autorización de salida`, 'info', true);
                 }, 1000);
             } else {
-                Utils.mostrarNotificacion(`Turno ${turnoNumero} completado sin información de despacho`, 'info');
+                Utils.mostrarNotificacion(`Turno ${turnoNumero} completado sin información de despacho`, 'info', true);
             }
             
             await RenderAdmin.todo();
@@ -2765,7 +2778,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnLlamarTurno.addEventListener('click', AdminHandlers.llamarTurno);
             
             const btnCompletarTurno = document.getElementById('btnCompletarTurno');
-            if (btnCompletarTurno) btnCompletarTurno.addEventListener('click', AdminHandlers.completarTurno);
+            if (btnCompletarTurno) {
+                btnCompletarTurno.addEventListener('click', AdminHandlers.completarTurno);
+            }
             
             const btnReiniciar = document.getElementById('btnReiniciarCola');
             if (btnReiniciar) btnReiniciar.addEventListener('click', AdminHandlers.reiniciarCola);
@@ -2773,7 +2788,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const btnLimpiar = document.getElementById('btnLimpiarHistorial');
             if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
             
-            InputConfig.configurarMayusculas();
             InputConfig.configurarPasswordToggle();
             
             const btnVerMes = document.getElementById('btnVerMes');
@@ -2794,8 +2808,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             console.log('Renderizando admin...');
-            await RenderAdmin.todo();
-            await RenderAdmin.cargarMesesDisponibles();
+            RenderAdmin.todo();
+            RenderAdmin.cargarMesesDisponibles();
             
             if (window.supabaseClient) {
                 console.log('Configurando suscripción a tiempo real para admin...');
@@ -2818,34 +2832,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.log('Salida autorizada:', payload);
                         const numero = payload.payload?.numero || '---';
                         const nombre = payload.payload?.nombre || payload.payload?.nombreEmpresa || 'Proveedor';
-                        Utils.mostrarNotificacion(`Salida autorizada para turno ${numero} - ${nombre}`, 'success');
+                        Utils.mostrarNotificacion(`Salida autorizada para turno ${numero}`, 'success', true);
                     })
                     .subscribe();
             } else {
-                console.warn('Supabase no disponible - verifica tu conexión y credenciales');
+                console.warn('Supabase no disponible');
             }
             
-            verificarSalidaAutorizada();
+            verificarSalidaAutorizadaAdmin();
         }
         
-        function verificarSalidaAutorizada() {
+        function verificarSalidaAutorizadaAdmin() {
             setInterval(() => {
                 const datos = localStorage.getItem('salidaAutorizada');
                 if (datos) {
                     try {
                         const data = JSON.parse(datos);
                         const ahora = Date.now();
-                        const hace10seg = 10 * 1000;
-                        
-                        if (ahora - data.timestamp < hace10seg) {
-                            const numeroMostrar = data.numero || '---';
-                            const nombreMostrar = data.nombre || data.nombreEmpresa || 'Proveedor';
-                            Utils.mostrarNotificacion(`Salida autorizada para turno ${numeroMostrar} - ${nombreMostrar}`, 'success');
+                        if (ahora - data.timestamp < 10000) {
+                            Utils.mostrarNotificacion(`Salida autorizada para turno ${data.numero || '---'}`, 'success', true);
                             localStorage.removeItem('salidaAutorizada');
                         }
-                    } catch (e) {
-                        console.error('Error al leer salidaAutorizada:', e);
-                    }
+                    } catch (e) {}
                 }
             }, 2000);
         }
@@ -2965,7 +2973,7 @@ const DespachadorHandlers = {
             
             const numeroMostrar = turno.numero || '---';
             const nombreMostrar = turno.nombre || turno.nombreEmpresa || turno.nombre || 'Proveedor';
-            Utils.mostrarNotificacion(`✅ Salida autorizada para turno ${numeroMostrar} - ${nombreMostrar}`, 'success');
+            Utils.mostrarNotificacion(`Salida autorizada para turno ${numeroMostrar}`, 'success', true);
             
             const btnAutorizar = document.getElementById('btnAutorizarSalida');
             if (btnAutorizar) {
@@ -2996,7 +3004,7 @@ const DespachadorHandlers = {
                 timestamp: Date.now()
             }));
             localStorage.removeItem('proveedorListoSalir');
-            Utils.mostrarNotificacion(`✅ Salida autorizada`, 'success');
+            Utils.mostrarNotificacion(`Salida autorizada`, 'success', true);
         }
     }
 };

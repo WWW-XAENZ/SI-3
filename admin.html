@@ -10,49 +10,52 @@
     <link rel="stylesheet" href="styles.css">
     <style>
         .admin-grid { 
-            grid-template-columns: 320px 1fr; 
-            gap: 25px;
-            padding: 20px;
+            grid-template-columns: 340px 1fr 1fr; 
+            grid-template-rows: auto auto auto;
+            gap: 20px;
+            padding: 25px;
         }
-        .control-panel { grid-column: 1; grid-row: 1 / 4; }
-        .statistics { grid-column: 2; }
-        .waiting-list { grid-column: 2; }
-        .cited-list { grid-column: 1; }
-        .providers-list { grid-column: 1 / -1; }
-        .turn-history { grid-column: 2; }
+        .control-panel { grid-column: 1; grid-row: 1 / 3; }
+        .statistics { grid-column: 2 / 4; grid-row: 1; }
+        .arrived-list { grid-column: 2; grid-row: 2; }
+        .waiting-list { grid-column: 3; grid-row: 2; }
+        .cited-list { grid-column: 1; grid-row: 3; }
+        .providers-list { grid-column: 2 / 4; grid-row: 3; }
+        .turn-history { grid-column: 1 / 4; grid-row: 4; }
         
         .admin-section {
             background: #fff;
             border-radius: 12px;
-            padding: 20px;
+            padding: 24px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             border: 1px solid #e2e8f0;
+            margin-bottom: 0;
         }
         
-        .current-turn-display { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; padding: 25px 20px; text-align: center; border: 2px solid #2563eb; margin-bottom: 20px; }
-        .current-turn-display h3 { font-size: 12px; color: #64748b; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
-        .current-turn-display .turn-number { font-size: 56px; font-weight: 700; color: #2563eb; }
-        .current-turn-display .turn-info { font-size: 14px; color: #334155; margin-top: 8px; }
+        .current-turn-display { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; padding: 30px 24px; text-align: center; border: 2px solid #2563eb; margin-bottom: 20px; }
+        .current-turn-display h3 { font-size: 13px; color: #64748b; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .current-turn-display .turn-number { font-size: 60px; font-weight: 700; color: #2563eb; }
+        .current-turn-display .turn-info { font-size: 15px; color: #334155; margin-top: 10px; line-height: 1.4; }
         
-        .control-buttons { display: flex; flex-direction: column; gap: 12px; }
-        .control-buttons .btn { padding: 14px; font-size: 14px; border-radius: 8px; }
+        .control-buttons { display: flex; flex-direction: column; gap: 14px; }
+        .control-buttons .btn { padding: 16px; font-size: 15px; border-radius: 8px; }
         
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-        .stat-card { background: #f8fafc; padding: 20px 15px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; }
-        .stat-card .stat-number { font-size: 32px; font-weight: 700; color: #2563eb; }
-        .stat-card .stat-label { font-size: 12px; color: #64748b; margin-top: 6px; text-transform: uppercase; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+        .stat-card { background: #f8fafc; padding: 24px 18px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; }
+        .stat-card .stat-number { font-size: 36px; font-weight: 700; color: #2563eb; }
+        .stat-card .stat-label { font-size: 13px; color: #64748b; margin-top: 8px; text-transform: uppercase; }
         
-        .monthly-controls { display: flex; gap: 10px; margin-top: 20px; align-items: center; flex-wrap: wrap; }
-        .month-select { flex: 1; min-width: 120px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
+        .monthly-controls { display: flex; gap: 12px; margin-top: 24px; align-items: center; flex-wrap: wrap; }
+        .month-select { flex: 1; min-width: 140px; padding: 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
         
-        .turn-list { max-height: 180px; overflow-y: auto; padding-right: 5px; }
-        .turn-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 10px; border: 1px solid #e2e8f0; transition: all 0.2s; }
+        .turn-list { max-height: 220px; overflow-y: auto; padding-right: 8px; }
+        .turn-item { display: flex; align-items: center; gap: 14px; padding: 16px; background: #f8fafc; border-radius: 10px; margin-bottom: 12px; border: 1px solid #e2e8f0; transition: all 0.2s; }
         .turn-item:hover { background: #f1f5f9; border-color: #2563eb; }
-        .turn-item-number { font-size: 22px; font-weight: 700; color: #2563eb; min-width: 55px; }
+        .turn-item-number { font-size: 24px; font-weight: 700; color: #2563eb; min-width: 60px; }
         .turn-item-info { flex: 1; }
-        .turn-item-company { font-weight: 600; font-size: 13px; color: #1e293b; }
-        .turn-item-time { font-size: 11px; color: #64748b; margin-top: 4px; }
-        .turn-item-actions { display: flex; gap: 6px; }
+        .turn-item-company { font-weight: 600; font-size: 14px; color: #1e293b; }
+        .turn-item-time { font-size: 12px; color: #64748b; margin-top: 6px; }
+        .turn-item-actions { display: flex; gap: 8px; }
         
         .turn-item-llegado { border-left: 4px solid #10b981; background: #ecfdf5; }
         .turn-item-llegado:hover { border-color: #059669; }
@@ -65,19 +68,26 @@
         .providers-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
         .providers-table tr:hover { background: #f8fafc; }
         
-        .admin-section h2 { font-size: 15px; color: #1e293b; border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 15px; font-weight: 600; }
+        .admin-section h2 { font-size: 16px; color: #1e293b; border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 18px; font-weight: 600; }
         
-        .history-list { max-height: 200px; overflow-y: auto; }
+        .history-list { max-height: 280px; overflow-y: auto; }
         
-        @media (max-width: 1000px) {
-            .admin-grid { grid-template-columns: 1fr; }
+        @media (max-width: 1100px) {
+            .admin-grid { grid-template-columns: 1fr 1fr; }
             .control-panel { grid-column: 1; grid-row: auto; }
+            .statistics { grid-column: 2; }
+            .arrived-list { grid-column: 1; }
+            .waiting-list { grid-column: 2; }
+            .cited-list { grid-column: 1; }
+            .providers-list { grid-column: 1 / 3; }
+            .turn-history { grid-column: 1 / 3; }
             .stats-grid { grid-template-columns: repeat(3, 1fr); }
         }
         
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
+            .admin-grid { grid-template-columns: 1fr; gap: 15px; padding: 15px; }
+            .control-panel, .statistics, .arrived-list, .waiting-list, .cited-list, .providers-list, .turn-history { grid-column: 1; }
             .stats-grid { grid-template-columns: 1fr; }
-            .admin-grid { gap: 15px; padding: 10px; }
             .admin-section { padding: 15px; }
         }
     </style>
@@ -105,6 +115,7 @@
                         <div id="turnoInfo" class="turn-info">Sin turno en atencion</div>
                     </div>
                     <div class="control-buttons">
+                        <button id="btnLlamarTurno" class="btn btn-primary">Llamar Siguiente</button>
                         <button id="btnCompletarTurno" class="btn btn-success">Completar Turno</button>
                         <button id="btnReiniciarCola" class="btn btn-danger">Reiniciar Cola</button>
                     </div>
