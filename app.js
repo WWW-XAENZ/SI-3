@@ -105,7 +105,16 @@ const Utils = {
         const notificacion = document.createElement('div');
         notificacion.className = `notificacion notificacion-${tipo}`;
         
-        let contenido = `<span class="notificacion-mensaje">${mensaje}</span>`;
+        const iconos = {
+            success: '✓',
+            error: '✕',
+            info: 'ℹ'
+        };
+        
+        let contenido = `
+            <span class="notif-icon">${iconos[tipo] || 'ℹ'}</span>
+            <span class="notificacion-mensaje">${mensaje}</span>
+        `;
         
         if (requireAccept) {
             contenido += `<button class="notificacion-aceptar">Aceptar</button>`;
@@ -119,30 +128,85 @@ const Utils = {
             position: 'fixed',
             top: '20px',
             right: '20px',
-            padding: '16px 24px',
-            borderRadius: '8px',
-            backgroundColor: tipo === 'success' ? '#10b981' : tipo === 'error' ? '#ef4444' : '#3b82f6',
+            padding: '18px 24px',
+            borderRadius: '12px',
+            backgroundColor: tipo === 'success' ? '#059669' : tipo === 'error' ? '#dc2626' : '#2563eb',
             color: 'white',
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
             zIndex: '9999',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            maxWidth: '400px',
-            animation: 'slideIn 0.3s ease'
+            gap: '14px',
+            maxWidth: '420px',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            fontSize: '14px',
+            animation: 'notifSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            transform: 'translateX(0)'
         });
 
         document.body.appendChild(notificacion);
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes notifSlideIn {
+                from { transform: translateX(120%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            .notif-icon {
+                font-size: 18px;
+                width: 28px;
+                height: 28px;
+                background: rgba(255,255,255,0.2);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+        `;
+        document.head.appendChild(style);
 
         if (requireAccept) {
             const btnAceptar = notificacion.querySelector('.notificacion-aceptar');
-            btnAceptar.style.cssText = 'background: white; border: none; color: ' + (tipo === 'success' ? '#10b981' : tipo === 'error' ? '#ef4444' : '#3b82f6') + '; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: 600; margin-left: auto;';
-            btnAceptar.onclick = () => notificacion.remove();
+            btnAceptar.style.cssText = 'background: white; border: none; color: ' + (tipo === 'success' ? '#059669' : tipo === 'error' ? '#dc2626' : '#2563eb') + '; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; margin-left: auto; font-size: 13px;';
+            btnAceptar.onclick = () => {
+                notificacion.style.animation = 'notifSlideOut 0.3s ease forwards';
+                setTimeout(() => notificacion.remove(), 300);
+            };
         } else {
             const btnCerrar = notificacion.querySelector('.notificacion-cerrar');
-            btnCerrar.style.cssText = 'background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 0; margin-left: auto;';
-            btnCerrar.onclick = () => notificacion.remove();
-            setTimeout(() => notificacion.remove(), 4000);
+            btnCerrar.style.cssText = 'background: none; border: none; color: white; font-size: 22px; cursor: pointer; padding: 0; margin-left: auto; opacity: 0.8;';
+            btnCerrar.onclick = () => {
+                notificacion.style.animation = 'notifSlideOut 0.3s ease forwards';
+                setTimeout(() => notificacion.remove(), 300);
+            };
+            
+            const styleOut = document.createElement('style');
+            styleOut.textContent = `
+                @keyframes notifSlideOut {
+                    from { transform: translateX(0); opacity: 1; }
+                    to { transform: translateX(120%); opacity: 0; }
+                }
+            `;
+            document.head.appendChild(styleOut);
+            
+            setTimeout(() => {
+                if (notificacion.parentNode) {
+                    notificacion.style.animation = 'notifFadeOut 0.4s ease forwards';
+                    setTimeout(() => {
+                        if (notificacion.parentNode) notificacion.remove();
+                    }, 400);
+                }
+            }, 4000);
+            
+            const styleFade = document.createElement('style');
+            styleFade.textContent = `
+                @keyframes notifFadeOut {
+                    from { transform: translateX(0); opacity: 1; }
+                    to { transform: translateX(20px); opacity: 0; }
+                }
+            `;
+            document.head.appendChild(styleFade);
         }
     },
 
@@ -185,7 +249,20 @@ const Utils = {
     },
 
     formatearHora(hora) {
-        return hora || 'N/A';
+        if (!hora) return '-';
+        try {
+            const partes = hora.split(':');
+            if (partes.length >= 2) {
+                let h = parseInt(partes[0]);
+                const min = partes[1];
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                h = h % 12 || 12;
+                return `${h}:${min} ${ampm}`;
+            }
+            return hora;
+        } catch (e) {
+            return hora;
+        }
     }
 };
 
@@ -1729,57 +1806,40 @@ const RenderAdmin = {
                 historialDiv.innerHTML = '<p class="empty-message">No hay historial de turnos</p>';
             } else {
                 const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
-                historialDiv.innerHTML = historial.map(h => {
-                    return `
-                    <div class="history-item">
-                        <div class="history-item-header">
-                            <span class="history-item-number">${h.numero}</span>
-                            <span class="history-item-status status-${h.estado}">${h.autorizadoSalida ? '✓ SALIDA OK' : h.estado}</span>
-                            ${h.fechaCita ? '<span class="history-item-badge">CITADO</span>' : ''}
-                        </div>
-                        <div class="history-item-info">
-                            <div class="history-item-company">${h.nombreEmpresa}</div>
-                            
-                            <div class="history-item-section">
-                                <div class="history-item-label">DATOS DEL PROVEEDOR</div>
-                                <div class="history-item-row">
-                                    <span>Placa: <strong>${h.nit || '-'}</strong></span>
-                                    <span>Destino: <strong>${h.destino ? destinoLabel[h.destino] || h.destino : '-'}</strong></span>
-                                    <span>Servicio: <strong>${h.servicio || '-'}</strong></span>
-                                </div>
-                                <div class="history-item-row">
-                                    <span>Contacto: <strong>${h.contacto || '-'}</strong></span>
-                                    <span>Teléfono: <strong>${h.telefono || '-'}</strong></span>
-                                </div>
-                            </div>
-                            
-                            <div class="history-item-section">
-                                <div class="history-item-label">DATOS DE DESPACHO</div>
-                                <div class="history-item-row">
-                                    <span>Factura: <strong>${h.numFactura || '-'}</strong></span>
-                                    <span>Tipo: <strong>${h.tipoVehiculo || '-'}</strong></span>
-                                    <span>Bultos: <strong>${h.bultos || '-'}</strong></span>
-                                </div>
-                                <div class="history-item-row">
-                                    <span>Peso: <strong>${h.peso || '-'} kg</strong></span>
-                                    <span>Responsable: <strong>${h.responsable || '-'}</strong></span>
-                                </div>
-                            </div>
-                            
-                            ${h.fechaCita ? `<div class="history-item-section"><div class="history-item-label">CITA</div><div class="history-item-row"><span>${new Date(h.fechaCita).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}</span></div></div>` : ''}
-                            
-                            <div class="history-item-section">
-                                <div class="history-item-label">HORARIOS</div>
-                                <div class="history-item-row">
-                                    <span>Solicitud: <strong>${Utils.formatearHora(h.horaSolicitud)}</strong></span>
-                                    <span>Llamada: <strong>${Utils.formatearHora(h.horaLlamada)}</strong></span>
-                                    <span>Finalizó: <strong>${Utils.formatearHora(h.horaFinalizacion)}</strong></span>
-                                </div>
-                                <div class="history-item-date">${Utils.formatearFecha(h.fecha)}</div>
-                            </div>
-                        </div>
-                    </div>
-                `}).join('');
+                historialDiv.innerHTML = `
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Empresa</th>
+                                <th>Placa</th>
+                                <th>Factura</th>
+                                <th>Tipo</th>
+                                <th>Bultos</th>
+                                <th>Peso</th>
+                                <th>Responsable</th>
+                                <th>Hora Fin</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${historial.map(h => `
+                                <tr>
+                                    <td><strong>${h.numero}</strong></td>
+                                    <td>${h.nombreEmpresa}</td>
+                                    <td>${h.nit || '-'}</td>
+                                    <td>${h.numFactura || '-'}</td>
+                                    <td>${h.tipoVehiculo || '-'}</td>
+                                    <td>${h.bultos || '-'}</td>
+                                    <td>${h.peso || '-'}</td>
+                                    <td>${h.responsable || '-'}</td>
+                                    <td>${Utils.formatearHora(h.horaFinalizacion)}</td>
+                                    <td>${h.autorizadoSalida ? '<span style="color:#10b981;font-weight:600;">✓ SALIDA OK</span>' : '<span style="color:#f59e0b;">PENDIENTE</span>'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
             }
         } catch (error) {
             console.error('Error al cargar historial:', error);

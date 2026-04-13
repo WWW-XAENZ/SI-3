@@ -80,6 +80,12 @@
         
         .history-list { max-height: 280px; overflow-y: auto; }
         
+        .history-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .history-table th { background: #f1f5f9; padding: 10px 8px; text-align: left; border-bottom: 2px solid #e2e8f0; font-size: 11px; text-transform: uppercase; color: #475569; }
+        .history-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+        .history-table tr:hover { background: #f8fafc; }
+        .history-table { display: block; overflow-x: auto; white-space: nowrap; }
+        
         @media (max-width: 1100px) {
             .admin-grid { grid-template-columns: 1fr 1fr; }
             .control-panel { grid-column: 1; grid-row: auto; }
