@@ -145,8 +145,6 @@ const Utils = {
             setTimeout(() => notificacion.remove(), 4000);
         }
     },
-        }
-    },
 
     setLoading(isLoading) {
         AppState.isLoading = isLoading;
@@ -2774,6 +2772,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btnLlamarTurno = document.getElementById('btnLlamarTurno');
         if (btnLlamarTurno) {
             console.log('Configurando página de administrador...');
+            
+            if (window.InputConfig) {
+                window.InputConfig.configurarMayusculas();
+                window.InputConfig.configurarTelefono();
+            }
             
             btnLlamarTurno.addEventListener('click', AdminHandlers.llamarTurno);
             
