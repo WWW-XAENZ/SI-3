@@ -14,12 +14,13 @@
             gap: 25px;
             padding: 20px;
         }
-        .control-panel { grid-column: 1; grid-row: 1 / 4; }
+        .control-panel { grid-column: 1; grid-row: 1 / 3; }
         .statistics { grid-column: 2; }
-        .waiting-list { grid-column: 2; }
+        .waiting-list { grid-column: 2; grid-row: 3; }
+        .arrived-list { grid-column: 2; grid-row: 4; }
         .cited-list { grid-column: 1; }
         .providers-list { grid-column: 1 / -1; }
-        .turn-history { grid-column: 2; }
+        .turn-history { grid-column: 2; grid-row: 5; }
         
         .admin-section {
             background: #fff;
@@ -130,19 +131,19 @@
                     </div>
                 </section>
 
-                <!-- Turnos Llegados -->
-                <section class="admin-section waiting-list" style="border-color: #10b981;">
-                    <h2 style="color: #10b981;">✓ Turnos Llegados (<span id="contadorTurnosLlegados">0</span>)</h2>
-                    <div id="listaTurnosLlegados" class="turn-list">
-                        <p class="empty-message">Sin proveedores llegados</p>
-                    </div>
-                </section>
-
-                <!-- Turnos en Espera -->
+<!-- Turnos en Espera -->
                 <section class="admin-section waiting-list">
                     <h2>Turnos en Espera (<span id="contadorTurnosEspera">0</span>)</h2>
                     <div id="listaTurnosEspera" class="turn-list">
                         <p class="empty-message">Sin turnos en espera</p>
+                    </div>
+                </section>
+
+                <!-- Proveedores que Llegaron -->
+                <section class="admin-section arrived-list" style="border-color: #10b981; background: #dcfce7;">
+                    <h2 style="color: #10b981;">Llegados (<span id="contadorNotificacionesLlegada">0</span>)</h2>
+                    <div id="notificacionesLlegada" class="turn-list">
+                        <p class="empty-message">Sin proveedores llegados</p>
                     </div>
                 </section>
 

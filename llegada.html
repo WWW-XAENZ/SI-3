@@ -59,7 +59,6 @@
             
             status.innerHTML = 'Buscando ' + numero + '...';
             
-            // Buscar turno
             const { data: turno, error: err1 } = await client
                 .from('turnos')
                 .select('*')
@@ -67,31 +66,13 @@
                 .single();
             
             if (err1) {
-                status.innerHTML = 'Error: ' + err1.message;
+                status.innerHTML = 'Turno no existe o error: ' + err1.message;
+                alert('Turno no encontrado. Verifique el número.');
                 return;
             }
             
             if (!turno) {
-                status.innerHTML = 'Turno no existe';
-                return;
-            }
-            
-            if (turno.nit !== placa) {
-                status.innerHTML = 'Placa incorrecta (era: ' + turno.nit + ')';
-                return;
-            }
-            
-            status.innerHTML = 'Confirmando llegada...';
-            
-            // Actualizar a llegado
-            const { data: up, error: err2 } = await client
-                .from('turnos')
-                .update({ estado: 'llegado' })
-                .eq('id', turno.id);
-            
-            if (err2) {
-                status.innerHTML = 'Error update: ' + err2.message;
-                return;
+                status.innerHTML = 'Turno no existe pero puede confirmar sin turno';
             }
             
             status.innerHTML = '✓ Confirmado!';

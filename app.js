@@ -1375,44 +1375,35 @@ const Turnos = {
         }
     },
 
-    async cargarTurnos() {
-        console.log('=== CARGANDO TURNOS ===');
+async cargarTurnos() {
+        console.log('Cargando turnos...');
         
         try {
             if (window.supabaseClient) {
-                const todosLosTurnos = await SupabaseDB.cargarTurnos();
-                console.log('Turnos cargados de Supabase:', todosLosTurnos);
+                const { data } = await window.supabaseClient
+                    .from('turnos')
+                    .select('*')
+                    .order('id', { ascending: true });
                 
-                if (todosLosTurnos && Array.isArray(todosLosTurnos)) {
-const todosEnCola = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado' || t.estado === 'llegado');
-        const turnosEnEspera = todosEnCola;
-                    const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
-                    
-                    console.log('Turnos en espera:', turnosEnEspera.length);
-                    console.log('Turno atendiendo:', turnoAtendiendo);
-                    
-                    AppState.turnos = turnosEnEspera;
-                    AppState.turnoActual = turnoAtendiendo || null;
-                    
-                    LocalStorage.guardarTurnos(turnosEnEspera);
-                    if (turnoAtendiendo) {
-                        LocalStorage.guardarTurnoActual(turnoAtendiendo);
-                    } else {
-                        LocalStorage.guardarTurnoActual(null);
-                    }
-                    
-                    console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total`);
-                    
-                    AppState.contadorTurnos = await SupabaseDB.obtenerContadorTurnos();
-                    return;
-                }
+                const todosLosTurnos = data || [];
+                console.log('Turnos:', todosLosTurnos.length);
+                
+                const turnosEnCola = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado' || t.estado === 'llegado');
+                const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
+                
+                AppState.turnos = turnosEnCola;
+                AppState.turnoActual = turnoAtendiendo || null;
+                
+                LocalStorage.guardarTurnos(turnosEnCola);
+                LocalStorage.guardarTurnoActual(turnoAtendiendo);
+                
+                console.log('Cargados:', turnosEnCola.length);
+            } else {
+                AppState.turnos = LocalStorage.obtenerTurnos();
+                AppState.turnoActual = LocalStorage.obtenerTurnoActual();
             }
-            
-            AppState.turnos = LocalStorage.obtenerTurnos();
-            AppState.turnoActual = LocalStorage.obtenerTurnoActual();
-            
-        } catch (error) {
-            console.error('❌ Error al cargar turnos:', error);
+        } catch (e) {
+            console.log('Error:', e.message);
             AppState.turnos = LocalStorage.obtenerTurnos();
             AppState.turnoActual = LocalStorage.obtenerTurnoActual();
         }
@@ -1602,10 +1593,10 @@ const RenderUsuario = {
         }
     },
 
-    todo() {
-        this.miTurno();
-        this.estadoCola();
-        this.turnosEnEspera();
+todo() {
+try { 
+                this.listaTurnosEspera(); 
+            } catch (e) { console.error('Error listas:', e); }
     },
     
     suscribirCambios() {
@@ -1724,7 +1715,7 @@ const RenderAdmin = {
         const listaDiv = document.getElementById('listaTurnosEspera');
         const contadorDiv = document.getElementById('contadorTurnosEspera');
         
-        const turnosNormales = AppState.turnos.filter(t => t.estado === 'espera');
+        const turnosNormales = AppState.turnos.filter(t => t.estado === 'espera' || t.estado === 'llegado');
         
         if (contadorDiv) contadorDiv.textContent = turnosNormales.length;
         
@@ -1832,38 +1823,6 @@ const RenderAdmin = {
                         </div>
                         <button class="btn btn-success" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})" style="padding: 12px 25px; font-size: 14px;">
                             Atender
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-        }
-    },
-
-    listaTurnosLlegados() {
-        const listaDiv = document.getElementById('listaTurnosLlegados');
-        const contadorDiv = document.getElementById('contadorTurnosLlegados');
-        
-        const turnosLlegados = AppState.turnos.filter(t => t.estado === 'llegado');
-        
-        if (contadorDiv) contadorDiv.textContent = turnosLlegados.length;
-        
-        if (!listaDiv) return;
-
-        if (turnosLlegados.length === 0) {
-            listaDiv.innerHTML = '<p class="empty-message">No hay proveedores llegados</p>';
-        } else {
-            listaDiv.innerHTML = turnosLlegados.map(turno => `
-                <div class="turn-item" style="background: #dcfce7; border-left: 4px solid #10b981;">
-                    <span class="turn-item-number" style="color: #10b981;">${turno.numero}</span>
-                    <div class="turn-item-info">
-                        <div class="turn-item-company">${turno.nombreEmpresa}</div>
-                        <div class="turn-item-time">
-                            Llegó: ${turno.horaLlegada || turno.horaSolicitud}
-                        </div>
-                    </div>
-                    <div class="turn-item-actions">
-                        <button class="btn btn-success btn-small" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})">
-                            📞 Llamar
                         </button>
                     </div>
                 </div>
@@ -2103,9 +2062,9 @@ const RenderAdmin = {
         console.log('=== ACTUALIZANDO VISTA ADMIN ===');
         
         try { this.turnoActual(); } catch (e) { console.error('Error turnoActual:', e); }
-        try { 
+try { 
                 this.listaTurnosEspera(); 
-                this.listaTurnosLlegados();
+                this.notificacionesLlegada();
                 
             } catch (e) { console.error('Error listas:', e); }
         try { this.listaTurnosCitados(); } catch (e) { console.error('Error listaTurnosCitados:', e); }
@@ -2481,14 +2440,12 @@ const AdminHandlers = {
         const resultado = await Turnos.completarTurnoActual();
         
         if (resultado) {
-            Utils.mostrarNotificacion(`Turno ${turnoNumero} completado`, 'success');
+            Utils.mostrarNotificacion(`✓ Turno ${turnoNumero} COMPLETADO - ${turnoNombre}`, 'success');
             
             if (despachoInfo) {
                 setTimeout(() => {
-                    Utils.mostrarNotificacion(`Proveedor ${turnoNombre} completado! Esperando autorización de salida.`, 'info');
-                }, 1000);
-            } else {
-                Utils.mostrarNotificacion(`Turno ${turnoNumero} completado sin información de despacho`, 'info');
+                    Utils.mostrarNotificacion(`⚠️ ${turnoNombre} esperando autorización de salida`, 'info');
+                }, 3000);
             }
             
             await RenderAdmin.todo();
@@ -3883,91 +3840,5 @@ const GenerarCertificado = {
 };
 
 window.GenerarCertificado = GenerarCertificado;
-
-// ============================================
-// GESTIÓN DE LLEGADA
-// ============================================
-
-const LlegadaHandlers = {
-    async confirmarLlegada(e) {
-        e.preventDefault();
-        
-        const turnoNum = document.getElementById('arrivalTurno')?.value?.trim().toUpperCase();
-        const placa = document.getElementById('arrivalPlaca')?.value?.trim().toUpperCase();
-        
-        if (!turnoNum) {
-            Utils.mostrarNotificacion('Ingrese su número de turno', 'error');
-            return;
-        }
-        
-        if (!placa) {
-            Utils.mostrarNotificacion('Ingrese la placa del vehículo', 'error');
-            return;
-        }
-        
-        Utils.setLoading(true);
-        
-        try {
-            const turno = AppState.turnos.find(t => t.numero === turnoNum);
-            
-            if (!turno) {
-                const historial = await SupabaseDB.cargarHistorial(50);
-                const turnoEnHistorial = historial.find(t => t.numero === turnoNum && t.estado === 'completado');
-                
-                if (turnoEnHistorial) {
-                    Utils.mostrarNotificacion('Este turno ya fue atendido', 'error');
-                    return;
-                }
-                throw new Error('Turno no encontrado');
-            }
-            
-            if (turno.nit && turno.nit.toUpperCase() !== placa) {
-                throw new Error('La placa no coincide con el turno');
-            }
-            
-            if (window.supabaseClient) {
-                const { error } = await window.supabaseClient
-                    .from('turnos')
-                    .update({ 
-                        hora_llegada: Utils.obtenerHoraActual(),
-                        estado: 'llegado',
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', turno.id);
-                
-                if (error) throw error;
-            }
-            
-            turno.horaLlegada = Utils.obtenerHoraActual();
-            turno.estado = 'llegado';
-            
-            const form = document.getElementById('arrivalForm');
-            const success = document.getElementById('arrivalSuccess');
-            
-            if (form) form.style.display = 'none';
-            if (success) success.style.display = 'block';
-            
-            Utils.mostrarNotificacion('Llegada confirmada', 'success');
-            
-            document.getElementById('arrivalTurno').value = '';
-            document.getElementById('arrivalPlaca').value = '';
-            
-        } catch (error) {
-            console.error('Error al confirmar llegada:', error);
-            Utils.mostrarNotificacion(error.message || 'Error al confirmar llegada', 'error');
-        } finally {
-            Utils.setLoading(false);
-        }
-    },
-
-    mostrarSeccion() {
-        const section = document.getElementById('arrival-section');
-        if (section) {
-            section.scrollIntoView({ behavior: 'smooth' });
-        }
-    }
-};
-
-window.LlegadaHandlers = LlegadaHandlers;
 
                         
