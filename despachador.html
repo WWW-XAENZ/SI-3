@@ -61,6 +61,13 @@
         
         .turn-list { max-height: 150px; overflow-y: auto; }
         
+        .turn-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; border: 1px solid #e2e8f0; }
+        .turn-item:hover { background: #f1f5f9; }
+        .turn-item-number { font-size: 18px; font-weight: 700; color: #2563eb; min-width: 45px; }
+        .turn-item-info { flex: 1; min-width: 0; }
+        .turn-item-company { font-weight: 600; font-size: 12px; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .turn-item-time { font-size: 11px; color: #64748b; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
         .admin-section h2 { font-size: 15px; color: #1e293b; border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 15px; font-weight: 600; }
         
         @media (max-width: 1000px) {
@@ -325,22 +332,31 @@
                             const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'PLASTICOS', 'ambos': 'AMBOS' };
                             
                             if (listaDiv) listaDiv.innerHTML = data.map(turno => {
-                                const horaCita = turno.fecha_cita ? (() => {
+                                let horaCita = '';
+                                let fechaCompleta = '';
+                                if (turno.fecha_cita) {
                                     const partes = turno.fecha_cita.split('T');
                                     if (partes.length >= 2) {
-                                        const [h, m] = partes[1].split(':');
-                                        const hora = parseInt(h);
-                                        return `${hora}:${m}`;
+                                        const [horas, minSeg] = partes[1].split(':');
+                                        const h = parseInt(horas);
+                                        const min = minSeg.split('.')[0];
+                                        const ampm = h >= 12 ? 'PM' : 'AM';
+                                        const h12 = h % 12 || 12;
+                                        horaCita = `${h12}:${min} ${ampm}`;
+                                        
+                                        const fechaObj = new Date(partes[0] + 'T12:00:00');
+                                        const dia = fechaObj.getDate();
+                                        const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+                                        fechaCompleta = `${dia} ${meses[fechaObj.getMonth()]}`;
                                     }
-                                    return '';
-                                })() : '';
+                                }
                                 
                                 return `
                                     <div class="turn-item">
                                         <span class="turn-item-number">${turno.numero}</span>
                                         <div class="turn-item-info">
-                                            <div class="turn-item-company">${turno.nombreEmpresa}</div>
-                                            <div class="turn-item-time">${horaCita} - ${destinoLabel[turno.destino] || turno.destino}</div>
+                                            <div class="turn-item-company">${turno.nombre_empresa || '-'}</div>
+                                            <div class="turn-item-time">${horaCita} ${fechaCompleta ? '- ' + fechaCompleta : ''} - ${destinoLabel[turno.destino] || turno.destino}</div>
                                         </div>
                                     </div>
                                 `;

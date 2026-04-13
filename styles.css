@@ -1472,8 +1472,44 @@ input[type="datetime-local"]:focus {
 .history-item-company {
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: var(--space-1);
-    font-size: 0.9rem;
+    margin-bottom: var(--space-2);
+    font-size: 0.95rem;
+}
+
+.history-item-section {
+    background: #f8fafc;
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 8px;
+}
+
+.history-item-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+}
+
+.history-item-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+    color: #475569;
+}
+
+.history-item-row span {
+    flex: 1;
+    min-width: 100px;
+}
+
+.history-item-date {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 8px;
+    text-align: right;
 }
 
 .history-item-time {
@@ -2461,6 +2497,8 @@ footer {
 /* Modal de Despacho */
 #despachoModal .modal-content {
     max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 #despachoModal .despacho-info {

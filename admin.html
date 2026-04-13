@@ -10,8 +10,8 @@
     <link rel="stylesheet" href="styles.css">
     <style>
         .admin-grid { 
-            grid-template-columns: 340px 1fr 1fr; 
-            grid-template-rows: auto auto auto;
+            grid-template-columns: 300px 1fr 1fr; 
+            grid-template-rows: auto auto auto auto;
             gap: 20px;
             padding: 25px;
         }
@@ -19,7 +19,7 @@
         .statistics { grid-column: 2 / 4; grid-row: 1; }
         .arrived-list { grid-column: 2; grid-row: 2; }
         .waiting-list { grid-column: 3; grid-row: 2; }
-        .cited-list { grid-column: 1; grid-row: 3; }
+        .cited-list { grid-column: 1; grid-row: 3; min-height: 200px; }
         .providers-list { grid-column: 2 / 4; grid-row: 3; }
         .turn-history { grid-column: 1 / 4; grid-row: 4; }
         
@@ -49,19 +49,27 @@
         .month-select { flex: 1; min-width: 140px; padding: 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
         
         .turn-list { max-height: 220px; overflow-y: auto; padding-right: 8px; }
-        .turn-item { display: flex; align-items: center; gap: 14px; padding: 16px; background: #f8fafc; border-radius: 10px; margin-bottom: 12px; border: 1px solid #e2e8f0; transition: all 0.2s; }
+        .turn-item { display: flex; align-items: center; gap: 14px; padding: 14px; background: #f8fafc; border-radius: 10px; margin-bottom: 10px; border: 1px solid #e2e8f0; transition: all 0.2s; }
         .turn-item:hover { background: #f1f5f9; border-color: #2563eb; }
-        .turn-item-number { font-size: 24px; font-weight: 700; color: #2563eb; min-width: 60px; }
-        .turn-item-info { flex: 1; }
-        .turn-item-company { font-weight: 600; font-size: 14px; color: #1e293b; }
-        .turn-item-time { font-size: 12px; color: #64748b; margin-top: 6px; }
-        .turn-item-actions { display: flex; gap: 8px; }
+        .turn-item-number { font-size: 22px; font-weight: 700; color: #2563eb; min-width: 55px; }
+        .turn-item-info { flex: 1; min-width: 0; }
+        .turn-item-company { font-weight: 600; font-size: 13px; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .turn-item-time { font-size: 11px; color: #64748b; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .turn-item-details { display: flex; gap: 8px; font-size: 11px; color: #64748b; margin-top: 4px; flex-wrap: wrap; }
+        .turn-item-actions { display: flex; gap: 8px; flex-shrink: 0; }
         
         .turn-item-llegado { border-left: 4px solid #10b981; background: #ecfdf5; }
         .turn-item-llegado:hover { border-color: #059669; }
         
         .turn-item-espera { border-left: 4px solid #f97316; background: #fff7ed; }
         .turn-item-espera:hover { border-color: #ea580c; }
+        
+        .turn-item-citado { border-left: 4px solid #8b5cf6; background: #f5f3ff; flex-wrap: wrap; }
+        .turn-item-citado:hover { border-color: #7c3aed; }
+        .turn-item-citado .turn-item-info { min-width: 0; }
+        .turn-item-citado .turn-item-company { display: block; margin-bottom: 4px; }
+        .turn-item-citado .turn-item-time { display: block; font-size: 11px; color: #64748b; }
+        .turn-item-citado .turn-item-details { margin-top: 6px; }
         
         .providers-table { width: 100%; border-collapse: collapse; font-size: 12px; }
         .providers-table th { background: #f1f5f9; padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-size: 11px; text-transform: uppercase; color: #475569; }

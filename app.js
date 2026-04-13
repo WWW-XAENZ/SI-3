@@ -1534,7 +1534,7 @@ const RenderAdmin = {
                             ${AppState.turnoActual.autorizadoSalida ? `<div class="autorizado-badge">✓ SALIDA AUTORIZADA</div>` : ''}
                         `;
                     } else {
-                        despachoDetail.innerHTML = '<div class="empty-message">Sin información de despacho</div>';
+                        despachoDetail.innerHTML = '';
                     }
                 }
             } else {
@@ -1598,19 +1598,20 @@ const RenderAdmin = {
                 const horaCita = turno.fechaCita ? (() => {
                     const fechaHora = turno.fechaCita.split('T');
                     if (fechaHora.length >= 2) {
-                        const [horas, minutos] = fechaHora[1].split(':');
+                        const [horas, minSeg] = fechaHora[1].split(':');
                         const h = parseInt(horas);
+                        const min = minSeg.split('.')[0];
                         const ampm = h >= 12 ? 'PM' : 'AM';
                         const h12 = h % 12 || 12;
-                        return `${h12}:${minutos} ${ampm}`;
+                        return `${h12}:${min} ${ampm}`;
                     }
                     return turno.horaSolicitud;
                 })() : turno.horaSolicitud;
                 const fechaCompleta = turno.fechaCita ? (() => {
                     const fechaHora = turno.fechaCita.split('T');
                     if (fechaHora.length >= 2) {
-                        const fecha = new Date(turno.fechaCita);
-                        return fecha.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                        const fechaObj = new Date(fechaHora[0] + 'T12:00:00');
+                        return fechaObj.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
                     }
                     return '';
                 })() : '';
@@ -1728,51 +1729,53 @@ const RenderAdmin = {
                 historialDiv.innerHTML = '<p class="empty-message">No hay historial de turnos</p>';
             } else {
                 const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
-                const formatearFechaHora = (fechaHora) => {
-                    if (!fechaHora) return 'N/A';
-                    try {
-                        const fecha = new Date(fechaHora);
-                        return fecha.toLocaleString('es-CO', { 
-                            day: '2-digit', month: '2-digit', year: 'numeric',
-                            hour: 'numeric', minute: '2-digit', hour12: true 
-                        });
-                    } catch(e) { return fechaHora; }
-                };
                 historialDiv.innerHTML = historial.map(h => {
-                    console.log('Historial item tipoVehiculo:', h.tipoVehiculo);
                     return `
                     <div class="history-item">
                         <div class="history-item-header">
                             <span class="history-item-number">${h.numero}</span>
-                            <span class="history-item-status status-${h.estado}">${h.autorizadoSalida ? '✓ SALIDA AUTORIZADA' : h.estado}</span>
+                            <span class="history-item-status status-${h.estado}">${h.autorizadoSalida ? '✓ SALIDA OK' : h.estado}</span>
                             ${h.fechaCita ? '<span class="history-item-badge">CITADO</span>' : ''}
                         </div>
                         <div class="history-item-info">
                             <div class="history-item-company">${h.nombreEmpresa}</div>
-                            <div class="history-item-details">
-                                <span><strong>Placa:</strong> ${h.nit || 'N/A'}</span>
-                                <span><strong>Destino:</strong> ${h.destino ? destinoLabel[h.destino] || h.destino : 'N/A'}</span>
-                                <span><strong>Servicio:</strong> ${h.servicio || 'N/A'}</span>
+                            
+                            <div class="history-item-section">
+                                <div class="history-item-label">DATOS DEL PROVEEDOR</div>
+                                <div class="history-item-row">
+                                    <span>Placa: <strong>${h.nit || '-'}</strong></span>
+                                    <span>Destino: <strong>${h.destino ? destinoLabel[h.destino] || h.destino : '-'}</strong></span>
+                                    <span>Servicio: <strong>${h.servicio || '-'}</strong></span>
+                                </div>
+                                <div class="history-item-row">
+                                    <span>Contacto: <strong>${h.contacto || '-'}</strong></span>
+                                    <span>Teléfono: <strong>${h.telefono || '-'}</strong></span>
+                                </div>
                             </div>
-                            <div class="history-item-details">
-                                <span><strong>Contacto:</strong> ${h.contacto || 'N/A'}</span>
-                                <span><strong>Teléfono:</strong> ${h.telefono || 'N/A'}</span>
+                            
+                            <div class="history-item-section">
+                                <div class="history-item-label">DATOS DE DESPACHO</div>
+                                <div class="history-item-row">
+                                    <span>Factura: <strong>${h.numFactura || '-'}</strong></span>
+                                    <span>Tipo: <strong>${h.tipoVehiculo || '-'}</strong></span>
+                                    <span>Bultos: <strong>${h.bultos || '-'}</strong></span>
+                                </div>
+                                <div class="history-item-row">
+                                    <span>Peso: <strong>${h.peso || '-'} kg</strong></span>
+                                    <span>Responsable: <strong>${h.responsable || '-'}</strong></span>
+                                </div>
                             </div>
-                            <div class="history-item-details" style="background: #f0fdf4; padding: 8px; border-radius: 4px; margin-top: 4px;">
-                                <span><strong>N° Factura:</strong> ${h.numFactura || 'N/A'}</span>
-                                <span><strong>Tipo Vehículo:</strong> ${h.tipoVehiculo || 'N/A'}</span>
-                                <span><strong>Bultos:</strong> ${h.bultos || 'N/A'}</span>
-                                <span><strong>Peso:</strong> ${h.peso || 'N/A'} kg</span>
-                                <span><strong>Responsable:</strong> ${h.responsable || 'N/A'}</span>
-                            </div>
-                            ${h.fechaCita ? `<div class="history-item-details"><span><strong>Cita:</strong> ${formatearFechaHora(h.fechaCita)}</span></div>` : ''}
-                            <div class="history-item-time">
-                                <span><strong>Solicitud:</strong> ${Utils.formatearHora(h.horaSolicitud)}</span>
-                                <span><strong>Llamada:</strong> ${Utils.formatearHora(h.horaLlamada)}</span>
-                                <span><strong>Finalización:</strong> ${Utils.formatearHora(h.horaFinalizacion)}</span>
-                            </div>
-                            <div class="history-item-date">
-                                <strong>Fecha:</strong> ${Utils.formatearFecha(h.fecha)}
+                            
+                            ${h.fechaCita ? `<div class="history-item-section"><div class="history-item-label">CITA</div><div class="history-item-row"><span>${new Date(h.fechaCita).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}</span></div></div>` : ''}
+                            
+                            <div class="history-item-section">
+                                <div class="history-item-label">HORARIOS</div>
+                                <div class="history-item-row">
+                                    <span>Solicitud: <strong>${Utils.formatearHora(h.horaSolicitud)}</strong></span>
+                                    <span>Llamada: <strong>${Utils.formatearHora(h.horaLlamada)}</strong></span>
+                                    <span>Finalizó: <strong>${Utils.formatearHora(h.horaFinalizacion)}</strong></span>
+                                </div>
+                                <div class="history-item-date">${Utils.formatearFecha(h.fecha)}</div>
                             </div>
                         </div>
                     </div>
@@ -2028,7 +2031,7 @@ const AdminHandlers = {
             }
         } else {
             if (infoDespachoDiv) {
-                infoDespachoDiv.innerHTML = '<p class="empty-message">Sin información de despacho</p>';
+                infoDespachoDiv.innerHTML = '';
             }
         }
 
@@ -2144,7 +2147,7 @@ const AdminHandlers = {
             confirmModal.style.display = 'flex';
         }
 
-        Utils.mostrarNotificacion(`TURNO ${AppState.turnoActual?.numero} LLAMADO - Por favor dirijase al punto de atencion`, 'success');
+        Utils.mostrarNotificacion(`TURNO ${AppState.turnoActual?.numero} LLAMADO`, 'success');
         await RenderAdmin.todo();
     },
 
@@ -2200,14 +2203,6 @@ const AdminHandlers = {
         
         if (resultado) {
             Utils.mostrarNotificacion(`Turno ${turnoNumero} completado`, 'success', true);
-            
-            if (despachoInfo) {
-                setTimeout(() => {
-                    Utils.mostrarNotificacion(`El turno ${turnoNumero} ya puede salir - Esperando autorización de salida`, 'info', true);
-                }, 1000);
-            } else {
-                Utils.mostrarNotificacion(`Turno ${turnoNumero} completado sin información de despacho`, 'info', true);
-            }
             
             await RenderAdmin.todo();
         } else {
@@ -2833,9 +2828,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.supabaseClient.channel('notificacion_admin')
                     .on('broadcast', { event: 'salida_autorizada' }, (payload) => {
                         console.log('Salida autorizada:', payload);
-                        const numero = payload.payload?.numero || '---';
-                        const nombre = payload.payload?.nombre || payload.payload?.nombreEmpresa || 'Proveedor';
-                        Utils.mostrarNotificacion(`Salida autorizada para turno ${numero}`, 'success', true);
+                        const num = payload.payload?.numero || payload.payload?.num || '---';
+                        Utils.mostrarNotificacion(`Salida autorizada para turno ${num}`, 'success', true);
                     })
                     .subscribe();
             } else {
@@ -2853,7 +2847,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const data = JSON.parse(datos);
                         const ahora = Date.now();
                         if (ahora - data.timestamp < 10000) {
-                            Utils.mostrarNotificacion(`Salida autorizada para turno ${data.numero || '---'}`, 'success', true);
+                            const num = data?.numero || data?.num || '---';
+                            Utils.mostrarNotificacion(`Salida autorizada para turno ${num}`, 'success', true);
                             localStorage.removeItem('salidaAutorizada');
                         }
                     } catch (e) {}
@@ -2974,8 +2969,7 @@ const DespachadorHandlers = {
             }));
             localStorage.removeItem('proveedorListoSalir');
             
-            const numeroMostrar = turno.numero || '---';
-            const nombreMostrar = turno.nombre || turno.nombreEmpresa || turno.nombre || 'Proveedor';
+            const numeroMostrar = turno?.numero || turno?.num || '---';
             Utils.mostrarNotificacion(`Salida autorizada para turno ${numeroMostrar}`, 'success', true);
             
             const btnAutorizar = document.getElementById('btnAutorizarSalida');
@@ -3001,13 +2995,13 @@ const DespachadorHandlers = {
             
         } catch (error) {
             console.error('Error al autorizar salida:', error);
+            const numError = turno?.numero || turno?.num || '---';
             localStorage.setItem('salidaAutorizada', JSON.stringify({
-                numero: turno?.numero || '---',
-                nombre: turno?.nombre || turno?.nombreEmpresa || 'Proveedor',
+                numero: numError,
                 timestamp: Date.now()
             }));
             localStorage.removeItem('proveedorListoSalir');
-            Utils.mostrarNotificacion(`Salida autorizada`, 'success', true);
+            Utils.mostrarNotificacion(`Salida autorizada para turno ${numError}`, 'success', true);
         }
     }
 };
