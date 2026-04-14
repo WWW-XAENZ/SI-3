@@ -19,7 +19,7 @@ const CONFIG = {
 const AppState = {
     turnos: [],
     turnoActual: null,
-    contadorTurnos: parseInt(localStorage.getItem('contadorTurnos')) || 0,
+    contadorTurnos: 0,
     isLoading: false,
     subscription: null,
     lastSync: null,
@@ -71,6 +71,9 @@ const SonidoAlerta = {
 
 const Utils = {
     generarNumeroTurno() {
+        if (AppState.contadorTurnos >= 999) {
+            AppState.contadorTurnos = 0;
+        }
         AppState.contadorTurnos++;
         localStorage.setItem('contadorTurnos', AppState.contadorTurnos.toString());
         return 'T' + AppState.contadorTurnos.toString().padStart(3, '0');
@@ -397,7 +400,12 @@ const SupabaseDB = {
         console.log('=== Incrementando contador ===');
         const contadorLocal = LocalStorage.obtenerContador();
         console.log('Contador local actual:', contadorLocal);
-        const nuevoContador = contadorLocal + 1;
+        
+        let nuevoContador = contadorLocal + 1;
+        if (nuevoContador >= 999) {
+            nuevoContador = 0;
+        }
+        
         console.log('Nuevo contador (local):', nuevoContador);
         LocalStorage.guardarContador(nuevoContador);
         
@@ -1134,6 +1142,9 @@ const Turnos = {
         } catch (error) {
             console.error('Error al incrementar contador:', error);
             AppState.contadorTurnos++;
+            if (AppState.contadorTurnos >= 999) {
+                AppState.contadorTurnos = 0;
+            }
             nuevoContador = AppState.contadorTurnos;
             LocalStorage.guardarContador(nuevoContador);
         }
@@ -2285,6 +2296,14 @@ const AdminHandlers = {
         }
     },
 
+    async reiniciarContador() {
+        if (confirm('¿Reiniciar contador de turnos a T001?')) {
+            localStorage.setItem('contadorTurnos', '0');
+            AppState.contadorTurnos = 0;
+            Utils.mostrarNotificacion('Contador reiniciado a T001', 'success');
+        }
+    },
+
     // CORRECCIÓN: Función eliminarProveedor añadida correctamente
     async eliminarProveedor(id) {
         if (confirm('¿Eliminar este proveedor?')) {
@@ -2842,6 +2861,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const btnReiniciar = document.getElementById('btnReiniciarCola');
             if (btnReiniciar) btnReiniciar.addEventListener('click', AdminHandlers.reiniciarCola);
+            
+            const btnReiniciarContador = document.getElementById('btnReiniciarContador');
+            if (btnReiniciarContador) btnReiniciarContador.addEventListener('click', AdminHandlers.reiniciarContador);
             
             const btnLimpiar = document.getElementById('btnLimpiarHistorial');
             if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
