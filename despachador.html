@@ -193,6 +193,94 @@
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>
     <script>
+        function esperarClienteSupabase(callback, intentosMax = 50) {
+            let intentos = 0;
+            const intervalo = setInterval(() => {
+                intentos++;
+                if (window.supabaseClient) {
+                    clearInterval(intervalo);
+                    callback();
+                } else if (intentos >= intentosMax) {
+                    clearInterval(intervalo);
+                    console.warn('⚠️ Supabase no disponible después de ' + intentosMax + ' intentos');
+                    callback();
+                }
+            }, 100);
+        }
+
+        async function cargarTurnosPendientesSalida() {
+            const listaDiv = document.getElementById('listaTurnosPendientesSalida');
+            if (!listaDiv) return;
+            
+            if (!window.supabaseClient) {
+                listaDiv.innerHTML = '<p class="empty-message">Sin conexion</p>';
+                return;
+            }
+            
+            try {
+                const hoy = new Date().toISOString().split('T')[0];
+                const { data, error } = await window.supabaseClient
+                    .from('historial_turnos')
+                    .select('*')
+                    .eq('autorizado_salida', false)
+                    .gte('fecha', `${hoy}T00:00:00`)
+                    .order('hora_finalizacion', { ascending: false });
+                
+                if (error) throw error;
+                
+                if (!data || data.length === 0) {
+                    listaDiv.innerHTML = '<p class="empty-message">Sin turnos pendientes</p>';
+                } else {
+                    listaDiv.innerHTML = data.map(h => `
+                        <div class="pending-exit-item" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos || ''}" data-peso="${h.peso || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}">
+                            <div class="pending-exit-header">
+                                <span class="pending-exit-number">${h.numero}</span>
+                                <span class="pending-exit-company">${h.nombre_empresa}</span>
+                                <span class="pending-exit-status">PENDIENTE</span>
+                            </div>
+                            <div class="pending-exit-details">
+                                <span>Placa: ${h.nit || 'N/A'}</span>
+                                <span>Fact: ${h.num_factura || 'N/A'}</span>
+                                <span>Peso: ${h.peso || '0'} kg</span>
+                            </div>
+                            <button class="btn btn-success btn-authorize" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                console.error('Error:', e);
+                listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
+            }
+        }
+
+        async function cargarEstadisticasDespachador() {
+            const totalDiaEl = document.getElementById('totalTurnosDia');
+            const totalAutorizadosEl = document.getElementById('totalAutorizados');
+            const totalPendientesEl = document.getElementById('totalPendientes');
+            
+            if (!window.supabaseClient) return;
+            
+            try {
+                const hoy = new Date().toISOString().split('T')[0];
+                const { data, error } = await window.supabaseClient
+                    .from('historial_turnos')
+                    .select('autorizado_salida')
+                    .gte('fecha', `${hoy}T00:00:00`);
+                
+                if (error) throw error;
+                
+                const total = data?.length || 0;
+                const autorizados = data?.filter(h => h.autorizado_salida === true).length || 0;
+                const pendientes = total - autorizados;
+                
+                if (totalDiaEl) totalDiaEl.textContent = total;
+                if (totalAutorizadosEl) totalAutorizadosEl.textContent = autorizados;
+                if (totalPendientesEl) totalPendientesEl.textContent = pendientes;
+            } catch (e) {
+                console.error('Error:', e);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🔄 Iniciando despachador...');
             
@@ -206,6 +294,27 @@
                     } catch (err) {
                         console.error('❌ Error al parsear:', err);
                     }
+                }
+            });
+            
+            esperarClienteSupabase(() => {
+                if (window.supabaseClient) {
+                    window.supabaseClient
+                        .channel('despachador-llegada')
+                        .on('postgres_changes', 
+                            { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
+                            (payload) => {
+                                console.log('📝 Nuevo turno en historial:', payload.new);
+                                const nuevo = payload.new;
+                                if (nuevo && nuevo.autorizado_salida === false) {
+                                    cargarTurnosPendientesSalida();
+                                    cargarEstadisticasDespachador();
+                                }
+                            }
+                        )
+                        .subscribe((status) => {
+                            console.log('📡 Suscripción historial:', status);
+                        });
                 }
             });
             
@@ -415,89 +524,6 @@
                     } catch (e) {
                         console.error('Error:', e);
                         if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
-                    }
-                }
-                
-                async function cargarEstadisticasDespachador() {
-                    const totalDiaEl = document.getElementById('totalTurnosDia');
-                    const totalAutorizadosEl = document.getElementById('totalAutorizados');
-                    const totalPendientesEl = document.getElementById('totalPendientes');
-                    
-                    if (!window.supabaseClient) return;
-                    
-                    try {
-                        const hoy = new Date().toISOString().split('T')[0];
-                        const { data, error } = await window.supabaseClient
-                            .from('historial_turnos')
-                            .select('autorizado_salida')
-                            .gte('fecha', `${hoy}T00:00:00`);
-                        
-                        if (error) throw error;
-                        
-                        const total = data?.length || 0;
-                        const autorizados = data?.filter(h => h.autorizado_salida === true).length || 0;
-                        const pendientes = total - autorizados;
-                        
-                        if (totalDiaEl) totalDiaEl.textContent = total;
-                        if (totalAutorizadosEl) totalAutorizadosEl.textContent = autorizados;
-                        if (totalPendientesEl) totalPendientesEl.textContent = pendientes;
-                    } catch (e) {
-                        console.error('Error:', e);
-                    }
-                }
-                        
-                        const total = data?.length || 0;
-                        
-                        if (totalDiaEl) totalDiaEl.textContent = total;
-                        if (totalAutorizadosEl) totalAutorizadosEl.textContent = '-';
-                        if (totalPendientesEl) totalPendientesEl.textContent = '-';
-                    } catch (e) {
-                        console.error('Error:', e);
-                    }
-                }
-                
-                async function cargarTurnosPendientesSalida() {
-                    const listaDiv = document.getElementById('listaTurnosPendientesSalida');
-                    if (!listaDiv) return;
-                    
-                    if (!window.supabaseClient) {
-                        listaDiv.innerHTML = '<p class="empty-message">Sin conexion</p>';
-                        return;
-                    }
-                    
-                    try {
-                        const hoy = new Date().toISOString().split('T')[0];
-                        const { data, error } = await window.supabaseClient
-                            .from('historial_turnos')
-                            .select('*')
-                            .eq('autorizado_salida', false)
-                            .gte('fecha', `${hoy}T00:00:00`)
-                            .order('hora_finalizacion', { ascending: false });
-                        
-                        if (error) throw error;
-                        
-                        if (!data || data.length === 0) {
-                            listaDiv.innerHTML = '<p class="empty-message">Sin turnos pendientes</p>';
-                        } else {
-                            listaDiv.innerHTML = data.map(h => `
-                                <div class="pending-exit-item" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos || ''}" data-peso="${h.peso || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}">
-                                    <div class="pending-exit-header">
-                                        <span class="pending-exit-number">${h.numero}</span>
-                                        <span class="pending-exit-company">${h.nombre_empresa}</span>
-                                        <span class="pending-exit-status">PENDIENTE</span>
-                                    </div>
-                                    <div class="pending-exit-details">
-                                        <span>Placa: ${h.nit || 'N/A'}</span>
-                                        <span>Fact: ${h.num_factura || 'N/A'}</span>
-                                        <span>Peso: ${h.peso || '0'} kg</span>
-                                    </div>
-                                    <button class="btn btn-success btn-authorize" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button>
-                                </div>
-                            `).join('');
-                        }
-                    } catch (e) {
-                        console.error('Error:', e);
-                        listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
                     }
                 }
                 
