@@ -103,6 +103,25 @@
             .control-panel, .statistics, .arrived-list, .waiting-list, .cited-list, .providers-list, .turn-history { grid-column: 1; }
             .stats-grid { grid-template-columns: 1fr; }
             .admin-section { padding: 15px; }
+            .turn-number { font-size: 48px; }
+            .control-buttons { flex-direction: column; }
+            .control-buttons .btn { width: 100%; }
+            .turn-item { flex-direction: column; align-items: flex-start; }
+            .turn-item-actions { width: 100%; justify-content: flex-end; margin-top: 10px; }
+        }
+        
+        @media (max-width: 480px) {
+            .admin-grid { padding: 10px; gap: 10px; }
+            .admin-section { padding: 12px; }
+            .current-turn-display { padding: 20px 15px; }
+            .stats-grid { grid-template-columns: 1fr; gap: 10px; }
+            .stat-card { padding: 15px 10px; }
+            .stat-card .stat-number { font-size: 28px; }
+            .monthly-controls { flex-direction: column; }
+            .month-select { width: 100%; }
+            .btn { padding: 12px; font-size: 14px; }
+            .main-nav { padding: 8px; }
+            .nav-link { padding: 12px 16px; font-size: 15px; text-align: center; width: 100%; }
         }
     </style>
 </head>
@@ -132,7 +151,6 @@
                         <button id="btnLlamarTurno" class="btn btn-primary">Llamar Siguiente</button>
                         <button id="btnCompletarTurno" class="btn btn-success">Completar Turno</button>
                         <button id="btnReiniciarCola" class="btn btn-danger">Reiniciar Cola</button>
-                        <button id="btnReiniciarContador" class="btn btn-warning" style="margin-top: 10px;">Reiniciar Turnos a T001</button>
                     </div>
                 </section>
 

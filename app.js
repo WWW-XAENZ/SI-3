@@ -71,9 +71,6 @@ const SonidoAlerta = {
 
 const Utils = {
     generarNumeroTurno() {
-        if (AppState.contadorTurnos >= 999) {
-            AppState.contadorTurnos = 0;
-        }
         AppState.contadorTurnos++;
         localStorage.setItem('contadorTurnos', AppState.contadorTurnos.toString());
         return 'T' + AppState.contadorTurnos.toString().padStart(3, '0');
@@ -400,12 +397,7 @@ const SupabaseDB = {
         console.log('=== Incrementando contador ===');
         const contadorLocal = LocalStorage.obtenerContador();
         console.log('Contador local actual:', contadorLocal);
-        
-        let nuevoContador = contadorLocal + 1;
-        if (nuevoContador >= 999) {
-            nuevoContador = 0;
-        }
-        
+        const nuevoContador = contadorLocal + 1;
         console.log('Nuevo contador (local):', nuevoContador);
         LocalStorage.guardarContador(nuevoContador);
         
@@ -1142,9 +1134,6 @@ const Turnos = {
         } catch (error) {
             console.error('Error al incrementar contador:', error);
             AppState.contadorTurnos++;
-            if (AppState.contadorTurnos >= 999) {
-                AppState.contadorTurnos = 0;
-            }
             nuevoContador = AppState.contadorTurnos;
             LocalStorage.guardarContador(nuevoContador);
         }
@@ -2296,14 +2285,6 @@ const AdminHandlers = {
         }
     },
 
-    async reiniciarContador() {
-        if (confirm('¿Reiniciar contador de turnos a T001?')) {
-            localStorage.setItem('contadorTurnos', '0');
-            AppState.contadorTurnos = 0;
-            Utils.mostrarNotificacion('Contador reiniciado a T001', 'success');
-        }
-    },
-
     // CORRECCIÓN: Función eliminarProveedor añadida correctamente
     async eliminarProveedor(id) {
         if (confirm('¿Eliminar este proveedor?')) {
@@ -2804,6 +2785,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btnCancelarEspera.addEventListener('click', UsuarioHandlers.cancelarTurno);
             }
             
+            // Toggle theme oscuro
+            const btnToggleTheme = document.getElementById('btnToggleTheme');
+            if (btnToggleTheme) {
+                const savedTheme = localStorage.getItem('theme') || 'light';
+                if (savedTheme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    btnToggleTheme.textContent = 'Modo Claro';
+                }
+                btnToggleTheme.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    if (currentTheme === 'dark') {
+                        document.documentElement.removeAttribute('data-theme');
+                        localStorage.setItem('theme', 'light');
+                        btnToggleTheme.textContent = 'Modo Oscuro';
+                    } else {
+                        document.documentElement.setAttribute('data-theme', 'dark');
+                        localStorage.setItem('theme', 'dark');
+                        btnToggleTheme.textContent = 'Modo Claro';
+                    }
+                });
+            }
+            
             const miTurno = LocalStorage.obtenerMiTurno();
             if (miTurno) {
                 const enCola = AppState.turnos.find(t => t.numero === miTurno.numero);
@@ -2861,9 +2864,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const btnReiniciar = document.getElementById('btnReiniciarCola');
             if (btnReiniciar) btnReiniciar.addEventListener('click', AdminHandlers.reiniciarCola);
-            
-            const btnReiniciarContador = document.getElementById('btnReiniciarContador');
-            if (btnReiniciarContador) btnReiniciarContador.addEventListener('click', AdminHandlers.reiniciarContador);
             
             const btnLimpiar = document.getElementById('btnLimpiarHistorial');
             if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
