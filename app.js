@@ -1625,11 +1625,62 @@ const RenderAdmin = {
         }
     },
 
+    listaTurnosLlegados() {
+        const listaDiv = document.getElementById('listaTurnosLlegados');
+        const contadorDiv = document.getElementById('contadorTurnosLlegados');
+        const busqueda = document.getElementById('busquedaLlegados')?.value?.toLowerCase() || '';
+        
+        let turnosLlegados = AppState.turnos.filter(t => t.estado === 'llegado');
+        
+        if (busqueda) {
+            turnosLlegados = turnosLlegados.filter(t => 
+                (t.nit && t.nit.toLowerCase().includes(busqueda)) ||
+                (t.nombreEmpresa && t.nombreEmpresa.toLowerCase().includes(busqueda)) ||
+                (t.numero && t.numero.toLowerCase().includes(busqueda))
+            );
+        }
+        
+        if (contadorDiv) contadorDiv.textContent = turnosLlegados.length;
+        
+        if (!listaDiv) return;
+
+        if (turnosLlegados.length === 0) {
+            listaDiv.innerHTML = '<p class="empty-message">No hay turnos confirmados</p>';
+        } else {
+            listaDiv.innerHTML = turnosLlegados.map(turno => `
+                <div class="turn-item turn-item-llegado">
+                    <span class="turn-item-number">${turno.numero}</span>
+                    <div class="turn-item-info">
+                        <div class="turn-item-company">${turno.nombreEmpresa}</div>
+                        <div class="turn-item-details">
+                            ${turno.nit ? `<span>Placa: ${turno.nit}</span>` : ''}
+                            ${turno.contacto ? `<span>Contacto: ${turno.contacto}</span>` : ''}
+                            ${turno.telefono ? `<span>Tel: ${turno.telefono}</span>` : ''}
+                            ${turno.destino ? `<span>Destino: ${turno.destino}</span>` : ''}
+                        </div>
+                        <div class="turn-item-time">
+                            ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+    },
+
     listaTurnosEspera() {
         const listaDiv = document.getElementById('listaTurnosEspera');
         const contadorDiv = document.getElementById('contadorTurnosEspera');
+        const busqueda = document.getElementById('busquedaEspera')?.value?.toLowerCase() || '';
         
-        const turnosNormales = AppState.turnos.filter(t => t.estado === 'espera');
+        let turnosNormales = AppState.turnos.filter(t => t.estado === 'espera');
+        
+        if (busqueda) {
+            turnosNormales = turnosNormales.filter(t => 
+                (t.nit && t.nit.toLowerCase().includes(busqueda)) ||
+                (t.nombreEmpresa && t.nombreEmpresa.toLowerCase().includes(busqueda)) ||
+                (t.numero && t.numero.toLowerCase().includes(busqueda))
+            );
+        }
         
         if (contadorDiv) contadorDiv.textContent = turnosNormales.length;
         
@@ -1643,6 +1694,12 @@ const RenderAdmin = {
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
                         <div class="turn-item-company">${turno.nombreEmpresa}</div>
+                        <div class="turn-item-details">
+                            ${turno.nit ? `<span>Placa: ${turno.nit}</span>` : ''}
+                            ${turno.contacto ? `<span>Contacto: ${turno.contacto}</span>` : ''}
+                            ${turno.telefono ? `<span>Tel: ${turno.telefono}</span>` : ''}
+                            ${turno.destino ? `<span>Destino: ${turno.destino}</span>` : ''}
+                        </div>
                         <div class="turn-item-time">
                             ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
                         </div>
@@ -1660,8 +1717,17 @@ const RenderAdmin = {
     listaTurnosCitados() {
         const listaDiv = document.getElementById('listaTurnosCitados');
         const contadorDiv = document.getElementById('contadorTurnosCitados');
+        const busqueda = document.getElementById('busquedaCitados')?.value?.toLowerCase() || '';
         
-        const turnosCitados = AppState.turnos.filter(t => t.estado === 'citado');
+        let turnosCitados = AppState.turnos.filter(t => t.estado === 'citado');
+        
+        if (busqueda) {
+            turnosCitados = turnosCitados.filter(t => 
+                (t.nit && t.nit.toLowerCase().includes(busqueda)) ||
+                (t.nombreEmpresa && t.nombreEmpresa.toLowerCase().includes(busqueda)) ||
+                (t.numero && t.numero.toLowerCase().includes(busqueda))
+            );
+        }
         
         if (contadorDiv) contadorDiv.textContent = turnosCitados.length;
         
@@ -1721,8 +1787,17 @@ const RenderAdmin = {
     listaTurnosLlegados() {
         const listaDiv = document.getElementById('listaTurnosLlegados');
         const contadorDiv = document.getElementById('contadorTurnosLlegados');
+        const busqueda = document.getElementById('busquedaLlegados')?.value?.toLowerCase() || '';
         
-        const turnosLlegados = AppState.turnos.filter(t => t.estado === 'llegado');
+        let turnosLlegados = AppState.turnos.filter(t => t.estado === 'llegado');
+        
+        if (busqueda) {
+            turnosLlegados = turnosLlegados.filter(t => 
+                (t.nit && t.nit.toLowerCase().includes(busqueda)) ||
+                (t.nombreEmpresa && t.nombreEmpresa.toLowerCase().includes(busqueda)) ||
+                (t.numero && t.numero.toLowerCase().includes(busqueda))
+            );
+        }
         
         if (contadorDiv) contadorDiv.textContent = turnosLlegados.length;
         
@@ -1739,12 +1814,14 @@ const RenderAdmin = {
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
                         <div class="turn-item-company">${turno.nombreEmpresa}</div>
+                        <div class="turn-item-details">
+                            ${turno.nit ? `<span>Placa: ${turno.nit}</span>` : ''}
+                            ${turno.contacto ? `<span>Contacto: ${turno.contacto}</span>` : ''}
+                            ${turno.telefono ? `<span>Tel: ${turno.telefono}</span>` : ''}
+                            ${turno.destino ? `<span>Destino: ${destinoLabel[turno.destino] || turno.destino}</span>` : ''}
+                        </div>
                         <div class="turn-item-time">
                             Llegada: ${horaLlegada}
-                        </div>
-                        <div class="turn-item-details">
-                            <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
-                            <span class="turn-placa">${turno.placa_vehiculo || '-'}</span>
                         </div>
                     </div>
                     <div class="turn-item-actions">
@@ -2885,6 +2962,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 });
             }
+
+            // Búsquedas en tiempo real
+            document.getElementById('busquedaLlegados')?.addEventListener('input', () => RenderAdmin.listaTurnosLlegados());
+            document.getElementById('busquedaEspera')?.addEventListener('input', () => RenderAdmin.listaTurnosEspera());
+            document.getElementById('busquedaCitados')?.addEventListener('input', () => RenderAdmin.listaTurnosCitados());
             
             console.log('Renderizando admin...');
             RenderAdmin.todo();

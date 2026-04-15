@@ -38,7 +38,7 @@
         .current-turn-display .turn-info { font-size: 15px; color: #334155; margin-top: 10px; line-height: 1.4; }
         
         .control-buttons { display: flex; flex-direction: column; gap: 14px; }
-        .control-buttons .btn { padding: 16px; font-size: 15px; border-radius: 8px; }
+        .control-buttons .btn { padding: 20px; font-size: 16px; border-radius: 8px; font-weight: 600; }
         
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
         .stat-card { background: #f8fafc; padding: 24px 18px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; }
@@ -57,6 +57,9 @@
         .turn-item-time { font-size: 11px; color: #64748b; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .turn-item-details { display: flex; gap: 8px; font-size: 11px; color: #64748b; margin-top: 4px; flex-wrap: wrap; }
         .turn-item-actions { display: flex; gap: 8px; flex-shrink: 0; }
+         
+        .admin-filters { display: flex; gap: 10px; margin-bottom: 12px; }
+        .filter-input-small { flex: 1; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; }
         
         .turn-item-llegado { border-left: 4px solid #10b981; background: #ecfdf5; }
         .turn-item-llegado:hover { border-color: #059669; }
@@ -183,6 +186,9 @@
                 <!-- Turnos Confirmados (verde) -->
                 <section class="admin-section arrived-list">
                     <h2>Turnos Confirmados (<span id="contadorTurnosLlegados">0</span>)</h2>
+                    <div class="admin-filters">
+                        <input type="text" id="busquedaLlegados" placeholder="Buscar..." class="filter-input-small">
+                    </div>
                     <div id="listaTurnosLlegados" class="turn-list">
                         <p class="empty-message">Sin turnos confirmados</p>
                     </div>
@@ -191,6 +197,9 @@
                 <!-- Turnos en Espera (naranja) -->
                 <section class="admin-section waiting-list">
                     <h2>Turnos en Espera (<span id="contadorTurnosEspera">0</span>)</h2>
+                    <div class="admin-filters">
+                        <input type="text" id="busquedaEspera" placeholder="Buscar..." class="filter-input-small">
+                    </div>
                     <div id="listaTurnosEspera" class="turn-list">
                         <p class="empty-message">Sin turnos en espera</p>
                     </div>
@@ -199,6 +208,9 @@
                 <!-- Citas Reservadas -->
                 <section class="admin-section cited-list">
                     <h2>Citas Reservadas (<span id="contadorTurnosCitados">0</span>)</h2>
+                    <div class="admin-filters">
+                        <input type="text" id="busquedaCitados" placeholder="Buscar..." class="filter-input-small">
+                    </div>
                     <div id="listaTurnosCitados" class="turn-list">
                         <p class="empty-message">Sin citas reservadas</p>
                     </div>
