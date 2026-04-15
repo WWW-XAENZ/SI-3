@@ -1954,8 +1954,7 @@ const UsuarioHandlers = {
             
             let fechaCitaISO = null;
             if (esCita && fechaCitaInput) {
-                const fechaLocal = new Date(fechaCitaInput);
-                fechaCitaISO = fechaLocal.toISOString();
+                fechaCitaISO = fechaCitaInput;
             }
             
             const datosProveedor = {
