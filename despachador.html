@@ -162,8 +162,14 @@
 
                 <!-- Turnos Pendientes de Salida -->
                 <section class="admin-section cited-list">
-                    <h2>Turnos Pendientes de Salida</h2>
-                    <div style="margin-bottom: 10px;">
+                    <h2>Turnos del Día</h2>
+                    <div class="despachador-filters">
+                        <input type="text" id="busquedaTurnos" class="filter-input" placeholder="Buscar por placa o empresa...">
+                        <select id="filtroEstado" class="filter-select">
+                            <option value="todos">Todos</option>
+                            <option value="pendiente">Pendientes</option>
+                            <option value="autorizado">Autorizados</option>
+                        </select>
                         <button id="btnActualizarPendientes" class="btn btn-secondary btn-small">Actualizar</button>
                     </div>
                     <div id="listaTurnosPendientesSalida" class="pending-exit-list">
@@ -208,6 +214,8 @@
             }, 100);
         }
 
+        let turnosDelDia = [];
+
         async function cargarTurnosPendientesSalida() {
             const listaDiv = document.getElementById('listaTurnosPendientesSalida');
             if (!listaDiv) return;
@@ -222,36 +230,63 @@
                 const { data, error } = await window.supabaseClient
                     .from('historial_turnos')
                     .select('*')
-                    .eq('autorizado_salida', false)
                     .gte('fecha', `${hoy}T00:00:00`)
                     .order('hora_finalizacion', { ascending: false });
                 
                 if (error) throw error;
                 
-                if (!data || data.length === 0) {
-                    listaDiv.innerHTML = '<p class="empty-message">Sin turnos pendientes</p>';
-                } else {
-                    listaDiv.innerHTML = data.map(h => `
-                        <div class="pending-exit-item" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos || ''}" data-peso="${h.peso || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}">
-                            <div class="pending-exit-header">
-                                <span class="pending-exit-number">${h.numero}</span>
-                                <span class="pending-exit-company">${h.nombre_empresa}</span>
-                                <span class="pending-exit-status">PENDIENTE</span>
-                            </div>
-                            <div class="pending-exit-details">
-                                <span>Placa: ${h.nit || 'N/A'}</span>
-                                <span>Fact: ${h.num_factura || 'N/A'}</span>
-                                <span>Peso: ${h.peso || '0'} kg</span>
-                            </div>
-                            <button class="btn btn-success btn-authorize" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button>
-                        </div>
-                    `).join('');
-                }
+                turnosDelDia = data || [];
+                filtrarYMostrarTurnos();
             } catch (e) {
                 console.error('Error:', e);
                 listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
             }
         }
+
+        function filtrarYMostrarTurnos() {
+            const listaDiv = document.getElementById('listaTurnosPendientesSalida');
+            const busqueda = document.getElementById('busquedaTurnos')?.value?.toLowerCase() || '';
+            const filtroEstado = document.getElementById('filtroEstado')?.value || 'todos';
+            
+            let filtrados = turnosDelDia.filter(h => {
+                const coincideBusqueda = !busqueda || 
+                    (h.nit && h.nit.toLowerCase().includes(busqueda)) ||
+                    (h.nombre_empresa && h.nombre_empresa.toLowerCase().includes(busqueda)) ||
+                    (h.numero && h.numero.toLowerCase().includes(busqueda));
+                
+                let coincideEstado = true;
+                if (filtroEstado === 'pendiente') coincideEstado = h.autorizado_salida !== true;
+                else if (filtroEstado === 'autorizado') coincideEstado = h.autorizado_salida === true;
+                
+                return coincideBusqueda && coincideEstado;
+            });
+            
+            if (filtrados.length === 0) {
+                listaDiv.innerHTML = '<p class="empty-message">No hay turnos que coincidan</p>';
+            } else {
+                listaDiv.innerHTML = filtrados.map(h => `
+                    <div class="pending-exit-item ${h.autorizado_salida === true ? 'autorizado' : ''}" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos || ''}" data-peso="${h.peso || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}">
+                        <div class="pending-exit-header">
+                            <span class="pending-exit-number">${h.numero}</span>
+                            <span class="pending-exit-company">${h.nombre_empresa}</span>
+                            <span class="pending-exit-status">${h.autorizado_salida === true ? 'AUTORIZADO' : 'PENDIENTE'}</span>
+                        </div>
+                        <div class="pending-exit-details">
+                            <span><strong>Placa:</strong> ${h.nit || 'N/A'}</span>
+                            <span><strong>Fact:</strong> ${h.num_factura || 'N/A'}</span>
+                            <span><strong>Peso:</strong> ${h.peso || '0'} kg</span>
+                            <span><strong>Bultos:</strong> ${h.bultos || '0'}</span>
+                            <span><strong>Vehículo:</strong> ${h.tipo_vehiculo || 'N/A'}</span>
+                            <span><strong>Responsable:</strong> ${h.responsable || 'N/A'}</span>
+                        </div>
+                        ${h.autorizado_salida !== true ? '<button class="btn btn-success btn-authorize btn-large" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button>' : '<span class="autorizado-badge">✓ Autorizado</span>'}
+                    </div>
+                `).join('');
+            }
+        }
+
+        document.getElementById('busquedaTurnos')?.addEventListener('input', filtrarYMostrarTurnos);
+        document.getElementById('filtroEstado')?.addEventListener('change', filtrarYMostrarTurnos);
 
         async function cargarEstadisticasDespachador() {
             const totalDiaEl = document.getElementById('totalTurnosDia');
@@ -357,7 +392,7 @@
                     cargarEstadisticasDespachador();
                     cargarHistorialDespachador();
                     verificarProveedorListo();
-                }, 5000);
+                }, 10000);
                 
                 const btnActualizarHistorialDesp = document.getElementById('btnActualizarHistorialDesp');
                 if (btnActualizarHistorialDesp) {
