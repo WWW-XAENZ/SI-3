@@ -52,15 +52,15 @@ const SonidoAlerta = {
                 oscilador.connect(ganancia);
                 ganancia.connect(this.contexto.destination);
                 
-                oscilador.frequency.value = 880;
+                oscilador.frequency.value = 1000;
                 oscilador.type = 'sine';
                 
-                ganancia.gain.setValueAtTime(0.3, this.contexto.currentTime);
-                ganancia.gain.exponentialRampToValueAtTime(0.01, this.contexto.currentTime + 0.5);
+                ganancia.gain.setValueAtTime(0.8, this.contexto.currentTime);
+                ganancia.gain.exponentialRampToValueAtTime(0.01, this.contexto.currentTime + 1);
                 
                 oscilador.start(this.contexto.currentTime);
-                oscilador.stop(this.contexto.currentTime + 0.5);
-            }, i * 600);
+                oscilador.stop(this.contexto.currentTime + 1);
+            }, i * 800);
         }
     }
 };
@@ -3119,19 +3119,6 @@ const DespachadorHandlers = {
                 timestamp: Date.now()
             }));
             localStorage.removeItem('proveedorListoSalir');
-            
-            // Mostrar modal con sonido en despachador
-            if (turno) {
-                localStorage.setItem('mostrarModalSalida', JSON.stringify({
-                    numero: turno.numero || turno.num,
-                    nombre: turno.nombre || turno.nombreEmpresa || '',
-                    nit: turno.nit || '',
-                    numFactura: turno.numFactura || '',
-                    responsable: turno.responsable || '',
-                    tipoVehiculo: turno.tipoVehiculo || '',
-                    timestamp: Date.now()
-                }));
-            }
             
             const btnAutorizar = document.getElementById('btnAutorizarSalida');
             if (btnAutorizar) {
