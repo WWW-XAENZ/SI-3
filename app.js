@@ -84,7 +84,17 @@ const Utils = {
     },
 
     obtenerFechaActual() {
-        return new Date().toISOString().split('T')[0];
+        const getLocalDate = () => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offset).toISOString().split('T')[0];
+};
+
+const getLocalISOString = () => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offset).toISOString();
+};
     },
 
     obtenerFechaHoraCompleta() {
@@ -568,7 +578,7 @@ const SupabaseDB = {
                 nit: turno.nit,
                 motivo: turno.motivo || '',
                 hora_solicitud: turno.horaSolicitud,
-                fecha_solicitud: turno.fechaSolicitud || new Date().toISOString(),
+                fecha_solicitud: turno.fechaSolicitud || getLocalISOString(),
                 estado: turno.estado || 'espera',
                 destino: turno.destino || null,
                 fecha_cita: turno.fechaCita || null,
@@ -812,7 +822,7 @@ const SupabaseDB = {
                 telefono: turno.telefono || null,
                 servicio: turno.servicio || null,
                 autorizado_salida: false,
-                fecha: new Date().toISOString()
+                fecha: getLocalISOString()
             };
             
             console.log('Guardando en historial - tipoVehiculo:', turno.tipoVehiculo);
@@ -829,16 +839,24 @@ const SupabaseDB = {
         }
     },
 
-    async cargarHistorial(limite = 100) {
+    async cargarHistorial(limite = 100, fecha = null) {
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible');
             return [];
         }
         
         try {
-            const { data, error } = await window.supabaseClient
+            let query = window.supabaseClient
                 .from('historial_turnos')
-                .select('*')
+                .select('*');
+            
+            if (fecha) {
+                const fechaInicio = fecha + 'T00:00:00';
+                const fechaFin = fecha + 'T23:59:59';
+                query = query.gte('fecha', fechaInicio).lte('fecha', fechaFin);
+            }
+            
+            const { data, error } = await query
                 .order('fecha', { ascending: false })
                 .limit(limite);
             
@@ -887,7 +905,7 @@ const SupabaseDB = {
         }
         
         try {
-            const hoy = new Date().toISOString().split('T')[0];
+            const hoy = getLocalDate();
             
             const [
                 { count: totalTurnosHoy },
@@ -1158,7 +1176,7 @@ const Turnos = {
                 const minutos = fecha.getMinutes().toString().padStart(2, '0');
                 return `${horas}:${minutos}`;
             })() : Utils.obtenerHoraActual(),
-            fechaSolicitud: new Date().toISOString(),
+            fechaSolicitud: getLocalISOString(),
             estado: datosProveedor.fechaCita ? 'citado' : 'espera'
         };
 
@@ -1464,7 +1482,7 @@ const RenderUsuario = {
         const listaDiv = document.getElementById('listaTurnosUsuario');
         if (!listaDiv) return;
 
-        const hoy = new Date().toISOString().split('T')[0];
+        const hoy = getLocalDate();
         const turnosHoy = AppState.turnos.filter(t => {
             if (t.estado === 'citado' && t.fechaCita) {
                 const fechaCitaDia = t.fechaCita.split('T')[0];
@@ -1871,13 +1889,15 @@ const RenderAdmin = {
         }
     },
 
-    async historial() {
+async historial(fecha = null) {
         const historialDiv = document.getElementById('historialTurnos');
         if (!historialDiv) return;
 
+        console.log('RenderAdmin.historial llamado con fecha:', fecha);
+        
         try {
-            const historial = await SupabaseDB.cargarHistorial();
-            console.log('Historial cargado:', historial);
+            const historial = await SupabaseDB.cargarHistorial(null, fecha);
+            console.log('Historial cargado:', historial.length, 'registros');
             
             if (historial.length === 0) {
                 historialDiv.innerHTML = '<p class="empty-message">No hay historial de turnos</p>';
@@ -1998,7 +2018,8 @@ const RenderAdmin = {
         try { this.listaTurnosCitados(); } catch (e) { console.error('Error listaTurnosCitados:', e); }
         try { this.listaTurnosLlegados(); } catch (e) { console.error('Error listaTurnosLlegados:', e); }
         try { await this.proveedores(); } catch (e) { console.error('Error proveedores:', e); }
-        try { await this.historial(); } catch (e) { console.error('Error historial:', e); }
+        
+        // No llamar a historial() aquí para preservar la fecha del calendario
         try { await this.estadisticas(); } catch (e) { console.error('Error estadisticas:', e); }
     }
 };
@@ -2944,6 +2965,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             const btnLimpiar = document.getElementById('btnLimpiarHistorial');
             if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
             
+            const historialFecha = document.getElementById('historialFecha');
+            if (historialFecha) {
+                const now = new Date();
+                const offset = now.getTimezoneOffset() * 60000;
+                const localDate = new Date(now.getTime() - offset);
+                const today = localDate.toISOString().split('T')[0];
+                
+                const savedFecha = localStorage.getItem('historialFechaAdmin');
+                historialFecha.value = savedFecha && savedFecha >= today ? savedFecha : today;
+                
+                historialFecha.addEventListener('change', (e) => {
+                    const fecha = e.target.value;
+                    localStorage.setItem('historialFechaAdmin', fecha);
+                    console.log('Fecha cambiada en admin:', fecha);
+                    RenderAdmin.historial(fecha);
+                });
+                console.log('Cargando historial para:', historialFecha.value);
+                RenderAdmin.historial(historialFecha.value);
+            }
+            
             InputConfig.configurarPasswordToggle();
             
             const btnVerMes = document.getElementById('btnVerMes');
@@ -3066,7 +3107,7 @@ const DespachadorHandlers = {
                         .from('historial_turnos')
                         .select('id')
                         .eq('numero', turno.numero)
-                        .gte('fecha', new Date().toISOString().split('T')[0] + 'T00:00:00')
+                        .gte('fecha', getLocalDate() + 'T00:00:00')
                         .single();
                     
                     if (historialActual && !errorGet) {
@@ -3100,7 +3141,7 @@ const DespachadorHandlers = {
                                 telefono: turno.telefono || null,
                                 servicio: turno.servicio || null,
                                 autorizado_salida: true,
-                                fecha: new Date().toISOString()
+                                fecha: getLocalISOString()
                             }]);
                         
                         if (error) {

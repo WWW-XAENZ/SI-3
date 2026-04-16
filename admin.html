@@ -239,8 +239,9 @@
 
                 <!-- Historial -->
                 <section class="admin-section turn-history">
-                    <h2>Historial Reciente</h2>
-                    <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                    <h2>Historial</h2>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
+                        <input type="date" id="historialFecha" class="filter-input-small" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
                         <button id="btnLimpiarHistorial" class="btn btn-secondary btn-small">Limpiar</button>
                     </div>
                     <div id="historialTurnos" class="history-list" style="max-height: 250px; overflow-y: auto;">

@@ -5,52 +5,105 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Confirmar Llegada - SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #1e3a8a, #3b82f6); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .container { background: white; border-radius: 20px; padding: 30px; max-width: 360px; width: 100%; }
-        h1 { color: #1e3a8a; text-align: center; }
-        p { color: #64748b; text-align: center; margin-bottom: 20px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px; text-transform: uppercase; }
-        input:focus { border-color: #3b82f6; }
-        .btn { width: 100%; padding: 14px; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
-        .success { display: none; text-align: center; }
-        .badge { background: #10b981; color: white; padding: 15px 30px; font-size: 24px; border-radius: 10px; display: inline-block; }
+        .llegada-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .llegada-box {
+            background: var(--bg-primary);
+            border-radius: var(--radius-2xl);
+            padding: var(--space-8);
+            max-width: 400px;
+            width: 100%;
+            box-shadow: var(--shadow-xl);
+        }
+        .llegada-title {
+            color: var(--primary-700);
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: var(--space-2);
+        }
+        .llegada-subtitle {
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: var(--space-6);
+        }
+        .llegada-form {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-4);
+        }
+        .llegada-input {
+            width: 100%;
+            padding: var(--space-4);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-lg);
+            font-size: 16px;
+            text-transform: uppercase;
+            transition: border-color 0.2s;
+        }
+        .llegada-input:focus {
+            border-color: var(--primary-500);
+            outline: none;
+        }
+        .llegada-success {
+            display: none;
+            text-align: center;
+        }
+        .llegada-badge {
+            background: var(--success-500);
+            color: white;
+            padding: var(--space-4) var(--space-6);
+            font-size: 28px;
+            font-weight: 700;
+            border-radius: var(--radius-xl);
+            display: inline-block;
+            margin: var(--space-4) 0;
+        }
+        .llegada-status {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: var(--space-4);
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div id="formSection">
-            <h1>Confirmar Llegada</h1>
-            <p>Ingrese sus datos</p>
-            <form id="llegadaForm">
-                <div class="form-group">
-                    <label>Turno:</label>
-                    <input type="text" id="turnoInput" placeholder="T001" required>
-                </div>
-                <div class="form-group">
-                    <label>Placa:</label>
-                    <input type="text" id="placaInput" placeholder="ABC123" required>
-                </div>
-                <button type="submit" class="btn">Confirmar</button>
-            </form>
-            <div id="status" style="font-size:12px; color:#666; margin-top:15px;"></div>
-        </div>
-        <div id="successSection" class="success">
-            <h2 style="color:#10b981;">✓ LLEGADA CONFIRMADA</h2>
-            <div class="badge" id="turnoDisplay">--</div>
-            <p>Aguarde su turno</p>
+    <div class="llegada-container">
+        <div class="llegada-box">
+            <div id="formSection">
+                <h1 class="llegada-title">Confirmar Llegada</h1>
+                <p class="llegada-subtitle">Ingrese sus datos</p>
+                <form id="llegadaForm" class="llegada-form">
+                    <div class="form-group">
+                        <label style="font-weight: 600; margin-bottom: 8px; display: block;">Turno:</label>
+                        <input type="text" id="turnoInput" class="llegada-input" placeholder="T001" required>
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: 600; margin-bottom: 8px; display: block;">Placa:</label>
+                        <input type="text" id="placaInput" class="llegada-input" placeholder="ABC123" required>
+                    </div>
+                    <button type="submit" class="btn btn-success" style="width: 100%;">Confirmar</button>
+                </form>
+                <div id="status" class="llegada-status"></div>
+            </div>
+            <div id="successSection" class="llegada-success">
+                <h2 style="color: var(--success-600); font-size: 22px; font-weight: 700;">✓ LLEGADA CONFIRMADA</h2>
+                <div class="llegada-badge" id="turnoDisplay">--</div>
+                <p style="color: var(--text-secondary);">Aguarde su turno</p>
+            </div>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script>
-        const client = supabase.createClient(
-            'https://antxwdmecfxhpyjtbbxl.supabase.co',
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFudHh3ZG1lY2Z4aHB5anRiYnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MDUxNDUsImV4cCI6MjA5MTE4MTE0NX0.DjIccxaUx0hJUaV2h62RSB_O2W0T0dj98hS8I70eDj8'
-        );
-        
         document.getElementById('llegadaForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const status = document.getElementById('status');
@@ -59,44 +112,48 @@
             
             status.innerHTML = 'Buscando ' + numero + '...';
             
-            const { data: turno, error: err1 } = await client
+            if (!window.supabaseClient) {
+                status.innerHTML = 'Sin conexión';
+                return;
+            }
+            
+            const { data: turno, error: err1 } = await window.supabaseClient
                 .from('turnos')
                 .select('*')
                 .eq('numero', numero)
                 .single();
             
-            if (err1) {
-                status.innerHTML = 'Turno no existe o error: ' + err1.message;
+            if (err1 || !turno) {
+                status.innerHTML = 'Turno no encontrado';
                 alert('Turno no encontrado. Verifique el número.');
-                return;
-            }
-            
-            if (!turno) {
-                status.innerHTML = 'Turno no existe pero puede confirmar sin turno';
                 return;
             }
             
             const ahora = new Date();
             const horaLlegada = ahora.toTimeString().split(' ')[0];
+            const fechaLlegada = new Date(ahora.getTime() - ahora.getTimezoneOffset() * 60000).toISOString();
             
-            const { error: err2 } = await client
+            const { error: err2 } = await window.supabaseClient
                 .from('turnos')
                 .update({ 
-                    estado: 'llegado',
                     hora_llegada: horaLlegada,
-                    placa_vehiculo: placa
+                    estado: 'llegado',
+                    fecha_llegada: fechaLlegada
                 })
-                .eq('id', turno.id);
+                .eq('numero', numero);
             
             if (err2) {
                 status.innerHTML = 'Error al confirmar: ' + err2.message;
                 return;
             }
             
-            status.innerHTML = '✓ Confirmado!';
             document.getElementById('formSection').style.display = 'none';
             document.getElementById('successSection').style.display = 'block';
             document.getElementById('turnoDisplay').textContent = numero;
+            
+            setTimeout(() => {
+                window.location.href = 'user.html';
+            }, 3000);
         });
     </script>
 </body>
