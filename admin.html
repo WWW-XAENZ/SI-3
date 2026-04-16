@@ -313,6 +313,174 @@
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>
 
+    <!-- Modal Salida Autorizada (por despachador) -->
+    <div id="modalSalidaDespachador" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; border: 3px solid #22c55e;">
+            <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 20px; text-align: center; border-radius: 10px 10px 0 0; margin: -24px -24px 20px -24px;">
+                <h2 style="color: white; margin: 0; font-size: 22px;">SALIDA AUTORIZADA</h2>
+                <p style="color: #dcfce7; margin: 5px 0 0 0;">El despachador ha confirmado la salida</p>
+            </div>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 64px; font-weight: 700; color: #22c55e; line-height: 1;" id="salidaDespachadorNumero">---</div>
+                <div style="font-size: 16px; font-weight: 600; color: #1e293b; margin-top: 5px;" id="salidaDespachadorEmpresa">Proveedor</div>
+            </div>
+            <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px;" id="salidaDespachadorDetalles">
+            </div>
+            <button class="btn btn-success" style="width: 100%; padding: 14px; font-size: 16px;" onclick="cerrarModalSalidaDespachador()">ACEPTAR</button>
+        </div>
+    </div>
+
+    <script>
+        window.salidaDespachadorAnterior = null;
+
+        function initSalidaDespachadorListener() {
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'salidaAutorizada' && e.newValue) {
+                    try {
+                        const datos = JSON.parse(e.newValue);
+                        if (datos.timestamp !== window.salidaDespachadorAnterior) {
+                            window.salidaDespachadorAnterior = datos.timestamp;
+                            mostrarAlertaSalidaDespachador(datos);
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                    }
+                }
+            });
+
+            setInterval(() => {
+                const datos = localStorage.getItem('salidaAutorizada');
+                if (datos) {
+                    try {
+                        const parsed = JSON.parse(datos);
+                        if (parsed.timestamp !== window.salidaDespachadorAnterior) {
+                            window.salidaDespachadorAnterior = parsed.timestamp;
+                            mostrarAlertaSalidaDespachador(parsed);
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                    }
+                }
+            }, 2000);
+        }
+
+        async function mostrarAlertaSalidaDespachador(datos) {
+            const reproducirSonido = () => {
+                try {
+                    if (window.SonidoAlerta && window.SonidoAlerta.reproducir) {
+                        window.SonidoAlerta.reproducir(3);
+                    } else {
+                        const AudioContext = window.AudioContext || window.webkitAudioContext;
+                        if (!window.audioCtxSalida) {
+                            window.audioCtxSalida = new AudioContext();
+                        }
+                        const ctx = window.audioCtxSalida;
+                        for (let i = 0; i < 3; i++) {
+                            setTimeout(() => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.frequency.value = 880;
+                                osc.type = 'sine';
+                                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                                osc.start(ctx.currentTime);
+                                osc.stop(ctx.currentTime + 0.5);
+                            }, i * 600);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Error sonido:', e);
+                }
+            };
+
+            reproducirSonido();
+            await new Promise(r => setTimeout(r, 800));
+            reproducirSonido();
+            await new Promise(r => setTimeout(r, 800));
+            reproducirSonido();
+
+            let detallesHTML = '<p style="color: #94a3b8; text-align: center;">Cargando detalles...</p>';
+            
+            if (window.supabaseClient && datos.numero) {
+                try {
+                    const { data, error } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .select('*')
+                        .eq('numero', datos.numero)
+                        .gte('fecha', new Date().toISOString().split('T')[0] + 'T00:00:00')
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .single();
+                    
+                    if (data && !error) {
+                        const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'PLASTICOS', 'ambos': 'AMBOS' };
+                        detallesHTML = `
+                            <table style="width: 100%; font-size: 13px; color: #475569;">
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Placa:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.nit || 'N/A'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Factura:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.num_factura || 'N/A'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Tipo Vehículo:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.tipo_vehiculo || 'N/A'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Bultos:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.bultos || '0'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Peso:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.peso || '0'} kg</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Responsable:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.responsable || 'N/A'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Destino:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${destinoLabel[data.destino] || data.destino || 'N/A'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0;"><strong>Hora Salida:</strong></td>
+                                    <td style="padding: 6px 0; text-align: right;">${data.hora_finalizacion || 'N/A'}</td>
+                                </tr>
+                            </table>
+                        `;
+                    }
+                } catch (e) {
+                    console.warn('Error cargando detalles:', e);
+                }
+            }
+
+            document.getElementById('salidaDespachadorNumero').textContent = datos.numero || '---';
+            document.getElementById('salidaDespachadorEmpresa').textContent = datos.nombre || datos.empresa || 'Proveedor';
+            document.getElementById('salidaDespachadorDetalles').innerHTML = detallesHTML;
+            document.getElementById('modalSalidaDespachador').style.display = 'flex';
+            
+            // Actualizar historial inmediatamente
+            if (window.RenderAdmin && window.RenderAdmin.historial) {
+                setTimeout(() => window.RenderAdmin.historial(), 300);
+            }
+        }
+
+        window.cerrarModalSalidaDespachador = function() {
+            document.getElementById('modalSalidaDespachador').style.display = 'none';
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                initSalidaDespachadorListener();
+                console.log('Listener de salida despachador iniciado');
+            }, 2000);
+        });
+    </script>
+
     <!-- Modal Certificado -->
     <div id="modalCertificado" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow: auto;">

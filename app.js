@@ -2991,8 +2991,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.supabaseClient.channel('notificacion_admin')
                     .on('broadcast', { event: 'salida_autorizada' }, (payload) => {
                         console.log('Salida autorizada:', payload);
-                        const num = payload.payload?.numero || payload.payload?.num || '---';
-                        Utils.mostrarNotificacion(`Salida autorizada para turno ${num}`, 'success', true);
+                        // El modal con sonido se muestra automáticamente en admin.html
                     })
                     .subscribe();
             } else {
@@ -3002,21 +3001,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             verificarSalidaAutorizadaAdmin();
         }
         
+        // La verificación de salida autorizada ahora se maneja en admin.html con modal y sonido
         function verificarSalidaAutorizadaAdmin() {
-            setInterval(() => {
-                const datos = localStorage.getItem('salidaAutorizada');
-                if (datos) {
-                    try {
-                        const data = JSON.parse(datos);
-                        const ahora = Date.now();
-                        if (ahora - data.timestamp < 10000) {
-                            const num = data?.numero || data?.num || '---';
-                            Utils.mostrarNotificacion(`Salida autorizada para turno ${num}`, 'success', true);
-                            localStorage.removeItem('salidaAutorizada');
-                        }
-                    } catch (e) {}
-                }
-            }, 2000);
+            // Eliminada - ahora admin.html maneja la alerta con sonido y modal
+            // El modal se muestra automáticamente cuando el despachador autoriza salida
         }
         
         // Página de despachador (despachador.html)
@@ -3132,9 +3120,7 @@ const DespachadorHandlers = {
             }));
             localStorage.removeItem('proveedorListoSalir');
             
-            const numeroMostrar = turno?.numero || turno?.num || '---';
-            Utils.mostrarNotificacion(`Salida autorizada para turno ${numeroMostrar}`, 'success', true);
-            
+            // El modal con sonido se muestra automáticamente en admin.html
             const btnAutorizar = document.getElementById('btnAutorizarSalida');
             if (btnAutorizar) {
                 btnAutorizar.disabled = true;
@@ -3161,10 +3147,12 @@ const DespachadorHandlers = {
             const numError = turno?.numero || turno?.num || '---';
             localStorage.setItem('salidaAutorizada', JSON.stringify({
                 numero: numError,
+                nombre: turno.nombre || turno.nombreEmpresa || '',
+                nit: turno.nit || '',
                 timestamp: Date.now()
             }));
             localStorage.removeItem('proveedorListoSalir');
-            Utils.mostrarNotificacion(`Salida autorizada para turno ${numError}`, 'success', true);
+            // El modal con sonido se muestra automáticamente en admin.html
         }
     }
 };
