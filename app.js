@@ -3120,7 +3120,19 @@ const DespachadorHandlers = {
             }));
             localStorage.removeItem('proveedorListoSalir');
             
-            // El modal con sonido se muestra automáticamente en admin.html
+            // Mostrar modal con sonido en despachador
+            if (turno) {
+                localStorage.setItem('mostrarModalSalida', JSON.stringify({
+                    numero: turno.numero || turno.num,
+                    nombre: turno.nombre || turno.nombreEmpresa || '',
+                    nit: turno.nit || '',
+                    numFactura: turno.numFactura || '',
+                    responsable: turno.responsable || '',
+                    tipoVehiculo: turno.tipoVehiculo || '',
+                    timestamp: Date.now()
+                }));
+            }
+            
             const btnAutorizar = document.getElementById('btnAutorizarSalida');
             if (btnAutorizar) {
                 btnAutorizar.disabled = true;
@@ -3152,7 +3164,7 @@ const DespachadorHandlers = {
                 timestamp: Date.now()
             }));
             localStorage.removeItem('proveedorListoSalir');
-            // El modal con sonido se muestra automáticamente en admin.html
+            // El modal con sonido se muestra automáticamente en admin.html y despachador
         }
     }
 };
