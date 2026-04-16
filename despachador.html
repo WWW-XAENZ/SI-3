@@ -495,41 +495,33 @@
                 }
                 
                 async function reproducirAlertaSalida(proveedor) {
-                    const reproducirSonido = () => {
+                    if (window.SonidoAlerta && window.SonidoAlerta.reproducir) {
+                        window.SonidoAlerta.reproducir(3);
+                    } else {
                         try {
-                            if (window.SonidoAlerta && window.SonidoAlerta.reproducir) {
-                                window.SonidoAlerta.reproducir(3);
-                            } else {
-                                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                                if (!window.audioContext) {
-                                    window.audioContext = new AudioContext();
-                                }
-                                const ctx = window.audioContext;
-                                for (let i = 0; i < 3; i++) {
-                                    setTimeout(() => {
-                                        const osc = ctx.createOscillator();
-                                        const gain = ctx.createGain();
-                                        osc.connect(gain);
-                                        gain.connect(ctx.destination);
-                                        osc.frequency.value = 1000;
-                                        osc.type = 'sine';
-                                        gain.gain.setValueAtTime(0.8, ctx.currentTime);
-                                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1);
-                                        osc.start(ctx.currentTime);
-                                        osc.stop(ctx.currentTime + 1);
-                                    }, i * 800);
-                                }
+                            const AudioContext = window.AudioContext || window.webkitAudioContext;
+                            if (!window.audioContext) {
+                                window.audioContext = new AudioContext();
+                            }
+                            const ctx = window.audioContext;
+                            for (let i = 0; i < 3; i++) {
+                                setTimeout(() => {
+                                    const osc = ctx.createOscillator();
+                                    const gain = ctx.createGain();
+                                    osc.connect(gain);
+                                    gain.connect(ctx.destination);
+                                    osc.frequency.value = 1000;
+                                    osc.type = 'sine';
+                                    gain.gain.setValueAtTime(0.8, ctx.currentTime);
+                                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1);
+                                    osc.start(ctx.currentTime);
+                                    osc.stop(ctx.currentTime + 1);
+                                }, i * 800);
                             }
                         } catch (e) {
                             console.warn('Error reproduciendo sonido:', e);
                         }
-                    };
-                    
-                    reproducirSonido();
-                    await new Promise(r => setTimeout(r, 800));
-                    reproducirSonido();
-                    await new Promise(r => setTimeout(r, 800));
-                    reproducirSonido();
+                    }
                     
                     mostrarModalProveedorListo(proveedor);
                 }
