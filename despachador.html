@@ -179,9 +179,8 @@
 
                 <!-- Historial de Turnos -->
                 <section class="admin-section despachador-historial">
-                    <h2>Historial</h2>
-                    <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
-                        <input type="date" id="historialFechaDesp" class="filter-input-small" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                    <h2>Historial Reciente</h2>
+                    <div style="margin-bottom: 10px;">
                         <button id="btnActualizarHistorialDesp" class="btn btn-secondary btn-small">Actualizar</button>
                     </div>
                     <div id="historialDespachador" class="history-list" style="max-height: 200px; overflow-y: auto;">
@@ -217,7 +216,7 @@
 
         let turnosDelDia = [];
 
-        async function cargarTurnosPendientesSalida(fecha = null) {
+        async function cargarTurnosPendientesSalida() {
             const listaDiv = document.getElementById('listaTurnosPendientesSalida');
             if (!listaDiv) return;
             
@@ -227,12 +226,12 @@
             }
             
             try {
-                const fechaActual = fecha || new Date().toLocaleDateString('en-CA');
+                const today = window.getLocalDate ? window.getLocalDate() : new Date().toISOString().split('T')[0];
                 const { data, error } = await window.supabaseClient
                     .from('historial_turnos')
                     .select('*')
-                    .gte('fecha', `${fechaActual}T00:00:00`)
-                    .lte('fecha', `${fechaActual}T23:59:59`)
+                    .gte('fecha', `${today}T00:00:00`)
+                    .lte('fecha', `${today}T23:59:59`)
                     .order('hora_finalizacion', { ascending: false });
                 
                 if (error) throw error;
@@ -398,44 +397,19 @@
                 cargarTurnosPendientesSalida();
                 cargarHistorialDespachador();
                 
-                let fechaActualDesp;
-                
                 setInterval(() => {
                     cargarCitasDespachador();
-                    cargarTurnosPendientesSalida(fechaActualDesp);
+                    cargarTurnosPendientesSalida();
                     cargarEstadisticasDespachador();
-                    cargarHistorialDespachador(fechaActualDesp);
+                    cargarHistorialDespachador();
                     verificarProveedorListo();
                 }, 10000);
                 
                 const btnActualizarHistorialDesp = document.getElementById('btnActualizarHistorialDesp');
                 if (btnActualizarHistorialDesp) {
                     btnActualizarHistorialDesp.addEventListener('click', () => {
-                        cargarHistorialDespachador(fechaActualDesp);
+                        cargarHistorialDespachador();
                     });
-                }
-                
-                const historialFechaDesp = document.getElementById('historialFechaDesp');
-                if (historialFechaDesp) {
-                    const now = new Date();
-                    const offset = now.getTimezoneOffset() * 60000;
-                    const localDate = new Date(now.getTime() - offset);
-                    const today = localDate.toISOString().split('T')[0];
-                    
-                    const savedFecha = localStorage.getItem('historialFechaDesp');
-                    historialFechaDesp.value = savedFecha && savedFecha >= today ? savedFecha : today;
-                    
-                    fechaActualDesp = historialFechaDesp.value;
-                    
-                    historialFechaDesp.addEventListener('change', (e) => {
-                        const fecha = e.target.value;
-                        localStorage.setItem('historialFechaDesp', fecha);
-                        fechaActualDesp = fecha;
-                        cargarHistorialDespachador(fecha);
-                        cargarTurnosPendientesSalida(fecha);
-                    });
-                    cargarHistorialDespachador(historialFechaDesp.value);
-                    cargarTurnosPendientesSalida(historialFechaDesp.value);
                 }
                 
                 const btnActualizarCitas = document.getElementById('btnActualizarCitas');
@@ -717,7 +691,7 @@
                     }
                 }
                 
-                async function cargarHistorialDespachador(fecha = null) {
+                async function cargarHistorialDespachador() {
                     const listaDiv = document.getElementById('historialDespachador');
                     if (!listaDiv) return;
                     
@@ -727,17 +701,9 @@
                     }
                     
                     try {
-                        let query = window.supabaseClient
+                        const { data, error } = await window.supabaseClient
                             .from('historial_turnos')
-                            .select('numero, nombre_empresa, nit, destino, contacto, telefono, num_factura, tipo_vehiculo, bultos, peso, responsable, hora_finalizacion, autorizado_salida, fecha');
-                        
-                        if (fecha) {
-                            const fechaInicio = fecha + 'T00:00:00';
-                            const fechaFin = fecha + 'T23:59:59';
-                            query = query.gte('fecha', fechaInicio).lte('fecha', fechaFin);
-                        }
-                        
-                        const { data, error } = await query
+                            .select('numero, nombre_empresa, nit, destino, contacto, telefono, num_factura, tipo_vehiculo, bultos, peso, responsable, hora_finalizacion, autorizado_salida')
                             .order('hora_finalizacion', { ascending: false })
                             .limit(20);
                         

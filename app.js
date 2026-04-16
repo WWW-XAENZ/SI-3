@@ -3,17 +3,20 @@
 // VERSIÓN CON RECARGA AUTO Y ELIMINAR PROVEEDOR CORREGIDO
 // ============================================
 
-const getLocalDate = () => {
+window.getLocalDate = () => {
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - offset).toISOString().split('T')[0];
 };
 
-const getLocalISOString = () => {
+window.getLocalISOString = () => {
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - offset).toISOString();
 };
+
+const getLocalDate = window.getLocalDate;
+const getLocalISOString = window.getLocalISOString;
 
 const CONFIG = {
     ADMIN_PASSWORD: 'RECEPCIONCEDI2',
@@ -1891,14 +1894,14 @@ const RenderAdmin = {
         }
     },
 
-async historial(fecha = null) {
+async historial() {
         const historialDiv = document.getElementById('historialTurnos');
         if (!historialDiv) return;
 
-        console.log('RenderAdmin.historial llamado con fecha:', fecha);
+        console.log('RenderAdmin.historial llamado');
         
         try {
-            const historial = await SupabaseDB.cargarHistorial(null, fecha);
+            const historial = await SupabaseDB.cargarHistorial();
             console.log('Historial cargado:', historial.length, 'registros');
             
             if (historial.length === 0) {
@@ -2020,8 +2023,7 @@ async historial(fecha = null) {
         try { this.listaTurnosCitados(); } catch (e) { console.error('Error listaTurnosCitados:', e); }
         try { this.listaTurnosLlegados(); } catch (e) { console.error('Error listaTurnosLlegados:', e); }
         try { await this.proveedores(); } catch (e) { console.error('Error proveedores:', e); }
-        
-        // No llamar a historial() aquí para preservar la fecha del calendario
+        try { await this.historial(); } catch (e) { console.error('Error historial:', e); }
         try { await this.estadisticas(); } catch (e) { console.error('Error estadisticas:', e); }
     }
 };
@@ -2966,26 +2968,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const btnLimpiar = document.getElementById('btnLimpiarHistorial');
             if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
-            
-            const historialFecha = document.getElementById('historialFecha');
-            if (historialFecha) {
-                const now = new Date();
-                const offset = now.getTimezoneOffset() * 60000;
-                const localDate = new Date(now.getTime() - offset);
-                const today = localDate.toISOString().split('T')[0];
-                
-                const savedFecha = localStorage.getItem('historialFechaAdmin');
-                historialFecha.value = savedFecha && savedFecha >= today ? savedFecha : today;
-                
-                historialFecha.addEventListener('change', (e) => {
-                    const fecha = e.target.value;
-                    localStorage.setItem('historialFechaAdmin', fecha);
-                    console.log('Fecha cambiada en admin:', fecha);
-                    RenderAdmin.historial(fecha);
-                });
-                console.log('Cargando historial para:', historialFecha.value);
-                RenderAdmin.historial(historialFecha.value);
-            }
             
             InputConfig.configurarPasswordToggle();
             
