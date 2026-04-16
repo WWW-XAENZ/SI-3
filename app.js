@@ -3,6 +3,18 @@
 // VERSIÓN CON RECARGA AUTO Y ELIMINAR PROVEEDOR CORREGIDO
 // ============================================
 
+const getLocalDate = () => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offset).toISOString().split('T')[0];
+};
+
+const getLocalISOString = () => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offset).toISOString();
+};
+
 const CONFIG = {
     ADMIN_PASSWORD: 'RECEPCIONCEDI2',
     DESPACHADOR_PASSWORD: 'RECEPCIONDESPACHO',
@@ -80,21 +92,11 @@ const Utils = {
         const ahora = new Date();
         const horas = ahora.getHours().toString().padStart(2, '0');
         const minutos = ahora.getMinutes().toString().padStart(2, '0');
-        return `${horas}:${minutos}`;
+return `${horas}:${minutos}`;
     },
 
-    obtenerFechaActual() {
-        const getLocalDate = () => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset() * 60000;
-    return new Date(now.getTime() - offset).toISOString().split('T')[0];
-};
-
-const getLocalISOString = () => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset() * 60000;
-    return new Date(now.getTime() - offset).toISOString();
-};
+obtenerFechaActual() {
+        return getLocalDate();
     },
 
     obtenerFechaHoraCompleta() {
