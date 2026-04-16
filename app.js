@@ -52,15 +52,15 @@ const SonidoAlerta = {
                 oscilador.connect(ganancia);
                 ganancia.connect(this.contexto.destination);
                 
-                oscilador.frequency.value = 1000;
+                oscilador.frequency.value = 880;
                 oscilador.type = 'sine';
                 
-                ganancia.gain.setValueAtTime(0.8, this.contexto.currentTime);
-                ganancia.gain.exponentialRampToValueAtTime(0.01, this.contexto.currentTime + 1);
+                ganancia.gain.setValueAtTime(0.5, this.contexto.currentTime);
+                ganancia.gain.exponentialRampToValueAtTime(0.01, this.contexto.currentTime + 0.5);
                 
                 oscilador.start(this.contexto.currentTime);
-                oscilador.stop(this.contexto.currentTime + 1);
-            }, i * 800);
+                oscilador.stop(this.contexto.currentTime + 0.5);
+            }, i * 600);
         }
     }
 };
