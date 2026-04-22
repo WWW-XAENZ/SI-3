@@ -2,8 +2,8 @@
 // CONFIGURACIÓN SUPABASE - SISTEMA DE TURNOS SI-3
 // ============================================
 
-const SUPABASE_URL = 'https://antxwdmecfxhpyjtbbxl.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFudHh3ZG1lY2Z4aHB5anRiYnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MDUxNDUsImV4cCI6MjA5MTE4MTE0NX0.DjIccxaUx0hJUaV2h62RSB_O2W0T0dj98hS8I70eDj8';
+const SUPABASE_URL = 'https://xddvqwpjrfkquudljmrc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkZHZxd3BqcmZrcXV1ZGxqbXJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MTI5OTAsImV4cCI6MjA5MjM4ODk5MH0.EfRrka_qcOIXc2XEb_1TbSLlllW9QKlMqKtxaCdg3eA';
 
 // Inicializar cliente de Supabase
 let supabaseClient = null;
