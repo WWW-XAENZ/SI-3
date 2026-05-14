@@ -360,13 +360,22 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="fechaCita">Fecha y Hora de la Cita:</label>
-                            <input 
-                                type="datetime-local" 
-                                id="fechaCita"
-                                min=""
-                            >
-                            <small class="form-hint">Deje en blanco para turno inmediato (hoy)</small>
+                            <label>Fecha y Hora de la Cita: <span aria-hidden="true">*</span></label>
+                            <div class="datetime-separate">
+                                <input
+                                    type="date"
+                                    id="fechaCitaDate"
+                                    required
+                                    aria-required="true"
+                                >
+                                <input
+                                    type="time"
+                                    id="fechaCitaTime"
+                                    required
+                                    aria-required="true"
+                                >
+                            </div>
+                            <small class="form-hint">Hoy: turno en espera (T). Futuro: cita reservada (C)</small>
                         </div>
                         <div class="form-group" id="motivoGroup" style="display: none;">
                             <label for="motivoVisita">Motivo de la Visita: <span aria-hidden="true">*</span></label>
@@ -377,7 +386,7 @@
                                 aria-required="true"
                             ></textarea>
                         </div>
-                        <button type="submit" class="btn btn-primary btn-large">
+                        <button type="submit" id="btnSolicitar" class="btn btn-primary btn-large">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <path d="M12 5v14M5 12h14"></path>
                             </svg>

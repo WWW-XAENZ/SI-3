@@ -85,58 +85,36 @@ const SonidoAlerta = {
 // ============================================
 
 const Utils = {
-    generarNumeroTurno() {
-        AppState.contadorTurnos++;
-        localStorage.setItem('contadorTurnos', AppState.contadorTurnos.toString());
-        return 'T' + AppState.contadorTurnos.toString().padStart(3, '0');
-    },
-
-    obtenerHoraActual() {
-        const ahora = new Date();
-        const horas = ahora.getHours().toString().padStart(2, '0');
-        const minutos = ahora.getMinutes().toString().padStart(2, '0');
-return `${horas}:${minutos}`;
-    },
-
-obtenerFechaActual() {
-        return getLocalDate();
-    },
-
-    obtenerFechaHoraCompleta() {
-        return new Date().toLocaleString('es-ES', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-        });
+    setLoading(loading) {
+        const btn = document.getElementById('btnSolicitar');
+        if (btn) {
+            btn.disabled = loading;
+            btn.textContent = loading ? 'Solicitando...' : 'Solicitar Turno';
+        }
     },
 
     mostrarNotificacion(mensaje, tipo = 'info', requireAccept = false) {
-        const notificacionesAnteriores = document.querySelectorAll('.notificacion');
-        notificacionesAnteriores.forEach(n => n.remove());
-        
         const notificacion = document.createElement('div');
-        notificacion.className = `notificacion notificacion-${tipo}`;
-        
+        notificacion.className = 'notificacion';
+
         const iconos = {
-            success: '✓',
-            error: '✕',
-            info: 'ℹ'
+            'success': '✅',
+            'error': '❌',
+            'warning': '⚠️',
+            'info': 'ℹ️'
         };
-        
+
         let contenido = `
             <span class="notif-icon">${iconos[tipo] || 'ℹ'}</span>
             <span class="notificacion-mensaje">${mensaje}</span>
         `;
-        
+
         if (requireAccept) {
             contenido += `<button class="notificacion-aceptar">Aceptar</button>`;
         } else {
             contenido += `<button class="notificacion-cerrar">&times;</button>`;
         }
-        
+
         notificacion.innerHTML = contenido;
 
         Object.assign(notificacion.style, {
@@ -160,7 +138,7 @@ obtenerFechaActual() {
         });
 
         document.body.appendChild(notificacion);
-        
+
         const style = document.createElement('style');
         style.textContent = `
             @keyframes notifSlideIn {
@@ -195,7 +173,7 @@ obtenerFechaActual() {
                 notificacion.style.animation = 'notifSlideOut 0.3s ease forwards';
                 setTimeout(() => notificacion.remove(), 300);
             };
-            
+
             const styleOut = document.createElement('style');
             styleOut.textContent = `
                 @keyframes notifSlideOut {
@@ -204,7 +182,7 @@ obtenerFechaActual() {
                 }
             `;
             document.head.appendChild(styleOut);
-            
+
             setTimeout(() => {
                 if (notificacion.parentNode) {
                     notificacion.style.animation = 'notifFadeOut 0.4s ease forwards';
@@ -213,7 +191,7 @@ obtenerFechaActual() {
                     }, 400);
                 }
             }, 4000);
-            
+
             const styleFade = document.createElement('style');
             styleFade.textContent = `
                 @keyframes notifFadeOut {
@@ -225,6 +203,18 @@ obtenerFechaActual() {
         }
     },
 
+    obtenerHoraActual() {
+        const ahora = new Date();
+        return `${ahora.getHours().toString().padStart(2, '0')}:${ahora.getMinutes().toString().padStart(2, '0')}`;
+    },
+
+    // Timeout wrapper para promesas
+    withTimeout(promise, ms = 10000) {
+        const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Tiempo de espera agotado')), ms)
+        );
+        return Promise.race([promise, timeout]);
+    },
     setLoading(isLoading) {
         AppState.isLoading = isLoading;
         const buttons = document.querySelectorAll('.btn, button[type="submit"]');
@@ -408,7 +398,7 @@ const SupabaseDB = {
         }
     },
 
-    async incrementarContadorTurnos() {
+    async incrementarContadorTurnos(signal = null) {
         console.log('=== Incrementando contador ===');
         const contadorLocal = LocalStorage.obtenerContador();
         console.log('Contador local actual:', contadorLocal);
@@ -423,14 +413,21 @@ const SupabaseDB = {
         
         try {
             console.log('Actualizando contador en Supabase...');
-            const { error } = await window.supabaseClient
+            // Timeout interno de 5 segundos
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout Supabase (contador)')), 5000)
+            );
+            const upsertPromise = window.supabaseClient
                 .from('configuracion')
                 .upsert({ 
                     clave: 'contador_turnos', 
                     valor: nuevoContador.toString(),
                     descripcion: 'Contador global de turnos',
                     updated_at: new Date().toISOString()
-                });
+                }, { onConflict: 'clave' })
+                .abortSignal(signal);
+            
+            const { error } = await Promise.race([upsertPromise, timeoutPromise]);
             
             if (error) {
                 console.warn('Error al actualizar contador en Supabase:', error.message);
@@ -445,11 +442,14 @@ const SupabaseDB = {
         }
     },
 
-    async guardarProveedor(proveedor) {
+    async guardarProveedor(proveedor, signal = null) {
+        console.log('🔹 SupabaseDB.guardarProveedor llamado con:', proveedor.nit);
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
+            console.error('❌ Supabase no está disponible - usando localStorage');
             return null;
         }
+        
+        console.log('🔹 Supabase client disponible');
         
         try {
             const proveedorData = {
@@ -462,31 +462,49 @@ const SupabaseDB = {
                 updated_at: new Date().toISOString()
             };
             
+            // Timeout de 5 segundos para cada operación
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout Supabase (proveedor)')), 5000)
+            );
+            
             if (proveedor.id) {
-                const { data, error } = await window.supabaseClient
+                console.log('🔹 Actualizando proveedor existente ID:', proveedor.id);
+                const updatePromise = window.supabaseClient
                     .from('proveedores')
                     .update(proveedorData)
                     .eq('id', proveedor.id)
                     .select()
-                    .single();
+                    .single()
+                    .abortSignal(signal);
+                
+                const { data, error } = await Promise.race([updatePromise, timeoutPromise]);
                 
                 if (error) throw error;
                 return this._mapearProveedor(data);
             } else {
-                const { data, error } = await window.supabaseClient
+                console.log('🔹 Insertando nuevo proveedor NIT:', proveedor.nit);
+                const insertPromise = window.supabaseClient
                     .from('proveedores')
                     .insert(proveedorData)
                     .select()
-                    .single();
+                    .single()
+                    .abortSignal(signal);
+                
+                const { data, error } = await Promise.race([insertPromise, timeoutPromise]);
                 
                 if (error) {
+                    console.log('⚠️ Error en insert, código:', error.code, 'mensaje:', error.message);
                     if (error.code === '23505') {
-                        const { data: updateData, error: updateError } = await window.supabaseClient
+                        console.log('🔹 Duplicado, actualizando por NIT...');
+                        const updatePromise2 = window.supabaseClient
                             .from('proveedores')
                             .update(proveedorData)
                             .eq('nit', proveedor.nit)
                             .select()
-                            .single();
+                            .single()
+                            .abortSignal(signal);
+                        
+                        const { data: updateData, error: updateError } = await Promise.race([updatePromise2, timeoutPromise]);
                         
                         if (updateError) throw updateError;
                         return this._mapearProveedor(updateData);
@@ -497,8 +515,9 @@ const SupabaseDB = {
                 return this._mapearProveedor(data);
             }
         } catch (error) {
-            console.error('Error al guardar proveedor:', error);
-            return null;
+            console.error('❌ Error al guardar proveedor:', error);
+            console.log('🔄 Fallback a localStorage para proveedor');
+            return null; // Señal para usar fallback
         }
     },
 
@@ -564,17 +583,19 @@ const SupabaseDB = {
         };
     },
 
-    async guardarTurno(turno) {
-        console.log('=== SupabaseDB.guardarTurno ===');
-        console.log('turno:', JSON.stringify(turno, null, 2));
+    async guardarTurno(turno, signal = null) {
+        console.log('🔹 SupabaseDB.guardarTurno llamado. Número:', turno.numero);
+        console.log('🔹 Signal:', !!signal);
         
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible - guardando en localStorage');
+            console.error('❌ Supabase no está disponible - guardando en localStorage');
             turno.id = Date.now();
             AppState.turnos.push(turno);
             LocalStorage.guardarTurnos(AppState.turnos);
             return turno;
         }
+        
+        console.log('🔹 Supabase client disponible, procediendo...');
         
         try {
             const turnoData = {
@@ -598,26 +619,34 @@ const SupabaseDB = {
                 autorizado_salida: turno.autorizadoSalida || false
             };
             
-            console.log('Insertando en Supabase:', JSON.stringify(turnoData, null, 2));
+            console.log('📤 Insertando en Supabase:', JSON.stringify(turnoData, null, 2));
             
-            const { data, error } = await window.supabaseClient
+            // Timeout interno de 5 segundos
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout Supabase (turno)')), 5000)
+            );
+            
+            const insertPromise = window.supabaseClient
                 .from('turnos')
                 .insert([turnoData])
                 .select()
-                .single();
+                .single()
+                .abortSignal(signal);
+            
+            const { data, error } = await Promise.race([insertPromise, timeoutPromise]);
             
             if (error) {
-                console.error('Error de Supabase:', error);
-                console.error('Código de error:', error.code);
-                console.error('Mensaje de error:', error.message);
+                console.error('❌ Error de Supabase:', error);
+                console.error('   Código:', error.code);
+                console.error('   Mensaje:', error.message);
                 throw error;
             }
             
-            console.log('Turno guardado exitosamente:', data);
+            console.log('✅ Turno guardado exitosamente:', data);
             return this._mapearTurno(data);
         } catch (error) {
-            console.error('Error al guardar turno:', error);
-            console.log('Guardando turno en localStorage como fallback...');
+            console.error('❌ Error al guardar turno:', error);
+            console.log('🔄 Fallback a localStorage para turno');
             turno.id = Date.now();
             AppState.turnos.push(turno);
             LocalStorage.guardarTurnos(AppState.turnos);
@@ -1125,45 +1154,60 @@ const SupabaseDB = {
 // ============================================
 
 const Turnos = {
-    async solicitar(datosProveedor, motivo = '') {
+    async solicitar(datosProveedor, motivo = '', signal = null) {
         console.log('=== CREANDO TURNO ===');
-        console.log('datosProveedor:', datosProveedor);
+        console.log('📌 Datos recibidos:', datosProveedor);
+        console.log('📌 Signal:', !!signal);
         
         if (!datosProveedor.nit) {
+            console.error('❌ Validación fallida: placa requerida');
             throw new Error('La placa es requerida');
         }
         
         const placa = datosProveedor.nit.toUpperCase().trim();
+        console.log('📌 Placa:', placa);
         
         if (placa.length !== 6) {
+            console.error('❌ Validación fallida: placa longitud incorrecta');
             throw new Error('La placa debe tener exactamente 6 caracteres');
         }
         
         if (!datosProveedor.nombreEmpresa || datosProveedor.nombreEmpresa.trim() === '') {
+            console.error('❌ Validación fallida: nombre empresa requerido');
             throw new Error('El nombre de la empresa es requerido');
         }
         
         datosProveedor.nit = placa;
         datosProveedor.nombreEmpresa = datosProveedor.nombreEmpresa.trim();
 
-        console.log('Guardando proveedor en Supabase...');
-        await SupabaseDB.guardarProveedor(datosProveedor);
+        console.log('📦 Paso 1: Guardando proveedor en Supabase...');
+        const proveedorGuardado = await SupabaseDB.guardarProveedor(datosProveedor, signal);
+        console.log('✅ Proveedor guardado:', proveedorGuardado);
+        
+        if (!proveedorGuardado && window.supabaseClient) {
+            console.warn('⚠️ Proveedor no guardado en Supabase, continuando...');
+        }
 
         let nuevoContador;
         try {
-            console.log('Incrementando contador de turnos...');
-            nuevoContador = await SupabaseDB.incrementarContadorTurnos();
-            console.log('Nuevo contador:', nuevoContador);
+            console.log('📦 Paso 2: Incrementando contador de turnos...');
+            nuevoContador = await SupabaseDB.incrementarContadorTurnos(signal);
+            console.log('✅ Contador incrementado:', nuevoContador);
         } catch (error) {
-            console.error('Error al incrementar contador:', error);
+            console.error('❌ Error al incrementar contador:', error);
             AppState.contadorTurnos++;
             nuevoContador = AppState.contadorTurnos;
             LocalStorage.guardarContador(nuevoContador);
         }
         
-        const prefijoTurno = datosProveedor.fechaCita ? 'C' : 'T';
+        // Determinar prefijo según si la fecha es posterior a hoy
+        const fechaCitaSola = datosProveedor.fechaCita ? datosProveedor.fechaCita.split('T')[0] : null;
+        const hoy = new Date();
+        const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+        const prefijoTurno = (fechaCitaSola && fechaCitaSola > hoyStr) ? 'C' : 'T';
         const numeroTurno = prefijoTurno + nuevoContador.toString().padStart(3, '0');
-        console.log('Nuevo número de turno:', numeroTurno);
+        console.log('✅ Número de turno generado:', numeroTurno);
+        console.log('📌 Prefijo:', prefijoTurno, '| Fecha cita:', fechaCitaSola, '| Hoy:', hoyStr);
         
         const turno = {
             numero: numeroTurno,
@@ -1182,12 +1226,12 @@ const Turnos = {
                 return `${horas}:${minutos}`;
             })() : Utils.obtenerHoraActual(),
             fechaSolicitud: getLocalISOString(),
-            estado: datosProveedor.fechaCita ? 'citado' : 'espera'
+            estado: prefijoTurno === 'C' ? 'citado' : 'espera'
         };
 
-        console.log('Guardando turno en Supabase:', turno);
-        const turnoSupabase = await SupabaseDB.guardarTurno(turno);
-        console.log('Resultado guardarTurno:', turnoSupabase);
+        console.log('📦 Paso 3: Guardando turno en Supabase...');
+        const turnoSupabase = await SupabaseDB.guardarTurno(turno, signal);
+        console.log('✅ Turno guardado en Supabase:', turnoSupabase);
         
         if (turnoSupabase && turnoSupabase.id) {
             turno.id = turnoSupabase.id;
@@ -1357,6 +1401,40 @@ const Turnos = {
             AppState.turnos = LocalStorage.obtenerTurnos();
             AppState.turnoActual = LocalStorage.obtenerTurnoActual();
         }
+    },
+
+    async actualizarCitasHoy() {
+        const hoy = new Date();
+        const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+        console.log('🔍 Actualizando citas para hoy:', hoyStr);
+
+        const citasHoy = AppState.turnos.filter(t => t.estado === 'citado' && t.fechaCita && t.fechaCita.startsWith(hoyStr));
+        if (citasHoy.length === 0) {
+            console.log('No hay citas para hoy');
+            return;
+        }
+
+        console.log(`✅ ${citasHoy.length} citas encontradas para hoy`);
+
+        for (const cita of citasHoy) {
+            console.log(`🔄 Convirtiendo ${cita.numero} a estado 'espera' (mantiene prefijo C)`);
+
+            if (window.supabaseClient) {
+                const { error } = await window.supabaseClient
+                    .from('turnos')
+                    .update({ estado: 'espera' })
+                    .eq('id', cita.id);
+                if (error) {
+                    console.error('Error actualizando cita en Supabase:', error);
+                    continue;
+                }
+            }
+
+            cita.estado = 'espera';
+            LocalStorage.guardarTurnos(AppState.turnos);
+        }
+
+        console.log('✅ Citas del día convertidas a estado espera');
     }
 };
 
@@ -2036,9 +2114,13 @@ const UsuarioHandlers = {
     async solicitarTurno(e) {
         e.preventDefault();
         
+        console.log('✅ Iniciando solicitud de turno');
         Utils.setLoading(true);
-        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos timeout
+
         try {
+            console.log('📝 Paso 0: Validando formulario...');
             const placaInput = document.getElementById('nit')?.value?.trim().toUpperCase();
             
             if (!placaInput) {
@@ -2049,16 +2131,33 @@ const UsuarioHandlers = {
                 throw new Error('La placa debe tener exactamente 6 caracteres');
             }
             
+            console.log('✅ Validación OK. Placa:', placaInput);
+            
             const destino = document.getElementById('destino')?.value;
-            const fechaCitaInput = document.getElementById('fechaCita')?.value;
-            
-            const esCita = fechaCitaInput && fechaCitaInput.trim() !== '';
-            
+            const fechaDateInput = document.getElementById('fechaCitaDate')?.value;
+            const fechaTimeInput = document.getElementById('fechaCitaTime')?.value;
+
+            console.log('📅 Fecha date:', fechaDateInput, 'Hora:', fechaTimeInput);
+
             let fechaCitaISO = null;
-            if (esCita && fechaCitaInput) {
-                fechaCitaISO = fechaCitaInput;
+            if (fechaDateInput && fechaTimeInput) {
+                fechaCitaISO = `${fechaDateInput}T${fechaTimeInput}:00`;
             }
-            
+
+            if (!fechaCitaISO) {
+                throw new Error('La fecha y hora de la cita son requeridas');
+            }
+
+            // Validar que la fecha no sea anterior a hoy (comparación de cadenas YYYY-MM-DD)
+            const hoy = new Date();
+            const year = hoy.getFullYear();
+            const month = String(hoy.getMonth() + 1).padStart(2, '0');
+            const day = String(hoy.getDate()).padStart(2, '0');
+            const hoyStr = `${year}-${month}-${day}`;
+            if (fechaDateInput < hoyStr) {
+                throw new Error('La fecha no puede ser anterior a hoy');
+            }
+
             const datosProveedor = {
                 nombreEmpresa: document.getElementById('nombreEmpresa')?.value?.trim(),
                 nit: placaInput,
@@ -2069,6 +2168,8 @@ const UsuarioHandlers = {
                 fechaCita: fechaCitaISO
             };
 
+            console.log('📦 Datos del proveedor:', datosProveedor);
+
             if (!destino) throw new Error('El destino es requerido');
 
             if (!datosProveedor.nombreEmpresa) throw new Error('El nombre de la empresa es requerido');
@@ -2078,12 +2179,14 @@ const UsuarioHandlers = {
             
             const motivo = motivoPersonalizado || datosProveedor.servicio;
 
-            const turno = await Turnos.solicitar(datosProveedor, motivo);
+            console.log('🚀 Llamando a Turnos.solicitar...');
+            const turno = await Turnos.solicitar(datosProveedor, motivo, controller.signal);
+            console.log('✅ Turno creado:', turno.numero);
             
             LocalStorage.guardarMiTurno(turno);
             
             const modal = document.getElementById('confirmacionModal');
-            const modalMiTurno = document.getElementById('modalMiTurno');
+            const modalMiTurno = document.getElementById('miTurno');
             const modalTurnoInfo = document.getElementById('modalTurnoInfo');
             
             if (modal && modalMiTurno) {
@@ -2099,16 +2202,45 @@ const UsuarioHandlers = {
             }
             
             e.target.reset();
+            // Restaurar valores por defecto de fecha y hora
+            InputConfig.configurarFechaCita();
             const motivoGroup = document.getElementById('motivoGroup');
             if (motivoGroup) motivoGroup.style.display = 'none';
             
             RenderUsuario.todo();
             
         } catch (error) {
-            console.error('Error:', error);
-            Utils.mostrarNotificacion(error.message, 'error');
+            console.error('❌ Error en solicitarTurno:', error);
+            console.error('❌ Error name:', error.name);
+            console.error('❌ Error message:', error.message);
+            
+            if (error.name === 'AbortError' || error.message.includes('Timeout') || error.message.includes('Tiempo')) {
+                // Si fue timeout, aún podemos tener éxito con localStorage fallback
+                console.warn('⚠️ Timeout detectado, verficando si turno se guardó en localStorage...');
+                // El turno puede haberse guardado en localStorage por el fallback
+                // Intentamos recuperar el último turno de localStorage
+                const miTurno = LocalStorage.obtenerMiTurno();
+                if (miTurno) {
+                    Utils.mostrarNotificacion(`Turno ${miTurno.numero} solicitado (modo sin conexión)`, 'success');
+                    if (typeof ModoEspera !== 'undefined') {
+                        ModoEspera.activar(miTurno);
+                    }
+                    e.target.reset();
+                    InputConfig.configurarFechaCita();
+                    const motivoGroup = document.getElementById('motivoGroup');
+                    if (motivoGroup) motivoGroup.style.display = 'none';
+                    RenderUsuario.todo();
+                    return;
+                } else {
+                    Utils.mostrarNotificacion('No se pudo guardar el turno. Intente nuevamente.', 'error');
+                }
+            } else {
+                Utils.mostrarNotificacion(error.message, 'error');
+            }
         } finally {
+            clearTimeout(timeoutId);
             Utils.setLoading(false);
+            console.log('✅ Finally: loading false');
         }
     },
     
@@ -2530,11 +2662,23 @@ const InputConfig = {
     },
 
     configurarFechaCita() {
-        const fechaInput = document.getElementById('fechaCita');
-        if (fechaInput) {
+        const fechaDateInput = document.getElementById('fechaCitaDate');
+        const fechaTimeInput = document.getElementById('fechaCitaTime');
+        if (fechaDateInput) {
             const now = new Date();
-            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-            fechaInput.min = now.toISOString().slice(0, 16);
+            // Establecer mínimo: hoy (no fechas pasadas)
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+            fechaDateInput.min = todayStr;
+            // Establecer valor por defecto a hoy
+            fechaDateInput.value = todayStr;
+        }
+        if (fechaTimeInput) {
+            // Hora por defecto: 08:00 AM
+            fechaTimeInput.value = '08:00';
         }
     },
 
@@ -2858,6 +3002,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         await Turnos.cargarTurnos();
+        await Turnos.actualizarCitasHoy();
         console.log('Datos cargados:', {
             turnos: AppState.turnos.length,
             turnoActual: AppState.turnoActual ? AppState.turnoActual.numero : 'ninguno'
@@ -3476,58 +3621,173 @@ const GenerarCertificado = {
                 };
             }
             
-            const btnImprimirCertificado = document.getElementById('btnImprimirCertificado');
-            if (btnImprimirCertificado) {
-                btnImprimirCertificado.onclick = () => {
+            const btnExportarExcel = document.getElementById('btnExportarExcel');
+            if (btnExportarExcel) {
+                btnExportarExcel.onclick = () => {
                     try {
-                        const printWindow = window.open('', '_blank');
-                        if (!printWindow) {
-                            Utils.mostrarNotificacion('Bloqueador detectado. Permita ventanas emergentes.', 'error');
-                            return;
-                        }
-                        printWindow.document.write(`
-                            <!DOCTYPE html>
-                            <html lang="es">
-                            <head>
-                                <meta charset="UTF-8">
-                                <title>Certificado - ${nombreMesMayus}</title>
-                                <style>
-                                    * { box-sizing: border-box; }
-                                    body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; }
-                                    h1 { text-align: center; color: #1e3a8a; font-size: 24px; }
-                                    h2 { color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin-top: 15px; }
-                                    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 11px; }
-                                    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
-                                    th { background: #f1f5f9; }
-                                    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0; }
-                                    .summary-item { background: #eff6ff; padding: 10px; text-align: center; }
-                                    .summary-number { font-size: 18px; font-weight: bold; color: #1e3a8a; }
-                                    .summary-label { font-size: 10px; }
-                                    @media print { body { padding: 10px; } }
-                                </style>
-                            </head>
-                            <body>${contenidoHTML}</body>
-                            </html>
-                        `);
-                        printWindow.document.close();
-                        printWindow.focus();
-                        setTimeout(() => printWindow.print(), 300);
+                        GenerarCertificado.exportarExcel(
+                            historial,
+                            diasAgrupados,
+                            totalVehiculos,
+                            totalPeso,
+                            totalBultos,
+                            vehiculosConFactura,
+                            vehiculosConSalida,
+                            tipoVehiculoCount,
+                            destinoCount,
+                            servicioCount,
+                            empresaSet.size,
+                            numDias,
+                            primerDia,
+                            ultimoDia,
+                            promedioTurnosDia,
+                            promedioPesoDia,
+                            promedioBultosDia,
+                            nombreMesMayus
+                        );
                     } catch (e) {
-                        console.error('Error al imprimir:', e);
-                        Utils.mostrarNotificacion('Error al imprimir: ' + e.message, 'error');
+                        console.error('Error al exportar:', e);
+                        Utils.mostrarNotificacion('Error al exportar: ' + e.message, 'error');
                     }
                 };
             }
             
-            Utils.mostrarNotificacion('Certificado generado correctamente', 'success');
-
         } catch (error) {
             console.error('Error al generar certificado:', error);
             Utils.mostrarNotificacion('Error al generar certificado: ' + error.message, 'error');
         }
+    },
+    exportarExcel(
+        historial,
+        diasAgrupados,
+        totalVehiculos,
+        totalPeso,
+        totalBultos,
+        vehiculosConFactura,
+        vehiculosConSalida,
+        tipoVehiculoCount,
+        destinoCount,
+        servicioCount,
+        totalEmpresas,
+        numDias,
+        primerDia,
+        ultimoDia,
+        promedioTurnosDia,
+        promedioPesoDia,
+        promedioBultosDia,
+        nombreMesMayus
+    ) {
+        console.log('Exportando certificado a Excel...');
+
+        if (typeof XLSX === 'undefined') {
+            Utils.mostrarNotificacion('Librería Excel no cargada. Recargue la página.', 'error');
+            return;
+        }
+
+        const wb = XLSX.utils.book_new();
+
+        // Hoja 1: Resumen Ejecutivo
+        const resumenData = [
+            ['CERTIFICADO MENSUAL DE DESPACHOS', nombreMesMayus.toUpperCase()],
+            [],
+            ['RESUMEN EJECUTIVO'],
+            ['Vehículos', totalVehiculos],
+            ['Peso Total (kg)', totalPeso],
+            ['Bultos Totales', totalBultos],
+            ['Días Operativos', numDias],
+            [],
+            ['Promedios Diarios'],
+            ['Turnos por día', parseFloat(promedioTurnosDia)],
+            ['Peso por día', Math.round(promedioPesoDia)],
+            ['Bultos por día', parseFloat(promedioBultosDia)],
+            [],
+            ['INFORMACIÓN ADICIONAL'],
+            ['Proveedores Únicos', totalEmpresas],
+            ['Con Factura', vehiculosConFactura],
+            ['Salidas Autorizadas', vehiculosConSalida],
+            ['Primer Día', primerDia],
+            ['Último Día', ultimoDia],
+        ];
+        const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+        XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
+
+        // Hoja 2: Detalle Diario
+        const detalleDiarioData = [
+            ['Fecha', 'Turnos', 'Peso (kg)', 'Bultos', 'Facturas', 'Salidas']
+        ];
+        Object.entries(diasAgrupados).forEach(([fecha, datos]) => {
+            detalleDiarioData.push([
+                fecha,
+                datos.turnos,
+                datos.peso,
+                datos.bultos,
+                datos.facturas,
+                datos.salidas
+            ]);
+        });
+        const wsDiario = XLSX.utils.aoa_to_sheet(detalleDiarioData);
+        XLSX.utils.book_append_sheet(wb, wsDiario, 'Detalle Diario');
+
+        // Hoja 3: Tipos de Vehículo
+        const tiposData = [
+            ['Tipo de Vehículo', 'Cantidad', '%']
+        ];
+        Object.entries(tipoVehiculoCount).forEach(([tipo, count]) => {
+            const porcentaje = ((count / totalVehiculos) * 100).toFixed(1) + '%';
+            tiposData.push([tipo, count, porcentaje]);
+        });
+        const wsTipos = XLSX.utils.aoa_to_sheet(tiposData);
+        XLSX.utils.book_append_sheet(wb, wsTipos, 'Tipos Vehículo');
+
+        // Hoja 4: Destinos
+        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLASTICOS', 'ambos': 'AMBOS' };
+        const destinosData = [
+            ['Destino', 'Cantidad', '%']
+        ];
+        Object.entries(destinoCount).forEach(([destino, count]) => {
+            const porcentaje = ((count / totalVehiculos) * 100).toFixed(1) + '%';
+            destinosData.push([destinoLabel[destino] || destino, count, porcentaje]);
+        });
+        const wsDestinos = XLSX.utils.aoa_to_sheet(destinosData);
+        XLSX.utils.book_append_sheet(wb, wsDestinos, 'Destinos');
+
+        // Hoja 5: Servicios
+        const servicioLabel = { 'entrega': 'Entrega de Mercancia', 'servicio': 'Servicio Tecnico', 'reunion': 'Reunion', 'otro': 'Otro' };
+        const serviciosData = [
+            ['Tipo de Servicio', 'Cantidad']
+        ];
+        Object.entries(servicioCount).forEach(([servicio, count]) => {
+            serviciosData.push([servicioLabel[servicio] || servicio, count]);
+        });
+        const wsServicios = XLSX.utils.aoa_to_sheet(serviciosData);
+        XLSX.utils.book_append_sheet(wb, wsServicios, 'Servicios');
+
+        // Hoja 6: Listado Completo de Proveedores
+        const proveedoresData = [
+            ['#', 'Fecha', 'Turno', 'Empresa', 'Placa', 'Tipo Vehículo', 'Peso (kg)']
+        ];
+        historial.forEach((h, index) => {
+            proveedoresData.push([
+                index + 1,
+                new Date(h.fecha).toLocaleDateString('es-CO'),
+                h.numero,
+                h.nombre_empresa || 'N/A',
+                h.nit || 'N/A',
+                h.tipo_vehiculo || 'N/A',
+                parseFloat(h.peso) || 0
+            ]);
+        });
+        const wsProveedores = XLSX.utils.aoa_to_sheet(proveedoresData);
+        XLSX.utils.book_append_sheet(wb, wsProveedores, 'Listado Proveedores');
+
+        // Generar y descargar archivo
+        const fechaGen = new Date().toISOString().slice(0, 10);
+        const nombreArchivo = `Certificado_${nombreMesMayus.replace(/ /g, '_')}_${fechaGen}.xlsx`;
+        XLSX.writeFile(wb, nombreArchivo);
+
+        Utils.mostrarNotificacion('Excel exportado correctamente', 'success');
     }
+
 };
 
 window.GenerarCertificado = GenerarCertificado;
-
-                        

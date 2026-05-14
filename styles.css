@@ -1249,6 +1249,36 @@ input[type="datetime-local"]:focus {
     box-shadow: 0 0 0 3px var(--primary-100);
 }
 
+/* Inputs de fecha y hora separados */
+input[type="date"],
+input[type="time"] {
+    width: 100%;
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    font-family: inherit;
+    background: var(--bg-primary);
+}
+
+input[type="date"]:focus,
+input[type="time"]:focus {
+    outline: none;
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 3px var(--primary-100);
+}
+
+/* Contenedor para fecha y hora en línea */
+.datetime-separate {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+}
+
+.datetime-separate input {
+    width: 100%;
+}
+
 .turn-item-actions {
     display: flex;
     gap: var(--space-2);
