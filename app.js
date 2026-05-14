@@ -3348,316 +3348,246 @@ window.actualizarBotonAutorizar = actualizarBotonAutorizar;
 // ============================================
 
 const GenerarCertificado = {
-    async generar(mesString) {
-        console.log('=== Generando certificado para:', mesString);
-        
-        if (!window.supabaseClient) {
-            console.error('❌ No hay conexión a Supabase');
-            Utils.mostrarNotificacion('No hay conexión a la base de datos', 'error');
-            return;
-        }
+     _datosExportacion: null,
 
-        if (!mesString || typeof mesString !== 'string') {
-            console.error('❌ Mes inválido:', mesString);
-            Utils.mostrarNotificacion('Seleccione un mes válido', 'error');
-            return;
-        }
-        
-        const partes = mesString.split('-');
-        if (partes.length !== 2) {
-            console.error('❌ Formato de mes inválido:', mesString);
-            Utils.mostrarNotificacion('Formato de mes inválido', 'error');
-            return;
-        }
-        
-        const [anio, mes] = partes.map(Number);
-        
-        if (isNaN(anio) || isNaN(mes) || mes < 1 || mes > 12) {
-            console.error('❌ Año o mes inválido:', anio, mes);
-            Utils.mostrarNotificacion('Año o mes inválido', 'error');
-            return;
-        }
-        
-        console.log('Consultando para:', anio, 'mes:', mes);
-        
-        const inicioMes = `${anio}-${mes.toString().padStart(2, '0')}-01`;
-        const finMes = mes === 12 
-            ? `${anio + 1}-01-01` 
-            : `${anio}-${(mes + 1).toString().padStart(2, '0')}-01`;
+     async generar(mesString) {
+         console.log('=== Generando certificado para:', mesString);
 
-        try {
-            const { data: historial, error } = await window.supabaseClient
-                .from('historial_turnos')
-                .select('*')
-                .gte('fecha', inicioMes)
-                .lt('fecha', finMes)
-                .order('fecha', { ascending: true });
+         if (!window.supabaseClient) {
+             console.error('❌ No hay conexión a Supabase');
+             Utils.mostrarNotificacion('No hay conexión a la base de datos', 'error');
+             return;
+         }
 
-            if (error) throw error;
+         if (!mesString || typeof mesString !== 'string') {
+             console.error('❌ Mes inválido:', mesString);
+             Utils.mostrarNotificacion('Seleccione un mes válido', 'error');
+             return;
+         }
 
-            if (!historial || historial.length === 0) {
-                Utils.mostrarNotificacion('No hay datos para el mes seleccionado', 'error');
-                return;
-            }
+         const partes = mesString.split('-');
+         if (partes.length !== 2) {
+             console.error('❌ Formato de mes inválido:', mesString);
+             Utils.mostrarNotificacion('Formato de mes inválido', 'error');
+             return;
+         }
 
-            const nombreMes = new Date(anio, mes - 1).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
-            const nombreMesMayus = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
+         const [anio, mes] = partes.map(Number);
 
-            // Totales
-            const totalVehiculos = historial.length;
-            const totalPeso = historial.reduce((sum, h) => sum + (parseFloat(h.peso) || 0), 0);
-            const totalBultos = historial.reduce((sum, h) => sum + (parseInt(h.bultos) || 0), 0);
-            const vehiculosConFactura = historial.filter(h => h.num_factura).length;
-            const vehiculosConSalida = historial.filter(h => h.autorizado_salida).length;
-            
-            // Conteo por tipo de vehiculo
-            const tipoVehiculoCount = {};
-            // Conteo por destino
-            const destinoCount = {};
-            // Empresas unicas
-            const empresaSet = new Set();
-            // Servicios
-            const servicioCount = {};
-            // Dias operativos
-            const diasOperativos = new Set();
+         if (isNaN(anio) || isNaN(mes) || mes < 1 || mes > 12) {
+             console.error('❌ Año o mes inválido:', anio, mes);
+             Utils.mostrarNotificacion('Año o mes inválido', 'error');
+             return;
+         }
 
-            historial.forEach(h => {
-                if (h.tipo_vehiculo) {
-                    tipoVehiculoCount[h.tipo_vehiculo] = (tipoVehiculoCount[h.tipo_vehiculo] || 0) + 1;
-                }
-                if (h.destino) {
-                    destinoCount[h.destino] = (destinoCount[h.destino] || 0) + 1;
-                }
-                if (h.nombre_empresa) {
-                    empresaSet.add(h.nombre_empresa);
-                }
-                if (h.servicio) {
-                    servicioCount[h.servicio] = (servicioCount[h.servicio] || 0) + 1;
-                }
-                if (h.fecha) {
-                    diasOperativos.add(h.fecha.split('T')[0]);
-                }
-            });
+         console.log('Consultando para:', anio, 'mes:', mes);
 
-            // Agrupar por dia
-            const diasAgrupados = {};
-            historial.forEach(h => {
-                const fecha = new Date(h.fecha).toLocaleDateString('es-CO');
-                if (!diasAgrupados[fecha]) {
-                    diasAgrupados[fecha] = { turnos: 0, peso: 0, bultos: 0, facturas: 0, salidas: 0 };
-                }
-                diasAgrupados[fecha].turnos++;
-                diasAgrupados[fecha].peso += parseFloat(h.peso) || 0;
-                diasAgrupados[fecha].bultos += parseInt(h.bultos) || 0;
-                if (h.num_factura) diasAgrupados[fecha].facturas++;
-                if (h.autorizado_salida) diasAgrupados[fecha].salidas++;
-            });
+         const inicioMes = `${anio}-${mes.toString().padStart(2, '0')}-01`;
+         const finMes = mes === 12
+             ? `${anio + 1}-01-01`
+             : `${anio}-${(mes + 1).toString().padStart(2, '0')}-01`;
 
-            // Promedio diario
-            const numDias = Object.keys(diasAgrupados).length;
-            const promedioTurnosDia = numDias > 0 ? (totalVehiculos / numDias).toFixed(1) : 0;
-            const promedioPesoDia = numDias > 0 ? (totalPeso / numDias).toFixed(0) : 0;
-            const promedioBultosDia = numDias > 0 ? (totalBultos / numDias).toFixed(1) : 0;
+         try {
+             const { data: historial, error } = await window.supabaseClient
+                 .from('historial_turnos')
+                 .select('*')
+                 .gte('fecha', inicioMes)
+                 .lt('fecha', finMes)
+                 .order('fecha', { ascending: true });
 
-            // Primer y ultimo dia
-            const fechas = Object.keys(diasAgrupados).sort();
-            const primerDia = fechas[0] || 'N/A';
-            const ultimoDia = fechas[fechas.length - 1] || 'N/A';
+             if (error) throw error;
 
-            let contenidoHTML = `
-    <div class="certificado-container" style="font-family: Arial, sans-serif; padding: 20px; max-width: 100%;">
-        <h1 style="text-align: center; color: #1e3a8a; font-size: 22px; margin-bottom: 5px;">CERTIFICADO MENSUAL DE DESPACHOS</h1>
-        <p class="subtitle" style="text-align: center; color: #666; margin-bottom: 15px;">Periodo: ${nombreMesMayus.toUpperCase()}</p>
-        
-        <div class="empresa-info" style="text-align: center; margin-bottom: 15px; padding: 10px; background: #f8fafc; border-radius: 8px;">
-            <p><strong>SI ENSAMBLES Y PLASTICOS INDUSTRIALES S.A.S.</strong></p>
-            <p>NIT: 901.378.558-5</p>
-            <p>Dirección: Zona Franca Bodegas SIE 240, 251 y SIP 221</p>
-        </div>
-        
-        <div class="section" style="margin-bottom: 15px;">
-            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">RESUMEN EJECUTIVO</h2>
-            <div class="summary-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0;">
-                <div class="summary-item" style="background: #eff6ff; padding: 10px; text-align: center; border: 1px solid #bfdbfe; border-radius: 6px;">
-                    <div class="summary-number" style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${totalVehiculos}</div>
-                    <div class="summary-label" style="font-size: 10px; color: #64748b;">Vehiculos</div>
-                </div>
-                <div class="summary-item" style="background: #eff6ff; padding: 10px; text-align: center; border: 1px solid #bfdbfe; border-radius: 6px;">
-                    <div class="summary-number" style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${totalPeso.toLocaleString('es-CO')}</div>
-                    <div class="summary-label" style="font-size: 10px; color: #64748b;">Kg</div>
-                </div>
-                <div class="summary-item" style="background: #eff6ff; padding: 10px; text-align: center; border: 1px solid #bfdbfe; border-radius: 6px;">
-                    <div class="summary-number" style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${totalBultos.toLocaleString('es-CO')}</div>
-                    <div class="summary-label" style="font-size: 10px; color: #64748b;">Bultos</div>
-                </div>
-                <div class="summary-item" style="background: #eff6ff; padding: 10px; text-align: center; border: 1px solid #bfdbfe; border-radius: 6px;">
-                    <div class="summary-number" style="font-size: 18px; font-weight: bold; color: #1e3a8a;">${diasOperativos.size}</div>
-                    <div class="summary-label" style="font-size: 10px; color: #64748b;">Dias</div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="section" style="margin-bottom: 15px;">
-            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">INFORMACION ADICIONAL</h2>
-            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
-                <tr><td style="border: 1px solid #ccc; padding: 6px;"><strong>Proveedores:</strong></td><td style="border: 1px solid #ccc; padding: 6px;">${empresaSet.size}</td></tr>
-                <tr><td style="border: 1px solid #ccc; padding: 6px;"><strong>Con Factura:</strong></td><td style="border: 1px solid #ccc; padding: 6px;">${vehiculosConFactura}</td></tr>
-                <tr><td style="border: 1px solid #ccc; padding: 6px;"><strong>Salidas OK:</strong></td><td style="border: 1px solid #ccc; padding: 6px;">${vehiculosConSalida}</td></tr>
-            </table>
-        </div>
-        
-        <div class="section" style="margin-bottom: 15px;">
-            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">TIPO DE VEHICULOS</h2>
-            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
-                <tr style="background: #f1f5f9;"><th style="border: 1px solid #ccc; padding: 6px;">Tipo</th><th style="border: 1px solid #ccc; padding: 6px;">Cantidad</th><th style="border: 1px solid #ccc; padding: 6px;">%</th></tr>
-`;
+             if (!historial || historial.length === 0) {
+                 Utils.mostrarNotificacion('No hay datos para el mes seleccionado', 'error');
+                 return;
+             }
 
-            Object.entries(tipoVehiculoCount).forEach(([tipo, count]) => {
-                const porcentaje = ((count / totalVehiculos) * 100).toFixed(1);
-                contenidoHTML += `<tr><td style="border:1px solid #ccc;padding:6px;">${tipo}</td><td style="border:1px solid #ccc;padding:6px;">${count}</td><td style="border:1px solid #ccc;padding:6px;">${porcentaje}%</td></tr>`;
-            });
+             const nombreMes = new Date(anio, mes - 1).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+             const nombreMesMayus = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
 
-            contenidoHTML += `
-            </table>
-        </div>
-        
-        <div class="section" style="margin-bottom: 15px;">
-            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">DESTINOS</h2>
-            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
-                <tr style="background: #f1f5f9;"><th style="border:1px solid #ccc;padding:6px;">Destino</th><th style="border:1px solid #ccc;padding:6px;">Cantidad</th><th style="border:1px solid #ccc;padding:6px;">%</th></tr>
-`;
+             // Totales
+             const totalVehiculos = historial.length;
+             const totalPeso = historial.reduce((sum, h) => sum + (parseFloat(h.peso) || 0), 0);
+             const totalBultos = historial.reduce((sum, h) => sum + (parseInt(h.bultos) || 0), 0);
+             const vehiculosConFactura = historial.filter(h => h.num_factura).length;
+             const vehiculosConSalida = historial.filter(h => h.autorizado_salida).length;
 
-            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLASTICOS', 'ambos': 'AMBOS' };
-            Object.entries(destinoCount).forEach(([destino, count]) => {
-                const porcentaje = ((count / totalVehiculos) * 100).toFixed(1);
-                contenidoHTML += `<tr><td style="border:1px solid #ccc;padding:6px;">${destinoLabel[destino] || destino}</td><td style="border:1px solid #ccc;padding:6px;">${count}</td><td style="border:1px solid #ccc;padding:6px;">${porcentaje}%</td></tr>`;
-            });
+             // Conteo por tipo de vehiculo
+             const tipoVehiculoCount = {};
+             // Conteo por destino
+             const destinoCount = {};
+             // Empresas unicas
+             const empresaSet = new Set();
+             // Servicios
+             const servicioCount = {};
+             // Dias operativos
+             const diasOperativos = new Set();
 
-            contenidoHTML += `
-            </table>
-        </div>
-        
-        <div class="section" style="margin-bottom: 15px;">
-            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">SERVICIOS</h2>
-            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
-                <tr style="background: #f1f5f9;"><th style="border:1px solid #ccc;padding:6px;">Tipo de Servicio</th><th style="border:1px solid #ccc;padding:6px;">Cantidad</th></tr>
-`;
+             historial.forEach(h => {
+                 if (h.tipo_vehiculo) {
+                     tipoVehiculoCount[h.tipo_vehiculo] = (tipoVehiculoCount[h.tipo_vehiculo] || 0) + 1;
+                 }
+                 if (h.destino) {
+                     destinoCount[h.destino] = (destinoCount[h.destino] || 0) + 1;
+                 }
+                 if (h.nombre_empresa) {
+                     empresaSet.add(h.nombre_empresa);
+                 }
+                 if (h.servicio) {
+                     servicioCount[h.servicio] = (servicioCount[h.servicio] || 0) + 1;
+                 }
+                 if (h.fecha) {
+                     diasOperativos.add(h.fecha.split('T')[0]);
+                 }
+             });
 
-            const servicioLabel = { 'entrega': 'Entrega de Mercancia', 'servicio': 'Servicio Tecnico', 'reunion': 'Reunion', 'otro': 'Otro' };
-            Object.entries(servicioCount).forEach(([servicio, count]) => {
-                contenidoHTML += `<tr><td style="border:1px solid #ccc;padding:6px;">${servicioLabel[servicio] || servicio}</td><td style="border:1px solid #ccc;padding:6px;">${count}</td></tr>`;
-            });
+             // Agrupar por dia
+             const diasAgrupados = {};
+             historial.forEach(h => {
+                 const fecha = new Date(h.fecha).toLocaleDateString('es-CO');
+                 if (!diasAgrupados[fecha]) {
+                     diasAgrupados[fecha] = { turnos: 0, peso: 0, bultos: 0, facturas: 0, salidas: 0 };
+                 }
+                 diasAgrupados[fecha].turnos++;
+                 diasAgrupados[fecha].peso += parseFloat(h.peso) || 0;
+                 diasAgrupados[fecha].bultos += parseInt(h.bultos) || 0;
+                 if (h.num_factura) diasAgrupados[fecha].facturas++;
+                 if (h.autorizado_salida) diasAgrupados[fecha].salidas++;
+             });
 
-            contenidoHTML += `
-            </table>
-        </div>
-        
-        <div class="section" style="margin-bottom: 15px;">
-            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">DETALLE DIARIO</h2>
-            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
-                <tr style="background: #f1f5f9;"><th style="border:1px solid #ccc;padding:6px;">Fecha</th><th style="border:1px solid #ccc;padding:6px;">Turnos</th><th style="border:1px solid #ccc;padding:6px;">Peso</th><th style="border:1px solid #ccc;padding:6px;">Bultos</th><th style="border:1px solid #ccc;padding:6px;">Facturas</th><th style="border:1px solid #ccc;padding:6px;">Salidas</th></tr>
-`;
+             // Promedio diario
+             const numDias = Object.keys(diasAgrupados).length;
+             const promedioTurnosDia = numDias > 0 ? (totalVehiculos / numDias).toFixed(1) : 0;
+             const promedioPesoDia = numDias > 0 ? (totalPeso / numDias).toFixed(0) : 0;
+             const promedioBultosDia = numDias > 0 ? (totalBultos / numDias).toFixed(1) : 0;
 
-            Object.entries(diasAgrupados).forEach(([fecha, datos]) => {
-                contenidoHTML += `<tr><td style="border:1px solid #ccc;padding:6px;">${fecha}</td><td style="border:1px solid #ccc;padding:6px;">${datos.turnos}</td><td style="border:1px solid #ccc;padding:6px;">${datos.peso.toLocaleString('es-CO')}</td><td style="border:1px solid #ccc;padding:6px;">${datos.bultos}</td><td style="border:1px solid #ccc;padding:6px;">${datos.facturas}</td><td style="border:1px solid #ccc;padding:6px;">${datos.salidas}</td></tr>`;
-            });
+             // Primer y ultimo dia
+             const fechas = Object.keys(diasAgrupados).sort();
+             const primerDia = fechas[0] || 'N/A';
+             const ultimoDia = fechas[fechas.length - 1] || 'N/A';
 
-            const fechaActual = new Date().toLocaleDateString('es-CO', { 
-                year: 'numeric', month: 'long', day: 'numeric' 
-            });
+             console.log('Generando certificado y exportando a Excel...');
 
-            contenidoHTML += `
-            </table>
-        </div>
-        
-        <div class="section" style="margin-bottom: 15px;">
-            <h2 style="color: #1e3a8a; border-bottom: 2px solid #1e3a8a; font-size: 14px; margin: 10px 0;">LISTADO DE PROVEEDORES</h2>
-            <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
-                <tr style="background: #f1f5f9;"><th style="border:1px solid #ccc;padding:4px;">#</th><th style="border:1px solid #ccc;padding:4px;">Fecha</th><th style="border:1px solid #ccc;padding:4px;">Turno</th><th style="border:1px solid #ccc;padding:4px;">Empresa</th><th style="border:1px solid #ccc;padding:4px;">Placa</th><th style="border:1px solid #ccc;padding:4px;">Tipo</th><th style="border:1px solid #ccc;padding:4px;">Peso</th></tr>
-`;
+             // Guardar datos para exportación posterior
+             this._datosExportacion = {
+                 historial,
+                 diasAgrupados,
+                 totalVehiculos,
+                 totalPeso,
+                 totalBultos,
+                 vehiculosConFactura,
+                 vehiculosConSalida,
+                 tipoVehiculoCount,
+                 destinoCount,
+                 servicioCount,
+                 totalEmpresas: empresaSet.size,
+                 numDias,
+                 primerDia,
+                 ultimoDia,
+                 promedioTurnosDia,
+                 promedioPesoDia,
+                 promedioBultosDia,
+                 nombreMesMayus
+             };
 
-            historial.forEach((h, index) => {
-                contenidoHTML += `<tr>
-                    <td style="border:1px solid #ccc;padding:4px;">${index + 1}</td>
-                    <td style="border:1px solid #ccc;padding:4px;">${new Date(h.fecha).toLocaleDateString('es-CO')}</td>
-                    <td style="border:1px solid #ccc;padding:4px;">${h.numero}</td>
-                    <td style="border:1px solid #ccc;padding:4px;">${h.nombre_empresa || 'N/A'}</td>
-                    <td style="border:1px solid #ccc;padding:4px;">${h.nit || 'N/A'}</td>
-                    <td style="border:1px solid #ccc;padding:4px;">${h.tipo_vehiculo || 'N/A'}</td>
-                    <td style="border:1px solid #ccc;padding:4px;">${h.peso || '0'}</td>
-                </tr>`;
-            });
+             // Mostrar vista previa en el modal
+             this._mostrarVistaPrevia();
 
-            const fechaHora = new Date().toLocaleString('es-CO');
+         } catch (error) {
+             console.error('Error al generar certificado:', error);
+             Utils.mostrarNotificacion('Error al generar certificado: ' + error.message, 'error');
+         }
+     },
 
-            contenidoHTML += `
-            </table>
-        </div>
+     _mostrarVistaPrevia() {
+         const contenido = document.getElementById('contenidoCertificado');
+         const modal = document.getElementById('modalCertificado');
+         if (!contenido || !modal) return;
 
-        <div style="text-align: center; margin-top: 20px; font-size: 10px; color: #666;">
-            <p>Certificado generado el ${fechaHora}</p>
-            <p>Sistema de Turnos SI-3</p>
-        </div>
-    </div>`;
+         const d = this._datosExportacion;
+         if (!d) return;
 
-            console.log('Generando certificado...');
-            
-            const modalCertificado = document.getElementById('modalCertificado');
-            const contenidoCertificado = document.getElementById('contenidoCertificado');
-            
-            if (!modalCertificado || !contenidoCertificado) {
-                console.error('❌ No se encontró el modal del certificado');
-                Utils.mostrarNotificacion('Error: Modal de certificado no encontrado', 'error');
-                return;
-            }
-            
-            contenidoCertificado.innerHTML = contenidoHTML;
-            modalCertificado.style.display = 'flex';
-            
-            const btnCerrarCertificado = document.getElementById('btnCerrarCertificado');
-            if (btnCerrarCertificado) {
-                btnCerrarCertificado.onclick = () => {
-                    modalCertificado.style.display = 'none';
-                };
-            }
-            
-            const btnExportarExcel = document.getElementById('btnExportarExcel');
-            if (btnExportarExcel) {
-                btnExportarExcel.onclick = () => {
-                    try {
-                        GenerarCertificado.exportarExcel(
-                            historial,
-                            diasAgrupados,
-                            totalVehiculos,
-                            totalPeso,
-                            totalBultos,
-                            vehiculosConFactura,
-                            vehiculosConSalida,
-                            tipoVehiculoCount,
-                            destinoCount,
-                            servicioCount,
-                            empresaSet.size,
-                            numDias,
-                            primerDia,
-                            ultimoDia,
-                            promedioTurnosDia,
-                            promedioPesoDia,
-                            promedioBultosDia,
-                            nombreMesMayus
-                        );
-                    } catch (e) {
-                        console.error('Error al exportar:', e);
-                        Utils.mostrarNotificacion('Error al exportar: ' + e.message, 'error');
-                    }
-                };
-            }
-            
-        } catch (error) {
-            console.error('Error al generar certificado:', error);
-            Utils.mostrarNotificacion('Error al generar certificado: ' + error.message, 'error');
-        }
-    },
-    exportarExcel(
+         contenido.innerHTML = `
+             <div style="text-align: center; margin-bottom: 20px;">
+                 <h3 style="color: #1E3A8A; margin-bottom: 8px;">CERTIFICADO MENSUAL DE DESPACHOS</h3>
+                 <p style="font-size: 18px; font-weight: 600; color: #334155;">${d.nombreMesMayus.toUpperCase()}</p>
+                 <p style="color: #64748b; font-size: 13px;">Zona Franca Bodegas SIE 240, 239 y SIP 221</p>
+             </div>
+             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
+                 <div style="background: #eff6ff; padding: 12px; border-radius: 8px; text-align: center;">
+                     <div style="font-size: 24px; font-weight: 700; color: #2563eb;">${d.totalVehiculos}</div>
+                     <div style="font-size: 11px; color: #64748b;">Vehículos</div>
+                 </div>
+                 <div style="background: #f0fdf4; padding: 12px; border-radius: 8px; text-align: center;">
+                     <div style="font-size: 24px; font-weight: 700; color: #16a34a;">${d.promedioTurnosDia}</div>
+                     <div style="font-size: 11px; color: #64748b;">Prom. Turnos/Día</div>
+                 </div>
+                 <div style="background: #fefce8; padding: 12px; border-radius: 8px; text-align: center;">
+                     <div style="font-size: 24px; font-weight: 700; color: #ca8a04;">${d.numDias}</div>
+                     <div style="font-size: 11px; color: #64748b;">Días Operativos</div>
+                 </div>
+             </div>
+             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
+                 <div style="background: #fafafa; padding: 12px; border-radius: 8px; text-align: center;">
+                     <div style="font-size: 18px; font-weight: 600; color: #334155;">${d.totalPeso.toLocaleString('es-CO')} kg</div>
+                     <div style="font-size: 11px; color: #64748b;">Peso Total</div>
+                 </div>
+                 <div style="background: #fafafa; padding: 12px; border-radius: 8px; text-align: center;">
+                     <div style="font-size: 18px; font-weight: 600; color: #334155;">${d.totalBultos}</div>
+                     <div style="font-size: 11px; color: #64748b;">Bultos Totales</div>
+                 </div>
+                 <div style="background: #fafafa; padding: 12px; border-radius: 8px; text-align: center;">
+                     <div style="font-size: 18px; font-weight: 600; color: #334155;">${d.totalEmpresas}</div>
+                     <div style="font-size: 11px; color: #64748b;">Proveedores Únicos</div>
+                 </div>
+             </div>
+             <div style="background: #f0fdf4; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+                 <strong style="color: #16a34a;">✓ ${d.vehiculosConSalida}</strong> salidas autorizadas / <strong>${d.vehiculosConFactura}</strong> con factura
+             </div>
+             <p style="text-align: center; color: #64748b; font-size: 12px; margin-bottom: 16px;">
+                 ${d.primerDia} — ${d.ultimoDia}
+             </p>
+             <button id="btnExportarExcel" class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 16px;">
+                 📊 Exportar a Excel
+             </button>
+         `;
+
+         modal.style.display = 'flex';
+
+         // Adjuntar handler al botón de exportar
+         const btnExportar = document.getElementById('btnExportarExcel');
+         if (btnExportar) {
+             btnExportar.addEventListener('click', () => {
+                 try {
+                     this.exportarExcel(
+                         d.historial,
+                         d.diasAgrupados,
+                         d.totalVehiculos,
+                         d.totalPeso,
+                         d.totalBultos,
+                         d.vehiculosConFactura,
+                         d.vehiculosConSalida,
+                         d.tipoVehiculoCount,
+                         d.destinoCount,
+                         d.servicioCount,
+                         d.totalEmpresas,
+                         d.numDias,
+                         d.primerDia,
+                         d.ultimoDia,
+                         d.promedioTurnosDia,
+                         d.promedioPesoDia,
+                         d.promedioBultosDia,
+                         d.nombreMesMayus
+                     );
+                 } catch (e) {
+                     console.error('Error al exportar:', e);
+                     Utils.mostrarNotificacion('Error al exportar: ' + e.message, 'error');
+                 }
+             });
+         }
+},
+
+     exportarExcel(
         historial,
         diasAgrupados,
         totalVehiculos,
@@ -3686,101 +3616,369 @@ const GenerarCertificado = {
 
         const wb = XLSX.utils.book_new();
 
-        // Hoja 1: Resumen Ejecutivo
+        // ── Paleta de colores corporativos ──────────────────────────────────
+        const C_AZUL_OSCURO  = "1E3A8A";  // Azul corporativo principal
+        const C_AZUL_MEDIO   = "2563EB";  // Azul botones / encabezados
+        const C_AZUL_CLARO   = "DBEAFE";  // Fondo celdas par (azul suave)
+        const C_VERDE        = "059669";  // Ensambles
+        const C_VERDE_CLARO  = "D1FAE5";  // Fondo zebra verde
+        const C_AMARILLO     = "D97706";  // Advertencias / totales
+        const C_AMARILLO_CL  = "FEF3C7";  // Fondo fila totales
+        const C_GRIS_OSCURO  = "334155";  // Texto general
+        const C_GRIS_MEDIO   = "64748B";  // Texto secundario
+        const C_GRIS_CLARO   = "F1F5F9";  // Fondo filas impares (zebra)
+        const C_BLANCO       = "FFFFFF";
+        const C_BORDE        = "CBD5E1";  // Color de bordes
+
+        // Estilos de borde fino estándar
+        const bordeDelgado = {
+            top:    { style: "thin", color: { rgb: C_BORDE } },
+            bottom: { style: "thin", color: { rgb: C_BORDE } },
+            left:   { style: "thin", color: { rgb: C_BORDE } },
+            right:  { style: "thin", color: { rgb: C_BORDE } }
+        };
+        const bordeMedio = {
+            top:    { style: "medium", color: { rgb: C_AZUL_OSCURO } },
+            bottom: { style: "medium", color: { rgb: C_AZUL_OSCURO } },
+            left:   { style: "medium", color: { rgb: C_AZUL_OSCURO } },
+            right:  { style: "medium", color: { rgb: C_AZUL_OSCURO } }
+        };
+
+        // Helper: aplicar estilos de cabecera a una fila de una hoja
+        const estiloEncabezado = (color = C_AZUL_MEDIO) => ({
+            font: { bold: true, sz: 11, color: { rgb: C_BLANCO }, name: "Calibri" },
+            fill: { patternType: "solid", fgColor: { rgb: color } },
+            alignment: { horizontal: "center", vertical: "center", wrapText: true },
+            border: {
+                top:    { style: "medium", color: { rgb: color } },
+                bottom: { style: "medium", color: { rgb: color } },
+                left:   { style: "thin",   color: { rgb: C_BLANCO } },
+                right:  { style: "thin",   color: { rgb: C_BLANCO } }
+            }
+        });
+
+// Helper: estilo fila de datos (zebra)
+         const estiloFila = (par, alineacion = "left", numFmt) => {
+             const s = {
+                 font: { sz: 10, color: { rgb: C_GRIS_OSCURO }, name: "Calibri" },
+                 fill: { patternType: "solid", fgColor: { rgb: par ? C_GRIS_CLARO : C_BLANCO } },
+                 alignment: { horizontal: alineacion, vertical: "center" },
+                 border: bordeDelgado
+             };
+             if (numFmt) s.numFmt = numFmt;
+             return s;
+         };
+
+        // Helper: estilo fila total
+        const estiloTotal = () => ({
+            font: { bold: true, sz: 10, color: { rgb: C_AMARILLO }, name: "Calibri" },
+            fill: { patternType: "solid", fgColor: { rgb: C_AMARILLO_CL } },
+            alignment: { horizontal: "center", vertical: "center" },
+            border: { top: { style: "medium", color: { rgb: C_AMARILLO } }, bottom: { style: "medium", color: { rgb: C_AMARILLO } }, left: bordeDelgado.left, right: bordeDelgado.right }
+        });
+
+        // Helper: aplicar estilo a rango completo
+        const aplicarEstilos = (ws, range, styleFn) => {
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const ref = XLSX.utils.encode_cell({ r: R, c: C });
+                    if (!ws[ref]) { ws[ref] = { v: "", t: "s" }; }
+                    ws[ref].s = styleFn(R, C);
+                }
+            }
+        };
+
+        // ══════════════════════════════════════════════════════════════════════
+        // HOJA 1 — PORTADA
+        // ══════════════════════════════════════════════════════════════════════
+        const portadaData = [
+            [''],
+            ['SI3'],
+            [''],
+            ['CERTIFICADO MENSUAL DE DESPACHOS'],
+            [nombreMesMayus.toUpperCase()],
+            [''],
+            ['Zona Franca Bodegas SIE 240, 239 y SIP 221'],
+            [''],
+            ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'],
+            [''],
+            ['Total Vehículos', totalVehiculos],
+            ['Días Operativos', numDias],
+            ['Período', primerDia + ' — ' + ultimoDia],
+            [''],
+            ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'],
+            [''],
+            ['Generado:', new Date().toLocaleDateString('es-CO', { weekday:'long', year:'numeric', month:'long', day:'numeric' })]
+        ];
+        const wsPortada = XLSX.utils.aoa_to_sheet(portadaData);
+
+        // Estilos portada
+        const portadaEstilos = {
+            1:  { font: { bold: true, sz: 36, color: { rgb: C_AZUL_OSCURO }, name: "Calibri" }, alignment: { horizontal: "center", vertical: "center" } },
+            3:  { font: { bold: true, sz: 18, color: { rgb: C_AZUL_MEDIO },  name: "Calibri" }, alignment: { horizontal: "center", vertical: "center" } },
+            4:  { font: { bold: false, sz: 14, italic: true, color: { rgb: C_GRIS_MEDIO }, name: "Calibri" }, alignment: { horizontal: "center", vertical: "center" } },
+            6:  { font: { sz: 11, color: { rgb: C_GRIS_MEDIO }, name: "Calibri" }, alignment: { horizontal: "center" } },
+            8:  { font: { sz: 10, color: { rgb: C_BORDE }, name: "Calibri" }, alignment: { horizontal: "center" } },
+            14: { font: { sz: 10, color: { rgb: C_BORDE }, name: "Calibri" }, alignment: { horizontal: "center" } },
+            16: { font: { sz: 10, italic: true, color: { rgb: C_GRIS_MEDIO }, name: "Calibri" }, alignment: { horizontal: "center" } }
+        };
+        const portadaKPI = {
+            etiqueta: { font: { bold: true, sz: 12, color: { rgb: C_AZUL_OSCURO }, name: "Calibri" }, fill: { patternType: "solid", fgColor: { rgb: C_AZUL_CLARO } }, alignment: { horizontal: "right", vertical: "center" }, border: { bottom: bordeDelgado.bottom, top: bordeDelgado.top, left: { style: "medium", color: { rgb: C_AZUL_MEDIO } }, right: bordeDelgado.right } },
+            valor:    { font: { bold: true, sz: 14, color: { rgb: C_AZUL_MEDIO }, name: "Calibri" }, fill: { patternType: "solid", fgColor: { rgb: C_AZUL_CLARO } }, alignment: { horizontal: "left",  vertical: "center" }, border: { bottom: bordeDelgado.bottom, top: bordeDelgado.top, left: bordeDelgado.left, right: { style: "medium", color: { rgb: C_AZUL_MEDIO } } } }
+        };
+
+        const portadaRange = XLSX.utils.decode_range(wsPortada['!ref']);
+        for (let R = portadaRange.s.r; R <= portadaRange.e.r; ++R) {
+            for (let C = 0; C <= 1; ++C) {
+                const ref = XLSX.utils.encode_cell({ r: R, c: C });
+                if (!wsPortada[ref]) continue;
+                if (portadaEstilos[R]) { wsPortada[ref].s = portadaEstilos[R]; }
+                if (R === 10 || R === 11 || R === 12) {
+                    wsPortada[ref].s = C === 0 ? portadaKPI.etiqueta : portadaKPI.valor;
+                }
+            }
+        }
+        wsPortada['!cols']  = [{ wch: 28 }, { wch: 40 }];
+        wsPortada['!rows']  = [{ hpt: 20 }, { hpt: 55 }, { hpt: 10 }, { hpt: 40 }, { hpt: 28 }, { hpt: 10 }, { hpt: 22 }, { hpt: 10 }, { hpt: 14 }, { hpt: 10 }, { hpt: 28 }, { hpt: 28 }, { hpt: 28 }, { hpt: 10 }, { hpt: 14 }, { hpt: 10 }, { hpt: 22 }];
+        XLSX.utils.book_append_sheet(wb, wsPortada, 'Portada');
+
+        // ══════════════════════════════════════════════════════════════════════
+        // HOJA 2 — RESUMEN EJECUTIVO
+        // ══════════════════════════════════════════════════════════════════════
         const resumenData = [
             ['CERTIFICADO MENSUAL DE DESPACHOS', nombreMesMayus.toUpperCase()],
             [],
-            ['RESUMEN EJECUTIVO'],
-            ['Vehículos', totalVehiculos],
+            ['RESUMEN EJECUTIVO', ''],
+            ['Indicador', 'Valor'],
+            ['Vehículos Total', totalVehiculos],
             ['Peso Total (kg)', totalPeso],
             ['Bultos Totales', totalBultos],
             ['Días Operativos', numDias],
             [],
-            ['Promedios Diarios'],
+            ['PROMEDIOS DIARIOS', ''],
+            ['Indicador', 'Valor'],
             ['Turnos por día', parseFloat(promedioTurnosDia)],
-            ['Peso por día', Math.round(promedioPesoDia)],
+            ['Peso por día (kg)', Math.round(promedioPesoDia)],
             ['Bultos por día', parseFloat(promedioBultosDia)],
             [],
-            ['INFORMACIÓN ADICIONAL'],
+            ['INFORMACIÓN ADICIONAL', ''],
+            ['Indicador', 'Valor'],
             ['Proveedores Únicos', totalEmpresas],
             ['Con Factura', vehiculosConFactura],
             ['Salidas Autorizadas', vehiculosConSalida],
-            ['Primer Día', primerDia],
-            ['Último Día', ultimoDia],
+            ['Primer Día del Mes', primerDia],
+            ['Último Día del Mes', ultimoDia],
         ];
         const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+
+        // Filas de título de sección: 0, 2, 9, 15
+        // Filas de sub-encabezado: 3, 10, 16
+        // Filas de datos: resto
+        const resumenRange2 = XLSX.utils.decode_range(wsResumen['!ref']);
+        const filasTituloResumen   = new Set([2, 9, 15]);
+        const filasSubHeaderResumen= new Set([3, 10, 16]);
+        const filasTitleMain       = new Set([0]);
+        let dataRowIndex = 0;
+        for (let R = resumenRange2.s.r; R <= resumenRange2.e.r; ++R) {
+            for (let C = resumenRange2.s.c; C <= resumenRange2.e.c; ++C) {
+                const ref = XLSX.utils.encode_cell({ r: R, c: C });
+                if (!wsResumen[ref]) { wsResumen[ref] = { v: "", t: "s" }; }
+                if (filasTitleMain.has(R)) {
+                    wsResumen[ref].s = C === 0
+                        ? { font: { bold: true, sz: 13, color: { rgb: C_AZUL_OSCURO }, name: "Calibri" }, alignment: { horizontal: "left", vertical: "center" } }
+                        : { font: { sz: 11, italic: true, color: { rgb: C_GRIS_MEDIO }, name: "Calibri" }, alignment: { horizontal: "right", vertical: "center" } };
+                } else if (filasTituloResumen.has(R)) {
+                    wsResumen[ref].s = {
+                        font: { bold: true, sz: 11, color: { rgb: C_BLANCO }, name: "Calibri" },
+                        fill: { patternType: "solid", fgColor: { rgb: C_AZUL_OSCURO } },
+                        alignment: { horizontal: "left", vertical: "center" },
+                        border: { top: { style: "medium", color: { rgb: C_AZUL_OSCURO } }, bottom: { style: "medium", color: { rgb: C_AZUL_OSCURO } }, left: { style: "medium", color: { rgb: C_AZUL_OSCURO } }, right: { style: "medium", color: { rgb: C_AZUL_OSCURO } } }
+                    };
+                } else if (filasSubHeaderResumen.has(R)) {
+                    wsResumen[ref].s = estiloEncabezado(C_AZUL_MEDIO);
+                } else {
+                    // filas de datos — zebra
+                    const esData = ![1, 8, 14].includes(R);
+                    if (esData) {
+                        const par = (dataRowIndex % 2 === 0);
+wsResumen[ref].s = C === 0
+                             ? { ...estiloFila(par, "left"),  font: { sz: 10, color: { rgb: C_GRIS_OSCURO }, name: "Calibri" } }
+                             : { ...estiloFila(par, "right"), font: { bold: true, sz: 10, color: { rgb: C_AZUL_MEDIO }, name: "Calibri" }, numFmt: '#,##0' };
+                    }
+                }
+            }
+            if (![1, 8, 14, 0, 2, 9, 15, 3, 10, 16].includes(R)) dataRowIndex++;
+        }
+        wsResumen['!cols'] = [{ wch: 26 }, { wch: 22 }];
+        wsResumen['!rows'] = Array.from({ length: resumenData.length }, (_, i) =>
+            filasTituloResumen.has(i) || filasSubHeaderResumen.has(i) ? { hpt: 22 } : { hpt: 18 }
+        );
         XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
 
-        // Hoja 2: Detalle Diario
+        // ══════════════════════════════════════════════════════════════════════
+        // HOJA 3 — DETALLE DIARIO
+        // ══════════════════════════════════════════════════════════════════════
         const detalleDiarioData = [
-            ['Fecha', 'Turnos', 'Peso (kg)', 'Bultos', 'Facturas', 'Salidas']
+            ['Fecha', 'Turnos', 'Peso (kg)', 'Bultos', 'Facturas', 'Salidas OK']
         ];
         Object.entries(diasAgrupados).forEach(([fecha, datos]) => {
-            detalleDiarioData.push([
-                fecha,
-                datos.turnos,
-                datos.peso,
-                datos.bultos,
-                datos.facturas,
-                datos.salidas
-            ]);
+            detalleDiarioData.push([fecha, datos.turnos, datos.peso, datos.bultos, datos.facturas, datos.salidas]);
         });
+        // Fila de totales
+        const totalDiario = detalleDiarioData.slice(1).reduce((acc, r) => {
+            acc[1] += r[1]; acc[2] += r[2]; acc[3] += r[3]; acc[4] += r[4]; acc[5] += r[5]; return acc;
+        }, ['TOTAL', 0, 0, 0, 0, 0]);
+        detalleDiarioData.push(totalDiario);
+
         const wsDiario = XLSX.utils.aoa_to_sheet(detalleDiarioData);
+        const diarioRange2 = XLSX.utils.decode_range(wsDiario['!ref']);
+        const totalRowDiario = diarioRange2.e.r;
+for (let R = 0; R <= diarioRange2.e.r; ++R) {
+             for (let C = 0; C <= 5; ++C) {
+                 const ref = XLSX.utils.encode_cell({ r: R, c: C });
+                 if (!wsDiario[ref]) { wsDiario[ref] = { v: "", t: "s" }; }
+                 if (R === 0) {
+                     wsDiario[ref].s = estiloEncabezado(C_AZUL_OSCURO);
+                 } else if (R === totalRowDiario) {
+                     wsDiario[ref].s = estiloTotal();
+                 } else {
+                     const alin = C === 0 ? "center" : "right";
+                     const numFmt = C >= 1 && C <= 5 ? '#,##0' : undefined;
+                     wsDiario[ref].s = estiloFila(R % 2 === 1, alin, numFmt);
+                 }
+             }
+         }
+        wsDiario['!cols'] = [{ wch: 16 }, { wch: 11 }, { wch: 16 }, { wch: 13 }, { wch: 13 }, { wch: 14 }];
+        wsDiario['!rows']  = Array.from({ length: detalleDiarioData.length }, () => ({ hpt: 20 }));
         XLSX.utils.book_append_sheet(wb, wsDiario, 'Detalle Diario');
 
-        // Hoja 3: Tipos de Vehículo
-        const tiposData = [
-            ['Tipo de Vehículo', 'Cantidad', '%']
-        ];
+        // ══════════════════════════════════════════════════════════════════════
+        // HELPER: crear hoja de tabla simple (encabezado + filas + total)
+        // ══════════════════════════════════════════════════════════════════════
+const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => {
+             const ws  = XLSX.utils.aoa_to_sheet(datos);
+             const rng = XLSX.utils.decode_range(ws['!ref']);
+             const totalR = rng.e.r;
+             for (let R = 0; R <= totalR; ++R) {
+                 for (let C = 0; C <= rng.e.c; ++C) {
+                     const ref = XLSX.utils.encode_cell({ r: R, c: C });
+                     if (!ws[ref]) { ws[ref] = { v: "", t: "s" }; }
+                     if (R === 0) {
+                         ws[ref].s = estiloEncabezado(colorHeader);
+                     } else {
+                         const alin = C === 0 ? "left" : "right";
+                         const numFmt = C >= 1 ? '#,##0' : undefined;
+                         ws[ref].s = estiloFila(R % 2 === 0, alin, numFmt);
+                     }
+                 }
+             }
+             ws['!cols'] = cols;
+             ws['!rows'] = Array.from({ length: datos.length }, () => ({ hpt: 20 }));
+             XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
+         };
+
+        // ══════════════════════════════════════════════════════════════════════
+        // HOJA 4 — TIPOS DE VEHÍCULO
+        // ══════════════════════════════════════════════════════════════════════
+        const tiposData = [['Tipo de Vehículo', 'Cantidad', '% del Total']];
         Object.entries(tipoVehiculoCount).forEach(([tipo, count]) => {
-            const porcentaje = ((count / totalVehiculos) * 100).toFixed(1) + '%';
-            tiposData.push([tipo, count, porcentaje]);
+            tiposData.push([tipo, count, ((count / totalVehiculos) * 100).toFixed(1) + '%']);
         });
-        const wsTipos = XLSX.utils.aoa_to_sheet(tiposData);
-        XLSX.utils.book_append_sheet(wb, wsTipos, 'Tipos Vehículo');
+        crearHojaTabla(tiposData, [{ wch: 28 }, { wch: 14 }, { wch: 14 }], C_AZUL_MEDIO, 'Tipos Vehículo');
 
-        // Hoja 4: Destinos
-        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLASTICOS', 'ambos': 'AMBOS' };
-        const destinosData = [
-            ['Destino', 'Cantidad', '%']
-        ];
+        // ══════════════════════════════════════════════════════════════════════
+        // HOJA 5 — DESTINOS
+        // ══════════════════════════════════════════════════════════════════════
+        const destinosData = [['Destino', 'Cantidad', '% del Total']];
         Object.entries(destinoCount).forEach(([destino, count]) => {
-            const porcentaje = ((count / totalVehiculos) * 100).toFixed(1) + '%';
-            destinosData.push([destinoLabel[destino] || destino, count, porcentaje]);
+            const nombre = destino === 'ensambles' ? 'SI ENSAMBLES' : destino === 'plasticos' ? 'SI PLASTICOS' : 'AMBOS';
+            destinosData.push([nombre, count, ((count / totalVehiculos) * 100).toFixed(1) + '%']);
         });
-        const wsDestinos = XLSX.utils.aoa_to_sheet(destinosData);
-        XLSX.utils.book_append_sheet(wb, wsDestinos, 'Destinos');
+        crearHojaTabla(destinosData, [{ wch: 22 }, { wch: 14 }, { wch: 14 }], C_AZUL_MEDIO, 'Destinos');
 
-        // Hoja 5: Servicios
-        const servicioLabel = { 'entrega': 'Entrega de Mercancia', 'servicio': 'Servicio Tecnico', 'reunion': 'Reunion', 'otro': 'Otro' };
-        const serviciosData = [
-            ['Tipo de Servicio', 'Cantidad']
-        ];
-        Object.entries(servicioCount).forEach(([servicio, count]) => {
-            serviciosData.push([servicioLabel[servicio] || servicio, count]);
+        // ══════════════════════════════════════════════════════════════════════
+        // HOJA 6 — SERVICIOS
+        // ══════════════════════════════════════════════════════════════════════
+        const servicioLabel = { 'entrega': 'Entrega de Mercancía', 'servicio': 'Servicio Técnico', 'reunion': 'Reunión', 'otro': 'Otro' };
+        const serviciosData = [['Tipo de Servicio', 'Cantidad', '% del Total']];
+        Object.entries(servicioCount).forEach(([srv, count]) => {
+            serviciosData.push([servicioLabel[srv] || srv, count, ((count / totalVehiculos) * 100).toFixed(1) + '%']);
         });
-        const wsServicios = XLSX.utils.aoa_to_sheet(serviciosData);
-        XLSX.utils.book_append_sheet(wb, wsServicios, 'Servicios');
+        crearHojaTabla(serviciosData, [{ wch: 26 }, { wch: 14 }, { wch: 14 }], C_AZUL_MEDIO, 'Servicios');
 
-        // Hoja 6: Listado Completo de Proveedores
-        const proveedoresData = [
-            ['#', 'Fecha', 'Turno', 'Empresa', 'Placa', 'Tipo Vehículo', 'Peso (kg)']
-        ];
-        historial.forEach((h, index) => {
-            proveedoresData.push([
-                index + 1,
-                new Date(h.fecha).toLocaleDateString('es-CO'),
-                h.numero,
-                h.nombre_empresa || 'N/A',
-                h.nit || 'N/A',
-                h.tipo_vehiculo || 'N/A',
-                parseFloat(h.peso) || 0
-            ]);
-        });
-        const wsProveedores = XLSX.utils.aoa_to_sheet(proveedoresData);
-        XLSX.utils.book_append_sheet(wb, wsProveedores, 'Listado Proveedores');
+        // ══════════════════════════════════════════════════════════════════════
+        // HELPER: crear hoja de detalle (historial filtrado)
+        // ══════════════════════════════════════════════════════════════════════
+        const crearHojaDetalle = (filtroFn, colorHeader, nombreHoja) => {
+            const data = [['#', 'Fecha', 'Turno', 'Empresa', 'Tipo Vehículo', 'Peso (kg)', 'Bultos', 'Factura', 'Salida OK']];
+            let idx = 0;
+            historial.forEach((h) => {
+                if (filtroFn(h)) {
+                    idx++;
+                    data.push([
+                        idx,
+                        new Date(h.fecha).toLocaleDateString('es-CO'),
+                        h.numero,
+                        h.nombre_empresa || 'N/A',
+                        h.tipo_vehiculo  || 'N/A',
+                        parseFloat(h.peso)  || 0,
+                        parseInt(h.bultos)  || 0,
+                        h.num_factura       || '',
+                        h.autorizado_salida ? 'Sí' : 'No'
+                    ]);
+                }
+            });
+            // Totales
+            if (data.length > 1) {
+                const rows = data.slice(1);
+                data.push([
+                    'TOTAL', '', '',
+                    idx + ' registros',
+                    '',
+                    rows.reduce((s, r) => s + (parseFloat(r[5]) || 0), 0).toLocaleString('es-CO'),
+                    rows.reduce((s, r) => s + (parseInt(r[6]) || 0), 0),
+                    '',
+                    rows.filter(r => r[8] === 'Sí').length + ' ✓'
+                ]);
+            }
 
-        // Generar y descargar archivo
+            const ws  = XLSX.utils.aoa_to_sheet(data);
+            const rng = XLSX.utils.decode_range(ws['!ref']);
+            const lastR = rng.e.r;
+            for (let R = 0; R <= lastR; ++R) {
+                for (let C = 0; C <= 8; ++C) {
+                    const ref = XLSX.utils.encode_cell({ r: R, c: C });
+                    if (!ws[ref]) { ws[ref] = { v: "", t: "s" }; }
+                    if (R === 0) {
+                        ws[ref].s = estiloEncabezado(colorHeader);
+} else if (R === lastR && data.length > 1) {
+                         ws[ref].s = estiloTotal();
+                     } else {
+                         const alin = C === 0 ? "center" : C === 3 || C === 4 ? "left" : "right";
+                         const numFmt = (C === 5 || C === 6) ? '#,##0' : undefined;
+                         ws[ref].s = estiloFila(R % 2 === 1, alin, numFmt);
+                     }
+                }
+            }
+            ws['!cols'] = [{ wch: 5 }, { wch: 13 }, { wch: 10 }, { wch: 26 }, { wch: 16 }, { wch: 13 }, { wch: 10 }, { wch: 14 }, { wch: 12 }];
+            ws['!rows'] = Array.from({ length: data.length }, (_, i) => ({ hpt: i === 0 ? 24 : 18 }));
+            ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }) };
+            XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
+        };
+
+        // ══════════════════════════════════════════════════════════════════════
+        // HOJA 7 — SI ENSAMBLES
+        // ══════════════════════════════════════════════════════════════════════
+        crearHojaDetalle(h => h.destino === 'ensambles' || h.destino === 'ambos', C_VERDE, 'SI ENSAMBLES');
+
+        // ══════════════════════════════════════════════════════════════════════
+        // HOJA 8 — SI PLÁSTICOS
+        // ══════════════════════════════════════════════════════════════════════
+        crearHojaDetalle(h => h.destino === 'plasticos' || h.destino === 'ambos', C_AZUL_MEDIO, 'SI PLÁSTICOS');
+
+        // ══════════════════════════════════════════════════════════════════════
+        // GENERAR Y DESCARGAR
+        // ══════════════════════════════════════════════════════════════════════
         const fechaGen = new Date().toISOString().slice(0, 10);
         const nombreArchivo = `Certificado_${nombreMesMayus.replace(/ /g, '_')}_${fechaGen}.xlsx`;
         XLSX.writeFile(wb, nombreArchivo);
