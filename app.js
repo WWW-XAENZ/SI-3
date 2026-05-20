@@ -682,65 +682,102 @@ const SupabaseDB = {
     },
 
     /**
-     * Verifica qué slots de 15 min están ocupados en una fecha dada
+     * Verifica qué slots de 15 min están ocupados/bloqueados en una fecha
      * Horario laboral: 08:00 a 17:00 (5 PM), intervalos de 15 min
-     * Si se pasa horaExcluida, no se marca como ocupada (para edición de turno propio)
+     *
+     * Retorna un objeto con tres conjuntos:
+     *  - pasados:       slots ya transcurridos HOY (8–5pm, hora < ahora)
+     *  - reservados:    slots reservados por cualquier proveedor (BD)
+     *  - fueraHorario:  slots antes de 08:00 (fuera de horario laboral)
+     *
+     * horaExcluida: slot a excluir de todas las categorías (propio turno al editar)
      */
     async verificarDisponibilidadHoraria(fecha, horaExcluida = null) {
         if (!window.supabaseClient || !fecha) {
-            return [];
+            return { pasados: [], reservados: [], fueraHorario: [] };
         }
-        
+
         try {
-            // Obtener todos los turnos con fecha_cita en esa fecha (±3 días por seguridad para cruce de medianoche)
-            const fechaInicio = fecha + 'T00:00:00';
-            const fechaFin = fecha + 'T23:59:59';
-            
+            const slotsOcupados    = new Set();  // todos los slots bloqueados
+            const slotsPasados     = new Set();  // solo por hora ya cumplida
+            const slotsReservados  = new Set();  // solo por reserva en BD
+            const slotsFuera       = new Set();  // solo fuera de horario
+
+            const hoy   = new Date();
+            const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+            const esHoy = fecha === hoyStr;
+            const horaAhora = `${String(hoy.getHours()).padStart(2, '0')}:${String(hoy.getMinutes()).padStart(2, '0')}`;
+
+            // ── 1. Obtener turnos reservados en Supabase ────────────────────────
+            const fechaInicio = fecha + 'T08:00:00';
+            const fechaFin    = fecha + 'T17:00:00';
+
             const { data, error } = await window.supabaseClient
                 .from('turnos')
                 .select('fecha_cita, estado')
                 .gte('fecha_cita', fechaInicio)
                 .lte('fecha_cita', fechaFin)
                 .in('estado', ['espera', 'citado', 'atendiendo', 'llegado']);
-            
+
             if (error) throw error;
-            
-            const slotsOcupados = new Set();
-            
+
             data?.forEach(turno => {
                 if (!turno.fecha_cita) return;
-                
-                const horaTurno = turno.fecha_cita.split('T')[1]?.slice(0, 5); // "HH:MM"
+                const horaTurno = turno.fecha_cita.split('T')[1]?.slice(0, 5);
                 if (!horaTurno) return;
-                
-                // Si es la hora excluida, no bloqueamos
+                // Excluir el propio turno al editar
                 if (horaExcluida && horaTurno === horaExcluida) return;
-                
-                const [h, m] = horaTurno.split(':').map(Number);
-                
-                // Marcar slot exacto y adyacentes (intervalo de 15 min = ±7.5 min)
-                // Redondeamos el turno al slot de 15 min más cercano y bloqueamos ese y el adyacente
-                const minutosDelDia = h * 60 + m;
-                const slotIndex = Math.round(minutosDelDia / 15);
-                const slotMinutos = slotIndex * 15;
-                
-                // Slots a bloquear: el del turno y adyacentes
-                for (let offset of [-1, 0, 1]) {
-                    const sIdx = slotIndex + offset;
-                    if (sIdx < 0 || sIdx > 47) continue; // 08:00 = idx 0, 19:45 = idx 47 (margen amplio para turnos fuera de horario)
-                    const sMins = sIdx * 15;
-                    const sH = Math.floor(sMins / 60);
-                    const sMin = sMins % 60;
-                    const slotStr = `${String(sH).padStart(2, '0')}:${String(sMin).padStart(2, '0')}`;
-                    slotsOcupados.add(slotStr);
-                }
+
+                slotsOcupados.add(horaTurno);
+                slotsReservados.add(horaTurno);
             });
-            
-            return Array.from(slotsOcupados).sort();
+
+            // ── 2. Horarios que ya pasaron HOY ──────────────────────────────────
+            if (esHoy) {
+                this._generarSlots(8, 16, [0, 15, 30, 45]).forEach(slot => {
+                    if (slot <= horaAhora && slot !== horaExcluida) {
+                        slotsOcupados.add(slot);
+                        // Solo marcar como 'pasado' si no está también reservado por BD
+                        if (!slotsReservados.has(slot)) {
+                            slotsPasados.add(slot);
+                        }
+                    }
+                });
+                // 17:00
+                if ('17:00' <= horaAhora && '17:00' !== horaExcluida) {
+                    slotsOcupados.add('17:00');
+                    if (!slotsReservados.has('17:00')) slotsPasados.add('17:00');
+                }
+            }
+
+            // ── 3. Fuera de horario laboral (< 08:00) ───────────────────────────
+            this._generarSlots(0, 7, [0, 15, 30, 45]).forEach(slot => {
+                slotsOcupados.add(slot);
+                slotsFuera.add(slot);
+            });
+
+            return {
+                pasados:     Array.from(slotsPasados).sort(),
+                reservados:  Array.from(slotsReservados).sort(),
+                fueraHorario: Array.from(slotsFuera).sort()
+            };
         } catch (error) {
             console.error('Error al verificar disponibilidad:', error);
-            return [];
+            return { pasados: [], reservados: [], fueraHorario: [] };
         }
+    },
+
+    /**
+     * Helper privado: genera slots entre horaInicio y horaFin
+     */
+    _generarSlots(horaInicio, horaFin, minutos) {
+        const slots = [];
+        for (let h = horaInicio; h <= horaFin; h++) {
+            for (const m of minutos) {
+                slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+            }
+        }
+        return slots;
     },
 
     async llamarTurno(turnoId, infoDespacho = null) {
@@ -2713,83 +2750,108 @@ const InputConfig = {
      */
     generarSlotsHora() {
         const slots = [];
+        // 08:00 hasta 16:45 (15 min antes de 17:00)
         for (let h = 8; h < 17; h++) {
             for (let m of [0, 15, 30, 45]) {
                 slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
             }
         }
-        // Agregar 17:00 slot final
+        // Slot final 17:00
         slots.push('17:00');
         return slots;
     },
 
     /**
      * Renderiza los botones de slots de hora en el contenedor #selectorHora.
-     * Marca como ocupados los slots en horasOcupadas (array de "HH:MM").
-     * Resalta el slot actualmente seleccionado.
+     * Usa colores diferentes según el motivo del bloqueo:
+     *   - Gris         → hora ya pasó HOY
+     *   - Rojo         → slot reservado por otro proveedor (cualquier día)
+     *   - Azul sel.    → slot disponible y seleccionado por el usuario
      */
     async renderizarSelectorHora() {
-        const contenedor = document.getElementById('selectorHora');
-        const hint = document.getElementById('horaHint');
+        const contenedor   = document.getElementById('selectorHora');
+        const hint         = document.getElementById('horaHint');
         const fechaDateInput = document.getElementById('fechaCitaDate');
-        const slotInput = document.getElementById('fechaCitaSlot');
-        
+        const slotInput    = document.getElementById('fechaCitaSlot');
+
         if (!contenedor) return;
-        
+
         const fechaSeleccionada = fechaDateInput?.value;
-        
+
         if (!fechaSeleccionada) {
             contenedor.innerHTML = '';
             if (hint) hint.textContent = 'Seleccione una fecha para ver horarios (08:00 AM – 05:00 PM)';
             return;
         }
-        
-        // Obtener los slots ocupados desde Supabase
-        let horasOcupadas = [];
+
+        // Obtener disponibilidad desde Supabase
+        let disponibilidad = { pasados: [], reservados: [], fueraHorario: [] };
         if (window.supabaseClient) {
-            horasOcupadas = await SupabaseDB.verificarDisponibilidadHoraria(fechaSeleccionada, slotInput?.value || null);
+            disponibilidad = await SupabaseDB.verificarDisponibilidadHoraria(
+                fechaSeleccionada,
+                slotInput?.value || null
+            );
         }
-        
-        const slots = this.generarSlotsHora();
-        const slotActual = slotInput?.value || '';
-        
-        // Actualizar hint
+
+        const slots               = this.generarSlotsHora();
+        const slotActual          = slotInput?.value || '';
+        const { pasados, reservados } = disponibilidad;
+
+        // Actualizar hint informativo
         if (hint) {
-            const libres = slots.length - horasOcupadas.length;
-            hint.textContent = `${libres} horarios disponibles de ${slots.length} (bloqueados = ya reservados) — 08:00 AM a 05:00 PM`;
+            const libres    = slots.filter(s => !pasados.includes(s) && !reservados.includes(s)).length;
+            const cntPasado = pasados.length;
+            const cntReserv = reservados.length;
+            const partes = [];
+            if (cntPasado > 0) partes.push(`${cntPasado} vencidos`);
+            if (cntReserv > 0) partes.push(`${cntReserv} reservados`);
+            const extra = partes.length ? ` (${partes.join(', ')})` : '';
+            hint.textContent = `${libres} horarios libres de ${slots.length}${extra}`;
         }
-        
+
         contenedor.innerHTML = slots.map(hora => {
-            const ocupado = horasOcupadas.includes(hora);
-            const seleccionado = hora === slotActual;
-            
+            const esPasado    = pasados.includes(hora);
+            const esReservado = reservados.includes(hora);
+            const esMio       = slotInput?.value === hora;   // toggle on/off al hacer clic
+            const esSeleccionado = slotActual === hora;
+
             let clases = 'time-slot-btn';
-            if (ocupado) clases += ' time-slot-ocupado';
-            if (seleccionado) clases += ' time-slot-selected';
-            
-            let atributos = `data-hora="${hora}"`;
-            if (ocupado) {
-                atributos += ` disabled title="Horario ya reservado por otro proveedor" aria-disabled="true"`;
-            } else {
-                atributos += ` role="button" aria-label="Seleccionar ${hora}" tabindex="0"`;
+
+            if (esMio && esSeleccionado) {
+                clases += ' time-slot-selected';   // azul: seleccionado por el usuario
+            } else if (esPasado) {
+                clases += ' time-slot-pasado';      // gris: hora ya cumplida hoy
+            } else if (esReservado) {
+                clases += ' time-slot-reservado';   // rojo: reservado por otro proveedor
             }
-            
+
+            // Tooltip y atributos
+            let tooltip = '';
+            if (esPasado)    tooltip = 'Horario ya transcurrido hoy';
+            if (esReservado) tooltip = 'Horario reservado por otro proveedor';
+            if (esMio && esSeleccionado) tooltip = 'Tu selección — clic para desmarcar';
+
+            const titleAttr    = tooltip ? `title="${tooltip}"` : '';
+            const disabledAttr = (esPasado || esReservado) ? 'disabled aria-disabled="true"' : 'role="button" tabindex="0"';
+
             const textoHora = this._formatearHoraSlot(hora);
-            
-            return `<button type="button" class="${clases}" ${atributos}>${textoHora}</button>`;
+
+            return `<button type="button" class="${clases}" data-hora="${hora}" ${titleAttr} ${disabledAttr}>${textoHora}</button>`;
         }).join('');
-        
-        // Adjuntar event listeners a los slots
-        contenedor.querySelectorAll('.time-slot-btn:not(.time-slot-ocupado)').forEach(btn => {
+
+        // Adjuntar event listeners solo a los botones habilitados
+        contenedor.querySelectorAll('.time-slot-btn:not([disabled])').forEach(btn => {
             btn.addEventListener('click', () => {
+                const yaSeleccionado = btn.classList.contains('time-slot-selected');
                 // Remover selección anterior
                 contenedor.querySelectorAll('.time-slot-btn').forEach(b => b.classList.remove('time-slot-selected'));
-                // Marcar este como seleccionado
-                btn.classList.add('time-slot-selected');
-                // Guardar valor en input oculto
-                if (slotInput) slotInput.value = btn.dataset.hora;
+                if (!yaSeleccionado) {
+                    btn.classList.add('time-slot-selected');
+                    if (slotInput) slotInput.value = btn.dataset.hora;
+                } else {
+                    if (slotInput) slotInput.value = '';
+                }
             });
-            // Permitir selección con teclado (Enter / Espacio)
             btn.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();

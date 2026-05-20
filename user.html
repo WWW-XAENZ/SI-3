@@ -321,17 +321,36 @@
             box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
         }
 
-        /* Slot ocupado / bloqueado */
+        /* Slot bloqueado — sin diferenciación por defecto (se sobreescribe en JS) */
         .time-slot-btn.time-slot-ocupado,
         .time-slot-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.8;
+            text-decoration: line-through;
+            text-decoration-thickness: 1.5px;
+            pointer-events: none;
+        }
+
+        /* ── HORARIO PASADO  (hoy, hora < ahora) ── */
+        .time-slot-pasado {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+            color: #94a3b8;
+        }
+
+        /* ── RESERVADO POR OTRO PROVEEDOR ── */
+        .time-slot-reservado {
             background: #fef2f2;
             border-color: #fca5a5;
             color: #dc2626;
-            cursor: not-allowed;
-            opacity: 0.78;
-            text-decoration: line-through;
             text-decoration-color: #dc2626;
-            text-decoration-thickness: 1.5px;
+        }
+
+        /* ── RESERVADO POR MI MISMO (edición) ── */
+        .time-slot-mio {
+            background: #fffbeb;
+            border-color: #fcd34d;
+            color: #b45309;
         }
     </style>
 </head>
