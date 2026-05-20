@@ -1281,11 +1281,11 @@ const Turnos = {
 
         // Re-validar disponibilidad justo antes de guardar (previene condiciones de carrera)
         if (datosProveedor.fechaCita) {
-            const slotHora = datosProveedor.fechaCita.split('T')[1]?.slice(0, 5);
+            const slotHora  = datosProveedor.fechaCita.split('T')[1]?.slice(0, 5);
             const fechaSola = datosProveedor.fechaCita.split('T')[0];
             if (slotHora && fechaSola && window.supabaseClient) {
-                const slotsOcupados = await SupabaseDB.verificarDisponibilidadHoraria(fechaSola, slotHora);
-                if (slotsOcupados.includes(slotHora)) {
+                const { reservados } = await SupabaseDB.verificarDisponibilidadHoraria(fechaSola, slotHora);
+                if (reservados.includes(slotHora)) {
                     throw new Error(`El horario ${slotHora} ya fue reservado por otro proveedor. Seleccione otro horario.`);
                 }
             }
