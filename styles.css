@@ -1268,10 +1268,10 @@ input[type="time"]:focus {
     box-shadow: 0 0 0 3px var(--primary-100);
 }
 
-/* Contenedor para fecha y hora en línea */
+/* Contenedor para fecha y hora en línea (adaptado a selector de slots) */
 .datetime-separate {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: var(--space-3);
 }
 

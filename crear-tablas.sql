@@ -36,7 +36,18 @@ CREATE TABLE IF NOT EXISTS turnos (
     hora_solicitud TIME NOT NULL,
     fecha_solicitud TIMESTAMP WITH TIME ZONE NOT NULL,
     hora_llamada TIME,
-    estado VARCHAR(20) DEFAULT 'espera' CHECK (estado IN ('espera', 'atendiendo', 'completado', 'cancelado')),
+    estado VARCHAR(20) DEFAULT 'espera' CHECK (estado IN ('espera', 'atendiendo', 'completado', 'cancelado', 'citado', 'llegado')),
+    destino VARCHAR(50),
+    fecha_cita TIMESTAMP WITH TIME ZONE,
+    num_factura VARCHAR(50),
+    tipo_vehiculo VARCHAR(50),
+    bultos INTEGER,
+    peso NUMERIC,
+    responsable VARCHAR(255),
+    contacto VARCHAR(255),
+    telefono VARCHAR(50),
+    servicio VARCHAR(50),
+    autorizado_salida BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -64,6 +75,7 @@ ON CONFLICT (clave) DO NOTHING;
 -- 6. Crear índices para mejorar rendimiento
 CREATE INDEX IF NOT EXISTS idx_turnos_estado ON turnos(estado);
 CREATE INDEX IF NOT EXISTS idx_turnos_fecha ON turnos(fecha_solicitud);
+CREATE INDEX IF NOT EXISTS idx_turnos_fecha_cita ON turnos(fecha_cita);
 CREATE INDEX IF NOT EXISTS idx_turnos_numero ON turnos(numero);
 CREATE INDEX IF NOT EXISTS idx_proveedores_nit ON proveedores(nit);
 CREATE INDEX IF NOT EXISTS idx_historial_fecha ON historial_turnos(fecha);

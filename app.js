@@ -681,6 +681,68 @@ const SupabaseDB = {
         }
     },
 
+    /**
+     * Verifica qué slots de 15 min están ocupados en una fecha dada
+     * Horario laboral: 08:00 a 17:00 (5 PM), intervalos de 15 min
+     * Si se pasa horaExcluida, no se marca como ocupada (para edición de turno propio)
+     */
+    async verificarDisponibilidadHoraria(fecha, horaExcluida = null) {
+        if (!window.supabaseClient || !fecha) {
+            return [];
+        }
+        
+        try {
+            // Obtener todos los turnos con fecha_cita en esa fecha (±3 días por seguridad para cruce de medianoche)
+            const fechaInicio = fecha + 'T00:00:00';
+            const fechaFin = fecha + 'T23:59:59';
+            
+            const { data, error } = await window.supabaseClient
+                .from('turnos')
+                .select('fecha_cita, estado')
+                .gte('fecha_cita', fechaInicio)
+                .lte('fecha_cita', fechaFin)
+                .in('estado', ['espera', 'citado', 'atendiendo', 'llegado']);
+            
+            if (error) throw error;
+            
+            const slotsOcupados = new Set();
+            
+            data?.forEach(turno => {
+                if (!turno.fecha_cita) return;
+                
+                const horaTurno = turno.fecha_cita.split('T')[1]?.slice(0, 5); // "HH:MM"
+                if (!horaTurno) return;
+                
+                // Si es la hora excluida, no bloqueamos
+                if (horaExcluida && horaTurno === horaExcluida) return;
+                
+                const [h, m] = horaTurno.split(':').map(Number);
+                
+                // Marcar slot exacto y adyacentes (intervalo de 15 min = ±7.5 min)
+                // Redondeamos el turno al slot de 15 min más cercano y bloqueamos ese y el adyacente
+                const minutosDelDia = h * 60 + m;
+                const slotIndex = Math.round(minutosDelDia / 15);
+                const slotMinutos = slotIndex * 15;
+                
+                // Slots a bloquear: el del turno y adyacentes
+                for (let offset of [-1, 0, 1]) {
+                    const sIdx = slotIndex + offset;
+                    if (sIdx < 0 || sIdx > 47) continue; // 08:00 = idx 0, 19:45 = idx 47 (margen amplio para turnos fuera de horario)
+                    const sMins = sIdx * 15;
+                    const sH = Math.floor(sMins / 60);
+                    const sMin = sMins % 60;
+                    const slotStr = `${String(sH).padStart(2, '0')}:${String(sMin).padStart(2, '0')}`;
+                    slotsOcupados.add(slotStr);
+                }
+            });
+            
+            return Array.from(slotsOcupados).sort();
+        } catch (error) {
+            console.error('Error al verificar disponibilidad:', error);
+            return [];
+        }
+    },
+
     async llamarTurno(turnoId, infoDespacho = null) {
         if (!window.supabaseClient) {
             console.error('Supabase no está disponible');
@@ -1179,6 +1241,18 @@ const Turnos = {
         
         datosProveedor.nit = placa;
         datosProveedor.nombreEmpresa = datosProveedor.nombreEmpresa.trim();
+
+        // Re-validar disponibilidad justo antes de guardar (previene condiciones de carrera)
+        if (datosProveedor.fechaCita) {
+            const slotHora = datosProveedor.fechaCita.split('T')[1]?.slice(0, 5);
+            const fechaSola = datosProveedor.fechaCita.split('T')[0];
+            if (slotHora && fechaSola && window.supabaseClient) {
+                const slotsOcupados = await SupabaseDB.verificarDisponibilidadHoraria(fechaSola, slotHora);
+                if (slotsOcupados.includes(slotHora)) {
+                    throw new Error(`El horario ${slotHora} ya fue reservado por otro proveedor. Seleccione otro horario.`);
+                }
+            }
+        }
 
         console.log('📦 Paso 1: Guardando proveedor en Supabase...');
         const proveedorGuardado = await SupabaseDB.guardarProveedor(datosProveedor, signal);
@@ -2135,13 +2209,18 @@ const UsuarioHandlers = {
             
             const destino = document.getElementById('destino')?.value;
             const fechaDateInput = document.getElementById('fechaCitaDate')?.value;
-            const fechaTimeInput = document.getElementById('fechaCitaTime')?.value;
+            const slotSeleccionado = document.getElementById('fechaCitaSlot')?.value;
 
-            console.log('📅 Fecha date:', fechaDateInput, 'Hora:', fechaTimeInput);
+            console.log('📅 Fecha:', fechaDateInput, 'Slot hora:', slotSeleccionado);
 
+            if (!slotSeleccionado) {
+                throw new Error('Debe seleccionar una hora de la grilla de horarios');
+            }
+
+            // Armar ISO string: "YYYY-MM-DDTHH:MM:00"
             let fechaCitaISO = null;
-            if (fechaDateInput && fechaTimeInput) {
-                fechaCitaISO = `${fechaDateInput}T${fechaTimeInput}:00`;
+            if (fechaDateInput && slotSeleccionado) {
+                fechaCitaISO = `${fechaDateInput}T${slotSeleccionado}:00`;
             }
 
             if (!fechaCitaISO) {
@@ -2202,8 +2281,9 @@ const UsuarioHandlers = {
             }
             
             e.target.reset();
-            // Restaurar valores por defecto de fecha y hora
+            // Restaurar valores por defecto de fecha y limpiar slot
             InputConfig.configurarFechaCita();
+            InputConfig.resetearSelectorHora();
             const motivoGroup = document.getElementById('motivoGroup');
             if (motivoGroup) motivoGroup.style.display = 'none';
             
@@ -2227,6 +2307,7 @@ const UsuarioHandlers = {
                     }
                     e.target.reset();
                     InputConfig.configurarFechaCita();
+                    InputConfig.resetearSelectorHora();
                     const motivoGroup = document.getElementById('motivoGroup');
                     if (motivoGroup) motivoGroup.style.display = 'none';
                     RenderUsuario.todo();
@@ -2626,6 +2707,110 @@ const AdminAccess = {
 // ============================================
 
 const InputConfig = {
+    /**
+     * Genera un array de slots de 15 minutos desde 08:00 a 17:00 (5 PM)
+     * Cada slot es un string "HH:MM"
+     */
+    generarSlotsHora() {
+        const slots = [];
+        for (let h = 8; h < 17; h++) {
+            for (let m of [0, 15, 30, 45]) {
+                slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+            }
+        }
+        // Agregar 17:00 slot final
+        slots.push('17:00');
+        return slots;
+    },
+
+    /**
+     * Renderiza los botones de slots de hora en el contenedor #selectorHora.
+     * Marca como ocupados los slots en horasOcupadas (array de "HH:MM").
+     * Resalta el slot actualmente seleccionado.
+     */
+    async renderizarSelectorHora() {
+        const contenedor = document.getElementById('selectorHora');
+        const hint = document.getElementById('horaHint');
+        const fechaDateInput = document.getElementById('fechaCitaDate');
+        const slotInput = document.getElementById('fechaCitaSlot');
+        
+        if (!contenedor) return;
+        
+        const fechaSeleccionada = fechaDateInput?.value;
+        
+        if (!fechaSeleccionada) {
+            contenedor.innerHTML = '';
+            if (hint) hint.textContent = 'Seleccione una fecha para ver horarios (08:00 AM – 05:00 PM)';
+            return;
+        }
+        
+        // Obtener los slots ocupados desde Supabase
+        let horasOcupadas = [];
+        if (window.supabaseClient) {
+            horasOcupadas = await SupabaseDB.verificarDisponibilidadHoraria(fechaSeleccionada, slotInput?.value || null);
+        }
+        
+        const slots = this.generarSlotsHora();
+        const slotActual = slotInput?.value || '';
+        
+        // Actualizar hint
+        if (hint) {
+            const libres = slots.length - horasOcupadas.length;
+            hint.textContent = `${libres} horarios disponibles de ${slots.length} (bloqueados = ya reservados) — 08:00 AM a 05:00 PM`;
+        }
+        
+        contenedor.innerHTML = slots.map(hora => {
+            const ocupado = horasOcupadas.includes(hora);
+            const seleccionado = hora === slotActual;
+            
+            let clases = 'time-slot-btn';
+            if (ocupado) clases += ' time-slot-ocupado';
+            if (seleccionado) clases += ' time-slot-selected';
+            
+            let atributos = `data-hora="${hora}"`;
+            if (ocupado) {
+                atributos += ` disabled title="Horario ya reservado por otro proveedor" aria-disabled="true"`;
+            } else {
+                atributos += ` role="button" aria-label="Seleccionar ${hora}" tabindex="0"`;
+            }
+            
+            const textoHora = this._formatearHoraSlot(hora);
+            
+            return `<button type="button" class="${clases}" ${atributos}>${textoHora}</button>`;
+        }).join('');
+        
+        // Adjuntar event listeners a los slots
+        contenedor.querySelectorAll('.time-slot-btn:not(.time-slot-ocupado)').forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Remover selección anterior
+                contenedor.querySelectorAll('.time-slot-btn').forEach(b => b.classList.remove('time-slot-selected'));
+                // Marcar este como seleccionado
+                btn.classList.add('time-slot-selected');
+                // Guardar valor en input oculto
+                if (slotInput) slotInput.value = btn.dataset.hora;
+            });
+            // Permitir selección con teclado (Enter / Espacio)
+            btn.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    btn.click();
+                }
+            });
+        });
+    },
+
+    /**
+     * Convierte "HH:MM" de 24h a formato "H:MM AM/PM"
+     */
+    _formatearHoraSlot(hora24) {
+        if (!hora24) return '';
+        const [hStr, m] = hora24.split(':');
+        let h = parseInt(hStr, 10);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        return `${h}:${m} ${ampm}`;
+    },
+
     configurarPlacaInput() {
         const placaInput = document.getElementById('nit');
         if (placaInput) {
@@ -2663,7 +2848,6 @@ const InputConfig = {
 
     configurarFechaCita() {
         const fechaDateInput = document.getElementById('fechaCitaDate');
-        const fechaTimeInput = document.getElementById('fechaCitaTime');
         if (fechaDateInput) {
             const now = new Date();
             // Establecer mínimo: hoy (no fechas pasadas)
@@ -2675,10 +2859,27 @@ const InputConfig = {
             fechaDateInput.min = todayStr;
             // Establecer valor por defecto a hoy
             fechaDateInput.value = todayStr;
+            
+            // Cuando cambie la fecha, recargar los slots de disponibilidad
+            fechaDateInput.addEventListener('change', () => {
+                InputConfig.renderizarSelectorHora();
+            });
         }
-        if (fechaTimeInput) {
-            // Hora por defecto: 08:00 AM
-            fechaTimeInput.value = '08:00';
+
+        // Renderizar los slots la primera vez (fecha = hoy)
+        setTimeout(() => {
+            InputConfig.renderizarSelectorHora();
+        }, 500);
+    },
+
+    /**
+     * Resetea la selección del selector de hora (sin borrar el grid)
+     */
+    resetearSelectorHora() {
+        const slotInput = document.getElementById('fechaCitaSlot');
+        if (slotInput) slotInput.value = '';
+        if (window.location.pathname.includes('user') || document.getElementById('selectorHora')) {
+            InputConfig.renderizarSelectorHora();
         }
     },
 
