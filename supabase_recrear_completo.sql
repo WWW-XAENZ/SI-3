@@ -12,6 +12,8 @@ DROP TABLE IF EXISTS turnos CASCADE;
 DROP TABLE IF EXISTS proveedores CASCADE;
 DROP TABLE IF EXISTS configuracion CASCADE;
 DROP TABLE IF EXISTS usuarios CASCADE;
+DROP TABLE IF EXISTS mensajes CASCADE;
+DROP TABLE IF EXISTS notificaciones_salida CASCADE;
 DROP FUNCTION IF EXISTS update_updated_at_column();
 
 -- ============================================
@@ -53,8 +55,10 @@ CREATE TABLE turnos (
     hora_solicitud TIME NOT NULL,
     fecha_solicitud TIMESTAMP WITH TIME ZONE NOT NULL,
     hora_llamada TIME,
+    hora_llegada TIME,
+    fecha_llegada TIMESTAMP WITH TIME ZONE,
     hora_finalizacion TIME,
-    estado VARCHAR(20) DEFAULT 'espera' CHECK (estado IN ('espera', 'atendiendo', 'completado', 'cancelado', 'citado')),
+    estado VARCHAR(20) DEFAULT 'espera' CHECK (estado IN ('espera', 'citado', 'atendiendo', 'llegado', 'completado', 'cancelado')),
     prioridad INTEGER DEFAULT 0,
     notas TEXT,
     destino VARCHAR(50),
@@ -83,6 +87,7 @@ CREATE TABLE historial_turnos (
     motivo TEXT,
     hora_solicitud TIME NOT NULL,
     hora_llamada TIME,
+    hora_llegada TIME,
     hora_finalizacion TIME,
     estado VARCHAR(20) DEFAULT 'completado' CHECK (estado IN ('completado', 'cancelado')),
     tiempo_espera_minutos INTEGER,
@@ -112,6 +117,28 @@ CREATE TABLE usuarios (
     ultimo_acceso TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Tabla de mensajes entre admin y despachador
+CREATE TABLE mensajes (
+    id BIGSERIAL PRIMARY KEY,
+    remitente TEXT NOT NULL CHECK (remitente IN ('admin', 'despachador')),
+    mensaje TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    leido BOOLEAN DEFAULT false
+);
+
+-- Tabla para notificaciones de salida pendiente
+CREATE TABLE notificaciones_salida (
+    id BIGSERIAL PRIMARY KEY,
+    turno_id BIGINT REFERENCES turnos(id) ON DELETE CASCADE,
+    proveedor_nit TEXT,
+    nombre_empresa TEXT,
+    fecha_cita TIMESTAMP WITH TIME ZONE,
+    tipo TEXT CHECK (tipo IN ('salida_pendiente', 'salida_autorizada')),
+    mensaje TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    leido BOOLEAN DEFAULT false
 );
 
 -- ============================================
@@ -158,6 +185,14 @@ CREATE INDEX idx_proveedores_servicio ON proveedores(servicio);
 CREATE INDEX idx_usuarios_email ON usuarios(email);
 CREATE INDEX idx_usuarios_rol ON usuarios(rol);
 
+-- Índices para mensajes
+CREATE INDEX idx_mensajes_created_at ON mensajes(created_at desc);
+CREATE INDEX idx_mensajes_leido ON mensajes(leido);
+
+-- Índices para notificaciones_salida
+CREATE INDEX idx_notificaciones_salida_leido ON notificaciones_salida(leido);
+CREATE INDEX idx_notificaciones_salida_created_at ON notificaciones_salida(created_at desc);
+
 -- ============================================
 -- 5. FUNCIONES Y TRIGGERS
 -- ============================================
@@ -197,10 +232,12 @@ ALTER TABLE turnos REPLICA IDENTITY FULL;
 ALTER TABLE historial_turnos REPLICA IDENTITY FULL;
 ALTER TABLE proveedores REPLICA IDENTITY FULL;
 ALTER TABLE configuracion REPLICA IDENTITY FULL;
+ALTER TABLE mensajes REPLICA IDENTITY FULL;
+ALTER TABLE notificaciones_salida REPLICA IDENTITY FULL;
 
 -- Crear publicación para Real-time
 DROP PUBLICATION IF EXISTS supabase_realtime;
-CREATE PUBLICATION supabase_realtime FOR TABLE turnos, historial_turnos, proveedores, configuracion;
+CREATE PUBLICATION supabase_realtime FOR TABLE turnos, historial_turnos, proveedores, configuracion, mensajes, notificaciones_salida;
 
 -- ============================================
 -- 7. POLÍTICAS DE SEGURIDAD (ROW LEVEL SECURITY)
@@ -212,6 +249,8 @@ ALTER TABLE historial_turnos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE proveedores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE configuracion ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mensajes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notificaciones_salida ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para turnos (permitir todas las operaciones)
 CREATE POLICY "Turnos: permitir todo" ON turnos
@@ -233,6 +272,14 @@ CREATE POLICY "Configuracion: permitir todo" ON configuracion
 CREATE POLICY "Usuarios: permitir todo" ON usuarios
     FOR ALL USING (true) WITH CHECK (true);
 
+-- Políticas para mensajes
+CREATE POLICY "Mensajes: permitir todo" ON mensajes
+    FOR ALL USING (true) WITH CHECK (true);
+
+-- Políticas para notificaciones_salida
+CREATE POLICY "NotificacionesSalida: permitir todo" ON notificaciones_salida
+    FOR ALL USING (true) WITH CHECK (true);
+
 -- ============================================
 -- 8. COMENTARIOS EN LAS TABLAS
 -- ============================================
@@ -242,8 +289,10 @@ COMMENT ON TABLE proveedores IS 'Tabla de proveedores/empresas registradas';
 COMMENT ON TABLE turnos IS 'Tabla de turnos activos en el sistema';
 COMMENT ON TABLE historial_turnos IS 'Tabla de historial de turnos para reportes y análisis';
 COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema (futura implementación)';
+COMMENT ON TABLE mensajes IS 'Tabla de mensajes entre admin y despachador';
+COMMENT ON TABLE notificaciones_salida IS 'Tabla de notificaciones de salida pendiente';
 
-COMMENT ON COLUMN turnos.estado IS 'Estados posibles: espera, atendiendo, completado, cancelado, citado';
+COMMENT ON COLUMN turnos.estado IS 'Estados posibles: espera, citado, atendiendo, llegado, completado, cancelado';
 COMMENT ON COLUMN turnos.prioridad IS 'Prioridad del turno: 0=normal, 1=alta, 2=urgente';
 COMMENT ON COLUMN turnos.destino IS 'Destino del turno: SI ENSAMBLES, SI PLÁSTICOS, AMBOS';
 COMMENT ON COLUMN turnos.fecha_cita IS 'Fecha y hora de la cita programada (cuando estado = citado)';

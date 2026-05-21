@@ -11,7 +11,7 @@
     <style>
         .admin-grid { 
             grid-template-columns: 300px 1fr 1fr; 
-            grid-template-rows: auto auto auto auto;
+            grid-template-rows: auto auto auto auto auto auto auto;
             gap: 20px;
             padding: 25px;
         }
@@ -19,9 +19,9 @@
         .statistics { grid-column: 2 / 4; grid-row: 1; }
         .arrived-list { grid-column: 2; grid-row: 2; }
         .waiting-list { grid-column: 3; grid-row: 2; }
-        .cited-list { grid-column: 1; grid-row: 3; min-height: 200px; }
-        .providers-list { grid-column: 2 / 4; grid-row: 3; }
-        .turn-history { grid-column: 1 / 4; grid-row: 4; }
+        .cited-list { grid-column: 1 / 4; grid-row: 3; }
+        .providers-list { grid-column: 1 / 4; grid-row: 4; }
+        .turn-history { grid-column: 1 / 4; grid-row: 5; }
         
         .admin-section {
             background: #fff;
@@ -95,7 +95,7 @@
             .statistics { grid-column: 2; }
             .arrived-list { grid-column: 1; }
             .waiting-list { grid-column: 2; }
-            .cited-list { grid-column: 1; }
+            .cited-list { grid-column: 1 / 3; }
             .providers-list { grid-column: 1 / 3; }
             .turn-history { grid-column: 1 / 3; }
             .stats-grid { grid-template-columns: repeat(3, 1fr); }
@@ -247,10 +247,41 @@
                         <p class="empty-message">Cargando historial...</p>
                     </div>
                 </section>
+
+                <!-- Notificaciones Salida Pendiente -->
+                <section class="admin-section exit-notifications" style="grid-column: 1 / 4;">
+                    <h2>Salidas Pendientes</h2>
+                    <div id="listaSalidasPendientes" class="turn-list" style="max-height: 150px; overflow-y: auto;">
+                        <p class="empty-message">Cargando...</p>
+                    </div>
+                </section>
             </div>
         </main>
+    </div>
 
-        <footer>
+    <!-- Chat Popup -->
+    <div id="chatPopup" class="chat-popup" style="display: none;">
+        <div class="chat-popup-header">
+            <h3>Chat con Despachador</h3>
+            <div class="chat-popup-actions">
+                <button class="chat-popup-clear" onclick="borrarChat()" title="Borrar chat">🗑️</button>
+                <button class="chat-popup-close" onclick="toggleChat()">&times;</button>
+            </div>
+        </div>
+        <div id="chatMensajesPopup" class="chat-popup-messages">
+            <p class="empty-message">No hay mensajes</p>
+        </div>
+        <div class="chat-popup-input">
+            <input type="text" id="mensajeTextoPopup" placeholder="Escribe un mensaje..." onkeydown="if(event.key==='Enter') enviarMensajeChat()">
+            <button class="btn btn-primary btn-small" onclick="enviarMensajeChat()">Enviar</button>
+        </div>
+    </div>
+
+    <button id="chatToggle" class="chat-popup-toggle btn btn-primary" onclick="toggleChat()">
+        💬
+    </button>
+
+    <footer>
             <p>2026 Sistema de Turnos SI-3</p>
         </footer>
     </div>
@@ -333,13 +364,14 @@
 
     <script>
         window.salidaDespachadorAnterior = null;
+        let modalVisible = false;
 
         function initSalidaDespachadorListener() {
             window.addEventListener('storage', (e) => {
                 if (e.key === 'salidaAutorizada' && e.newValue) {
                     try {
                         const datos = JSON.parse(e.newValue);
-                        if (datos.timestamp !== window.salidaDespachadorAnterior) {
+                        if (datos.timestamp !== window.salidaDespachadorAnterior && !modalVisible) {
                             window.salidaDespachadorAnterior = datos.timestamp;
                             mostrarAlertaSalidaDespachador(datos);
                         }
@@ -350,6 +382,7 @@
             });
 
             setInterval(() => {
+                if (modalVisible) return;
                 const datos = localStorage.getItem('salidaAutorizada');
                 if (datos) {
                     try {
@@ -462,6 +495,7 @@
             document.getElementById('salidaDespachadorNumero').textContent = datos.numero || '---';
             document.getElementById('salidaDespachadorEmpresa').textContent = datos.nombre || datos.empresa || 'Proveedor';
             document.getElementById('salidaDespachadorDetalles').innerHTML = detallesHTML;
+            modalVisible = true;
             document.getElementById('modalSalidaDespachador').style.display = 'flex';
             
             // Actualizar historial inmediatamente
@@ -472,14 +506,43 @@
 
         window.cerrarModalSalidaDespachador = function() {
             document.getElementById('modalSalidaDespachador').style.display = 'none';
+            modalVisible = false;
+            // Limpiar localStorage para que no se vuelva a mostrar
+            try {
+                localStorage.removeItem('salidaAutorizada');
+            } catch (e) {
+                console.warn('Error limpiando localStorage:', e);
+            }
         };
 
         document.addEventListener('DOMContentLoaded', () => {
+            // Limpiar notificación de salida al cargar la página
+            try {
+                localStorage.removeItem('salidaAutorizada');
+            } catch (e) {}
+            
             setTimeout(() => {
                 initSalidaDespachadorListener();
                 console.log('Listener de salida despachador iniciado');
             }, 2000);
         });
+
+        // Inicializar chat cuando Supabase esté listo
+        setTimeout(() => {
+            function initChat() {
+                if (window.supabaseClient) {
+                    if (window.Chat) {
+                        Chat.suscribir((mensaje) => {
+                            cargarChat();
+                        });
+                        cargarChat();
+                    }
+                } else {
+                    setTimeout(initChat, 500);
+                }
+            }
+            initChat();
+        }, 3000);
     </script>
 
     <!-- Modal Certificado -->

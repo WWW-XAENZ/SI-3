@@ -1249,6 +1249,174 @@ const SupabaseDB = {
 };
 
 // ============================================
+// CHAT EN TIEMPO REAL ADMIN - DESPACHADOR
+// ============================================
+
+const Chat = {
+    channel: null,
+    
+    async enviarMensaje(mensaje, remitente) {
+        if (!window.supabaseClient) return null;
+        
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('mensajes')
+                .insert([{
+                    remitente: remitente,
+                    mensaje: mensaje,
+                    leido: false
+                }])
+                .select()
+                .single();
+            
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Error al enviar mensaje:', error);
+            return null;
+        }
+    },
+    
+    async cargarMensajes() {
+        if (!window.supabaseClient) return [];
+        
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('mensajes')
+                .select('*')
+                .order('created_at', { ascending: true })
+                .limit(100);
+            
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error('Error al cargar mensajes:', error);
+            return [];
+        }
+    },
+    
+    async marcarLeidos() {
+        if (!window.supabaseClient) return;
+        
+        try {
+            await window.supabaseClient
+                .from('mensajes')
+                .update({ leido: true })
+                .eq('leido', false);
+        } catch (error) {
+            console.error('Error al marcar mensajes leidos:', error);
+        }
+    },
+    
+    suscribir(callback) {
+        if (!window.supabaseClient) return null;
+        
+        try {
+            if (this.channel) {
+                window.supabaseClient.removeChannel(this.channel);
+            }
+            
+            this.channel = window.supabaseClient
+                .channel('mensajes-chat')
+                .on('postgres_changes',
+                    { event: 'INSERT', schema: 'public', table: 'mensajes' },
+                    (payload) => {
+                        console.log('Mensaje recibido en tiempo real:', payload.new);
+                        if (callback) callback(payload.new);
+                        SonidoAlerta.reproducir(1);
+                    }
+                )
+                .subscribe((status) => {
+                    console.log('Estado suscripción chat:', status);
+                    if (status === 'SUBSCRIBED') {
+                        console.log('Chat suscrito correctamente a mensajes');
+                    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                        console.error('Error en canal de chat, reconectando...');
+                        setTimeout(() => this.suscribir(callback), 3000);
+                    }
+                });
+            
+            return this.channel;
+        } catch (error) {
+            console.error('Error suscribiendo chat:', error);
+            return null;
+        }
+    },
+    
+    desuscribir() {
+        if (this.channel && window.supabaseClient) {
+            window.supabaseClient.removeChannel(this.channel);
+            this.channel = null;
+        }
+    }
+};
+
+// ============================================
+// NOTIFICACIONES DE SALIDA
+// ============================================
+
+const NotificacionesSalida = {
+    async verificarPendientes() {
+        if (!window.supabaseClient) return [];
+        
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('turnos')
+                .select('*')
+                .eq('estado', 'atendiendo')
+                .eq('autorizado_salida', false);
+            
+            if (error) throw error;
+            
+            for (const turno of data) {
+                await window.supabaseClient
+                    .from('notificaciones_salida')
+                    .insert([{
+                        turno_id: turno.id,
+                        proveedor_nit: turno.nit,
+                        nombre_empresa: turno.nombre_empresa,
+                        fecha_cita: turno.fecha_cita || turno.fecha_solicitud,
+                        tipo: 'salida_pendiente',
+                        mensaje: `${turno.nombre_empresa} espera autorización de salida`,
+                        leido: false
+                    }]);
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('Error verificando salidas pendientes:', error);
+            return [];
+        }
+    },
+    
+    async cargarNoLeidas() {
+        if (!window.supabaseClient) return [];
+        
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('notificaciones_salida')
+                .select('*')
+                .eq('leido', false)
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error('Error cargando notificaciones:', error);
+            return [];
+        }
+    },
+    
+    async marcarLeida(id) {
+        if (!window.supabaseClient) return;
+        await window.supabaseClient
+            .from('notificaciones_salida')
+            .update({ leido: true })
+            .eq('id', id);
+    }
+};
+
+// ============================================
 // GESTIÓN DE TURNOS
 // ============================================
 
@@ -1941,58 +2109,75 @@ const RenderAdmin = {
             );
         }
         
+        // Ordenar por fecha de cita
+        turnosCitados.sort((a, b) => {
+            const fechaA = a.fechaCita || '';
+            const fechaB = b.fechaCita || '';
+            return fechaA.localeCompare(fechaB);
+        });
+        
         if (contadorDiv) contadorDiv.textContent = turnosCitados.length;
         
         if (!listaDiv) return;
-
+        
         if (turnosCitados.length === 0) {
             listaDiv.innerHTML = '<p class="empty-message">No hay citas reservadas</p>';
         } else {
             const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
-            listaDiv.innerHTML = turnosCitados.map(turno => {
-                const horaCita = turno.fechaCita ? (() => {
-                    const fechaHora = turno.fechaCita.split('T');
-                    if (fechaHora.length >= 2) {
-                        const [horas, minSeg] = fechaHora[1].split(':');
-                        const h = parseInt(horas);
-                        const min = minSeg.split('.')[0];
-                        const ampm = h >= 12 ? 'PM' : 'AM';
-                        const h12 = h % 12 || 12;
-                        return `${h12}:${min} ${ampm}`;
-                    }
-                    return turno.horaSolicitud;
-                })() : turno.horaSolicitud;
-                const fechaCompleta = turno.fechaCita ? (() => {
-                    const fechaHora = turno.fechaCita.split('T');
-                    if (fechaHora.length >= 2) {
-                        const fechaObj = new Date(fechaHora[0] + 'T12:00:00');
-                        return fechaObj.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
-                    }
-                    return '';
-                })() : '';
-                return `
-                <div class="turn-item turn-item-citado">
-                    <span class="turn-item-number">${turno.numero}</span>
-                    <div class="turn-item-info">
-                        <div class="turn-item-company">${turno.nombreEmpresa}</div>
-                        <div class="turn-item-time">
-                            ${horaCita}
+            
+            // Agrupar por fecha
+            const gruposPorFecha = {};
+            turnosCitados.forEach(turno => {
+                const fecha = turno.fechaCita ? turno.fechaCita.split('T')[0] : 'Sin fecha';
+                if (!gruposPorFecha[fecha]) gruposPorFecha[fecha] = [];
+                gruposPorFecha[fecha].push(turno);
+            });
+            
+            let html = '';
+            for (const [fecha, turnos] of Object.entries(gruposPorFecha)) {
+                const nombreDia = new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO', { 
+                    weekday: 'long', 
+                    day: 'numeric', 
+                    month: 'long' 
+                });
+                html += `<div class="cited-day-header">${nombreDia}</div>`;
+                html += turnos.map(turno => {
+                    const horaCita = turno.fechaCita ? (() => {
+                        const fechaHora = turno.fechaCita.split('T');
+                        if (fechaHora.length >= 2) {
+                            const [horas, minSeg] = fechaHora[1].split(':');
+                            const h = parseInt(horas);
+                            const min = minSeg.split('.')[0];
+                            const ampm = h >= 12 ? 'PM' : 'AM';
+                            const h12 = h % 12 || 12;
+                            return `${h12}:${min} ${ampm}`;
+                        }
+                        return turno.horaSolicitud;
+                    })() : turno.horaSolicitud;
+                    return `
+                    <div class="turn-item turn-item-citado">
+                        <span class="turn-item-number">${turno.numero}</span>
+                        <div class="turn-item-info">
+                            <div class="turn-item-company">${turno.nombreEmpresa}</div>
+                            <div class="turn-item-time">
+                                ${horaCita}
+                            </div>
+                            <div class="turn-item-details">
+                                <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
+                            </div>
                         </div>
-                        ${fechaCompleta ? `<div class="turn-item-time">${fechaCompleta}</div>` : ''}
-                        <div class="turn-item-details">
-                            <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
+                        <div class="turn-item-actions">
+                            <button class="btn btn-primary btn-small" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})">
+                                Llamar
+                            </button>
+                            <button class="btn btn-danger btn-small" onclick="AdminHandlers.cancelarTurno(${turno.id})">
+                                Cancelar
+                            </button>
                         </div>
                     </div>
-                    <div class="turn-item-actions">
-                        <button class="btn btn-primary btn-small" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})">
-                            Llamar
-                        </button>
-                        <button class="btn btn-danger btn-small" onclick="AdminHandlers.cancelarTurno(${turno.id})">
-                            Cancelar
-                        </button>
-                    </div>
-                </div>
-            `}).join('');
+                `}).join('');
+            }
+            listaDiv.innerHTML = html;
         }
     },
 
@@ -4252,3 +4437,179 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
 };
 
 window.GenerarCertificado = GenerarCertificado;
+
+// ============================================
+// CHAT EMERGENTE
+// ============================================
+
+function toggleChat() {
+    // Para admin
+    const popup = document.getElementById('chatPopup');
+    if (popup) {
+        popup.style.display = popup.style.display === 'none' ? 'flex' : 'none';
+        return;
+    }
+    // Para despachador
+    const popupDesp = document.getElementById('chatPopupDesp');
+    if (popupDesp) {
+        popupDesp.style.display = popupDesp.style.display === 'none' ? 'flex' : 'none';
+    }
+}
+
+function renderChatMessage(mensaje, esRemitente) {
+    const div = document.createElement('div');
+    div.className = `chat-message ${esRemitente ? 'admin' : 'despachador'}`;
+    
+    const fecha = new Date(mensaje.created_at);
+    const hora = fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    
+    div.innerHTML = `
+        <div class="chat-bubble">
+            ${mensaje.mensaje}
+            <div class="chat-timestamp">${hora}</div>
+        </div>
+    `;
+    return div;
+}
+
+function agregarMensajeAlChat(mensaje, isDespachador = false) {
+    const popupId = isDespachador ? 'chatMensajesPopupDesp' : 'chatMensajesPopup';
+    const container = document.getElementById(popupId);
+    if (!container) return;
+    
+    // Verificar si ya existe este mensaje
+    if (container.dataset.lastMsgId == mensaje.id) return;
+    
+    const esRemitente = isDespachador ? mensaje.remitente === 'despachador' : mensaje.remitente === 'admin';
+    const div = renderChatMessage(mensaje, esRemitente);
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    container.dataset.lastMsgId = mensaje.id;
+}
+
+async function cargarChat(isDespachador = false) {
+    const mensajes = await Chat.cargarMensajes();
+    const popupId = isDespachador ? 'chatMensajesPopupDesp' : 'chatMensajesPopup';
+    const container = document.getElementById(popupId);
+    
+    if (!container) return;
+    
+    if (mensajes.length === 0) {
+        container.innerHTML = '<p class="empty-message">No hay mensajes</p>';
+        return;
+    }
+    
+    container.innerHTML = '';
+    const ultimoRemitente = mensajes[mensajes.length - 1].remitente;
+    
+    mensajes.forEach((msg, idx) => {
+        const esRemitente = isDespachador ? msg.remitente === 'despachador' : msg.remitente === 'admin';
+        const div = renderChatMessage(msg, esRemitente);
+        container.appendChild(div);
+    });
+    
+    container.scrollTop = container.scrollHeight;
+    
+    if (ultimoRemitente !== (isDespachador ? 'despachador' : 'admin')) {
+        Chat.marcarLeidos();
+    }
+    
+    // Guardar ID del último mensaje para detectar nuevos
+    const ultimoId = mensajes[mensajes.length - 1]?.id || 0;
+    container.dataset.lastMsgId = ultimoId;
+}
+
+async function enviarMensajeChat(isDespachador = false) {
+    const inputId = isDespachador ? 'mensajeTextoPopupDesp' : 'mensajeTextoPopup';
+    const input = document.getElementById(inputId);
+    const mensaje = input.value.trim();
+    
+    if (!mensaje) return;
+    
+    const remitente = isDespachador ? 'despachador' : 'admin';
+    const resultado = await Chat.enviarMensaje(mensaje, remitente);
+    
+    if (resultado) {
+        input.value = '';
+        // Agregar mensaje inmediatamente a ambos chats
+        const mensajeConFecha = {
+            ...resultado,
+            created_at: new Date().toISOString()
+        };
+        agregarMensajeAlChat(mensajeConFecha, false);
+        agregarMensajeAlChat(mensajeConFecha, true);
+    } else {
+        Utils.mostrarNotificacion('Error al enviar mensaje', 'error');
+    }
+}
+
+// Funciones específicas para admin y despachador
+async function enviarMensajeChatDesp() {
+    await enviarMensajeChat(true);
+}
+
+// Borrar mensajes del chat
+async function borrarChat() {
+    if (confirm('¿Está seguro de borrar todos los mensajes del chat?')) {
+        if (!window.supabaseClient) return;
+        
+        try {
+            const { error } = await window.supabaseClient
+                .from('mensajes')
+                .delete()
+                .neq('id', 0);
+            
+            if (error) throw error;
+            
+            document.getElementById('chatMensajesPopup').innerHTML = '<p class="empty-message">No hay mensajes</p>';
+            document.getElementById('chatMensajesPopupDesp').innerHTML = '<p class="empty-message">No hay mensajes</p>';
+            Utils.mostrarNotificacion('Chat borrado correctamente', 'success');
+        } catch (error) {
+            console.error('Error al borrar chat:', error);
+            Utils.mostrarNotificacion('Error al borrar el chat', 'error');
+        }
+    }
+}
+
+// Mostrar/Ocultar chat
+function toggleChat() {
+    const popup = document.querySelector('.chat-popup');
+    if (popup) {
+        popup.classList.toggle('active');
+        if (popup.classList.contains('active')) {
+            cargarChat();
+            cargarChat(true);
+        }
+    }
+}
+
+// Inicializar chat cuando Supabase esté listo
+document.addEventListener('DOMContentLoaded', () => {
+    esperarClienteSupabase(() => {
+        Chat.suscribir((mensaje) => {
+            agregarMensajeAlChat(mensaje, false);
+            agregarMensajeAlChat(mensaje, true);
+        });
+        cargarChat();
+        cargarChat(true);
+        
+        // Polling de respaldo cada 2 segundos por si falla Realtime
+        setInterval(() => {
+            const containerAdmin = document.getElementById('chatMensajesPopup');
+            const containerDesp = document.getElementById('chatMensajesPopupDesp');
+            if (containerAdmin || containerDesp) {
+                Chat.cargarMensajes().then(mensajes => {
+                    if (mensajes.length > 0) {
+                        const ultimoId = mensajes[mensajes.length - 1].id;
+                        const lastAdmin = parseInt(containerAdmin?.dataset?.lastMsgId || 0);
+                        const lastDesp = parseInt(containerDesp?.dataset?.lastMsgId || 0);
+                        if (lastAdmin < ultimoId || lastDesp < ultimoId) {
+                            cargarChat(false);
+                            cargarChat(true);
+                        }
+                    }
+                }).catch(err => console.log('Polling mensajes:', err));
+            }
+        }, 2000);
+    });
+});
