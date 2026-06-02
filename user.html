@@ -505,13 +505,22 @@
                             <div class="waiting-turn-number" id="waitingTurnNumber">--</div>
                             <div class="waiting-turn-status" id="waitingTurnStatus">En espera</div>
                         </div>
+                        <!-- Barra de progreso mejorada -->
+                        <div style="margin: 14px 0;">
+                            <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;margin-bottom:6px;">
+                                <span id="textoPosicion">Calculando posición...</span>
+                                <span id="waitingTime">--</span>
+                            </div>
+                            <div class="barra-progreso-wrap">
+                                <div id="barraProgreso" style="width:5%"></div>
+                            </div>
+                        </div>
                         <div class="waiting-progress">
-                            <div class="progress-bar">
+                            <div class="progress-bar" style="display:none;">
                                 <div class="progress-fill" id="progressFill"></div>
                             </div>
                             <div class="progress-info">
                                 <span id="waitingPosition">Posición: --</span>
-                                <span id="waitingTime">Tiempo estimado: --</span>
                             </div>
                         </div>
                         <div class="waiting-actions">
@@ -617,5 +626,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js?v=2"></script>
+    <script src="mejoras.js"></script>
 </body>
 </html>

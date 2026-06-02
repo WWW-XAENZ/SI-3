@@ -1179,8 +1179,9 @@ const SupabaseDB = {
         }
         
         try {
+            const channelName = 'turnos-changes-' + Date.now();
             const channel = window.supabaseClient
-                .channel('turnos-changes')
+                .channel(channelName)
                 .on('postgres_changes', 
                     { 
                         event: '*', 
@@ -1201,9 +1202,12 @@ const SupabaseDB = {
                         console.log('✅ Suscripción a turnos activada correctamente');
                     } else if (status === 'CHANNEL_ERROR') {
                         console.error('❌ Error en canal de turnos:', err);
-                        setTimeout(() => {
-                            this.suscribirCambiosTurnos(callback);
-                        }, 3000);
+                        window.supabaseClient.removeChannel(channel);
+                        setTimeout(() => this.suscribirCambiosTurnos(callback), 3000);
+                    } else if (status === 'TIMED_OUT') {
+                        console.error('⏰ Timeout en canal de turnos, reconectando...');
+                        window.supabaseClient.removeChannel(channel);
+                        setTimeout(() => this.suscribirCambiosTurnos(callback), 3000);
                     }
                 });
             
@@ -1221,8 +1225,9 @@ const SupabaseDB = {
         }
         
         try {
+            const channelName = 'historial-changes-' + Date.now();
             const channel = window.supabaseClient
-                .channel('historial-changes')
+                .channel(channelName)
                 .on('postgres_changes', 
                     { 
                         event: 'INSERT', 
@@ -1236,8 +1241,20 @@ const SupabaseDB = {
                         }
                     }
                 )
-                .subscribe((status) => {
+                .subscribe((status, err) => {
                     console.log('📡 Estado canal historial:', status);
+                    
+                    if (status === 'SUBSCRIBED') {
+                        console.log('✅ Suscripción a historial activada correctamente');
+                    } else if (status === 'CHANNEL_ERROR') {
+                        console.error('❌ Error en canal de historial:', err);
+                        window.supabaseClient.removeChannel(channel);
+                        setTimeout(() => this.suscribirCambiosHistorial(callback), 3000);
+                    } else if (status === 'TIMED_OUT') {
+                        console.error('⏰ Timeout en canal de historial, reconectando...');
+                        window.supabaseClient.removeChannel(channel);
+                        setTimeout(() => this.suscribirCambiosHistorial(callback), 3000);
+                    }
                 });
             
             return channel;
@@ -1248,173 +1265,173 @@ const SupabaseDB = {
     }
 };
 
+
+
 // ============================================
-// CHAT EN TIEMPO REAL ADMIN - DESPACHADOR
+// NOTIFICACIONES DE SALIDA (POLLING FALLBACK)
 // ============================================
 
-const Chat = {
-    channel: null,
+const NotificacionesPolling = {
+    _ultimoTimestamp: null,
     
-    async enviarMensaje(mensaje, remitente) {
-        if (!window.supabaseClient) return null;
-        
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('mensajes')
-                .insert([{
-                    remitente: remitente,
-                    mensaje: mensaje,
-                    leido: false
-                }])
-                .select()
-                .single();
-            
-            if (error) throw error;
-            return data;
-        } catch (error) {
-            console.error('Error al enviar mensaje:', error);
-            return null;
-        }
-    },
-    
-    async cargarMensajes() {
-        if (!window.supabaseClient) return [];
-        
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('mensajes')
-                .select('*')
-                .order('created_at', { ascending: true })
-                .limit(100);
-            
-            if (error) throw error;
-            return data || [];
-        } catch (error) {
-            console.error('Error al cargar mensajes:', error);
-            return [];
-        }
-    },
-    
-    async marcarLeidos() {
-        if (!window.supabaseClient) return;
-        
-        try {
-            await window.supabaseClient
-                .from('mensajes')
-                .update({ leido: true })
-                .eq('leido', false);
-        } catch (error) {
-            console.error('Error al marcar mensajes leidos:', error);
-        }
-    },
-    
-    suscribir(callback) {
-        if (!window.supabaseClient) return null;
-        
-        try {
-            if (this.channel) {
-                window.supabaseClient.removeChannel(this.channel);
+    async iniciar() {
+        this._intervalo = setInterval(async () => {
+            if (!window.supabaseClient) return;
+            try {
+                const { data } = await window.supabaseClient
+                    .from('notificaciones_salida')
+                    .select('*')
+                    .eq('leido', false)
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+                
+                if (data && data.length > 0) {
+                    const ultimo = data[0];
+                    if (this._ultimoTimestamp !== ultimo.created_at && window.AppState && window.AppState.turnoActual) {
+                        this._ultimoTimestamp = ultimo.created_at;
+                        if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
+                        Utils.mostrarNotificacion(`Notificación: ${ultimo.mensaje}`, 'warning');
+                    }
+                }
+            } catch(e) {
+                console.error('Error en polling notificaciones:', e);
             }
-            
-            this.channel = window.supabaseClient
-                .channel('mensajes-chat')
-                .on('postgres_changes',
-                    { event: 'INSERT', schema: 'public', table: 'mensajes' },
-                    (payload) => {
-                        console.log('Mensaje recibido en tiempo real:', payload.new);
-                        if (callback) callback(payload.new);
+        }, 5000);
+    },
+    
+    detener() {
+        if (this._intervalo) clearInterval(this._intervalo);
+    }
+};
+
+// ============================================
+// CONECTIVIDAD GLOBAL
+// ============================================
+
+const Conectividad = {
+    _canalTurnos: null,
+    _canalHistorial: null,
+    _canalNotificaciones: null,
+    
+    async suscribirTodos(callbacks = {}) {
+        if (!window.supabaseClient) {
+            console.warn('Supabase no disponible para realtime');
+            this.iniciarPolling();
+            return;
+        }
+        
+        try {
+            await this._suscribirTurnos(callbacks.turnos);
+            await this._suscribirHistorial(callbacks.historial);
+            await this._suscribirNotificaciones(callbacks.notificaciones);
+            console.log('✅ Suscripciones realtime activas');
+        } catch(e) {
+            console.error('Error en suscripciones:', e);
+            this.iniciarPolling();
+        }
+    },
+    
+    _suscribirTurnos(callback) {
+        if (this._canalTurnos) {
+            window.supabaseClient.removeChannel(this._canalTurnos);
+        }
+        this._canalTurnos = window.supabaseClient
+            .channel('turnos-global')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'turnos' },
+                (payload) => {
+                    console.log('🔄 Cambio en turnos:', payload);
+                    if (callback) callback(payload);
+                    if (window.SonidoAlerta && payload.eventType === 'INSERT') {
                         SonidoAlerta.reproducir(1);
                     }
-                )
-                .subscribe((status) => {
-                    console.log('Estado suscripción chat:', status);
-                    if (status === 'SUBSCRIBED') {
-                        console.log('Chat suscrito correctamente a mensajes');
-                    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                        console.error('Error en canal de chat, reconectando...');
-                        setTimeout(() => this.suscribir(callback), 3000);
+                }
+            )
+            .subscribe();
+    },
+    
+    _suscribirHistorial(callback) {
+        if (this._canalHistorial) {
+            window.supabaseClient.removeChannel(this._canalHistorial);
+        }
+        this._canalHistorial = window.supabaseClient
+            .channel('historial-global')
+            .on('postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
+                (payload) => {
+                    console.log('📝 Nuevo en historial:', payload);
+                    if (callback) callback(payload);
+                }
+            )
+            .subscribe();
+    },
+    
+    _suscribirNotificaciones(callback) {
+        if (this._canalNotificaciones) {
+            window.supabaseClient.removeChannel(this._canalNotificaciones);
+        }
+        this._canalNotificaciones = window.supabaseClient
+            .channel('notificaciones-global')
+            .on('postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
+                (payload) => {
+                    console.log('🔔 Nueva notificación:', payload);
+                    if (callback) callback(payload);
+                    if (window.SonidoAlerta) {
+                        SonidoAlerta.reproducir(3);
                     }
-                });
-            
-            return this.channel;
-        } catch (error) {
-            console.error('Error suscribiendo chat:', error);
-            return null;
-        }
+                    Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
+                }
+            )
+            .subscribe();
     },
     
-    desuscribir() {
-        if (this.channel && window.supabaseClient) {
-            window.supabaseClient.removeChannel(this.channel);
-            this.channel = null;
-        }
-    }
-};
-
-// ============================================
-// NOTIFICACIONES DE SALIDA
-// ============================================
-
-const NotificacionesSalida = {
-    async verificarPendientes() {
-        if (!window.supabaseClient) return [];
+    iniciarPolling() {
+        console.log('🔄 Iniciando polling como fallback...');
+        let ultimosIds = new Set();
         
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('turnos')
-                .select('*')
-                .eq('estado', 'atendiendo')
-                .eq('autorizado_salida', false);
-            
-            if (error) throw error;
-            
-            for (const turno of data) {
-                await window.supabaseClient
-                    .from('notificaciones_salida')
-                    .insert([{
-                        turno_id: turno.id,
-                        proveedor_nit: turno.nit,
-                        nombre_empresa: turno.nombre_empresa,
-                        fecha_cita: turno.fecha_cita || turno.fecha_solicitud,
-                        tipo: 'salida_pendiente',
-                        mensaje: `${turno.nombre_empresa} espera autorización de salida`,
-                        leido: false
-                    }]);
+        setInterval(async () => {
+            if (!window.supabaseClient) return;
+            try {
+                const { data } = await window.supabaseClient
+                    .from('turnos')
+                    .select('id, estado')
+                    .in('estado', ['atendiendo', 'llegado']);
+                
+                if (data) {
+                    const idsActuales = new Set(data.map(t => t.id));
+                    data.forEach(t => {
+                        if (!ultimosIds.has(t.id) && window.AppState && window.AppState.turnoActual && t.estado === 'atendiendo') {
+                            console.log('🔔 Turno detectado vía polling:', t.estado);
+                        }
+                    });
+                    ultimosIds = idsActuales;
+                }
+            } catch(e) {
+                console.error('Error polling:', e);
             }
-            
-            return data;
-        } catch (error) {
-            console.error('Error verificando salidas pendientes:', error);
-            return [];
-        }
+        }, 8000);
     },
     
-    async cargarNoLeidas() {
-        if (!window.supabaseClient) return [];
-        
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('notificaciones_salida')
-                .select('*')
-                .eq('leido', false)
-                .order('created_at', { ascending: false });
-            
-            if (error) throw error;
-            return data || [];
-        } catch (error) {
-            console.error('Error cargando notificaciones:', error);
-            return [];
+    desuscribirTodos() {
+        if (this._canalTurnos && window.supabaseClient) {
+            window.supabaseClient.removeChannel(this._canalTurnos);
+            this._canalTurnos = null;
         }
-    },
-    
-    async marcarLeida(id) {
-        if (!window.supabaseClient) return;
-        await window.supabaseClient
-            .from('notificaciones_salida')
-            .update({ leido: true })
-            .eq('id', id);
+        if (this._canalHistorial && window.supabaseClient) {
+            window.supabaseClient.removeChannel(this._canalHistorial);
+            this._canalHistorial = null;
+        }
+        if (this._canalNotificaciones && window.supabaseClient) {
+            window.supabaseClient.removeChannel(this._canalNotificaciones);
+            this._canalNotificaciones = null;
+        }
     }
 };
+
+// Exportar
+window.NotificacionesPolling = NotificacionesPolling;
+window.Conectividad = Conectividad;
 
 // ============================================
 // GESTIÓN DE TURNOS
@@ -4438,178 +4455,3 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
 
 window.GenerarCertificado = GenerarCertificado;
 
-// ============================================
-// CHAT EMERGENTE
-// ============================================
-
-function toggleChat() {
-    // Para admin
-    const popup = document.getElementById('chatPopup');
-    if (popup) {
-        popup.style.display = popup.style.display === 'none' ? 'flex' : 'none';
-        return;
-    }
-    // Para despachador
-    const popupDesp = document.getElementById('chatPopupDesp');
-    if (popupDesp) {
-        popupDesp.style.display = popupDesp.style.display === 'none' ? 'flex' : 'none';
-    }
-}
-
-function renderChatMessage(mensaje, esRemitente) {
-    const div = document.createElement('div');
-    div.className = `chat-message ${esRemitente ? 'admin' : 'despachador'}`;
-    
-    const fecha = new Date(mensaje.created_at);
-    const hora = fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-    
-    div.innerHTML = `
-        <div class="chat-bubble">
-            ${mensaje.mensaje}
-            <div class="chat-timestamp">${hora}</div>
-        </div>
-    `;
-    return div;
-}
-
-function agregarMensajeAlChat(mensaje, isDespachador = false) {
-    const popupId = isDespachador ? 'chatMensajesPopupDesp' : 'chatMensajesPopup';
-    const container = document.getElementById(popupId);
-    if (!container) return;
-    
-    // Verificar si ya existe este mensaje
-    if (container.dataset.lastMsgId == mensaje.id) return;
-    
-    const esRemitente = isDespachador ? mensaje.remitente === 'despachador' : mensaje.remitente === 'admin';
-    const div = renderChatMessage(mensaje, esRemitente);
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
-    container.dataset.lastMsgId = mensaje.id;
-}
-
-async function cargarChat(isDespachador = false) {
-    const mensajes = await Chat.cargarMensajes();
-    const popupId = isDespachador ? 'chatMensajesPopupDesp' : 'chatMensajesPopup';
-    const container = document.getElementById(popupId);
-    
-    if (!container) return;
-    
-    if (mensajes.length === 0) {
-        container.innerHTML = '<p class="empty-message">No hay mensajes</p>';
-        return;
-    }
-    
-    container.innerHTML = '';
-    const ultimoRemitente = mensajes[mensajes.length - 1].remitente;
-    
-    mensajes.forEach((msg, idx) => {
-        const esRemitente = isDespachador ? msg.remitente === 'despachador' : msg.remitente === 'admin';
-        const div = renderChatMessage(msg, esRemitente);
-        container.appendChild(div);
-    });
-    
-    container.scrollTop = container.scrollHeight;
-    
-    if (ultimoRemitente !== (isDespachador ? 'despachador' : 'admin')) {
-        Chat.marcarLeidos();
-    }
-    
-    // Guardar ID del último mensaje para detectar nuevos
-    const ultimoId = mensajes[mensajes.length - 1]?.id || 0;
-    container.dataset.lastMsgId = ultimoId;
-}
-
-async function enviarMensajeChat(isDespachador = false) {
-    const inputId = isDespachador ? 'mensajeTextoPopupDesp' : 'mensajeTextoPopup';
-    const input = document.getElementById(inputId);
-    const mensaje = input.value.trim();
-    
-    if (!mensaje) return;
-    
-    const remitente = isDespachador ? 'despachador' : 'admin';
-    const resultado = await Chat.enviarMensaje(mensaje, remitente);
-    
-    if (resultado) {
-        input.value = '';
-        // Agregar mensaje inmediatamente a ambos chats
-        const mensajeConFecha = {
-            ...resultado,
-            created_at: new Date().toISOString()
-        };
-        agregarMensajeAlChat(mensajeConFecha, false);
-        agregarMensajeAlChat(mensajeConFecha, true);
-    } else {
-        Utils.mostrarNotificacion('Error al enviar mensaje', 'error');
-    }
-}
-
-// Funciones específicas para admin y despachador
-async function enviarMensajeChatDesp() {
-    await enviarMensajeChat(true);
-}
-
-// Borrar mensajes del chat
-async function borrarChat() {
-    if (confirm('¿Está seguro de borrar todos los mensajes del chat?')) {
-        if (!window.supabaseClient) return;
-        
-        try {
-            const { error } = await window.supabaseClient
-                .from('mensajes')
-                .delete()
-                .neq('id', 0);
-            
-            if (error) throw error;
-            
-            document.getElementById('chatMensajesPopup').innerHTML = '<p class="empty-message">No hay mensajes</p>';
-            document.getElementById('chatMensajesPopupDesp').innerHTML = '<p class="empty-message">No hay mensajes</p>';
-            Utils.mostrarNotificacion('Chat borrado correctamente', 'success');
-        } catch (error) {
-            console.error('Error al borrar chat:', error);
-            Utils.mostrarNotificacion('Error al borrar el chat', 'error');
-        }
-    }
-}
-
-// Mostrar/Ocultar chat
-function toggleChat() {
-    const popup = document.querySelector('.chat-popup');
-    if (popup) {
-        popup.classList.toggle('active');
-        if (popup.classList.contains('active')) {
-            cargarChat();
-            cargarChat(true);
-        }
-    }
-}
-
-// Inicializar chat cuando Supabase esté listo
-document.addEventListener('DOMContentLoaded', () => {
-    esperarClienteSupabase(() => {
-        Chat.suscribir((mensaje) => {
-            agregarMensajeAlChat(mensaje, false);
-            agregarMensajeAlChat(mensaje, true);
-        });
-        cargarChat();
-        cargarChat(true);
-        
-        // Polling de respaldo cada 2 segundos por si falla Realtime
-        setInterval(() => {
-            const containerAdmin = document.getElementById('chatMensajesPopup');
-            const containerDesp = document.getElementById('chatMensajesPopupDesp');
-            if (containerAdmin || containerDesp) {
-                Chat.cargarMensajes().then(mensajes => {
-                    if (mensajes.length > 0) {
-                        const ultimoId = mensajes[mensajes.length - 1].id;
-                        const lastAdmin = parseInt(containerAdmin?.dataset?.lastMsgId || 0);
-                        const lastDesp = parseInt(containerDesp?.dataset?.lastMsgId || 0);
-                        if (lastAdmin < ultimoId || lastDesp < ultimoId) {
-                            cargarChat(false);
-                            cargarChat(true);
-                        }
-                    }
-                }).catch(err => console.log('Polling mensajes:', err));
-            }
-        }, 2000);
-    });
-});

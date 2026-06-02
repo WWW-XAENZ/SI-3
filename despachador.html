@@ -204,42 +204,25 @@
         </footer>
     </div>
 
-    <!-- Chat Popup -->
-<div id="chatPopupDesp" class="chat-popup" style="display: none;">
-            <div class="chat-popup-header">
-                <h3>Chat con Admin</h3>
-                <div class="chat-popup-actions">
-                    <button class="chat-popup-clear" onclick="borrarChat()" title="Borrar chat">🗑️</button>
-                    <button class="chat-popup-close" onclick="toggleChat()">&times;</button>
-                </div>
-            </div>
-            <div id="chatMensajesPopupDesp" class="chat-popup-messages">
-                <p class="empty-message">No hay mensajes</p>
-            </div>
-            <div class="chat-popup-input">
-                <input type="text" id="mensajeTextoPopupDesp" placeholder="Escribe un mensaje..." onkeydown="if(event.key==='Enter') enviarMensajeChatDesp()">
-                <button class="btn btn-primary btn-small" onclick="enviarMensajeChatDesp()">Enviar</button>
-            </div>
-        </div>
 
-        <button id="chatToggleDesp" class="chat-popup-toggle btn btn-primary" onclick="toggleChat()">
-            💬
-        </button>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>
+    <script src="mejoras.js"></script>
     <script>
-        function esperarClienteSupabase(callback, intentosMax = 50) {
+        function esperarClienteSupabase(callback, intentosMax = 100) {
             let intentos = 0;
             const intervalo = setInterval(() => {
                 intentos++;
-                if (window.supabaseClient) {
+                const clienteListo = window.supabaseClient && typeof window.supabaseClient.from === 'function';
+                if (clienteListo) {
                     clearInterval(intervalo);
+                    console.log('✅ Supabase cliente listo en intento', intentos);
                     callback();
                 } else if (intentos >= intentosMax) {
                     clearInterval(intervalo);
-                    console.warn('⚠️ Supabase no disponible después de ' + intentosMax + ' intentos');
+                    console.warn('⚠️ Supabase no disponible después de ' + intentosMax + ' intentos, ejecutando callback de todas formas');
                     callback();
                 }
             }, 100);
@@ -365,23 +348,315 @@
             });
             
             esperarClienteSupabase(() => {
-                if (window.supabaseClient) {
-                    window.supabaseClient
-                        .channel('despachador-llegada')
-                        .on('postgres_changes', 
-                            { event: '*', schema: 'public', table: 'historial_turnos' },
-                            (payload) => {
-                                console.log('📝 Cambio en historial:', payload);
-                                cargarTurnosPendientesSalida();
-                                cargarEstadisticasDespachador();
-                                cargarHistorialDespachador();
-                            }
-                        )
-                        .subscribe((status) => {
-                            console.log('📡 Suscripción historial:', status);
+                console.log('✅ Supabase listo, iniciando carga del despachador...');
+                // Timeout de seguridad: si no carga en 12s, mostrar error
+                const timeoutId = setTimeout(() => {
+                    const elementos = document.querySelectorAll('.empty-message');
+                    elementos.forEach(el => {
+                        if (el.textContent === 'Cargando...') {
+                            el.textContent = 'Error: Timeout de carga';
+                            el.style.color = '#dc2626';
+                        }
+                    });
+                    console.error('❌ Timeout: Las consultas a Supabase no respondieron en 12s');
+                }, 12000);
+                
+                cargarTodoDespachador().then(() => clearTimeout(timeoutId)).catch(() => clearTimeout(timeoutId));
+                suscribirRealtime();
+            });
+            
+            async function cargarTodoDespachador() {
+                console.log('📦 Cargando datos para despachador...');
+                const ahora = new Date();
+                const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`;
+                console.log('📅 Fecha de hoy:', hoy);
+                
+                const contenedores = {
+                    listaTurnosPendientesSalida: 'Cargando...',
+                    historialDespachador: 'Cargando...',
+                    listaTurnosCitadosDespachador: 'Cargando...',
+                    listaSalidasPendientesDesp: 'Cargando...'
+                };
+                
+                Object.entries(contenedores).forEach(([id, msg]) => {
+                    const el = document.getElementById(id);
+                    if (el && !el.textContent.includes('Sin conexión') && !el.textContent.includes('Error')) {
+                        el.innerHTML = `<p class="empty-message">${msg}</p>`;
+                    }
+                });
+                
+                if (!window.supabaseClient) {
+                    Object.values(contenedores).forEach((_, i) => {
+                        const ids = Object.keys(contenedores);
+                        const el = document.getElementById(ids[i]);
+                        if (el) el.innerHTML = '<p class="empty-message" style="color:#dc2626;">⚠️ Sin conexión a Supabase</p>';
+                    });
+                    return;
+                }
+                
+                try {
+                    console.log('🔄 Ejecutando consultas a Supabase...');
+                    
+                    const [resultadoPendientes, resultadoStats, resultadoHistorial, resultadoCitas] = await Promise.all([
+                        consultarPendientesSalida(hoy),
+                        consultarEstadisticas(hoy),
+                        consultarHistorial(),
+                        consultarCitas()
+                    ]);
+                    
+                    console.log('✅ Resultado pendientes:', resultadoPendientes ? resultadoPendientes.length : 0, 'registros');
+                    console.log('✅ Resultado historial:', resultadoHistorial ? resultadoHistorial.length : 0, 'registros');
+                    console.log('✅ Resultado citas:', resultadoCitas ? resultadoCitas.length : 0, 'registros');
+                    
+                    console.log('✅ Datos cargados correctamente');
+                } catch (e) {
+                    console.error('❌ Error general al cargar:', e);
+                    Object.entries(contenedores).forEach(([id]) => {
+                        const el = document.getElementById(id);
+                        if (el && el.querySelector('.empty-message')?.textContent === 'Cargando...') {
+                            el.innerHTML = '<p class="empty-message" style="color:#dc2626;">Error al cargar datos</p>';
+                        }
+                    });
+                }
+            }
+            
+            async function consultarPendientesSalida(hoy) {
+                const listaDiv = document.getElementById('listaTurnosPendientesSalida');
+                if (!listaDiv || !window.supabaseClient) return [];
+                
+                try {
+                    const { data, error } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .select('*')
+                        .gte('fecha', `${hoy}T00:00:00`)
+                        .lte('fecha', `${hoy}T23:59:59`)
+                        .order('hora_finalizacion', { ascending: false });
+                    
+                    if (error) throw error;
+                    
+                    turnosDelDia = data || [];
+                    filtrarYMostrarTurnos();
+                    return data || [];
+                } catch (e) {
+                    console.error('Error consultando pendientes:', e);
+                    if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
+                    return [];
+                }
+            }
+            
+            async function consultarEstadisticas(hoy) {
+                if (!window.supabaseClient) return;
+                try {
+                    const { data, error } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .select('autorizado_salida')
+                        .gte('fecha', `${hoy}T00:00:00`);
+                    
+                    if (error) throw error;
+                    
+                    const total = data?.length || 0;
+                    const autorizados = data?.filter(h => h.autorizado_salida === true).length || 0;
+                    const pendientes = total - autorizados;
+                    
+                    const totalDiaEl = document.getElementById('totalTurnosDia');
+                    const totalAutorizadosEl = document.getElementById('totalAutorizados');
+                    const totalPendientesEl = document.getElementById('totalPendientes');
+                    
+                    if (totalDiaEl) totalDiaEl.textContent = total;
+                    if (totalAutorizadosEl) totalAutorizadosEl.textContent = autorizados;
+                    if (totalPendientesEl) totalPendientesEl.textContent = pendientes;
+                } catch (e) {
+                    console.error('Error consultando estadísticas:', e);
+                }
+            }
+            
+            async function consultarHistorial() {
+                const listaDiv = document.getElementById('historialDespachador');
+                if (!listaDiv || !window.supabaseClient) return [];
+                
+                try {
+                    const { data, error } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .select('numero, nombre_empresa, nit, destino, contacto, telefono, num_factura, tipo_vehiculo, bultos, peso, responsable, hora_finalizacion, autorizado_salida')
+                        .order('hora_finalizacion', { ascending: false })
+                        .limit(20);
+                    
+                    if (error) throw error;
+                    
+                    if (!data || data.length === 0) {
+                        listaDiv.innerHTML = '<p class="empty-message">Sin historial</p>';
+                    } else {
+                        listaDiv.innerHTML = `
+                            <table class="history-table-desp">
+                                <thead>
+                                    <tr>
+                                        <th>#</th><th>Empresa</th><th>Placa</th><th>Factura</th>
+                                        <th>Tipo</th><th>Peso</th><th>Responsable</th><th>Hora</th><th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.map(h => {
+                                        let horaFin = '-';
+                                        if (h.hora_finalizacion) {
+                                            const partes = h.hora_finalizacion.split(':');
+                                            if (partes.length >= 2) {
+                                                let hra = parseInt(partes[0]);
+                                                const min = partes[1];
+                                                const ampm = hra >= 12 ? 'PM' : 'AM';
+                                                hra = hra % 12 || 12;
+                                                horaFin = `${hra}:${min} ${ampm}`;
+                                            }
+                                        }
+                                        return `
+                                            <tr>
+                                                <td><strong>${h.numero}</strong></td>
+                                                <td>${h.nombre_empresa || '-'}</td>
+                                                <td>${h.nit || '-'}</td>
+                                                <td>${h.num_factura || '-'}</td>
+                                                <td>${h.tipo_vehiculo || '-'}</td>
+                                                <td>${h.peso || '-'}</td>
+                                                <td>${h.responsable || '-'}</td>
+                                                <td>${horaFin}</td>
+                                                <td>${h.autorizado_salida ? '<span style="color:#10b981;">✓ OK</span>' : '<span style="color:#f59e0b;">PEND</span>'}</td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        `;
+                    }
+                    return data || [];
+                } catch (e) {
+                    console.error('Error consultando historial:', e);
+                    if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
+                    return [];
+                }
+            }
+            
+            async function consultarCitas() {
+                const listaDiv = document.getElementById('listaTurnosCitadosDespachador');
+                const contadorDiv = document.getElementById('contadorTurnosCitadosDespachador');
+                if (!listaDiv || !window.supabaseClient) return [];
+                
+                try {
+                    const ahora = new Date().toISOString();
+                    const { data, error } = await window.supabaseClient
+                        .from('turnos')
+                        .select('*')
+                        .eq('estado', 'citado')
+                        .gte('fecha_cita', ahora)
+                        .order('fecha_cita', { ascending: true })
+                        .limit(10);
+                    
+                    if (error) throw error;
+                    
+                    if (contadorDiv) contadorDiv.textContent = data?.length || 0;
+                    
+                    if (!data || data.length === 0) {
+                        listaDiv.innerHTML = '<p class="empty-message">Sin citas reservadas</p>';
+                    } else {
+                        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
+                        const gruposPorFecha = {};
+                        data.forEach(turno => {
+                            const fecha = turno.fecha_cita ? turno.fecha_cita.split('T')[0] : 'Sin fecha';
+                            if (!gruposPorFecha[fecha]) gruposPorFecha[fecha] = [];
+                            gruposPorFecha[fecha].push(turno);
                         });
+                        
+                        let html = '';
+                        for (const [fecha, turnos] of Object.entries(gruposPorFecha)) {
+                            const nombreDia = new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO', { 
+                                weekday: 'long', day: 'numeric', month: 'long' 
+                            });
+                            html += `<div class="cited-day-header">${nombreDia}</div>`;
+                            html += turnos.map(turno => {
+                                let horaCita = '';
+                                if (turno.fecha_cita) {
+                                    const partes = turno.fecha_cita.split('T');
+                                    if (partes.length >= 2) {
+                                        const [horas, minSeg] = partes[1].split(':');
+                                        const h = parseInt(horas);
+                                        const min = minSeg.split('.')[0];
+                                        const ampm = h >= 12 ? 'PM' : 'AM';
+                                        const h12 = h % 12 || 12;
+                                        horaCita = `${h12}:${min} ${ampm}`;
+                                    }
+                                }
+                                return `
+                                    <div class="turn-item">
+                                        <span class="turn-item-number">${turno.numero}</span>
+                                        <div class="turn-item-info">
+                                            <div class="turn-item-company">${turno.nombre_empresa || '-'}</div>
+                                            <div class="turn-item-time">${horaCita} - ${destinoLabel[turno.destino] || turno.destino}</div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('');
+                        }
+                        listaDiv.innerHTML = html;
+                    }
+                    return data || [];
+                } catch (e) {
+                    console.error('Error consultando citas:', e);
+                    if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
+                    return [];
+                }
+            }
+            
+            function suscribirRealtime() {
+                if (!window.supabaseClient) return;
+                try {
+                    const ch = window.supabaseClient.channel('desp-realtime-' + Date.now())
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'historial_turnos' }, () => {
+                            console.log('📊 Cambio en historial detectado, recargando...');
+                            cargarTodoDespachador();
+                        })
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos' }, () => {
+                            console.log('📋 Cambio en turnos detectado, recargando...');
+                            cargarTodoDespachador();
+                        })
+                        .subscribe(status => {
+                            console.log('📡 Estado suscripción:', status);
+                            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                                console.warn('⚠️ Reconectando en 3s...');
+                                setTimeout(suscribirRealtime, 3000);
+                            } else if (status === 'SUBSCRIBED') {
+                                console.log('✅ Suscripción activa');
+                            }
+                        });
+                    window._despChannel = ch;
+                } catch (e) {
+                    console.error('❌ Error en suscripción realtime:', e);
+                }
+            }
+            
+            setInterval(() => {
+                if (window.supabaseClient) cargarTodoDespachador();
+            }, 10000);
+            
+            document.addEventListener('storage', (e) => {
+                if (e.key === 'proveedorListoSalir') {
+                    if (e.newValue) {
+                        try {
+                            const proveedor = JSON.parse(e.newValue);
+                            mostrarProveedorListo(proveedor);
+                        } catch (err) {}
+                    } else {
+                        cerrarModalProveedorListo();
+                    }
                 }
             });
+            
+            const checkInterval = setInterval(() => {
+                if (window.AppState && window.RenderAdmin && window.DespachadorHandlers) {
+                    clearInterval(checkInterval);
+                    inicializarDespachador();
+                }
+            }, 200);
+            setTimeout(() => {
+                clearInterval(checkInterval);
+                inicializarDespachador();
+            }, 10000);
             
             // Listener para salida autorizada desde admin
             window.addEventListener('storage', (e) => {
@@ -844,8 +1119,6 @@
                     });
                 }
                 
-                cargarTurnosPendientesSalida();
-                
                 const btnAutorizarSalida = document.getElementById('btnAutorizarSalida');
                 if (btnAutorizarSalida) {
                     btnAutorizarSalida.addEventListener('click', async () => {
@@ -865,27 +1138,21 @@
                         }
                     });
                 }
-}
-                 });
-            }
-        });
-
-        // Inicializar chat cuando Supabase esté listo
-        setTimeout(() => {
-            function initChat() {
-                if (window.supabaseClient) {
-                    if (window.Chat) {
-                        Chat.suscribir((mensaje) => {
-                            cargarChat(true);
-                        });
-                        cargarChat(true);
-                    }
-                } else {
-                    setTimeout(initChat, 500);
+                
+                // Modal auto-cierra si se autoriza la salida desde admin (viene del modal del proveedor)
+                const modalProveedor = document.getElementById('modal-proveedor-listo');
+                if (modalProveedor) {
+                    const observer = new MutationObserver(() => {
+                        if (localStorage.getItem('proveedorListoSalir') === null) {
+                            modalProveedor.remove();
+                        }
+                    });
+                    observer.observe(document.body, { childList: true, subtree: true });
                 }
             }
-            initChat();
-        }, 3000);
+        });
+    });
+
     </script>
 </body>
 </html>

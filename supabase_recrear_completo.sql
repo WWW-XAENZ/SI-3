@@ -1,11 +1,10 @@
 -- ============================================
 -- SISTEMA DE TURNOS SI-3 - ESQUEMA COMPLETO PARA SUPABASE
--- Este script crea todas las tablas, índices, funciones, triggers y políticas
 -- Ejecutar TODO este código en el SQL Editor de Supabase
 -- ============================================
 
 -- ============================================
--- 1. ELIMINAR TABLAS EXISTENTES (si existen) PARA RECREAR TODO DE CERO
+-- 1. ELIMINAR TABLAS EXISTENTES
 -- ============================================
 DROP TABLE IF EXISTS historial_turnos CASCADE;
 DROP TABLE IF EXISTS turnos CASCADE;
@@ -15,12 +14,12 @@ DROP TABLE IF EXISTS usuarios CASCADE;
 DROP TABLE IF EXISTS mensajes CASCADE;
 DROP TABLE IF EXISTS notificaciones_salida CASCADE;
 DROP FUNCTION IF EXISTS update_updated_at_column();
+DROP PUBLICATION IF EXISTS supabase_realtime;
 
 -- ============================================
 -- 2. TABLAS
 -- ============================================
 
--- Tabla de configuración del sistema
 CREATE TABLE configuracion (
     id BIGSERIAL PRIMARY KEY,
     clave VARCHAR(100) UNIQUE NOT NULL,
@@ -30,7 +29,6 @@ CREATE TABLE configuracion (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla de proveedores/empresas
 CREATE TABLE proveedores (
     id BIGSERIAL PRIMARY KEY,
     nombre_empresa VARCHAR(255) NOT NULL,
@@ -44,7 +42,6 @@ CREATE TABLE proveedores (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla de turnos activos
 CREATE TABLE turnos (
     id BIGSERIAL PRIMARY KEY,
     numero VARCHAR(10) UNIQUE NOT NULL,
@@ -77,7 +74,6 @@ CREATE TABLE turnos (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla de historial de turnos (para reportes y análisis)
 CREATE TABLE historial_turnos (
     id BIGSERIAL PRIMARY KEY,
     turno_id BIGINT,
@@ -107,7 +103,6 @@ CREATE TABLE historial_turnos (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla de usuarios del sistema (opcional para futuro)
 CREATE TABLE usuarios (
     id BIGSERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -119,7 +114,6 @@ CREATE TABLE usuarios (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla de mensajes entre admin y despachador
 CREATE TABLE mensajes (
     id BIGSERIAL PRIMARY KEY,
     remitente TEXT NOT NULL CHECK (remitente IN ('admin', 'despachador')),
@@ -128,7 +122,6 @@ CREATE TABLE mensajes (
     leido BOOLEAN DEFAULT false
 );
 
--- Tabla para notificaciones de salida pendiente
 CREATE TABLE notificaciones_salida (
     id BIGSERIAL PRIMARY KEY,
     turno_id BIGINT REFERENCES turnos(id) ON DELETE CASCADE,
@@ -158,10 +151,9 @@ INSERT INTO usuarios (email, nombre, rol) VALUES
 ON CONFLICT (email) DO NOTHING;
 
 -- ============================================
--- 4. ÍNDICES PARA OPTIMIZACIÓN
+-- 4. ÍNDICES
 -- ============================================
 
--- Índices para turnos
 CREATE INDEX idx_turnos_estado ON turnos(estado);
 CREATE INDEX idx_turnos_fecha_solicitud ON turnos(fecha_solicitud);
 CREATE INDEX idx_turnos_nit ON turnos(nit);
@@ -169,27 +161,22 @@ CREATE INDEX idx_turnos_proveedor_id ON turnos(proveedor_id);
 CREATE INDEX idx_turnos_numero ON turnos(numero);
 CREATE INDEX idx_turnos_destino ON turnos(destino);
 
--- Índices para historial_turnos
 CREATE INDEX idx_historial_turnos_fecha ON historial_turnos(fecha);
 CREATE INDEX idx_historial_turnos_nit ON historial_turnos(nit);
 CREATE INDEX idx_historial_turnos_estado ON historial_turnos(estado);
 CREATE INDEX idx_historial_turnos_numero ON historial_turnos(numero);
 
--- Índices para proveedores
 CREATE INDEX idx_proveedores_nit ON proveedores(nit);
 CREATE INDEX idx_proveedores_nombre ON proveedores(nombre_empresa);
 CREATE INDEX idx_proveedores_activo ON proveedores(activo);
 CREATE INDEX idx_proveedores_servicio ON proveedores(servicio);
 
--- Índices para usuarios
 CREATE INDEX idx_usuarios_email ON usuarios(email);
 CREATE INDEX idx_usuarios_rol ON usuarios(rol);
 
--- Índices para mensajes
 CREATE INDEX idx_mensajes_created_at ON mensajes(created_at desc);
 CREATE INDEX idx_mensajes_leido ON mensajes(leido);
 
--- Índices para notificaciones_salida
 CREATE INDEX idx_notificaciones_salida_leido ON notificaciones_salida(leido);
 CREATE INDEX idx_notificaciones_salida_created_at ON notificaciones_salida(created_at desc);
 
@@ -197,7 +184,6 @@ CREATE INDEX idx_notificaciones_salida_created_at ON notificaciones_salida(creat
 -- 5. FUNCIONES Y TRIGGERS
 -- ============================================
 
--- Función para actualizar updated_at automáticamente
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -206,28 +192,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Triggers para actualizar updated_at
-CREATE TRIGGER update_configuracion_updated_at
-    BEFORE UPDATE ON configuracion
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_proveedores_updated_at
-    BEFORE UPDATE ON proveedores
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_turnos_updated_at
-    BEFORE UPDATE ON turnos
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_usuarios_updated_at
-    BEFORE UPDATE ON usuarios
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_configuracion_updated_at BEFORE UPDATE ON configuracion FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_proveedores_updated_at BEFORE UPDATE ON proveedores FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_turnos_updated_at BEFORE UPDATE ON turnos FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_usuarios_updated_at BEFORE UPDATE ON usuarios FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
--- 6. CONFIGURACIÓN DE REAL-TIME
+-- 6. REAL-TIME
 -- ============================================
 
--- Habilitar Replica Identity FULL para tablas que se usarán en real-time
 ALTER TABLE turnos REPLICA IDENTITY FULL;
 ALTER TABLE historial_turnos REPLICA IDENTITY FULL;
 ALTER TABLE proveedores REPLICA IDENTITY FULL;
@@ -235,15 +208,12 @@ ALTER TABLE configuracion REPLICA IDENTITY FULL;
 ALTER TABLE mensajes REPLICA IDENTITY FULL;
 ALTER TABLE notificaciones_salida REPLICA IDENTITY FULL;
 
--- Crear publicación para Real-time
-DROP PUBLICATION IF EXISTS supabase_realtime;
 CREATE PUBLICATION supabase_realtime FOR TABLE turnos, historial_turnos, proveedores, configuracion, mensajes, notificaciones_salida;
 
 -- ============================================
--- 7. POLÍTICAS DE SEGURIDAD (ROW LEVEL SECURITY)
+-- 7. ROW LEVEL SECURITY
 -- ============================================
 
--- Habilitar RLS en las tablas
 ALTER TABLE turnos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE historial_turnos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE proveedores ENABLE ROW LEVEL SECURITY;
@@ -252,60 +222,24 @@ ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mensajes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notificaciones_salida ENABLE ROW LEVEL SECURITY;
 
--- Políticas para turnos (permitir todas las operaciones)
-CREATE POLICY "Turnos: permitir todo" ON turnos
-    FOR ALL USING (true) WITH CHECK (true);
-
--- Políticas para historial_turnos
-CREATE POLICY "Historial: permitir todo" ON historial_turnos
-    FOR ALL USING (true) WITH CHECK (true);
-
--- Políticas para proveedores
-CREATE POLICY "Proveedores: permitir todo" ON proveedores
-    FOR ALL USING (true) WITH CHECK (true);
-
--- Políticas para configuracion
-CREATE POLICY "Configuracion: permitir todo" ON configuracion
-    FOR ALL USING (true) WITH CHECK (true);
-
--- Políticas para usuarios
-CREATE POLICY "Usuarios: permitir todo" ON usuarios
-    FOR ALL USING (true) WITH CHECK (true);
-
--- Políticas para mensajes
-CREATE POLICY "Mensajes: permitir todo" ON mensajes
-    FOR ALL USING (true) WITH CHECK (true);
-
--- Políticas para notificaciones_salida
-CREATE POLICY "NotificacionesSalida: permitir todo" ON notificaciones_salida
-    FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Turnos: permitir todo" ON turnos FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Historial: permitir todo" ON historial_turnos FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Proveedores: permitir todo" ON proveedores FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Configuracion: permitir todo" ON configuracion FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Usuarios: permitir todo" ON usuarios FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Mensajes: permitir todo" ON mensajes FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "NotificacionesSalida: permitir todo" ON notificaciones_salida FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================
--- 8. COMENTARIOS EN LAS TABLAS
--- ============================================
-
-COMMENT ON TABLE configuracion IS 'Tabla de configuración del sistema';
-COMMENT ON TABLE proveedores IS 'Tabla de proveedores/empresas registradas';
-COMMENT ON TABLE turnos IS 'Tabla de turnos activos en el sistema';
-COMMENT ON TABLE historial_turnos IS 'Tabla de historial de turnos para reportes y análisis';
-COMMENT ON TABLE usuarios IS 'Tabla de usuarios del sistema (futura implementación)';
-COMMENT ON TABLE mensajes IS 'Tabla de mensajes entre admin y despachador';
-COMMENT ON TABLE notificaciones_salida IS 'Tabla de notificaciones de salida pendiente';
-
-COMMENT ON COLUMN turnos.estado IS 'Estados posibles: espera, citado, atendiendo, llegado, completado, cancelado';
-COMMENT ON COLUMN turnos.prioridad IS 'Prioridad del turno: 0=normal, 1=alta, 2=urgente';
-COMMENT ON COLUMN turnos.destino IS 'Destino del turno: SI ENSAMBLES, SI PLÁSTICOS, AMBOS';
-COMMENT ON COLUMN turnos.fecha_cita IS 'Fecha y hora de la cita programada (cuando estado = citado)';
-COMMENT ON COLUMN turnos.autorizado_salida IS 'Indica si el vehículo ya fue autorizado para salir';
-
--- ============================================
--- 9. VERIFICACIÓN FINAL
+-- 8. VERIFICACIÓN
 -- ============================================
 
 SELECT '✅ Base de datos recreada exitosamente' AS mensaje;
 SELECT 
-    (SELECT COUNT(*) FROM configuracion) AS configuracion_rows,
-    (SELECT COUNT(*) FROM proveedores) AS proveedores_rows,
-    (SELECT COUNT(*) FROM turnos) AS turnos_rows,
-    (SELECT COUNT(*) FROM historial_turnos) AS historial_rows,
-    (SELECT COUNT(*) FROM usuarios) AS usuarios_rows;
+    (SELECT COUNT(*) FROM configuracion) AS configuracion,
+    (SELECT COUNT(*) FROM proveedores) AS proveedores,
+    (SELECT COUNT(*) FROM turnos) AS turnos,
+    (SELECT COUNT(*) FROM historial_turnos) AS historial,
+    (SELECT COUNT(*) FROM usuarios) AS usuarios,
+    (SELECT COUNT(*) FROM mensajes) AS mensajes,
+    (SELECT COUNT(*) FROM notificaciones_salida) AS notificaciones;
