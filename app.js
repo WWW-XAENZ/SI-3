@@ -2012,7 +2012,7 @@ const RenderAdmin = {
                     }
                 }
             } else {
-                turnoInfoDiv.textContent = 'NingÃºn turno en atenciÃ³n';
+                turnoInfoDiv.textContent = 'Ningún turno en atención';
                 
                 const despachoDetail = document.getElementById('despachoDetail');
                 if (despachoDetail) {
@@ -2657,6 +2657,44 @@ const AdminHandlers = {
         }
     },
 
+    async llamarTurnoEspecifico(turnoId) {
+        const turno = AppState.turnos.find(t => t.id === turnoId);
+        if (!turno) {
+            Utils.mostrarNotificacion('Turno no encontrado', 'error');
+            return;
+        }
+
+        if (AppState.turnoActual) {
+            Utils.mostrarNotificacion(`Ya hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
+            return;
+        }
+
+        const infoDespacho = {
+            numFactura: turno.numFactura || null,
+            tipoVehiculo: turno.tipoVehiculo || null,
+            bultos: turno.bultos || null,
+            peso: turno.peso || null,
+            responsable: turno.responsable || null,
+            contacto: turno.contacto || null,
+            telefono: turno.telefono || null,
+            servicio: turno.servicio || null,
+            destino: turno.destino || null
+        };
+        const actualizado = await SupabaseDB.llamarTurno(turnoId, infoDespacho);
+        if (!actualizado) {
+            Utils.mostrarNotificacion('Error al llamar turno en la base de datos', 'error');
+            return;
+        }
+
+        Object.assign(turno, actualizado);
+        AppState.turnoActual = turno;
+        AppState.turnos = AppState.turnos.filter(t => t.id !== turnoId);
+        LocalStorage.guardarTurnoActual(AppState.turnoActual);
+        LocalStorage.guardarTurnos(AppState.turnos);
+        
+        this.mostrarModalDespacho(turno, 'especifico', turnoId);
+    },
+
     mostrarModalDespacho(turno, tipo, turnoId = null) {
         const modal = document.getElementById('despachoModal');
         if (!modal) {
@@ -2751,15 +2789,15 @@ const AdminHandlers = {
                 return;
             }
 
-            Object.assign(turnoActual, {
-                numFactura: infoDespacho.numFactura,
-                tipoVehiculo: infoDespacho.tipoVehiculo,
-                bultos: infoDespacho.bultos,
-                peso: infoDespacho.peso,
-                responsable: infoDespacho.responsable
-            });
-
-            AppState.turnoActual = turnoActual;
+            turnoActual.numFactura = infoDespacho.numFactura;
+            turnoActual.tipoVehiculo = infoDespacho.tipoVehiculo;
+            turnoActual.bultos = infoDespacho.bultos;
+            turnoActual.peso = infoDespacho.peso;
+            turnoActual.responsable = infoDespacho.responsable;
+            turnoActual.contacto = infoDespacho.contacto;
+            turnoActual.telefono = infoDespacho.telefono;
+            turnoActual.servicio = infoDespacho.servicio;
+            turnoActual.destino = infoDespacho.destino;
         } else {
             if (AppState.turnoActual) {
                 const actualizado = await SupabaseDB.llamarTurno(AppState.turnoActual.id, infoDespacho);
