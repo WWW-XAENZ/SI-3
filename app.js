@@ -1,6 +1,6 @@
-// ============================================
+﻿// ============================================
 // SISTEMA DE TURNOS PROFESIONAL - ESTILO EPS
-// VERSIÓN CON RECARGA AUTO Y ELIMINAR PROVEEDOR CORREGIDO
+// VERSIÃ“N CON RECARGA AUTO Y ELIMINAR PROVEEDOR CORREGIDO
 // ============================================
 
 window.getLocalDate = () => {
@@ -98,14 +98,14 @@ const Utils = {
         notificacion.className = 'notificacion';
 
         const iconos = {
-            'success': '✅',
-            'error': '❌',
-            'warning': '⚠️',
-            'info': 'ℹ️'
+            'success': 'âœ…',
+            'error': 'âŒ',
+            'warning': 'âš ï¸',
+            'info': 'â„¹ï¸'
         };
 
         let contenido = `
-            <span class="notif-icon">${iconos[tipo] || 'ℹ'}</span>
+            <span class="notif-icon">${iconos[tipo] || 'â„¹'}</span>
             <span class="notificacion-mensaje">${mensaje}</span>
         `;
 
@@ -234,7 +234,7 @@ const Utils = {
             try {
                 return await operacion();
             } catch (error) {
-                console.error(`Intento ${intento}/${maxIntentos} falló:`, error.message);
+                console.error(`Intento ${intento}/${maxIntentos} fallÃ³:`, error.message);
                 if (intento === maxIntentos) {
                     throw error;
                 }
@@ -338,7 +338,7 @@ const LocalStorage = {
 const SupabaseDB = {
     async verificarConexion() {
         if (!window.supabaseClient) {
-            console.warn('Supabase no está inicializado');
+            console.warn('Supabase no estÃ¡ inicializado');
             return false;
         }
         
@@ -353,10 +353,10 @@ const SupabaseDB = {
                 return false;
             }
             
-            console.log('✅ Conexión con Supabase exitosa');
+            console.log('âœ… ConexiÃ³n con Supabase exitosa');
             return true;
         } catch (error) {
-            console.warn('Error de conexión:', error.message);
+            console.warn('Error de conexiÃ³n:', error.message);
             return false;
         }
     },
@@ -443,13 +443,13 @@ const SupabaseDB = {
     },
 
     async guardarProveedor(proveedor, signal = null) {
-        console.log('🔹 SupabaseDB.guardarProveedor llamado con:', proveedor.nit);
+        console.log('ðŸ”¹ SupabaseDB.guardarProveedor llamado con:', proveedor.nit);
         if (!window.supabaseClient) {
-            console.error('❌ Supabase no está disponible - usando localStorage');
+            console.error('âŒ Supabase no estÃ¡ disponible - usando localStorage');
             return null;
         }
         
-        console.log('🔹 Supabase client disponible');
+        console.log('ðŸ”¹ Supabase client disponible');
         
         try {
             const proveedorData = {
@@ -462,13 +462,13 @@ const SupabaseDB = {
                 updated_at: new Date().toISOString()
             };
             
-            // Timeout de 5 segundos para cada operación
+            // Timeout de 5 segundos para cada operaciÃ³n
             const timeoutPromise = new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('Timeout Supabase (proveedor)')), 5000)
             );
             
             if (proveedor.id) {
-                console.log('🔹 Actualizando proveedor existente ID:', proveedor.id);
+                console.log('ðŸ”¹ Actualizando proveedor existente ID:', proveedor.id);
                 const updatePromise = window.supabaseClient
                     .from('proveedores')
                     .update(proveedorData)
@@ -482,7 +482,7 @@ const SupabaseDB = {
                 if (error) throw error;
                 return this._mapearProveedor(data);
             } else {
-                console.log('🔹 Insertando nuevo proveedor NIT:', proveedor.nit);
+                console.log('ðŸ”¹ Insertando nuevo proveedor NIT:', proveedor.nit);
                 const insertPromise = window.supabaseClient
                     .from('proveedores')
                     .insert(proveedorData)
@@ -493,9 +493,9 @@ const SupabaseDB = {
                 const { data, error } = await Promise.race([insertPromise, timeoutPromise]);
                 
                 if (error) {
-                    console.log('⚠️ Error en insert, código:', error.code, 'mensaje:', error.message);
+                    console.log('âš ï¸ Error en insert, cÃ³digo:', error.code, 'mensaje:', error.message);
                     if (error.code === '23505') {
-                        console.log('🔹 Duplicado, actualizando por NIT...');
+                        console.log('ðŸ”¹ Duplicado, actualizando por NIT...');
                         const updatePromise2 = window.supabaseClient
                             .from('proveedores')
                             .update(proveedorData)
@@ -515,16 +515,16 @@ const SupabaseDB = {
                 return this._mapearProveedor(data);
             }
         } catch (error) {
-            console.error('❌ Error al guardar proveedor:', error);
-            console.log('🔄 Fallback a localStorage para proveedor');
-            return null; // Señal para usar fallback
+            console.error('âŒ Error al guardar proveedor:', error);
+            console.log('ðŸ”„ Fallback a localStorage para proveedor');
+            return null; // SeÃ±al para usar fallback
         }
     },
 
-    // CORRECCIÓN: Función eliminarProveedor añadida
+    // CORRECCIÃ“N: FunciÃ³n eliminarProveedor aÃ±adida
     async eliminarProveedor(proveedorId) {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
+            console.error('Supabase no estÃ¡ disponible');
             return false;
         }
         
@@ -539,7 +539,7 @@ const SupabaseDB = {
             
             if (error) throw error;
             
-            console.log(`✅ Proveedor ${proveedorId} eliminado (desactivado)`);
+            console.log(`âœ… Proveedor ${proveedorId} eliminado (desactivado)`);
             return true;
         } catch (error) {
             console.error('Error al eliminar proveedor:', error);
@@ -549,7 +549,7 @@ const SupabaseDB = {
 
     async cargarProveedores() {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
+            console.error('Supabase no estÃ¡ disponible');
             return [];
         }
         
@@ -584,18 +584,18 @@ const SupabaseDB = {
     },
 
     async guardarTurno(turno, signal = null) {
-        console.log('🔹 SupabaseDB.guardarTurno llamado. Número:', turno.numero);
-        console.log('🔹 Signal:', !!signal);
+        console.log('ðŸ”¹ SupabaseDB.guardarTurno llamado. NÃºmero:', turno.numero);
+        console.log('ðŸ”¹ Signal:', !!signal);
         
         if (!window.supabaseClient) {
-            console.error('❌ Supabase no está disponible - guardando en localStorage');
+            console.error('âŒ Supabase no estÃ¡ disponible - guardando en localStorage');
             turno.id = Date.now();
             AppState.turnos.push(turno);
             LocalStorage.guardarTurnos(AppState.turnos);
             return turno;
         }
         
-        console.log('🔹 Supabase client disponible, procediendo...');
+        console.log('ðŸ”¹ Supabase client disponible, procediendo...');
         
         try {
             const turnoData = {
@@ -619,7 +619,7 @@ const SupabaseDB = {
                 autorizado_salida: turno.autorizadoSalida || false
             };
             
-            console.log('📤 Insertando en Supabase:', JSON.stringify(turnoData, null, 2));
+            console.log('ðŸ“¤ Insertando en Supabase:', JSON.stringify(turnoData, null, 2));
             
             // Timeout interno de 5 segundos
             const timeoutPromise = new Promise((_, reject) => 
@@ -636,17 +636,17 @@ const SupabaseDB = {
             const { data, error } = await Promise.race([insertPromise, timeoutPromise]);
             
             if (error) {
-                console.error('❌ Error de Supabase:', error);
-                console.error('   Código:', error.code);
+                console.error('âŒ Error de Supabase:', error);
+                console.error('   CÃ³digo:', error.code);
                 console.error('   Mensaje:', error.message);
                 throw error;
             }
             
-            console.log('✅ Turno guardado exitosamente:', data);
+            console.log('âœ… Turno guardado exitosamente:', data);
             return this._mapearTurno(data);
         } catch (error) {
-            console.error('❌ Error al guardar turno:', error);
-            console.log('🔄 Fallback a localStorage para turno');
+            console.error('âŒ Error al guardar turno:', error);
+            console.log('ðŸ”„ Fallback a localStorage para turno');
             turno.id = Date.now();
             AppState.turnos.push(turno);
             LocalStorage.guardarTurnos(AppState.turnos);
@@ -656,7 +656,7 @@ const SupabaseDB = {
 
     async cargarTurnos(estado = null) {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
+            console.error('Supabase no estÃ¡ disponible');
             return [];
         }
         
@@ -682,15 +682,15 @@ const SupabaseDB = {
     },
 
     /**
-     * Verifica qué slots de 15 min están ocupados/bloqueados en una fecha
+     * Verifica quÃ© slots de 15 min estÃ¡n ocupados/bloqueados en una fecha
      * Horario laboral: 08:00 a 17:00 (5 PM), intervalos de 15 min
      *
      * Retorna un objeto con tres conjuntos:
-     *  - pasados:       slots ya transcurridos HOY (8–5pm, hora < ahora)
+     *  - pasados:       slots ya transcurridos HOY (8â€“5pm, hora < ahora)
      *  - reservados:    slots reservados por cualquier proveedor (BD)
      *  - fueraHorario:  slots antes de 08:00 (fuera de horario laboral)
      *
-     * horaExcluida: slot a excluir de todas las categorías (propio turno al editar)
+     * horaExcluida: slot a excluir de todas las categorÃ­as (propio turno al editar)
      */
     async verificarDisponibilidadHoraria(fecha, horaExcluida = null) {
         if (!window.supabaseClient || !fecha) {
@@ -708,7 +708,7 @@ const SupabaseDB = {
             const esHoy = fecha === hoyStr;
             const horaAhora = `${String(hoy.getHours()).padStart(2, '0')}:${String(hoy.getMinutes()).padStart(2, '0')}`;
 
-            // ── 1. Obtener turnos reservados en Supabase ────────────────────────
+            // â”€â”€ 1. Obtener turnos reservados en Supabase â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             const fechaInicio = fecha + 'T08:00:00';
             const fechaFin    = fecha + 'T17:00:00';
 
@@ -732,12 +732,12 @@ const SupabaseDB = {
                 slotsReservados.add(horaTurno);
             });
 
-            // ── 2. Horarios que ya pasaron HOY ──────────────────────────────────
+            // â”€â”€ 2. Horarios que ya pasaron HOY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (esHoy) {
                 this._generarSlots(8, 16, [0, 15, 30, 45]).forEach(slot => {
                     if (slot <= horaAhora && slot !== horaExcluida) {
                         slotsOcupados.add(slot);
-                        // Solo marcar como 'pasado' si no está también reservado por BD
+                        // Solo marcar como 'pasado' si no estÃ¡ tambiÃ©n reservado por BD
                         if (!slotsReservados.has(slot)) {
                             slotsPasados.add(slot);
                         }
@@ -750,7 +750,7 @@ const SupabaseDB = {
                 }
             }
 
-            // ── 3. Fuera de horario laboral (< 08:00) ───────────────────────────
+            // â”€â”€ 3. Fuera de horario laboral (< 08:00) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             this._generarSlots(0, 7, [0, 15, 30, 45]).forEach(slot => {
                 slotsOcupados.add(slot);
                 slotsFuera.add(slot);
@@ -782,7 +782,7 @@ const SupabaseDB = {
 
     async llamarTurno(turnoId, infoDespacho = null) {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
+            console.error('Supabase no estÃ¡ disponible');
             return null;
         }
         
@@ -838,7 +838,7 @@ const SupabaseDB = {
 
     async completarTurno(turnoId) {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
+            console.error('Supabase no estÃ¡ disponible');
             return false;
         }
         
@@ -876,7 +876,7 @@ const SupabaseDB = {
 
     async cancelarTurno(turnoId) {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
+            console.error('Supabase no estÃ¡ disponible');
             return false;
         }
         
@@ -924,7 +924,7 @@ const SupabaseDB = {
 
     async guardarEnHistorial(turno) {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
+            console.error('Supabase no estÃ¡ disponible');
             return false;
         }
         
@@ -974,7 +974,7 @@ const SupabaseDB = {
 
     async cargarHistorial(limite = 100, fecha = null) {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
+            console.error('Supabase no estÃ¡ disponible');
             return [];
         }
         
@@ -1074,7 +1074,7 @@ const SupabaseDB = {
                 totalProveedores: totalProveedores || 0
             };
         } catch (error) {
-            console.error('Error al cargar estadísticas:', error);
+            console.error('Error al cargar estadÃ­sticas:', error);
             return {
                 totalTurnos: 0,
                 turnosEspera: 0,
@@ -1167,14 +1167,14 @@ const SupabaseDB = {
                 detalle
             };
         } catch (error) {
-            console.error('Error al obtener estadísticas del mes:', error);
+            console.error('Error al obtener estadÃ­sticas del mes:', error);
             return { totalTurnos: 0, totalProveedores: 0, promedioDiario: 0, detalle: [] };
         }
     },
 
     suscribirCambiosTurnos(callback) {
         if (!window.supabaseClient) {
-            console.error('❌ Supabase no está disponible');
+            console.error('âŒ Supabase no estÃ¡ disponible');
             return null;
         }
         
@@ -1189,23 +1189,23 @@ const SupabaseDB = {
                         table: 'turnos' 
                     },
                     (payload) => {
-                        console.log('🔄 Cambio en turnos:', payload);
+                        console.log('ðŸ”„ Cambio en turnos:', payload);
                         if (callback && typeof callback === 'function') {
                             callback(payload);
                         }
                     }
                 )
                 .subscribe((status, err) => {
-                    console.log('📡 Estado canal turnos:', status);
+                    console.log('ðŸ“¡ Estado canal turnos:', status);
                     
                     if (status === 'SUBSCRIBED') {
-                        console.log('✅ Suscripción a turnos activada correctamente');
+                        console.log('âœ… SuscripciÃ³n a turnos activada correctamente');
                     } else if (status === 'CHANNEL_ERROR') {
-                        console.error('❌ Error en canal de turnos:', err);
+                        console.error('âŒ Error en canal de turnos:', err);
                         window.supabaseClient.removeChannel(channel);
                         setTimeout(() => this.suscribirCambiosTurnos(callback), 3000);
                     } else if (status === 'TIMED_OUT') {
-                        console.error('⏰ Timeout en canal de turnos, reconectando...');
+                        console.error('â° Timeout en canal de turnos, reconectando...');
                         window.supabaseClient.removeChannel(channel);
                         setTimeout(() => this.suscribirCambiosTurnos(callback), 3000);
                     }
@@ -1213,14 +1213,14 @@ const SupabaseDB = {
             
             return channel;
         } catch (error) {
-            console.error('❌ Error al suscribirse a turnos:', error);
+            console.error('âŒ Error al suscribirse a turnos:', error);
             return null;
         }
     },
 
     suscribirCambiosHistorial(callback) {
         if (!window.supabaseClient) {
-            console.error('❌ Supabase no está disponible');
+            console.error('âŒ Supabase no estÃ¡ disponible');
             return null;
         }
         
@@ -1235,23 +1235,23 @@ const SupabaseDB = {
                         table: 'historial_turnos' 
                     },
                     (payload) => {
-                        console.log('📝 Nuevo en historial:', payload);
+                        console.log('ðŸ“ Nuevo en historial:', payload);
                         if (callback && typeof callback === 'function') {
                             callback(payload);
                         }
                     }
                 )
                 .subscribe((status, err) => {
-                    console.log('📡 Estado canal historial:', status);
+                    console.log('ðŸ“¡ Estado canal historial:', status);
                     
                     if (status === 'SUBSCRIBED') {
-                        console.log('✅ Suscripción a historial activada correctamente');
+                        console.log('âœ… SuscripciÃ³n a historial activada correctamente');
                     } else if (status === 'CHANNEL_ERROR') {
-                        console.error('❌ Error en canal de historial:', err);
+                        console.error('âŒ Error en canal de historial:', err);
                         window.supabaseClient.removeChannel(channel);
                         setTimeout(() => this.suscribirCambiosHistorial(callback), 3000);
                     } else if (status === 'TIMED_OUT') {
-                        console.error('⏰ Timeout en canal de historial, reconectando...');
+                        console.error('â° Timeout en canal de historial, reconectando...');
                         window.supabaseClient.removeChannel(channel);
                         setTimeout(() => this.suscribirCambiosHistorial(callback), 3000);
                     }
@@ -1259,7 +1259,7 @@ const SupabaseDB = {
             
             return channel;
         } catch (error) {
-            console.error('❌ Error al suscribirse a historial:', error);
+            console.error('âŒ Error al suscribirse a historial:', error);
             return null;
         }
     }
@@ -1290,7 +1290,7 @@ const NotificacionesPolling = {
                     if (this._ultimoTimestamp !== ultimo.created_at && window.AppState && window.AppState.turnoActual) {
                         this._ultimoTimestamp = ultimo.created_at;
                         if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
-                        Utils.mostrarNotificacion(`Notificación: ${ultimo.mensaje}`, 'warning');
+                        Utils.mostrarNotificacion(`NotificaciÃ³n: ${ultimo.mensaje}`, 'warning');
                     }
                 }
             } catch(e) {
@@ -1324,7 +1324,7 @@ const Conectividad = {
             await this._suscribirTurnos(callbacks.turnos);
             await this._suscribirHistorial(callbacks.historial);
             await this._suscribirNotificaciones(callbacks.notificaciones);
-            console.log('✅ Suscripciones realtime activas');
+            console.log('âœ… Suscripciones realtime activas');
         } catch(e) {
             console.error('Error en suscripciones:', e);
             this.iniciarPolling();
@@ -1340,7 +1340,7 @@ const Conectividad = {
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'turnos' },
                 (payload) => {
-                    console.log('🔄 Cambio en turnos:', payload);
+                    console.log('ðŸ”„ Cambio en turnos:', payload);
                     if (callback) callback(payload);
                     if (window.SonidoAlerta && payload.eventType === 'INSERT') {
                         SonidoAlerta.reproducir(1);
@@ -1359,7 +1359,7 @@ const Conectividad = {
             .on('postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
                 (payload) => {
-                    console.log('📝 Nuevo en historial:', payload);
+                    console.log('ðŸ“ Nuevo en historial:', payload);
                     if (callback) callback(payload);
                 }
             )
@@ -1375,7 +1375,7 @@ const Conectividad = {
             .on('postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
                 (payload) => {
-                    console.log('🔔 Nueva notificación:', payload);
+                    console.log('ðŸ”” Nueva notificaciÃ³n:', payload);
                     if (callback) callback(payload);
                     if (window.SonidoAlerta) {
                         SonidoAlerta.reproducir(3);
@@ -1387,7 +1387,7 @@ const Conectividad = {
     },
     
     iniciarPolling() {
-        console.log('🔄 Iniciando polling como fallback...');
+        console.log('ðŸ”„ Iniciando polling como fallback...');
         let ultimosIds = new Set();
         
         setInterval(async () => {
@@ -1402,7 +1402,7 @@ const Conectividad = {
                     const idsActuales = new Set(data.map(t => t.id));
                     data.forEach(t => {
                         if (!ultimosIds.has(t.id) && window.AppState && window.AppState.turnoActual && t.estado === 'atendiendo') {
-                            console.log('🔔 Turno detectado vía polling:', t.estado);
+                            console.log('ðŸ”” Turno detectado vÃ­a polling:', t.estado);
                         }
                     });
                     ultimosIds = idsActuales;
@@ -1434,30 +1434,30 @@ window.NotificacionesPolling = NotificacionesPolling;
 window.Conectividad = Conectividad;
 
 // ============================================
-// GESTIÓN DE TURNOS
+// GESTIÃ“N DE TURNOS
 // ============================================
 
 const Turnos = {
     async solicitar(datosProveedor, motivo = '', signal = null) {
         console.log('=== CREANDO TURNO ===');
-        console.log('📌 Datos recibidos:', datosProveedor);
-        console.log('📌 Signal:', !!signal);
+        console.log('ðŸ“Œ Datos recibidos:', datosProveedor);
+        console.log('ðŸ“Œ Signal:', !!signal);
         
         if (!datosProveedor.nit) {
-            console.error('❌ Validación fallida: placa requerida');
+            console.error('âŒ ValidaciÃ³n fallida: placa requerida');
             throw new Error('La placa es requerida');
         }
         
         const placa = datosProveedor.nit.toUpperCase().trim();
-        console.log('📌 Placa:', placa);
+        console.log('ðŸ“Œ Placa:', placa);
         
         if (placa.length !== 6) {
-            console.error('❌ Validación fallida: placa longitud incorrecta');
+            console.error('âŒ ValidaciÃ³n fallida: placa longitud incorrecta');
             throw new Error('La placa debe tener exactamente 6 caracteres');
         }
         
         if (!datosProveedor.nombreEmpresa || datosProveedor.nombreEmpresa.trim() === '') {
-            console.error('❌ Validación fallida: nombre empresa requerido');
+            console.error('âŒ ValidaciÃ³n fallida: nombre empresa requerido');
             throw new Error('El nombre de la empresa es requerido');
         }
         
@@ -1476,34 +1476,34 @@ const Turnos = {
             }
         }
 
-        console.log('📦 Paso 1: Guardando proveedor en Supabase...');
+        console.log('ðŸ“¦ Paso 1: Guardando proveedor en Supabase...');
         const proveedorGuardado = await SupabaseDB.guardarProveedor(datosProveedor, signal);
-        console.log('✅ Proveedor guardado:', proveedorGuardado);
+        console.log('âœ… Proveedor guardado:', proveedorGuardado);
         
         if (!proveedorGuardado && window.supabaseClient) {
-            console.warn('⚠️ Proveedor no guardado en Supabase, continuando...');
+            console.warn('âš ï¸ Proveedor no guardado en Supabase, continuando...');
         }
 
         let nuevoContador;
         try {
-            console.log('📦 Paso 2: Incrementando contador de turnos...');
+            console.log('ðŸ“¦ Paso 2: Incrementando contador de turnos...');
             nuevoContador = await SupabaseDB.incrementarContadorTurnos(signal);
-            console.log('✅ Contador incrementado:', nuevoContador);
+            console.log('âœ… Contador incrementado:', nuevoContador);
         } catch (error) {
-            console.error('❌ Error al incrementar contador:', error);
+            console.error('âŒ Error al incrementar contador:', error);
             AppState.contadorTurnos++;
             nuevoContador = AppState.contadorTurnos;
             LocalStorage.guardarContador(nuevoContador);
         }
         
-        // Determinar prefijo según si la fecha es posterior a hoy
+        // Determinar prefijo segÃºn si la fecha es posterior a hoy
         const fechaCitaSola = datosProveedor.fechaCita ? datosProveedor.fechaCita.split('T')[0] : null;
         const hoy = new Date();
         const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
         const prefijoTurno = (fechaCitaSola && fechaCitaSola > hoyStr) ? 'C' : 'T';
         const numeroTurno = prefijoTurno + nuevoContador.toString().padStart(3, '0');
-        console.log('✅ Número de turno generado:', numeroTurno);
-        console.log('📌 Prefijo:', prefijoTurno, '| Fecha cita:', fechaCitaSola, '| Hoy:', hoyStr);
+        console.log('âœ… NÃºmero de turno generado:', numeroTurno);
+        console.log('ðŸ“Œ Prefijo:', prefijoTurno, '| Fecha cita:', fechaCitaSola, '| Hoy:', hoyStr);
         
         const turno = {
             numero: numeroTurno,
@@ -1525,9 +1525,9 @@ const Turnos = {
             estado: prefijoTurno === 'C' ? 'citado' : 'espera'
         };
 
-        console.log('📦 Paso 3: Guardando turno en Supabase...');
+        console.log('ðŸ“¦ Paso 3: Guardando turno en Supabase...');
         const turnoSupabase = await SupabaseDB.guardarTurno(turno, signal);
-        console.log('✅ Turno guardado en Supabase:', turnoSupabase);
+        console.log('âœ… Turno guardado en Supabase:', turnoSupabase);
         
         if (turnoSupabase && turnoSupabase.id) {
             turno.id = turnoSupabase.id;
@@ -1541,7 +1541,7 @@ const Turnos = {
             LocalStorage.guardarTurnos(AppState.turnos);
         }
         
-        console.log('✅ Turno creado exitosamente:', turno.numero);
+        console.log('âœ… Turno creado exitosamente:', turno.numero);
         return turno;
     },
 
@@ -1549,7 +1549,7 @@ const Turnos = {
         console.log('=== LLAMANDO SIGUIENTE TURNO ===');
         
         if (AppState.turnoActual) {
-            Utils.mostrarNotificacion(`Hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
+            Utils.mostrarNotificacion(`Hay un turno en atenciÃ³n (${AppState.turnoActual.numero}). ComplÃ©telo primero.`, 'error');
             return null;
         }
         
@@ -1583,7 +1583,7 @@ const Turnos = {
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
         
-        console.log('✅ Turno seleccionado, esperando confirmación de despacho:', siguiente.numero);
+        console.log('âœ… Turno seleccionado, esperando confirmaciÃ³n de despacho:', siguiente.numero);
         return siguiente;
     },
 
@@ -1601,7 +1601,7 @@ const Turnos = {
 
     async completarTurnoActual() {
         if (!AppState.turnoActual) {
-            Utils.mostrarNotificacion('No hay turno en atención', 'error');
+            Utils.mostrarNotificacion('No hay turno en atenciÃ³n', 'error');
             return false;
         }
         
@@ -1625,11 +1625,11 @@ const Turnos = {
             AppState.turnoActual = null;
             LocalStorage.guardarTurnoActual(null);
             
-            console.log('✅ Turno completado exitosamente');
+            console.log('âœ… Turno completado exitosamente');
             return true;
             
         } catch (error) {
-            console.error('❌ Error al completar turno:', error);
+            console.error('âŒ Error al completar turno:', error);
             Utils.mostrarNotificacion('Error al completar turno: ' + error.message, 'error');
             return false;
         }
@@ -1682,7 +1682,7 @@ const Turnos = {
                         LocalStorage.guardarTurnoActual(null);
                     }
                     
-                    console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total`);
+                    console.log(`âœ… Turnos sincronizados: ${todosLosTurnos.length} total`);
                     
                     AppState.contadorTurnos = await SupabaseDB.obtenerContadorTurnos();
                     return;
@@ -1693,7 +1693,7 @@ const Turnos = {
             AppState.turnoActual = LocalStorage.obtenerTurnoActual();
             
         } catch (error) {
-            console.error('❌ Error al cargar turnos:', error);
+            console.error('âŒ Error al cargar turnos:', error);
             AppState.turnos = LocalStorage.obtenerTurnos();
             AppState.turnoActual = LocalStorage.obtenerTurnoActual();
         }
@@ -1702,7 +1702,7 @@ const Turnos = {
     async actualizarCitasHoy() {
         const hoy = new Date();
         const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
-        console.log('🔍 Actualizando citas para hoy:', hoyStr);
+        console.log('ðŸ” Actualizando citas para hoy:', hoyStr);
 
         const citasHoy = AppState.turnos.filter(t => t.estado === 'citado' && t.fechaCita && t.fechaCita.startsWith(hoyStr));
         if (citasHoy.length === 0) {
@@ -1710,10 +1710,10 @@ const Turnos = {
             return;
         }
 
-        console.log(`✅ ${citasHoy.length} citas encontradas para hoy`);
+        console.log(`âœ… ${citasHoy.length} citas encontradas para hoy`);
 
         for (const cita of citasHoy) {
-            console.log(`🔄 Convirtiendo ${cita.numero} a estado 'espera' (mantiene prefijo C)`);
+            console.log(`ðŸ”„ Convirtiendo ${cita.numero} a estado 'espera' (mantiene prefijo C)`);
 
             if (window.supabaseClient) {
                 const { error } = await window.supabaseClient
@@ -1730,7 +1730,7 @@ const Turnos = {
             LocalStorage.guardarTurnos(AppState.turnos);
         }
 
-        console.log('✅ Citas del día convertidas a estado espera');
+        console.log('âœ… Citas del dÃ­a convertidas a estado espera');
     }
 };
 
@@ -1753,7 +1753,7 @@ const RenderUsuario = {
                 LocalStorage.eliminarMiTurno();
                 container.innerHTML = `
                     <div class="no-turn-message">
-                        <p><strong>✓ Turno completado</strong></p>
+                        <p><strong>âœ“ Turno completado</strong></p>
                         <p>Tu turno ${miTurno.numero} ha sido atendido</p>
                         <p class="hint">Gracias por tu visita</p>
                     </div>
@@ -1771,7 +1771,7 @@ const RenderUsuario = {
 
             try {
                 const esCitado = miTurno.estado === 'citado' || miTurno.fechaCita;
-                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
+                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÃSTICOS', 'ambos': 'AMBOS' };
                 
                 if (esCitado && !siendoAtendido) {
                     const fechaHoraMostrar = miTurno.fechaCita ? (() => {
@@ -1798,7 +1798,7 @@ const RenderUsuario = {
                             <div class="my-turn-position">
                                 Destino: ${miTurno.destino ? destinoLabel[miTurno.destino] || miTurno.destino : 'N/A'}
                             </div>
-                            <p class="hint">Estás atent@ a ser llamado el día de tu cita</p>
+                            <p class="hint">EstÃ¡s atent@ a ser llamado el dÃ­a de tu cita</p>
                         </div>
                     `;
                 } else {
@@ -1812,8 +1812,8 @@ const RenderUsuario = {
                             <div class="my-turn-number">${miTurno.numero}</div>
                             <div class="my-turn-status">${miTurno.nombreEmpresa}</div>
                             <div class="my-turn-position">
-                                ${estaSiendoAtendido ? '¡Es tu turno! Diríjase al punto de atención' : 
-                                  posicion > 0 ? `Posición en cola: ${posicion}` : 'Esperando confirmación'}
+                                ${estaSiendoAtendido ? 'Â¡Es tu turno! DirÃ­jase al punto de atenciÃ³n' : 
+                                  posicion > 0 ? `PosiciÃ³n en cola: ${posicion}` : 'Esperando confirmaciÃ³n'}
                             </div>
                             ${posicion > 0 && !estaSiendoAtendido ? `<div class="my-turn-position">Tiempo estimado: ${tiempoEstimado} min</div>` : ''}
                         </div>
@@ -1912,7 +1912,7 @@ const RenderUsuario = {
     
     suscribirCambios() {
         if (!window.supabaseClient) {
-            console.warn('Supabase no disponible para suscripción en usuario');
+            console.warn('Supabase no disponible para suscripciÃ³n en usuario');
             return null;
         }
         
@@ -2001,18 +2001,18 @@ const RenderAdmin = {
                     if (AppState.turnoActual.numFactura || AppState.turnoActual.tipoVehiculo || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable || AppState.turnoActual.autorizadoSalida) {
                         despachoDetail.innerHTML = `
                             ${AppState.turnoActual.numFactura ? `<div><strong>Factura:</strong> ${AppState.turnoActual.numFactura}</div>` : ''}
-                            ${AppState.turnoActual.tipoVehiculo ? `<div><strong>Tipo Vehículo:</strong> ${AppState.turnoActual.tipoVehiculo}</div>` : ''}
+                            ${AppState.turnoActual.tipoVehiculo ? `<div><strong>Tipo VehÃ­culo:</strong> ${AppState.turnoActual.tipoVehiculo}</div>` : ''}
                             ${AppState.turnoActual.bultos ? `<div><strong>Bultos:</strong> ${AppState.turnoActual.bultos}</div>` : ''}
                             ${AppState.turnoActual.peso ? `<div><strong>Peso:</strong> ${AppState.turnoActual.peso} kg</div>` : ''}
                             ${AppState.turnoActual.responsable ? `<div><strong>Responsable:</strong> ${AppState.turnoActual.responsable}</div>` : ''}
-                            ${AppState.turnoActual.autorizadoSalida ? `<div class="autorizado-badge">✓ SALIDA AUTORIZADA</div>` : ''}
+                            ${AppState.turnoActual.autorizadoSalida ? `<div class="autorizado-badge">âœ“ SALIDA AUTORIZADA</div>` : ''}
                         `;
                     } else {
                         despachoDetail.innerHTML = '';
                     }
                 }
             } else {
-                turnoInfoDiv.textContent = 'Ningún turno en atención';
+                turnoInfoDiv.textContent = 'NingÃºn turno en atenciÃ³n';
                 
                 const despachoDetail = document.getElementById('despachoDetail');
                 if (despachoDetail) {
@@ -2140,7 +2140,7 @@ const RenderAdmin = {
         if (turnosCitados.length === 0) {
             listaDiv.innerHTML = '<p class="empty-message">No hay citas reservadas</p>';
         } else {
-            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
+            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÃSTICOS', 'ambos': 'AMBOS' };
             
             // Agrupar por fecha
             const gruposPorFecha = {};
@@ -2220,7 +2220,7 @@ const RenderAdmin = {
         if (turnosLlegados.length === 0) {
             listaDiv.innerHTML = '<p class="empty-message">No hay turnos confirmados</p>';
         } else {
-            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
+            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÃSTICOS', 'ambos': 'AMBOS' };
             listaDiv.innerHTML = turnosLlegados.map(turno => {
                 const horaLlegada = turno.hora_llegada ? turno.hora_llegada : turno.horaSolicitud;
                 return `
@@ -2298,7 +2298,7 @@ async historial() {
             if (historial.length === 0) {
                 historialDiv.innerHTML = '<p class="empty-message">No hay historial de turnos</p>';
             } else {
-                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
+                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÃSTICOS', 'ambos': 'AMBOS' };
                 historialDiv.innerHTML = `
                     <table class="history-table">
                         <thead>
@@ -2327,7 +2327,7 @@ async historial() {
                                     <td>${h.peso || '-'}</td>
                                     <td>${h.responsable || '-'}</td>
                                     <td>${Utils.formatearHora(h.horaFinalizacion)}</td>
-                                    <td>${h.autorizadoSalida ? '<span style="color:#10b981;font-weight:600;">✓ SALIDA OK</span>' : '<span style="color:#f59e0b;">PENDIENTE</span>'}</td>
+                                    <td>${h.autorizadoSalida ? '<span style="color:#10b981;font-weight:600;">âœ“ SALIDA OK</span>' : '<span style="color:#f59e0b;">PENDIENTE</span>'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -2352,7 +2352,7 @@ async historial() {
             if (turnosEsperaEl) turnosEsperaEl.textContent = stats.turnosEspera;
             if (totalProveedoresEl) totalProveedoresEl.textContent = stats.totalProveedores;
         } catch (error) {
-            console.error('Error al cargar estadísticas:', error);
+            console.error('Error al cargar estadÃ­sticas:', error);
         }
     },
 
@@ -2427,13 +2427,13 @@ const UsuarioHandlers = {
     async solicitarTurno(e) {
         e.preventDefault();
         
-        console.log('✅ Iniciando solicitud de turno');
+        console.log('âœ… Iniciando solicitud de turno');
         Utils.setLoading(true);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos timeout
 
         try {
-            console.log('📝 Paso 0: Validando formulario...');
+            console.log('ðŸ“ Paso 0: Validando formulario...');
             const placaInput = document.getElementById('nit')?.value?.trim().toUpperCase();
             
             if (!placaInput) {
@@ -2444,13 +2444,13 @@ const UsuarioHandlers = {
                 throw new Error('La placa debe tener exactamente 6 caracteres');
             }
             
-            console.log('✅ Validación OK. Placa:', placaInput);
+            console.log('âœ… ValidaciÃ³n OK. Placa:', placaInput);
             
             const destino = document.getElementById('destino')?.value;
             const fechaDateInput = document.getElementById('fechaCitaDate')?.value;
             const slotSeleccionado = document.getElementById('fechaCitaSlot')?.value;
 
-            console.log('📅 Fecha:', fechaDateInput, 'Slot hora:', slotSeleccionado);
+            console.log('ðŸ“… Fecha:', fechaDateInput, 'Slot hora:', slotSeleccionado);
 
             if (!slotSeleccionado) {
                 throw new Error('Debe seleccionar una hora de la grilla de horarios');
@@ -2466,7 +2466,7 @@ const UsuarioHandlers = {
                 throw new Error('La fecha y hora de la cita son requeridas');
             }
 
-            // Validar que la fecha no sea anterior a hoy (comparación de cadenas YYYY-MM-DD)
+            // Validar que la fecha no sea anterior a hoy (comparaciÃ³n de cadenas YYYY-MM-DD)
             const hoy = new Date();
             const year = hoy.getFullYear();
             const month = String(hoy.getMonth() + 1).padStart(2, '0');
@@ -2486,7 +2486,7 @@ const UsuarioHandlers = {
                 fechaCita: fechaCitaISO
             };
 
-            console.log('📦 Datos del proveedor:', datosProveedor);
+            console.log('ðŸ“¦ Datos del proveedor:', datosProveedor);
 
             if (!destino) throw new Error('El destino es requerido');
 
@@ -2497,9 +2497,9 @@ const UsuarioHandlers = {
             
             const motivo = motivoPersonalizado || datosProveedor.servicio;
 
-            console.log('🚀 Llamando a Turnos.solicitar...');
+            console.log('ðŸš€ Llamando a Turnos.solicitar...');
             const turno = await Turnos.solicitar(datosProveedor, motivo, controller.signal);
-            console.log('✅ Turno creado:', turno.numero);
+            console.log('âœ… Turno creado:', turno.numero);
             
             LocalStorage.guardarMiTurno(turno);
             
@@ -2529,18 +2529,18 @@ const UsuarioHandlers = {
             RenderUsuario.todo();
             
         } catch (error) {
-            console.error('❌ Error en solicitarTurno:', error);
-            console.error('❌ Error name:', error.name);
-            console.error('❌ Error message:', error.message);
+            console.error('âŒ Error en solicitarTurno:', error);
+            console.error('âŒ Error name:', error.name);
+            console.error('âŒ Error message:', error.message);
             
             if (error.name === 'AbortError' || error.message.includes('Timeout') || error.message.includes('Tiempo')) {
-                // Si fue timeout, aún podemos tener éxito con localStorage fallback
-                console.warn('⚠️ Timeout detectado, verficando si turno se guardó en localStorage...');
+                // Si fue timeout, aÃºn podemos tener Ã©xito con localStorage fallback
+                console.warn('âš ï¸ Timeout detectado, verficando si turno se guardÃ³ en localStorage...');
                 // El turno puede haberse guardado en localStorage por el fallback
-                // Intentamos recuperar el último turno de localStorage
+                // Intentamos recuperar el Ãºltimo turno de localStorage
                 const miTurno = LocalStorage.obtenerMiTurno();
                 if (miTurno) {
-                    Utils.mostrarNotificacion(`Turno ${miTurno.numero} solicitado (modo sin conexión)`, 'success');
+                    Utils.mostrarNotificacion(`Turno ${miTurno.numero} solicitado (modo sin conexiÃ³n)`, 'success');
                     if (typeof ModoEspera !== 'undefined') {
                         ModoEspera.activar(miTurno);
                     }
@@ -2560,7 +2560,7 @@ const UsuarioHandlers = {
         } finally {
             clearTimeout(timeoutId);
             Utils.setLoading(false);
-            console.log('✅ Finally: loading false');
+            console.log('âœ… Finally: loading false');
         }
     },
     
@@ -2571,7 +2571,7 @@ const UsuarioHandlers = {
             return;
         }
         
-        if (confirm(`¿Cancelar turno ${miTurno.numero}?`)) {
+        if (confirm(`Â¿Cancelar turno ${miTurno.numero}?`)) {
             try {
                 await Turnos.cancelar(miTurno.id);
                 LocalStorage.eliminarMiTurno();
@@ -2601,7 +2601,7 @@ const AdminHandlers = {
         }
 
         if (AppState.turnoActual) {
-            Utils.mostrarNotificacion(`Ya hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
+            Utils.mostrarNotificacion(`Ya hay un turno en atenciÃ³n (${AppState.turnoActual.numero}). ComplÃ©telo primero.`, 'error');
             return;
         }
 
@@ -2629,7 +2629,33 @@ const AdminHandlers = {
         if (turnoModal) turnoModal.style.display = 'flex';
     },
 
-
+    async llamarTurno() {
+        const turno = await Turnos.llamarSiguiente();
+        
+        if (turno) {
+            const infoDespacho = {
+                numFactura: turno.numFactura || null,
+                tipoVehiculo: turno.tipoVehiculo || null,
+                bultos: turno.bultos || null,
+                peso: turno.peso || null,
+                responsable: turno.responsable || null,
+                contacto: turno.contacto || null,
+                telefono: turno.telefono || null,
+                servicio: turno.servicio || null,
+                destino: turno.destino || null
+            };
+            const actualizado = await SupabaseDB.llamarTurno(turno.id, infoDespacho);
+            if (!actualizado) {
+                Utils.mostrarNotificacion('Error al llamar turno en la base de datos', 'error');
+                return;
+            }
+            Object.assign(turno, actualizado);
+            AppState.turnoActual = turno;
+            this.mostrarModalDespacho(turno, 'llamar');
+        } else {
+            console.log('No se pudo llamar turno');
+        }
+    },
 
     mostrarModalDespacho(turno, tipo, turnoId = null) {
         const modal = document.getElementById('despachoModal');
@@ -2649,7 +2675,7 @@ const AdminHandlers = {
             if (infoDespachoDiv) {
                 infoDespachoDiv.innerHTML = `
                     ${turno.numFactura ? `<p><strong>Factura:</strong> ${turno.numFactura}</p>` : ''}
-                    ${turno.tipoVehiculo ? `<p><strong>Tipo Vehículo:</strong> ${turno.tipoVehiculo}</p>` : ''}
+                    ${turno.tipoVehiculo ? `<p><strong>Tipo VehÃ­culo:</strong> ${turno.tipoVehiculo}</p>` : ''}
                     ${turno.bultos ? `<p><strong>Bultos:</strong> ${turno.bultos}</p>` : ''}
                     ${turno.peso ? `<p><strong>Peso:</strong> ${turno.peso}</p>` : ''}
                     ${turno.responsable ? `<p><strong>Responsable:</strong> ${turno.responsable}</p>` : ''}
@@ -2779,7 +2805,7 @@ const AdminHandlers = {
 
     async completarTurno() {
         if (!AppState.turnoActual) {
-            Utils.mostrarNotificacion('No hay turno en atención', 'error');
+            Utils.mostrarNotificacion('No hay turno en atenciÃ³n', 'error');
             return;
         }
         
@@ -2791,7 +2817,7 @@ const AdminHandlers = {
         console.log('AppState.turnoActual:', AppState.turnoActual);
         console.log('despachoInfo:', despachoInfo);
         
-        if (!confirm(`¿Completar turno ${turnoNumero}?`)) {
+        if (!confirm(`Â¿Completar turno ${turnoNumero}?`)) {
             return;
         }
         
@@ -2820,9 +2846,9 @@ const AdminHandlers = {
         
         try {
             localStorage.setItem('proveedorListoSalir', JSON.stringify(proveedorData));
-            console.log('✅ Guardado en localStorage exitosamente');
+            console.log('âœ… Guardado en localStorage exitosamente');
         } catch (e) {
-            console.error('❌ Error al guardar en localStorage:', e);
+            console.error('âŒ Error al guardar en localStorage:', e);
         }
         
         const resultado = await Turnos.completarTurnoActual();
@@ -2837,23 +2863,23 @@ const AdminHandlers = {
     },
 
     async cancelarTurno(id) {
-        if (confirm('¿Cancelar turno?')) {
+        if (confirm('Â¿Cancelar turno?')) {
             await Turnos.cancelar(id);
             await RenderAdmin.todo();
         }
     },
 
     async reiniciarCola() {
-        if (confirm('¿Reiniciar cola? Se perderán todos los turnos en espera.')) {
+        if (confirm('Â¿Reiniciar cola? Se perderÃ¡n todos los turnos en espera.')) {
             await Turnos.reiniciarCola();
             Utils.mostrarNotificacion('Cola reiniciada', 'success');
             await RenderAdmin.todo();
         }
     },
 
-    // CORRECCIÓN: Función eliminarProveedor añadida correctamente
+    // CORRECCIÃ“N: FunciÃ³n eliminarProveedor aÃ±adida correctamente
     async eliminarProveedor(id) {
-        if (confirm('¿Eliminar este proveedor?')) {
+        if (confirm('Â¿Eliminar este proveedor?')) {
             const resultado = await SupabaseDB.eliminarProveedor(id);
             if (resultado) {
                 Utils.mostrarNotificacion('Proveedor eliminado', 'success');
@@ -2865,7 +2891,7 @@ const AdminHandlers = {
     },
 
     async limpiarHistorial() {
-        if (confirm('¿Está seguro de que desea limpiar todo el historial?')) {
+        if (confirm('Â¿EstÃ¡ seguro de que desea limpiar todo el historial?')) {
             try {
                 LocalStorage.guardarHistorial([]);
                 AppState.historial = [];
@@ -2934,10 +2960,10 @@ const AdminAccess = {
             } else {
                 const errorEl = document.getElementById('loginError');
                 if (errorEl) {
-                    errorEl.textContent = 'Contraseña de despachador incorrecta';
+                    errorEl.textContent = 'ContraseÃ±a de despachador incorrecta';
                     errorEl.style.display = 'block';
                 }
-                Utils.mostrarNotificacion('Contraseña incorrecta', 'error');
+                Utils.mostrarNotificacion('ContraseÃ±a incorrecta', 'error');
             }
         } else {
             if (password === CONFIG.ADMIN_PASSWORD) {
@@ -2945,17 +2971,17 @@ const AdminAccess = {
             } else {
                 const errorEl = document.getElementById('loginError');
                 if (errorEl) {
-                    errorEl.textContent = 'Contraseña de administrador incorrecta';
+                    errorEl.textContent = 'ContraseÃ±a de administrador incorrecta';
                     errorEl.style.display = 'block';
                 }
-                Utils.mostrarNotificacion('Contraseña incorrecta', 'error');
+                Utils.mostrarNotificacion('ContraseÃ±a incorrecta', 'error');
             }
         }
     }
 };
 
 // ============================================
-// CONFIGURACIÓN DE INPUTS
+// CONFIGURACIÃ“N DE INPUTS
 // ============================================
 
 const InputConfig = {
@@ -2978,10 +3004,10 @@ const InputConfig = {
 
     /**
      * Renderiza los botones de slots de hora en el contenedor #selectorHora.
-     * Usa colores diferentes según el motivo del bloqueo:
-     *   - Gris         → hora ya pasó HOY
-     *   - Rojo         → slot reservado por otro proveedor (cualquier día)
-     *   - Azul sel.    → slot disponible y seleccionado por el usuario
+     * Usa colores diferentes segÃºn el motivo del bloqueo:
+     *   - Gris         â†’ hora ya pasÃ³ HOY
+     *   - Rojo         â†’ slot reservado por otro proveedor (cualquier dÃ­a)
+     *   - Azul sel.    â†’ slot disponible y seleccionado por el usuario
      */
     async renderizarSelectorHora() {
         const contenedor   = document.getElementById('selectorHora');
@@ -2995,7 +3021,7 @@ const InputConfig = {
 
         if (!fechaSeleccionada) {
             contenedor.innerHTML = '';
-            if (hint) hint.textContent = 'Seleccione una fecha para ver horarios (08:00 AM – 05:00 PM)';
+            if (hint) hint.textContent = 'Seleccione una fecha para ver horarios (08:00 AM â€“ 05:00 PM)';
             return;
         }
 
@@ -3044,7 +3070,7 @@ const InputConfig = {
             let tooltip = '';
             if (esPasado)    tooltip = 'Horario ya transcurrido hoy';
             if (esReservado) tooltip = 'Horario reservado por otro proveedor';
-            if (esMio && esSeleccionado) tooltip = 'Tu selección — clic para desmarcar';
+            if (esMio && esSeleccionado) tooltip = 'Tu selecciÃ³n â€” clic para desmarcar';
 
             const titleAttr    = tooltip ? `title="${tooltip}"` : '';
             const disabledAttr = (esPasado || esReservado) ? 'disabled aria-disabled="true"' : 'role="button" tabindex="0"';
@@ -3058,7 +3084,7 @@ const InputConfig = {
         contenedor.querySelectorAll('.time-slot-btn:not([disabled])').forEach(btn => {
             btn.addEventListener('click', () => {
                 const yaSeleccionado = btn.classList.contains('time-slot-selected');
-                // Remover selección anterior
+                // Remover selecciÃ³n anterior
                 contenedor.querySelectorAll('.time-slot-btn').forEach(b => b.classList.remove('time-slot-selected'));
                 if (!yaSeleccionado) {
                     btn.classList.add('time-slot-selected');
@@ -3093,7 +3119,7 @@ const InputConfig = {
         if (placaInput) {
             placaInput.setAttribute('maxlength', '6');
             placaInput.setAttribute('pattern', '[A-Za-z0-9]{6}');
-            placaInput.setAttribute('title', 'Ingrese exactamente 6 caracteres (letras o números)');
+            placaInput.setAttribute('title', 'Ingrese exactamente 6 caracteres (letras o nÃºmeros)');
             
             placaInput.addEventListener('input', function() {
                 const start = this.selectionStart;
@@ -3127,7 +3153,7 @@ const InputConfig = {
         const fechaDateInput = document.getElementById('fechaCitaDate');
         if (fechaDateInput) {
             const now = new Date();
-            // Establecer mínimo: hoy (no fechas pasadas)
+            // Establecer mÃ­nimo: hoy (no fechas pasadas)
             const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             const year = today.getFullYear();
             const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -3150,7 +3176,7 @@ const InputConfig = {
     },
 
     /**
-     * Resetea la selección del selector de hora (sin borrar el grid)
+     * Resetea la selecciÃ³n del selector de hora (sin borrar el grid)
      */
     resetearSelectorHora() {
         const slotInput = document.getElementById('fechaCitaSlot');
@@ -3191,10 +3217,10 @@ const InputConfig = {
     },
 
     configurarPasswordToggle() {
-        console.log('🔐 configurando password toggle...');
+        console.log('ðŸ” configurando password toggle...');
         const agregarToggle = () => {
             const inputs = document.querySelectorAll('input[type="password"]');
-            console.log('🔍 Encontrados inputs de password:', inputs.length);
+            console.log('ðŸ” Encontrados inputs de password:', inputs.length);
             
             inputs.forEach(input => {
                 if (input.parentNode.classList.contains('password-wrapper')) return;
@@ -3233,7 +3259,7 @@ const InputConfig = {
                 });
                 
                 wrapper.appendChild(btn);
-                console.log('✅ Toggle agregado');
+                console.log('âœ… Toggle agregado');
             });
         };
         
@@ -3249,7 +3275,7 @@ const InputConfig = {
 window.InputConfig = InputConfig;
 
 // ============================================
-// CONFIGURACIÓN DE MODALES
+// CONFIGURACIÃ“N DE MODALES
 // ============================================
 
 const ModalConfig = {
@@ -3295,7 +3321,7 @@ const ModalConfig = {
 };
 
 // ============================================
-// ESTADO DE CONEXIÓN
+// ESTADO DE CONEXIÃ“N
 // ============================================
 
 const ConnectionStatus = {
@@ -3387,7 +3413,7 @@ const ModoEspera = {
         
         if (waitingTurnNumber) waitingTurnNumber.textContent = this.miTurno.numero;
         if (waitingTurnStatus) waitingTurnStatus.textContent = posicion > 0 ? 'En espera' : 'Procesando...';
-        if (waitingPosition) waitingPosition.textContent = `Posición: ${posicion > 0 ? posicion : '--'}`;
+        if (waitingPosition) waitingPosition.textContent = `PosiciÃ³n: ${posicion > 0 ? posicion : '--'}`;
         if (waitingTime) waitingTime.textContent = `Tiempo estimado: ${tiempoEstimado > 0 ? tiempoEstimado + ' min' : '--'}`;
         
         if (progressFill) {
@@ -3433,11 +3459,11 @@ const ModoEspera = {
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                 </svg>
-                ¡Es tu turno!
+                Â¡Es tu turno!
             </h3>
             <div style="font-size: 72px; font-weight: bold; margin: 20px 0; letter-spacing: 4px;">${this.miTurno.numero}</div>
             <p style="margin: 10px 0; font-size: 18px; opacity: 0.9;">${this.miTurno.nombreEmpresa}</p>
-            <p style="margin: 10px 0 30px 0; font-size: 16px; opacity: 0.8;">Diríjase al punto de atención</p>
+            <p style="margin: 10px 0 30px 0; font-size: 16px; opacity: 0.8;">DirÃ­jase al punto de atenciÃ³n</p>
             <button style="background: white; color: #10b981; border: none; padding: 15px 40px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.2s;" 
                     onmouseover="this.style.transform='scale(1.05)'" 
                     onmouseout="this.style.transform='scale(1)'"
@@ -3457,11 +3483,11 @@ const ModoEspera = {
 };
 
 // ============================================
-// INICIALIZACIÓN CON RECARGA AUTO
+// INICIALIZACIÃ“N CON RECARGA AUTO
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Sistema de Turnos cargado - Versión con Recarga Auto');
+    console.log('Sistema de Turnos cargado - VersiÃ³n con Recarga Auto');
     
     try {
         let conexionOk = false;
@@ -3470,13 +3496,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log(conexionOk ? 'Supabase conectado' : 'Modo local');
             
             if (conexionOk) {
-                ConnectionStatus.actualizar('connected', '✓ Conectado a Supabase');
+                ConnectionStatus.actualizar('connected', 'âœ“ Conectado a Supabase');
             } else {
-                ConnectionStatus.actualizar('disconnected', '✗ Sin conexión a Supabase');
+                ConnectionStatus.actualizar('disconnected', 'âœ— Sin conexiÃ³n a Supabase');
             }
         } catch (error) {
             console.log('Error al verificar Supabase:', error.message);
-            ConnectionStatus.actualizar('disconnected', '✗ Sin conexión');
+            ConnectionStatus.actualizar('disconnected', 'âœ— Sin conexiÃ³n');
         }
         
         await Turnos.cargarTurnos();
@@ -3493,7 +3519,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('logoClick').style.cursor = 'pointer';
         }
         
-        // Página de usuario (index.html)
+        // PÃ¡gina de usuario (index.html)
         if (document.getElementById('formSolicitarTurno')) {
             InputConfig.configurarPlacaInput();
             InputConfig.configurarServicioSelect();
@@ -3550,7 +3576,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             if (window.supabaseClient) {
-                console.log('Configurando suscripción a tiempo real para usuario...');
+                console.log('Configurando suscripciÃ³n a tiempo real para usuario...');
                 AppState.subscription = RenderUsuario.suscribirCambios();
                 
                 setInterval(async () => {
@@ -3560,19 +3586,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                             await RenderUsuario.todo();
                             ModoEspera.actualizar();
                         } catch (e) {
-                            console.error('Error en actualización:', e);
+                            console.error('Error en actualizaciÃ³n:', e);
                         }
                     }
                 }, 3000);
             } else {
-                console.warn('Supabase no disponible - verifica tu conexión y credenciales');
+                console.warn('Supabase no disponible - verifica tu conexiÃ³n y credenciales');
             }
         }
         
-        // Página de admin (admin.html)
+        // PÃ¡gina de admin (admin.html)
         const btnLlamarTurno = document.getElementById('btnLlamarTurno');
         if (btnLlamarTurno) {
-            console.log('Configurando página de administrador...');
+            console.log('Configurando pÃ¡gina de administrador...');
             
             if (window.InputConfig) {
                 window.InputConfig.configurarMayusculas();
@@ -3611,7 +3637,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // Búsquedas en tiempo real
+            // BÃºsquedas en tiempo real
             document.getElementById('busquedaLlegados')?.addEventListener('input', () => RenderAdmin.listaTurnosLlegados());
             document.getElementById('busquedaEspera')?.addEventListener('input', () => RenderAdmin.listaTurnosEspera());
             document.getElementById('busquedaCitados')?.addEventListener('input', () => RenderAdmin.listaTurnosCitados());
@@ -3621,9 +3647,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             RenderAdmin.cargarMesesDisponibles();
             
             if (window.supabaseClient) {
-                console.log('Configurando suscripción a tiempo real para admin...');
+                console.log('Configurando suscripciÃ³n a tiempo real para admin...');
                 AppState.subscription = SupabaseDB.suscribirCambiosTurnos(async (payload) => {
-                    console.log('Actualización en tiempo real recibida:', payload);
+                    console.log('ActualizaciÃ³n en tiempo real recibida:', payload);
                     try {
                         await Turnos.cargarTurnos();
                         await RenderAdmin.todo();
@@ -3632,14 +3658,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                             Utils.mostrarNotificacion(`Nuevo turno ${payload.new.numero} recibido`, 'info');
                         }
                     } catch (error) {
-                        console.error('Error al procesar actualización en tiempo real:', error);
+                        console.error('Error al procesar actualizaciÃ³n en tiempo real:', error);
                     }
                 });
                 
                 window.supabaseClient.channel('notificacion_admin')
                     .on('broadcast', { event: 'salida_autorizada' }, (payload) => {
                         console.log('Salida autorizada:', payload);
-                        // El modal con sonido se muestra automáticamente en admin.html
+                        // El modal con sonido se muestra automÃ¡ticamente en admin.html
                     })
                     .subscribe();
             } else {
@@ -3649,13 +3675,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             verificarSalidaAutorizadaAdmin();
         }
         
-        // La verificación de salida autorizada ahora se maneja en admin.html con modal y sonido
+        // La verificaciÃ³n de salida autorizada ahora se maneja en admin.html con modal y sonido
         function verificarSalidaAutorizadaAdmin() {
             // Eliminada - ahora admin.html maneja la alerta con sonido y modal
-            // El modal se muestra automáticamente cuando el despachador autoriza salida
+            // El modal se muestra automÃ¡ticamente cuando el despachador autoriza salida
         }
         
-        // Página de despachador (despachador.html)
+        // PÃ¡gina de despachador (despachador.html)
         const btnAutorizarSalida = document.getElementById('btnAutorizarSalida');
         if (btnAutorizarSalida) {
             btnAutorizarSalida.addEventListener('click', DespachadorHandlers.autorizarSalida);
@@ -3731,7 +3757,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     } catch (error) {
-        console.error('Error durante la inicialización:', error);
+        console.error('Error durante la inicializaciÃ³n:', error);
         Utils.mostrarNotificacion('Error al inicializar el sistema', 'error');
     }
 });
@@ -3831,7 +3857,7 @@ const DespachadorHandlers = {
                     turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Esperando que admin complete un turno...</div>';
                 }
                 if (infoDespachoDiv) {
-                    infoDespachoDiv.innerHTML = '<div class="despacho-empty">No hay proveedor esperando autorización</div>';
+                    infoDespachoDiv.innerHTML = '<div class="despacho-empty">No hay proveedor esperando autorizaciÃ³n</div>';
                 }
                 if (btnAutorizar) {
                     btnAutorizar.disabled = true;
@@ -3849,7 +3875,7 @@ const DespachadorHandlers = {
                 timestamp: Date.now()
             }));
             localStorage.removeItem('proveedorListoSalir');
-            // El modal con sonido se muestra automáticamente en admin.html y despachador
+            // El modal con sonido se muestra automÃ¡ticamente en admin.html y despachador
         }
     }
 };
@@ -3882,29 +3908,29 @@ const GenerarCertificado = {
          console.log('=== Generando certificado para:', mesString);
 
          if (!window.supabaseClient) {
-             console.error('❌ No hay conexión a Supabase');
-             Utils.mostrarNotificacion('No hay conexión a la base de datos', 'error');
+             console.error('âŒ No hay conexiÃ³n a Supabase');
+             Utils.mostrarNotificacion('No hay conexiÃ³n a la base de datos', 'error');
              return;
          }
 
          if (!mesString || typeof mesString !== 'string') {
-             console.error('❌ Mes inválido:', mesString);
-             Utils.mostrarNotificacion('Seleccione un mes válido', 'error');
+             console.error('âŒ Mes invÃ¡lido:', mesString);
+             Utils.mostrarNotificacion('Seleccione un mes vÃ¡lido', 'error');
              return;
          }
 
          const partes = mesString.split('-');
          if (partes.length !== 2) {
-             console.error('❌ Formato de mes inválido:', mesString);
-             Utils.mostrarNotificacion('Formato de mes inválido', 'error');
+             console.error('âŒ Formato de mes invÃ¡lido:', mesString);
+             Utils.mostrarNotificacion('Formato de mes invÃ¡lido', 'error');
              return;
          }
 
          const [anio, mes] = partes.map(Number);
 
          if (isNaN(anio) || isNaN(mes) || mes < 1 || mes > 12) {
-             console.error('❌ Año o mes inválido:', anio, mes);
-             Utils.mostrarNotificacion('Año o mes inválido', 'error');
+             console.error('âŒ AÃ±o o mes invÃ¡lido:', anio, mes);
+             Utils.mostrarNotificacion('AÃ±o o mes invÃ¡lido', 'error');
              return;
          }
 
@@ -3996,7 +4022,7 @@ const GenerarCertificado = {
 
              console.log('Generando certificado y exportando a Excel...');
 
-             // Guardar datos para exportación posterior
+             // Guardar datos para exportaciÃ³n posterior
              this._datosExportacion = {
                  historial,
                  diasAgrupados,
@@ -4044,15 +4070,15 @@ const GenerarCertificado = {
              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
                  <div style="background: #eff6ff; padding: 12px; border-radius: 8px; text-align: center;">
                      <div style="font-size: 24px; font-weight: 700; color: #2563eb;">${d.totalVehiculos}</div>
-                     <div style="font-size: 11px; color: #64748b;">Vehículos</div>
+                     <div style="font-size: 11px; color: #64748b;">VehÃ­culos</div>
                  </div>
                  <div style="background: #f0fdf4; padding: 12px; border-radius: 8px; text-align: center;">
                      <div style="font-size: 24px; font-weight: 700; color: #16a34a;">${d.promedioTurnosDia}</div>
-                     <div style="font-size: 11px; color: #64748b;">Prom. Turnos/Día</div>
+                     <div style="font-size: 11px; color: #64748b;">Prom. Turnos/DÃ­a</div>
                  </div>
                  <div style="background: #fefce8; padding: 12px; border-radius: 8px; text-align: center;">
                      <div style="font-size: 24px; font-weight: 700; color: #ca8a04;">${d.numDias}</div>
-                     <div style="font-size: 11px; color: #64748b;">Días Operativos</div>
+                     <div style="font-size: 11px; color: #64748b;">DÃ­as Operativos</div>
                  </div>
              </div>
              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
@@ -4066,23 +4092,23 @@ const GenerarCertificado = {
                  </div>
                  <div style="background: #fafafa; padding: 12px; border-radius: 8px; text-align: center;">
                      <div style="font-size: 18px; font-weight: 600; color: #334155;">${d.totalEmpresas}</div>
-                     <div style="font-size: 11px; color: #64748b;">Proveedores Únicos</div>
+                     <div style="font-size: 11px; color: #64748b;">Proveedores Ãšnicos</div>
                  </div>
              </div>
              <div style="background: #f0fdf4; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
-                 <strong style="color: #16a34a;">✓ ${d.vehiculosConSalida}</strong> salidas autorizadas / <strong>${d.vehiculosConFactura}</strong> con factura
+                 <strong style="color: #16a34a;">âœ“ ${d.vehiculosConSalida}</strong> salidas autorizadas / <strong>${d.vehiculosConFactura}</strong> con factura
              </div>
              <p style="text-align: center; color: #64748b; font-size: 12px; margin-bottom: 16px;">
-                 ${d.primerDia} — ${d.ultimoDia}
+                 ${d.primerDia} â€” ${d.ultimoDia}
              </p>
              <button id="btnExportarExcel" class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 16px;">
-                 📊 Exportar a Excel
+                 ðŸ“Š Exportar a Excel
              </button>
          `;
 
          modal.style.display = 'flex';
 
-         // Adjuntar handler al botón de exportar
+         // Adjuntar handler al botÃ³n de exportar
          const btnExportar = document.getElementById('btnExportarExcel');
          if (btnExportar) {
              btnExportar.addEventListener('click', () => {
@@ -4138,13 +4164,13 @@ const GenerarCertificado = {
         console.log('Exportando certificado a Excel...');
 
         if (typeof XLSX === 'undefined') {
-            Utils.mostrarNotificacion('Librería Excel no cargada. Recargue la página.', 'error');
+            Utils.mostrarNotificacion('LibrerÃ­a Excel no cargada. Recargue la pÃ¡gina.', 'error');
             return;
         }
 
         const wb = XLSX.utils.book_new();
 
-        // ── Paleta de colores corporativos ──────────────────────────────────
+        // â”€â”€ Paleta de colores corporativos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         const C_AZUL_OSCURO  = "1E3A8A";  // Azul corporativo principal
         const C_AZUL_MEDIO   = "2563EB";  // Azul botones / encabezados
         const C_AZUL_CLARO   = "DBEAFE";  // Fondo celdas par (azul suave)
@@ -4158,7 +4184,7 @@ const GenerarCertificado = {
         const C_BLANCO       = "FFFFFF";
         const C_BORDE        = "CBD5E1";  // Color de bordes
 
-        // Estilos de borde fino estándar
+        // Estilos de borde fino estÃ¡ndar
         const bordeDelgado = {
             top:    { style: "thin", color: { rgb: C_BORDE } },
             bottom: { style: "thin", color: { rgb: C_BORDE } },
@@ -4216,9 +4242,9 @@ const GenerarCertificado = {
             }
         };
 
-        // ══════════════════════════════════════════════════════════════════════
-        // HOJA 1 — PORTADA
-        // ══════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // HOJA 1 â€” PORTADA
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         const portadaData = [
             [''],
             ['SI3'],
@@ -4228,13 +4254,13 @@ const GenerarCertificado = {
             [''],
             ['Zona Franca Bodegas SIE 240, 239 y SIP 221'],
             [''],
-            ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'],
+            ['â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”'],
             [''],
-            ['Total Vehículos', totalVehiculos],
-            ['Días Operativos', numDias],
-            ['Período', primerDia + ' — ' + ultimoDia],
+            ['Total VehÃ­culos', totalVehiculos],
+            ['DÃ­as Operativos', numDias],
+            ['PerÃ­odo', primerDia + ' â€” ' + ultimoDia],
             [''],
-            ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'],
+            ['â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”'],
             [''],
             ['Generado:', new Date().toLocaleDateString('es-CO', { weekday:'long', year:'numeric', month:'long', day:'numeric' })]
         ];
@@ -4270,36 +4296,36 @@ const GenerarCertificado = {
         wsPortada['!rows']  = [{ hpt: 20 }, { hpt: 55 }, { hpt: 10 }, { hpt: 40 }, { hpt: 28 }, { hpt: 10 }, { hpt: 22 }, { hpt: 10 }, { hpt: 14 }, { hpt: 10 }, { hpt: 28 }, { hpt: 28 }, { hpt: 28 }, { hpt: 10 }, { hpt: 14 }, { hpt: 10 }, { hpt: 22 }];
         XLSX.utils.book_append_sheet(wb, wsPortada, 'Portada');
 
-        // ══════════════════════════════════════════════════════════════════════
-        // HOJA 2 — RESUMEN EJECUTIVO
-        // ══════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // HOJA 2 â€” RESUMEN EJECUTIVO
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         const resumenData = [
             ['CERTIFICADO MENSUAL DE DESPACHOS', nombreMesMayus.toUpperCase()],
             [],
             ['RESUMEN EJECUTIVO', ''],
             ['Indicador', 'Valor'],
-            ['Vehículos Total', totalVehiculos],
+            ['VehÃ­culos Total', totalVehiculos],
             ['Peso Total (kg)', totalPeso],
             ['Bultos Totales', totalBultos],
-            ['Días Operativos', numDias],
+            ['DÃ­as Operativos', numDias],
             [],
             ['PROMEDIOS DIARIOS', ''],
             ['Indicador', 'Valor'],
-            ['Turnos por día', parseFloat(promedioTurnosDia)],
-            ['Peso por día (kg)', Math.round(promedioPesoDia)],
-            ['Bultos por día', parseFloat(promedioBultosDia)],
+            ['Turnos por dÃ­a', parseFloat(promedioTurnosDia)],
+            ['Peso por dÃ­a (kg)', Math.round(promedioPesoDia)],
+            ['Bultos por dÃ­a', parseFloat(promedioBultosDia)],
             [],
-            ['INFORMACIÓN ADICIONAL', ''],
+            ['INFORMACIÃ“N ADICIONAL', ''],
             ['Indicador', 'Valor'],
-            ['Proveedores Únicos', totalEmpresas],
+            ['Proveedores Ãšnicos', totalEmpresas],
             ['Con Factura', vehiculosConFactura],
             ['Salidas Autorizadas', vehiculosConSalida],
-            ['Primer Día del Mes', primerDia],
-            ['Último Día del Mes', ultimoDia],
+            ['Primer DÃ­a del Mes', primerDia],
+            ['Ãšltimo DÃ­a del Mes', ultimoDia],
         ];
         const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
 
-        // Filas de título de sección: 0, 2, 9, 15
+        // Filas de tÃ­tulo de secciÃ³n: 0, 2, 9, 15
         // Filas de sub-encabezado: 3, 10, 16
         // Filas de datos: resto
         const resumenRange2 = XLSX.utils.decode_range(wsResumen['!ref']);
@@ -4325,7 +4351,7 @@ const GenerarCertificado = {
                 } else if (filasSubHeaderResumen.has(R)) {
                     wsResumen[ref].s = estiloEncabezado(C_AZUL_MEDIO);
                 } else {
-                    // filas de datos — zebra
+                    // filas de datos â€” zebra
                     const esData = ![1, 8, 14].includes(R);
                     if (esData) {
                         const par = (dataRowIndex % 2 === 0);
@@ -4343,9 +4369,9 @@ wsResumen[ref].s = C === 0
         );
         XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
 
-        // ══════════════════════════════════════════════════════════════════════
-        // HOJA 3 — DETALLE DIARIO
-        // ══════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // HOJA 3 â€” DETALLE DIARIO
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         const detalleDiarioData = [
             ['Fecha', 'Turnos', 'Peso (kg)', 'Bultos', 'Facturas', 'Salidas OK']
         ];
@@ -4380,9 +4406,9 @@ for (let R = 0; R <= diarioRange2.e.r; ++R) {
         wsDiario['!rows']  = Array.from({ length: detalleDiarioData.length }, () => ({ hpt: 20 }));
         XLSX.utils.book_append_sheet(wb, wsDiario, 'Detalle Diario');
 
-        // ══════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         // HELPER: crear hoja de tabla simple (encabezado + filas + total)
-        // ══════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => {
              const ws  = XLSX.utils.aoa_to_sheet(datos);
              const rng = XLSX.utils.decode_range(ws['!ref']);
@@ -4405,18 +4431,18 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
              XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
          };
 
-        // ══════════════════════════════════════════════════════════════════════
-        // HOJA 4 — TIPOS DE VEHÍCULO
-        // ══════════════════════════════════════════════════════════════════════
-        const tiposData = [['Tipo de Vehículo', 'Cantidad', '% del Total']];
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // HOJA 4 â€” TIPOS DE VEHÃCULO
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        const tiposData = [['Tipo de VehÃ­culo', 'Cantidad', '% del Total']];
         Object.entries(tipoVehiculoCount).forEach(([tipo, count]) => {
             tiposData.push([tipo, count, ((count / totalVehiculos) * 100).toFixed(1) + '%']);
         });
-        crearHojaTabla(tiposData, [{ wch: 28 }, { wch: 14 }, { wch: 14 }], C_AZUL_MEDIO, 'Tipos Vehículo');
+        crearHojaTabla(tiposData, [{ wch: 28 }, { wch: 14 }, { wch: 14 }], C_AZUL_MEDIO, 'Tipos VehÃ­culo');
 
-        // ══════════════════════════════════════════════════════════════════════
-        // HOJA 5 — DESTINOS
-        // ══════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // HOJA 5 â€” DESTINOS
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         const destinosData = [['Destino', 'Cantidad', '% del Total']];
         Object.entries(destinoCount).forEach(([destino, count]) => {
             const nombre = destino === 'ensambles' ? 'SI ENSAMBLES' : destino === 'plasticos' ? 'SI PLASTICOS' : 'AMBOS';
@@ -4424,21 +4450,21 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
         });
         crearHojaTabla(destinosData, [{ wch: 22 }, { wch: 14 }, { wch: 14 }], C_AZUL_MEDIO, 'Destinos');
 
-        // ══════════════════════════════════════════════════════════════════════
-        // HOJA 6 — SERVICIOS
-        // ══════════════════════════════════════════════════════════════════════
-        const servicioLabel = { 'entrega': 'Entrega de Mercancía', 'servicio': 'Servicio Técnico', 'reunion': 'Reunión', 'otro': 'Otro' };
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // HOJA 6 â€” SERVICIOS
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        const servicioLabel = { 'entrega': 'Entrega de MercancÃ­a', 'servicio': 'Servicio TÃ©cnico', 'reunion': 'ReuniÃ³n', 'otro': 'Otro' };
         const serviciosData = [['Tipo de Servicio', 'Cantidad', '% del Total']];
         Object.entries(servicioCount).forEach(([srv, count]) => {
             serviciosData.push([servicioLabel[srv] || srv, count, ((count / totalVehiculos) * 100).toFixed(1) + '%']);
         });
         crearHojaTabla(serviciosData, [{ wch: 26 }, { wch: 14 }, { wch: 14 }], C_AZUL_MEDIO, 'Servicios');
 
-        // ══════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         // HELPER: crear hoja de detalle (historial filtrado)
-        // ══════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         const crearHojaDetalle = (filtroFn, colorHeader, nombreHoja) => {
-            const data = [['#', 'Fecha', 'Turno', 'Empresa', 'Tipo Vehículo', 'Peso (kg)', 'Bultos', 'Factura', 'Salida OK']];
+            const data = [['#', 'Fecha', 'Turno', 'Empresa', 'Tipo VehÃ­culo', 'Peso (kg)', 'Bultos', 'Factura', 'Salida OK']];
             let idx = 0;
             historial.forEach((h) => {
                 if (filtroFn(h)) {
@@ -4452,7 +4478,7 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
                         parseFloat(h.peso)  || 0,
                         parseInt(h.bultos)  || 0,
                         h.num_factura       || '',
-                        h.autorizado_salida ? 'Sí' : 'No'
+                        h.autorizado_salida ? 'SÃ­' : 'No'
                     ]);
                 }
             });
@@ -4466,7 +4492,7 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
                     rows.reduce((s, r) => s + (parseFloat(r[5]) || 0), 0).toLocaleString('es-CO'),
                     rows.reduce((s, r) => s + (parseInt(r[6]) || 0), 0),
                     '',
-                    rows.filter(r => r[8] === 'Sí').length + ' ✓'
+                    rows.filter(r => r[8] === 'SÃ­').length + ' âœ“'
                 ]);
             }
 
@@ -4494,19 +4520,19 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
             XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
         };
 
-        // ══════════════════════════════════════════════════════════════════════
-        // HOJA 7 — SI ENSAMBLES
-        // ══════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // HOJA 7 â€” SI ENSAMBLES
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         crearHojaDetalle(h => h.destino === 'ensambles' || h.destino === 'ambos', C_VERDE, 'SI ENSAMBLES');
 
-        // ══════════════════════════════════════════════════════════════════════
-        // HOJA 8 — SI PLÁSTICOS
-        // ══════════════════════════════════════════════════════════════════════
-        crearHojaDetalle(h => h.destino === 'plasticos' || h.destino === 'ambos', C_AZUL_MEDIO, 'SI PLÁSTICOS');
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        // HOJA 8 â€” SI PLÃSTICOS
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        crearHojaDetalle(h => h.destino === 'plasticos' || h.destino === 'ambos', C_AZUL_MEDIO, 'SI PLÃSTICOS');
 
-        // ══════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         // GENERAR Y DESCARGAR
-        // ══════════════════════════════════════════════════════════════════════
+        // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
         const fechaGen = new Date().toISOString().slice(0, 10);
         const nombreArchivo = `Certificado_${nombreMesMayus.replace(/ /g, '_')}_${fechaGen}.xlsx`;
         XLSX.writeFile(wb, nombreArchivo);
@@ -4517,4 +4543,5 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
 };
 
 window.GenerarCertificado = GenerarCertificado;
+
 
