@@ -2593,16 +2593,6 @@ const UsuarioHandlers = {
 // ============================================
 
 const AdminHandlers = {
-    async llamarTurno() {
-        const turno = await Turnos.llamarSiguiente();
-        
-        if (turno) {
-            this.mostrarModalDespacho(turno, 'llamar');
-        } else {
-            console.log('No se pudo llamar turno');
-        }
-    },
-
     async llamarTurnoEspecifico(turnoId) {
         const turno = AppState.turnos.find(t => t.id === turnoId);
         if (!turno) {
@@ -2615,8 +2605,31 @@ const AdminHandlers = {
             return;
         }
 
-        this.mostrarModalDespacho(turno, 'especifico', turnoId);
+        this._prepararLlamada(turno, () => this.mostrarModalDespacho(turno, 'especifico', turnoId));
     },
+
+    _prepararLlamada(turno, onConfirmar) {
+        const modalTurnNumber = document.getElementById('modalTurnNumber');
+        const modalTurnInfo = document.getElementById('modalTurnInfo');
+        if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
+        if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}${turno.nit ? ' - ' + turno.nit : ''}`;
+
+        const btnAceptarLlamada = document.querySelector('#turnoModal .btn-primary');
+        const _handler = () => {
+            document.getElementById('turnoModal').style.display = 'none';
+            if (btnAceptarLlamada) btnAceptarLlamada.onclick = null;
+            onConfirmar();
+        };
+
+        if (btnAceptarLlamada) {
+            btnAceptarLlamada.onclick = _handler;
+        }
+
+        const turnoModal = document.getElementById('turnoModal');
+        if (turnoModal) turnoModal.style.display = 'flex';
+    },
+
+
 
     mostrarModalDespacho(turno, tipo, turnoId = null) {
         const modal = document.getElementById('despachoModal');
