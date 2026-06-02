@@ -2601,7 +2601,7 @@ const AdminHandlers = {
         }
 
         if (AppState.turnoActual) {
-            Utils.mostrarNotificacion(`Ya hay un turno en atenciÃ³n (${AppState.turnoActual.numero}). ComplÃ©telo primero.`, 'error');
+            Utils.mostrarNotificacion(`Ya hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
             return;
         }
 
@@ -2751,20 +2751,15 @@ const AdminHandlers = {
                 return;
             }
 
-            const actualizado = await SupabaseDB.llamarTurno(turnoId, infoDespacho);
-            if (!actualizado) {
-                Utils.mostrarNotificacion('Error al llamar turno', 'error');
-                return;
-            }
-
             Object.assign(turnoActual, {
-                estado: 'atendiendo',
-                horaLlamada: horaLlamada,
-                ...infoDespacho
+                numFactura: infoDespacho.numFactura,
+                tipoVehiculo: infoDespacho.tipoVehiculo,
+                bultos: infoDespacho.bultos,
+                peso: infoDespacho.peso,
+                responsable: infoDespacho.responsable
             });
 
             AppState.turnoActual = turnoActual;
-            AppState.turnos = AppState.turnos.filter(t => t.id !== turnoId);
         } else {
             if (AppState.turnoActual) {
                 const actualizado = await SupabaseDB.llamarTurno(AppState.turnoActual.id, infoDespacho);
