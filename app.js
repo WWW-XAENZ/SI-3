@@ -3645,26 +3645,76 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Página de despachador (despachador.html)
         const btnAutorizarSalida = document.getElementById('btnAutorizarSalida');
         if (btnAutorizarSalida) {
-            console.log('Configurando página de despachador...');
-            
             btnAutorizarSalida.addEventListener('click', DespachadorHandlers.autorizarSalida);
-            
-            console.log('Renderizando despachador...');
-            await RenderAdmin.todo();
-            
-            if (window.supabaseClient) {
-                console.log('Configurando suscripción a tiempo real para despachador...');
+        }
+
+        async function inicializarPanelDespachador() {
+            try {
+                console.log('Inicializando despachador desde app.js...');
+                const hoy = getLocalDate();
+                const [turnos, historial, stats] = await Promise.all([
+                    (window.SupabaseDB && window.SupabaseDB.cargarTurnos ? window.SupabaseDB.cargarTurnos() : Promise.resolve([])),
+                    (window.SupabaseDB && window.SupabaseDB.cargarHistorial ? window.SupabaseDB.cargarHistorial(100) : Promise.resolve([])),
+                    (window.SupabaseDB && window.SupabaseDB.cargarEstadisticas ? window.SupabaseDB.cargarEstadisticas() : Promise.resolve(null))
+                ]);
+
+                if (window.AppState) {
+                    window.AppState.turnos = (turnos || []).filter(t => ['espera','citado','llegado','atendiendo'].includes(t.estado));
+                    window.AppState.turnoActual = (turnos || []).find(t => t.estado === 'atendiendo') || null;
+                }
+
+                if (window.RenderAdmin && typeof window.RenderAdmin.todo === 'function') {
+                    await window.RenderAdmin.todo();
+                }
+
+                if (stats && typeof stats === 'object') {
+                    const totalDiaEl = document.getElementById('totalTurnosDia');
+                    const totalAutorizadosEl = document.getElementById('totalAutorizados');
+                    const totalPendientesEl = document.getElementById('totalPendientes');
+                    if (totalDiaEl) totalDiaEl.textContent = stats.totalTurnos ?? (historial || []).length;
+                    if (totalAutorizadosEl) totalAutorizadosEl.textContent = stats.turnosAtendiendo ?? (historial || []).filter(h => h.autorizadoSalida).length;
+                    if (totalPendientesEl) totalPendientesEl.textContent = stats.turnosEspera ?? Math.max(0, (historial || []).length - ((historial || []).filter(h => h.autorizadoSalida).length));
+                }
+
+                if ((historial || []).length === 0) {
+                    const el = document.getElementById('historialDespachador');
+                    if (el) el.innerHTML = '<p class="empty-message">Sin historial</p>';
+                }
+
+                const btnActualizarHistorialDesp = document.getElementById('btnActualizarHistorialDesp');
+                if (btnActualizarHistorialDesp) btnActualizarHistorialDesp.onclick = async () => {
+                    if (window.SupabaseDB && window.SupabaseDB.cargarHistorial) await window.SupabaseDB.cargarHistorial(100);
+                };
+
+                const btnActualizarCitas = document.getElementById('btnActualizarCitas');
+                if (btnActualizarCitas) btnActualizarCitas.onclick = async () => {
+                    if (window.SupabaseDB && window.SupabaseDB.cargarTurnos) await window.SupabaseDB.cargarTurnos();
+                };
+
+                const btnAutorizar = document.getElementById('btnAutorizarSalida');
+                if (btnAutorizar) btnAutorizar.disabled = true;
+
+                console.log('Panel despachador inicializado');
+            } catch (error) {
+                console.error('Error inicializando panel despachador:', error);
+            }
+        }
+
+        await inicializarPanelDespachador();
+
+        if (window.supabaseClient) {
+            try {
                 AppState.subscription = SupabaseDB.suscribirCambiosTurnos(async (payload) => {
-                    console.log('Actualización en tiempo real recibida (despachador):', payload);
+                    console.log('Actualizacion despachador:', payload);
                     try {
                         await Turnos.cargarTurnos();
-                        await RenderAdmin.todo();
-                        
-                        actualizarBotonAutorizar();
+                        if (window.RenderAdmin && typeof window.RenderAdmin.todo === 'function') await window.RenderAdmin.todo();
                     } catch (error) {
-                        console.error('Error al procesar actualización en tiempo real:', error);
+                        console.error('Error al procesar actualizacion:', error);
                     }
                 });
+            } catch (e) {
+                console.warn('Suscripcion despachador fallo:', e);
             }
         }
     } catch (error) {
