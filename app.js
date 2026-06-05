@@ -2565,29 +2565,27 @@ const AdminHandlers = {
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
 
+        if (window.supabaseClient) {
+            try {
+                await SupabaseDB.llamarTurno(turno.id, {
+                    numFactura: turno.numFactura,
+                    tipoVehiculo: turno.tipoVehiculo,
+                    bultos: turno.bultos,
+                    peso: turno.peso,
+                    responsable: turno.responsable,
+                    contacto: turno.contacto,
+                    telefono: turno.telefono,
+                    servicio: turno.servicio,
+                    destino: turno.destino
+                });
+            } catch (error) {
+                console.error('Error sincronizando turno con Supabase:', error);
+            }
+        }
+
         this.mostrarModalDespacho(turno, 'especifico', turnoId);
         Utils.mostrarNotificacion(`TURNO ${turno.numero} LLAMADO`, 'success');
         await RenderAdmin.todo();
-
-        const infoDespacho = {
-            numFactura: turno.numFactura || null,
-            tipoVehiculo: turno.tipoVehiculo || null,
-            bultos: turno.bultos || null,
-            peso: turno.peso || null,
-            responsable: turno.responsable || null,
-            contacto: turno.contacto || null,
-            telefono: turno.telefono || null,
-            servicio: turno.servicio || null,
-            destino: turno.destino || null
-        };
-        
-        if (window.supabaseClient) {
-            try {
-                await SupabaseDB.llamarTurno(turno.id, infoDespacho);
-            } catch (error) {
-                console.error('Error sync Supabase:', error);
-            }
-        }
     },
 
     async llamarTurno() {
@@ -2608,68 +2606,27 @@ const AdminHandlers = {
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
 
-        this.mostrarModalDespacho(turno, 'siguiente');
-        Utils.mostrarNotificacion(`TURNO ${turno.numero} LLAMADO`, 'success');
-        await RenderAdmin.todo();
-
-        const infoDespacho = {
-            numFactura: turno.numFactura || null,
-            tipoVehiculo: turno.tipoVehiculo || null,
-            bultos: turno.bultos || null,
-            peso: turno.peso || null,
-            responsable: turno.responsable || null,
-            contacto: turno.contacto || null,
-            telefono: turno.telefono || null,
-            servicio: turno.servicio || null,
-            destino: turno.destino || null
-        };
-        
         if (window.supabaseClient) {
             try {
-                await SupabaseDB.llamarTurno(turno.id, infoDespacho);
+                await SupabaseDB.llamarTurno(turno.id, {
+                    numFactura: turno.numFactura,
+                    tipoVehiculo: turno.tipoVehiculo,
+                    bultos: turno.bultos,
+                    peso: turno.peso,
+                    responsable: turno.responsable,
+                    contacto: turno.contacto,
+                    telefono: turno.telefono,
+                    servicio: turno.servicio,
+                    destino: turno.destino
+                });
             } catch (error) {
-                console.error('Error sync Supabase:', error);
+                console.error('Error sincronizando turno con Supabase:', error);
             }
         }
-    },
-
-    async llamarTurno() {
-        if (AppState.turnoActual) {
-            Utils.mostrarNotificacion(`Ya hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
-            return;
-        }
-
-        if (AppState.turnos.length === 0) {
-            Utils.mostrarNotificacion('No hay turnos en espera', 'error');
-            return;
-        }
-
-        const turno = AppState.turnos[0];
-        
-        AppState.turnoActual = turno;
-        AppState.turnos = AppState.turnos.filter(t => t.id !== turno.id);
-        LocalStorage.guardarTurnoActual(AppState.turnoActual);
-        LocalStorage.guardarTurnos(AppState.turnos);
 
         this.mostrarModalDespacho(turno, 'siguiente');
         Utils.mostrarNotificacion(`TURNO ${turno.numero} LLAMADO`, 'success');
         await RenderAdmin.todo();
-
-        const infoDespacho = {
-            numFactura: turno.numFactura || null,
-            tipoVehiculo: turno.tipoVehiculo || null,
-            bultos: turno.bultos || null,
-            peso: turno.peso || null,
-            responsable: turno.responsable || null,
-            contacto: turno.contacto || null,
-            telefono: turno.telefono || null,
-            servicio: turno.servicio || null,
-            destino: turno.destino || null
-        };
-        
-        if (window.supabaseClient) {
-            SupabaseDB.llamarTurno(turno.id, infoDespacho).catch(err => console.error('Error sync Supabase:', err));
-        }
     },
 
     mostrarModalDespacho(turno, tipo, turnoId = null) {
@@ -2765,6 +2722,14 @@ const AdminHandlers = {
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
 
+        if (window.supabaseClient) {
+            try {
+                await SupabaseDB.llamarTurno(turnoActual.id, infoDespacho);
+            } catch (error) {
+                console.error('Error sincronizando con Supabase:', error);
+            }
+        }
+
         modal.style.display = 'none';
 
         const confirmModal = document.getElementById('turnoModal');
@@ -2781,6 +2746,195 @@ const AdminHandlers = {
 
         Utils.mostrarNotificacion(`TURNO ${AppState.turnoActual?.numero} LLAMADO`, 'success');
         await RenderAdmin.todo();
+    },
+
+    mostrarModalDespacho(turno, tipo, turnoId = null) {
+        const modal = document.getElementById('despachoModal');
+        if (!modal) {
+            Utils.mostrarNotificacion('Error: Modal de despacho no encontrado', 'error');
+            return;
+        }
+
+        const modalTurnNumber = document.getElementById('despachoTurnNumber');
+        const modalTurnInfo = document.getElementById('despachoTurnInfo');
+        const infoDespachoDiv = document.getElementById('despachoInfo');
+
+        if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
+        if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}${turno.nit ? ' - ' + turno.nit : ''}`;
+
+        if (turno.numFactura || turno.tipoVehiculo || turno.bultos || turno.peso || turno.responsable) {
+            if (infoDespachoDiv) {
+                infoDespachoDiv.innerHTML = `
+                    ${turno.numFactura ? `<p><strong>Factura:</strong> ${turno.numFactura}</p>` : ''}
+                    ${turno.tipoVehiculo ? `<p><strong>Tipo Vehículo:</strong> ${turno.tipoVehiculo}</p>` : ''}
+                    ${turno.bultos ? `<p><strong>Bultos:</strong> ${turno.bultos}</p>` : ''}
+                    ${turno.peso ? `<p><strong>Peso:</strong> ${turno.peso}</p>` : ''}
+                    ${turno.responsable ? `<p><strong>Responsable:</strong> ${turno.responsable}</p>` : ''}
+                `;
+            }
+        } else {
+            if (infoDespachoDiv) infoDespachoDiv.innerHTML = '';
+        }
+
+        const numFacturaInput = document.getElementById('despachoNumFactura');
+        const tipoVehiculoInput = document.getElementById('despachoTipoVehiculo');
+        const bultosInput = document.getElementById('despachoBultos');
+        const pesoInput = document.getElementById('despachoPeso');
+        const responsableInput = document.getElementById('despachoResponsable');
+
+        if (numFacturaInput) numFacturaInput.value = turno.numFactura || '';
+        if (tipoVehiculoInput) tipoVehiculoInput.value = turno.tipoVehiculo || '';
+        if (bultosInput) bultosInput.value = turno.bultos || '';
+        if (pesoInput) pesoInput.value = turno.peso || '';
+        if (responsableInput) responsableInput.value = turno.responsable || '';
+
+        modal.dataset.turnoId = turnoId || turno.id;
+        modal.dataset.tipo = tipo;
+        modal.style.display = 'flex';
+    },
+
+    async guardarDespacho() {
+        const modal = document.getElementById('despachoModal');
+        if (!modal) return;
+
+        const turnoId = parseInt(modal.dataset.turnoId);
+        const tipo = modal.dataset.tipo;
+
+        const numFacturaInput = document.getElementById('despachoNumFactura');
+        const tipoVehiculoInput = document.getElementById('despachoTipoVehiculo');
+        const bultosInput = document.getElementById('despachoBultos');
+        const pesoInput = document.getElementById('despachoPeso');
+        const responsableInput = document.getElementById('despachoResponsable');
+
+        const turnoActual = AppState.turnoActual;
+
+        if (!turnoActual) {
+            Utils.mostrarNotificacion('No hay turno en atención', 'error');
+            return;
+        }
+
+        const infoDespacho = {
+            numFactura: numFacturaInput?.value?.trim() || turnoActual.numFactura,
+            tipoVehiculo: tipoVehiculoInput?.value?.trim() || turnoActual.tipoVehiculo,
+            bultos: bultosInput?.value?.trim() || turnoActual.bultos,
+            peso: pesoInput?.value?.trim() || turnoActual.peso,
+            responsable: responsableInput?.value?.trim() || turnoActual.responsable,
+        };
+
+        turnoActual.numFactura = infoDespacho.numFactura;
+        turnoActual.tipoVehiculo = infoDespacho.tipoVehiculo;
+        turnoActual.bultos = infoDespacho.bultos;
+        turnoActual.peso = infoDespacho.peso;
+        turnoActual.responsable = infoDespacho.responsable;
+        turnoActual.estado = 'atendiendo';
+        turnoActual.horaLlamada = Utils.obtenerHoraActual();
+
+        LocalStorage.guardarTurnoActual(AppState.turnoActual);
+        LocalStorage.guardarTurnos(AppState.turnos);
+
+        if (window.supabaseClient) {
+            try {
+                await SupabaseDB.llamarTurno(turnoActual.id, {
+                    numFactura: infoDespacho.numFactura,
+                    tipoVehiculo: infoDespacho.tipoVehiculo,
+                    bultos: infoDespacho.bultos,
+                    peso: infoDespacho.peso,
+                    responsable: infoDespacho.responsable,
+                    contacto: turnoActual.contacto,
+                    telefono: turnoActual.telefono,
+                    servicio: turnoActual.servicio,
+                    destino: turnoActual.destino
+                });
+            } catch (error) {
+                console.error('Error al guardar despacho en Supabase:', error);
+                Utils.mostrarNotificacion('Guardado localmente', 'warning');
+            }
+        }
+
+        modal.style.display = 'none';
+
+        const confirmModal = document.getElementById('turnoModal');
+        if (confirmModal) {
+            const confirmTurnNumber = document.getElementById('modalTurnNumber');
+            const confirmTurnInfo = document.getElementById('modalTurnInfo');
+            
+            if (confirmTurnNumber) confirmTurnNumber.textContent = AppState.turnoActual?.numero || '--';
+            if (confirmTurnInfo) confirmTurnInfo.textContent = AppState.turnoActual ? 
+                `${AppState.turnoActual.nombreEmpresa}\n${infoDespacho.numFactura ? 'Factura: ' + infoDespacho.numFactura : ''}` : '';
+            
+            confirmModal.style.display = 'flex';
+        }
+
+        Utils.mostrarNotificacion(`TURNO ${AppState.turnoActual?.numero} LLAMADO`, 'success');
+        await RenderAdmin.todo();
+    },
+
+    async llamarTurno() {
+        if (AppState.turnoActual) {
+            Utils.mostrarNotificacion(`Ya hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
+            return;
+        }
+
+        if (AppState.turnos.length === 0) {
+            Utils.mostrarNotificacion('No hay turnos en espera', 'error');
+            return;
+        }
+
+        const turno = AppState.turnos[0];
+        
+        AppState.turnoActual = turno;
+        AppState.turnos = AppState.turnos.filter(t => t.id !== turno.id);
+        LocalStorage.guardarTurnoActual(AppState.turnoActual);
+        LocalStorage.guardarTurnos(AppState.turnos);
+
+        this.mostrarModalDespacho(turno, 'siguiente');
+        Utils.mostrarNotificacion(`TURNO ${turno.numero} LLAMADO`, 'success');
+        await RenderAdmin.todo();
+    },
+
+    mostrarModalDespacho(turno, tipo, turnoId = null) {
+        const modal = document.getElementById('despachoModal');
+        if (!modal) {
+            Utils.mostrarNotificacion('Error: Modal de despacho no encontrado', 'error');
+            return;
+        }
+
+        const modalTurnNumber = document.getElementById('despachoTurnNumber');
+        const modalTurnInfo = document.getElementById('despachoTurnInfo');
+        const infoDespachoDiv = document.getElementById('despachoInfo');
+
+        if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
+        if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}${turno.nit ? ' - ' + turno.nit : ''}`;
+
+        if (turno.numFactura || turno.tipoVehiculo || turno.bultos || turno.peso || turno.responsable) {
+            if (infoDespachoDiv) {
+                infoDespachoDiv.innerHTML = `
+                    ${turno.numFactura ? `<p><strong>Factura:</strong> ${turno.numFactura}</p>` : ''}
+                    ${turno.tipoVehiculo ? `<p><strong>Tipo Vehículo:</strong> ${turno.tipoVehiculo}</p>` : ''}
+                    ${turno.bultos ? `<p><strong>Bultos:</strong> ${turno.bultos}</p>` : ''}
+                    ${turno.peso ? `<p><strong>Peso:</strong> ${turno.peso}</p>` : ''}
+                    ${turno.responsable ? `<p><strong>Responsable:</strong> ${turno.responsable}</p>` : ''}
+                `;
+            }
+        } else {
+            if (infoDespachoDiv) infoDespachoDiv.innerHTML = '';
+        }
+
+        const numFacturaInput = document.getElementById('despachoNumFactura');
+        const tipoVehiculoInput = document.getElementById('despachoTipoVehiculo');
+        const bultosInput = document.getElementById('despachoBultos');
+        const pesoInput = document.getElementById('despachoPeso');
+        const responsableInput = document.getElementById('despachoResponsable');
+
+        if (numFacturaInput) numFacturaInput.value = turno.numFactura || '';
+        if (tipoVehiculoInput) tipoVehiculoInput.value = turno.tipoVehiculo || '';
+        if (bultosInput) bultosInput.value = turno.bultos || '';
+        if (pesoInput) pesoInput.value = turno.peso || '';
+        if (responsableInput) responsableInput.value = turno.responsable || '';
+
+        modal.dataset.turnoId = turnoId || turno.id;
+        modal.dataset.tipo = tipo;
+        modal.style.display = 'flex';
     },
 
     async completarTurno() {
@@ -3262,41 +3416,29 @@ const ModalConfig = {
     configurar() {
         document.querySelectorAll('.close-modal').forEach(btn => {
             btn.onclick = function() {
-                this.closest('.modal').style.display = 'none';
+                const modal = this.closest('.modal');
+                if (modal && modal.id === 'despachoModal') {
+                    this._cancelarDespacho();
+                }
+                modal.style.display = 'none';
             };
         });
 
         window.onclick = (e) => {
-            if (e.target.classList.contains('modal')) {
+            if (e.target.classList.contains('modal') && e.target.id !== 'despachoModal') {
                 e.target.style.display = 'none';
             }
         };
-
-        const loginForm = document.getElementById('adminLoginForm');
-        if (loginForm) {
-            loginForm.addEventListener('submit', AdminAccess.handleLogin);
+    },
+    
+    _cancelarDespacho() {
+        if (AppState.turnoActual) {
+            AppState.turnos.push(AppState.turnoActual);
+            AppState.turnoActual = null;
+            LocalStorage.guardarTurnoActual(null);
+            LocalStorage.guardarTurnos(AppState.turnos);
+            RenderAdmin.todo();
         }
-        
-        if (window.InputConfig) {
-            setTimeout(() => {
-                InputConfig.configurarPasswordToggle();
-            }, 500);
-        }
-        
-        document.querySelectorAll('.modal').forEach(modal => {
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-                        if (modal.style.display !== 'none' && window.InputConfig) {
-                            setTimeout(() => {
-                                InputConfig.configurarPasswordToggle();
-                            }, 100);
-                        }
-                    }
-                });
-            });
-            observer.observe(modal, { attributes: true });
-        });
     }
 };
 
