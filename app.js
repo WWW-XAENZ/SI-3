@@ -2059,6 +2059,14 @@ const RenderAdmin = {
                             ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
                         </div>
                     </div>
+                    <div class="turn-item-actions">
+                        <button class="btn btn-primary btn-small" onclick="AdminHandlers.llamarTurnoEspecifico(${turno.id})">
+                            Llamar
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="AdminHandlers.cancelarTurno(${turno.id})">
+                            Cancelar
+                        </button>
+                    </div>
                 </div>
             `).join('');
         }
@@ -2548,78 +2556,121 @@ const AdminHandlers = {
         }
 
         if (AppState.turnoActual) {
-            Utils.mostrarNotificacion(`Ya hay un turno en atenci�n (${AppState.turnoActual.numero}). Compl�telo primero.`, 'error');
+            Utils.mostrarNotificacion(`Ya hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
             return;
         }
 
-        this._prepararLlamada(turno, () => this.mostrarModalDespacho(turno, 'especifico', turnoId));
-    },
+        AppState.turnoActual = turno;
+        AppState.turnos = AppState.turnos.filter(t => t.id !== turno.id);
+        LocalStorage.guardarTurnoActual(AppState.turnoActual);
+        LocalStorage.guardarTurnos(AppState.turnos);
 
-    _prepararLlamada(turno, onConfirmar) {
-        const modalTurnNumber = document.getElementById('modalTurnNumber');
-        const modalTurnInfo = document.getElementById('modalTurnInfo');
-        if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
-        if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}${turno.nit ? ' - ' + turno.nit : ''}`;
+        this.mostrarModalDespacho(turno, 'especifico', turnoId);
+        Utils.mostrarNotificacion(`TURNO ${turno.numero} LLAMADO`, 'success');
+        await RenderAdmin.todo();
 
-        const btnAceptarLlamada = document.querySelector('#turnoModal .btn-primary');
-        const _handler = () => {
-            document.getElementById('turnoModal').style.display = 'none';
-            if (btnAceptarLlamada) btnAceptarLlamada.onclick = null;
-            onConfirmar();
+        const infoDespacho = {
+            numFactura: turno.numFactura || null,
+            tipoVehiculo: turno.tipoVehiculo || null,
+            bultos: turno.bultos || null,
+            peso: turno.peso || null,
+            responsable: turno.responsable || null,
+            contacto: turno.contacto || null,
+            telefono: turno.telefono || null,
+            servicio: turno.servicio || null,
+            destino: turno.destino || null
         };
-
-        if (btnAceptarLlamada) {
-            btnAceptarLlamada.onclick = _handler;
+        
+        if (window.supabaseClient) {
+            try {
+                await SupabaseDB.llamarTurno(turno.id, infoDespacho);
+            } catch (error) {
+                console.error('Error sync Supabase:', error);
+            }
         }
-
-        const turnoModal = document.getElementById('turnoModal');
-        if (turnoModal) turnoModal.style.display = 'flex';
     },
 
     async llamarTurno() {
-        const turno = await Turnos.llamarSiguiente();
-        
-        if (turno) {
-            const infoDespacho = {
-                numFactura: turno.numFactura || null,
-                tipoVehiculo: turno.tipoVehiculo || null,
-                bultos: turno.bultos || null,
-                peso: turno.peso || null,
-                responsable: turno.responsable || null,
-                contacto: turno.contacto || null,
-                telefono: turno.telefono || null,
-                servicio: turno.servicio || null,
-                destino: turno.destino || null
-            };
-            const actualizado = await SupabaseDB.llamarTurno(turno.id, infoDespacho);
-            if (!actualizado) {
-                Utils.mostrarNotificacion('Error al llamar turno en la base de datos', 'error');
-                return;
-            }
-            Object.assign(turno, actualizado);
-            AppState.turnoActual = turno;
-            this.mostrarModalDespacho(turno, 'llamar');
-        } else {
-            console.log('No se pudo llamar turno');
-        }
-    },
-
-    async llamarTurnoEspecifico(turnoId) {
-        const turno = AppState.turnos.find(t => t.id === turnoId);
-        if (!turno) {
-            Utils.mostrarNotificacion('Turno no encontrado', 'error');
-            return;
-        }
-
         if (AppState.turnoActual) {
             Utils.mostrarNotificacion(`Ya hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
             return;
         }
 
-        this._prepararLlamada(turno, () => this.mostrarModalDespacho(turno, 'especifico', turnoId));
+        if (AppState.turnos.length === 0) {
+            Utils.mostrarNotificacion('No hay turnos en espera', 'error');
+            return;
+        }
+
+        const turno = AppState.turnos[0];
+        
+        AppState.turnoActual = turno;
+        AppState.turnos = AppState.turnos.filter(t => t.id !== turno.id);
+        LocalStorage.guardarTurnoActual(AppState.turnoActual);
+        LocalStorage.guardarTurnos(AppState.turnos);
+
+        this.mostrarModalDespacho(turno, 'siguiente');
+        Utils.mostrarNotificacion(`TURNO ${turno.numero} LLAMADO`, 'success');
+        await RenderAdmin.todo();
+
+        const infoDespacho = {
+            numFactura: turno.numFactura || null,
+            tipoVehiculo: turno.tipoVehiculo || null,
+            bultos: turno.bultos || null,
+            peso: turno.peso || null,
+            responsable: turno.responsable || null,
+            contacto: turno.contacto || null,
+            telefono: turno.telefono || null,
+            servicio: turno.servicio || null,
+            destino: turno.destino || null
+        };
+        
+        if (window.supabaseClient) {
+            try {
+                await SupabaseDB.llamarTurno(turno.id, infoDespacho);
+            } catch (error) {
+                console.error('Error sync Supabase:', error);
+            }
+        }
     },
 
-    // El resto de la lógica de llamar turno específico se maneja en _prepararLlamada + guardarDespacho
+    async llamarTurno() {
+        if (AppState.turnoActual) {
+            Utils.mostrarNotificacion(`Ya hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
+            return;
+        }
+
+        if (AppState.turnos.length === 0) {
+            Utils.mostrarNotificacion('No hay turnos en espera', 'error');
+            return;
+        }
+
+        const turno = AppState.turnos[0];
+        
+        AppState.turnoActual = turno;
+        AppState.turnos = AppState.turnos.filter(t => t.id !== turno.id);
+        LocalStorage.guardarTurnoActual(AppState.turnoActual);
+        LocalStorage.guardarTurnos(AppState.turnos);
+
+        this.mostrarModalDespacho(turno, 'siguiente');
+        Utils.mostrarNotificacion(`TURNO ${turno.numero} LLAMADO`, 'success');
+        await RenderAdmin.todo();
+
+        const infoDespacho = {
+            numFactura: turno.numFactura || null,
+            tipoVehiculo: turno.tipoVehiculo || null,
+            bultos: turno.bultos || null,
+            peso: turno.peso || null,
+            responsable: turno.responsable || null,
+            contacto: turno.contacto || null,
+            telefono: turno.telefono || null,
+            servicio: turno.servicio || null,
+            destino: turno.destino || null
+        };
+        
+        if (window.supabaseClient) {
+            SupabaseDB.llamarTurno(turno.id, infoDespacho).catch(err => console.error('Error sync Supabase:', err));
+        }
+    },
 
     mostrarModalDespacho(turno, tipo, turnoId = null) {
         const modal = document.getElementById('despachoModal');
@@ -2646,9 +2697,7 @@ const AdminHandlers = {
                 `;
             }
         } else {
-            if (infoDespachoDiv) {
-                infoDespachoDiv.innerHTML = '';
-            }
+            if (infoDespachoDiv) infoDespachoDiv.innerHTML = '';
         }
 
         const numFacturaInput = document.getElementById('despachoNumFactura');
@@ -2681,12 +2730,11 @@ const AdminHandlers = {
         const pesoInput = document.getElementById('despachoPeso');
         const responsableInput = document.getElementById('despachoResponsable');
 
-        let turnoActual = null;
-        
-        if (tipo === 'especifico') {
-            turnoActual = AppState.turnos.find(t => t.id === turnoId);
-        } else {
-            turnoActual = AppState.turnoActual;
+        const turnoActual = AppState.turnoActual;
+
+        if (!turnoActual) {
+            Utils.mostrarNotificacion('No hay turno en atención', 'error');
+            return;
         }
 
         const infoDespacho = {
@@ -2695,51 +2743,24 @@ const AdminHandlers = {
             bultos: bultosInput?.value?.trim() || null,
             peso: pesoInput?.value?.trim() || null,
             responsable: responsableInput?.value?.trim() || null,
-            contacto: turnoActual?.contacto || null,
-            telefono: turnoActual?.telefono || null,
-            servicio: turnoActual?.servicio || null,
-            nit: turnoActual?.nit || null,
-            destino: turnoActual?.destino || null
+            contacto: turnoActual.contacto || null,
+            telefono: turnoActual.telefono || null,
+            servicio: turnoActual.servicio || null,
+            nit: turnoActual.nit || null,
+            destino: turnoActual.destino || null
         };
-        
-        console.log('=== guardarDespacho ===');
-        console.log('tipoVehiculoInput value:', tipoVehiculoInput?.value);
-        console.log('tipoVehiculoInput trimmed:', tipoVehiculoInput?.value?.trim());
-        console.log('infoDespacho:', infoDespacho);
 
-        const horaLlamada = Utils.obtenerHoraActual();
-
-        if (tipo === 'especifico') {
-            if (!turnoActual) {
-                Utils.mostrarNotificacion('Turno no encontrado', 'error');
-                return;
-            }
-
-            turnoActual.numFactura = infoDespacho.numFactura;
-            turnoActual.tipoVehiculo = infoDespacho.tipoVehiculo;
-            turnoActual.bultos = infoDespacho.bultos;
-            turnoActual.peso = infoDespacho.peso;
-            turnoActual.responsable = infoDespacho.responsable;
-            turnoActual.contacto = infoDespacho.contacto;
-            turnoActual.telefono = infoDespacho.telefono;
-            turnoActual.servicio = infoDespacho.servicio;
-            turnoActual.destino = infoDespacho.destino;
-        } else {
-            if (AppState.turnoActual) {
-                const actualizado = await SupabaseDB.llamarTurno(AppState.turnoActual.id, infoDespacho);
-                if (actualizado) {
-                    Object.assign(AppState.turnoActual, {
-                        horaLlamada: horaLlamada,
-                        ...infoDespacho
-                    });
-                } else {
-                    Object.assign(AppState.turnoActual, {
-                        horaLlamada: horaLlamada,
-                        ...infoDespacho
-                    });
-                }
-            }
-        }
+        turnoActual.numFactura = infoDespacho.numFactura;
+        turnoActual.tipoVehiculo = infoDespacho.tipoVehiculo;
+        turnoActual.bultos = infoDespacho.bultos;
+        turnoActual.peso = infoDespacho.peso;
+        turnoActual.responsable = infoDespacho.responsable;
+        turnoActual.contacto = infoDespacho.contacto;
+        turnoActual.telefono = infoDespacho.telefono;
+        turnoActual.servicio = infoDespacho.servicio;
+        turnoActual.destino = infoDespacho.destino;
+        turnoActual.estado = 'atendiendo';
+        turnoActual.horaLlamada = Utils.obtenerHoraActual();
 
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
