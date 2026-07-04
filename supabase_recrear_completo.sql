@@ -69,6 +69,7 @@ CREATE TABLE turnos (
     telefono VARCHAR(50),
     servicio VARCHAR(50),
     autorizado_salida BOOLEAN DEFAULT false,
+    inspeccion_fisica BOOLEAN DEFAULT false,
     placa_vehiculo VARCHAR(20),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -99,6 +100,7 @@ CREATE TABLE historial_turnos (
     telefono VARCHAR(50),
     servicio VARCHAR(50),
     autorizado_salida BOOLEAN DEFAULT false,
+    inspeccion_fisica BOOLEAN DEFAULT false,
     fecha TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

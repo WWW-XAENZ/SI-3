@@ -709,6 +709,7 @@
                         <div id="turnoActual" class="turn-number">--</div>
                         <div id="turnoInfo" class="turn-info">Sin turno en atención</div>
                     </div>
+        
                     <!-- Tiempo transcurrido del turno actual -->
                     <div id="tiempoTurnoWrap" style="text-align:center;margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">
                         <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Tiempo en atención</div>
@@ -800,17 +801,6 @@
                                 <tr><td colspan="5" class="empty-message">Cargando...</td></tr>
                             </tbody>
                         </table>
-                    </div>
-                </section>
-
-                <!-- Rendimiento del Día -->
-                <section class="admin-section" style="grid-column: 1 / 4;">
-                    <h2 style="display:flex;align-items:center;justify-content:space-between;">
-                        <span>Rendimiento del Día</span>
-                        <span style="font-size:13px;font-weight:400;color:#64748b;" class="reloj-vivo">--:--:--</span>
-                    </h2>
-                    <div id="panelRendimientoDia">
-                        <p class="empty-message">Cargando...</p>
                     </div>
                 </section>
 
@@ -915,9 +905,29 @@
         </div>
     </div>
 
+    <!-- Modal Inspección Solicitada -->
+    <div id="modalInspeccion" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; border: 3px solid #f59e0b;">
+            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; text-align: center; border-radius: 10px 10px 0 0; margin: -24px -24px 20px -24px;">
+                <h2 style="color: white; margin: 0; font-size: 22px;">INSPECCIÓN FÍSICA REQUERIDA</h2>
+                <p style="color: #fef3c7; margin: 5px 0 0 0;">El despachador ha solicitado inspección física</p>
+            </div>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 64px; font-weight: 700; color: #d97706; line-height: 1;" id="inspeccionNumero">---</div>
+                <div style="font-size: 16px; font-weight: 600; color: #1e293b; margin-top: 5px;" id="inspeccionEmpresa">Proveedor</div>
+            </div>
+            <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px;" id="inspeccionDetalles">
+                <p style="color: #475569;">Se requiere inspección física antes de autorizar la salida.</p>
+            </div>
+            <button class="btn btn-warning" style="width: 100%; padding: 14px; font-size: 16px;" onclick="cerrarModalInspeccion()">ACEPTAR</button>
+        </div>
+    </div>
+
     <script>
         window.salidaDespachadorAnterior = null;
+        window.inspeccionAnterior = null;
         let modalVisible = false;
+        let modalInspeccionVisible = false;
 
         function initSalidaDespachadorListener() {
             window.addEventListener('storage', (e) => {
@@ -927,6 +937,18 @@
                         if (datos.timestamp !== window.salidaDespachadorAnterior && !modalVisible) {
                             window.salidaDespachadorAnterior = datos.timestamp;
                             mostrarAlertaSalidaDespachador(datos);
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                    }
+                }
+                
+                if (e.key === 'inspeccionSolicitada' && e.newValue) {
+                    try {
+                        const datos = JSON.parse(e.newValue);
+                        if (datos.timestamp !== window.inspeccionAnterior && !modalInspeccionVisible) {
+                            window.inspeccionAnterior = datos.timestamp;
+                            mostrarAlertaInspeccion(datos);
                         }
                     } catch (err) {
                         console.error('Error:', err);
@@ -943,6 +965,22 @@
                         if (parsed.timestamp !== window.salidaDespachadorAnterior) {
                             window.salidaDespachadorAnterior = parsed.timestamp;
                             mostrarAlertaSalidaDespachador(parsed);
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                    }
+                }
+            }, 2000);
+            
+            setInterval(() => {
+                if (modalInspeccionVisible) return;
+                const datos = localStorage.getItem('inspeccionSolicitada');
+                if (datos) {
+                    try {
+                        const parsed = JSON.parse(datos);
+                        if (parsed.timestamp !== window.inspeccionAnterior) {
+                            window.inspeccionAnterior = parsed.timestamp;
+                            mostrarAlertaInspeccion(parsed);
                         }
                     } catch (err) {
                         console.error('Error:', err);
@@ -1060,7 +1098,6 @@
         window.cerrarModalSalidaDespachador = function() {
             document.getElementById('modalSalidaDespachador').style.display = 'none';
             modalVisible = false;
-            // Limpiar localStorage para que no se vuelva a mostrar
             try {
                 localStorage.removeItem('salidaAutorizada');
             } catch (e) {
@@ -1068,10 +1105,67 @@
             }
         };
 
+        async function mostrarAlertaInspeccion(datos) {
+            const reproducirSonido = () => {
+                try {
+                    if (window.SonidoAlerta && window.SonidoAlerta.reproducir) {
+                        window.SonidoAlerta.reproducir(3);
+                    } else {
+                        const AudioContext = window.AudioContext || window.webkitAudioContext;
+                        if (!window.audioCtxInspeccion) {
+                            window.audioCtxInspeccion = new AudioContext();
+                        }
+                        const ctx = window.audioCtxInspeccion;
+                        for (let i = 0; i < 3; i++) {
+                            setTimeout(() => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.frequency.value = 880;
+                                osc.type = 'sine';
+                                gain.gain.setValueAtTime(0.5, ctx.currentTime);
+                                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                                osc.start(ctx.currentTime);
+                                osc.stop(ctx.currentTime + 0.5);
+                            }, i * 600);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Error sonido:', e);
+                }
+            };
+
+            reproducirSonido();
+            await new Promise(r => setTimeout(r, 800));
+            reproducirSonido();
+            await new Promise(r => setTimeout(r, 800));
+            reproducirSonido();
+
+            document.getElementById('inspeccionNumero').textContent = datos.numero || '---';
+            document.getElementById('inspeccionEmpresa').textContent = datos.nombre || datos.empresa || 'Proveedor';
+            modalInspeccionVisible = true;
+            document.getElementById('modalInspeccion').style.display = 'flex';
+            
+            if (window.RenderAdmin && window.RenderAdmin.historial) {
+                setTimeout(() => window.RenderAdmin.historial(), 300);
+            }
+        }
+
+        window.cerrarModalInspeccion = function() {
+            document.getElementById('modalInspeccion').style.display = 'none';
+            modalInspeccionVisible = false;
+            try {
+                localStorage.removeItem('inspeccionSolicitada');
+            } catch (e) {
+                console.warn('Error limpiando localStorage:', e);
+            }
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
-            // Limpiar notificación de salida al cargar la página
             try {
                 localStorage.removeItem('salidaAutorizada');
+                localStorage.removeItem('inspeccionSolicitada');
             } catch (e) {}
             
             setTimeout(() => {

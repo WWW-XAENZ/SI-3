@@ -917,6 +917,7 @@ const SupabaseDB = {
             telefono: t.telefono,
             servicio: t.servicio,
             autorizadoSalida: t.autorizado_salida,
+            inspeccionFisica: t.inspeccion_fisica,
             createdAt: t.created_at,
             updatedAt: t.updated_at
         };
@@ -955,6 +956,7 @@ const SupabaseDB = {
                 telefono: turno.telefono || null,
                 servicio: turno.servicio || null,
                 autorizado_salida: false,
+                inspeccion_fisica: false,
                 fecha: getLocalISOString()
             };
             
@@ -1019,6 +1021,7 @@ const SupabaseDB = {
                 telefono: h.telefono,
                 servicio: h.servicio,
                 autorizadoSalida: h.autorizado_salida,
+                inspeccionFisica: h.inspeccion_fisica,
                 fecha: h.fecha
             }));
         } catch (error) {
@@ -2267,6 +2270,7 @@ async historial() {
                                 <th>Peso</th>
                                 <th>Responsable</th>
                                 <th>Hora Fin</th>
+                                <th>Inspeccion</th>
                                 <th>Estado</th>
                             </tr>
                         </thead>
@@ -2282,6 +2286,7 @@ async historial() {
                                     <td>${h.peso || '-'}</td>
                                     <td>${h.responsable || '-'}</td>
                                     <td>${Utils.formatearHora(h.horaFinalizacion)}</td>
+                                    <td>${h.inspeccionFisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
                                     <td>${h.autorizadoSalida ? '<span style="color:#10b981;font-weight:600;">✓ SALIDA OK</span>' : '<span style="color:#f59e0b;">PENDIENTE</span>'}</td>
                                 </tr>
                             `).join('')}
@@ -3946,6 +3951,7 @@ const DespachadorHandlers = {
                                 telefono: turno.telefono || null,
                                 servicio: turno.servicio || null,
                                 autorizado_salida: true,
+                                inspeccion_fisica: false,
                                 fecha: getLocalISOString()
                             }]);
                         
@@ -3999,6 +4005,56 @@ const DespachadorHandlers = {
             localStorage.removeItem('proveedorListoSalir');
             // El modal con sonido se muestra automáticamente en admin.html y despachador
         }
+    },
+
+    async solicitarInspeccion(turnoData = null) {
+        const turno = turnoData || AppState.turnoActual;
+        
+        if (!turno) {
+            Utils.mostrarNotificacion('No hay proveedor esperando', 'error');
+            return;
+        }
+        
+        try {
+            if (window.supabaseClient) {
+                try {
+                    const { data: historialActual, error: errorGet } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .select('id')
+                        .eq('numero', turno.numero)
+                        .gte('fecha', getLocalDate() + 'T00:00:00')
+                        .single();
+                    
+                    if (historialActual && !errorGet) {
+                        const { error: errorUpdate } = await window.supabaseClient
+                            .from('historial_turnos')
+                            .update({ inspeccion_fisica: true })
+                            .eq('id', historialActual.id);
+                        
+                        if (errorUpdate) {
+                            console.warn('No se pudo actualizar inspección en historial:', errorUpdate.message);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Error al guardar inspección en historial:', e.message);
+                }
+            }
+            
+            localStorage.setItem('inspeccionSolicitada', JSON.stringify({
+                numero: turno.numero,
+                nombre: turno.nombre || turno.nombreEmpresa || turno.nombre,
+                nit: turno.nit || '',
+                timestamp: Date.now()
+            }));
+            
+            const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
+            if (btnInspeccion) {
+                btnInspeccion.disabled = true;
+                btnInspeccion.textContent = 'Inspección Solicitada';
+            }
+        } catch (error) {
+            console.error('Error al solicitar inspección:', error);
+        }
     }
 };
 
@@ -4018,6 +4074,21 @@ function actualizarBotonAutorizar() {
 }
 
 window.actualizarBotonAutorizar = actualizarBotonAutorizar;
+
+function actualizarBotonInspeccion() {
+    const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
+    if (!btnInspeccion) return;
+    
+    if (window.AppState && window.AppState.turnoActual) {
+        btnInspeccion.disabled = false;
+        btnInspeccion.textContent = 'Solicitar Inspeccion';
+    } else {
+        btnInspeccion.disabled = true;
+        btnInspeccion.textContent = 'Solicitar Inspeccion';
+    }
+}
+
+window.actualizarBotonInspeccion = actualizarBotonInspeccion;
 
 // ============================================
 // GENERAR CERTIFICADO MENSUAL

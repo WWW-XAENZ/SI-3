@@ -120,6 +120,7 @@
                     </div>
                     <div class="despacho-actions">
                         <button id="btnAutorizarSalida" class="btn btn-success" disabled>Autorizar Salida</button>
+                        <button id="btnSolicitarInspeccion" class="btn btn-warning" disabled>Solicitar Inspeccion</button>
                     </div>
                 </section>
 
@@ -786,6 +787,12 @@
                         btnAutorizar.disabled = false;
                     }
                     
+                    const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
+                    if (btnInspeccion) {
+                        btnInspeccion.disabled = false;
+                        btnInspeccion.textContent = 'Solicitar Inspeccion';
+                    }
+                    
                     if (proveedorListoAnterior !== proveedor.timestamp) {
                         proveedorListoAnterior = proveedor.timestamp;
                         reproducirAlertaSalida(proveedor);
@@ -916,6 +923,12 @@
                     }
                     if (btnAutorizar) {
                         btnAutorizar.disabled = true;
+                    }
+                    
+                    const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
+                    if (btnInspeccion) {
+                        btnInspeccion.disabled = true;
+                        btnInspeccion.textContent = 'Solicitar Inspeccion';
                     }
                 }
                 
@@ -1123,6 +1136,21 @@
                                     cargarEstadisticasDespachador();
                                     cargarHistorialDespachador();
                                 }, 500);
+                            } catch (e) {
+                                console.error('Error:', e);
+                            }
+                        }
+                    });
+                }
+                
+                const btnSolicitarInspeccion = document.getElementById('btnSolicitarInspeccion');
+                if (btnSolicitarInspeccion) {
+                    btnSolicitarInspeccion.addEventListener('click', async () => {
+                        const datos = localStorage.getItem('proveedorListoSalir');
+                        if (datos) {
+                            try {
+                                const proveedor = JSON.parse(datos);
+                                await window.DespachadorHandlers.solicitarInspeccion(proveedor);
                             } catch (e) {
                                 console.error('Error:', e);
                             }
