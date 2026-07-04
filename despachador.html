@@ -286,7 +286,7 @@
                             <span><strong>Vehículo:</strong> ${h.tipo_vehiculo || 'N/A'}</span>
                             <span><strong>Responsable:</strong> ${h.responsable || 'N/A'}</span>
                         </div>
-                        ${h.autorizado_salida !== true ? '<button class="btn btn-success btn-authorize btn-large" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button>' : '<span class="autorizado-badge">✓ Autorizado</span>'}
+                        ${h.autorizado_salida !== true ? '<div style="display:flex;gap:8px;"><button class="btn btn-success btn-authorize btn-large" onclick="autorizarSalidaDesdeLista(this)" style="flex:1;">Autorizar Salida</button><button class="btn btn-warning btn-authorize btn-large" onclick="solicitarInspeccionDesdeLista(this)" style="flex:1;">Solicitar Inspeccion</button></div>' : '<span class="autorizado-badge">✓ Autorizado</span>'}
                     </div>
                 `).join('');
             }
@@ -1113,6 +1113,29 @@
                         cargarEstadisticasDespachador();
                         cargarHistorialDespachador();
                     }, 500);
+                };
+                
+                window.solicitarInspeccionDesdeLista = async function(btn) {
+                    const item = btn.closest('.pending-exit-item');
+                    const turno = {
+                        numero: item.dataset.numero,
+                        nombre: item.dataset.nombre,
+                        nit: item.dataset.nit,
+                        motivo: item.dataset.motivo,
+                        destino: item.dataset.destino,
+                        contacto: item.dataset.contacto,
+                        telefono: item.dataset.telefono,
+                        servicio: item.dataset.servicio,
+                        numFactura: item.dataset.numfactura,
+                        tipoVehiculo: item.dataset.tipovehiculo,
+                        bultos: item.dataset.bultos,
+                        peso: item.dataset.peso,
+                        responsable: item.dataset.responsable,
+                        horaSolicitud: item.dataset.horasolicitud,
+                        horaLlamada: item.dataset.horallamada
+                    };
+                    
+                    await window.DespachadorHandlers.solicitarInspeccion(turno);
                 };
                 
                 const btnActualizarPendientes = document.getElementById('btnActualizarPendientes');
