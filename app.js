@@ -1203,6 +1203,9 @@ const SupabaseDB = {
                     
                     if (status === 'SUBSCRIBED') {
                         console.log('✅ Suscripción a turnos activada correctamente');
+                        if (callback && typeof callback === 'function') {
+                            callback({ eventType: 'SUBSCRIPTION', new: null, old: null });
+                        }
                     } else if (status === 'CHANNEL_ERROR') {
                         console.error('❌ Error en canal de turnos:', err);
                         window.supabaseClient.removeChannel(channel);
@@ -3792,12 +3795,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.supabaseClient.channel('notificacion_admin')
                     .on('broadcast', { event: 'salida_autorizada' }, (payload) => {
                         console.log('Salida autorizada:', payload);
-                        // El modal con sonido se muestra automáticamente en admin.html
                     })
                     .subscribe();
             } else {
                 console.warn('Supabase no disponible');
             }
+            
+            setInterval(async () => {
+                try {
+                    await Turnos.cargarTurnos();
+                    await RenderAdmin.todo();
+                } catch (e) {
+                    console.error('Error en actualización periódica admin:', e);
+                }
+            }, 5000);
             
             verificarSalidaAutorizadaAdmin();
         }
