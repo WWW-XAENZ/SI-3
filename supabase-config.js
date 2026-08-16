@@ -53,6 +53,60 @@ try {
             console.warn('📵 Sin conexion a internet - operando en modo local');
         });
 
+        // Reintento de conexion si falla la inicializacion
+        let intentosReconexion = 0;
+        const MAX_INTENTOS = 10;
+        
+        async function reintentarConexion() {
+            if (intentosReconexion >= MAX_INTENTOS) {
+                console.warn('⚠️ Se agotaron los intentos de reconexion con Supabase');
+                return;
+            }
+            
+            intentosReconexion++;
+            console.log(`🔄 Reintentando conexion con Supabase... (${intentosReconexion}/${MAX_INTENTOS})`);
+            
+            try {
+                const { error } = await supabaseClient
+                    .from('configuracion')
+                    .select('*')
+                    .limit(1);
+                
+                if (!error) {
+                    console.log('✅ Conexion con Supabase restablecida');
+                    intentosReconexion = 0;
+                    if (typeof Turnos !== 'undefined') {
+                        Turnos.cargarTurnos().catch(e => console.warn('Error al recargar tras reconexion:', e));
+                    }
+                } else {
+                    console.warn('⚠️ Error en reconexion:', error.message);
+                    setTimeout(reintentarConexion, 3000);
+                }
+            } catch (e) {
+                console.warn('⚠️ Error en reconexion:', e.message);
+                setTimeout(reintentarConexion, 3000);
+            }
+        }
+
+        // Verificar conexion periodicamente
+        setInterval(async () => {
+            if (!window.supabaseClient) return;
+            try {
+                const { error } = await window.supabaseClient
+                    .from('configuracion')
+                    .select('*')
+                    .limit(1);
+                
+                if (error) {
+                    console.warn('⚠️ Conexion perdida, reintentando...');
+                    reintentarConexion();
+                }
+            } catch (e) {
+                console.warn('⚠️ Error verificando conexion:', e.message);
+                reintentarConexion();
+            }
+        }, 30000);
+
     } else {
         console.error('❌ Libreria de Supabase no cargada. Verifica que el script CDN este incluido.');
     }

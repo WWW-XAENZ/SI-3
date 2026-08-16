@@ -1002,7 +1002,11 @@
                                             <span class="turn-item-number">${turno.numero}</span>
                                             <div class="turn-item-info">
                                                 <div class="turn-item-company">${turno.nombre_empresa || '-'}</div>
-                                                <div class="turn-item-time">${horaCita} - ${destinoLabel[turno.destino] || turno.destino}</div>
+                                                ${turno.nit ? `<div style="font-size:11px;color:#475569;">Placa: ${turno.nit}</div>` : ''}
+                                                ${turno.nombre_empresa ? `<div style="font-size:11px;color:#475569;">Contacto: ${turno.nombre_empresa}</div>` : ''}
+                                                ${turno.telefono ? `<div style="font-size:11px;color:#475569;">Tel: ${turno.telefono}</div>` : ''}
+                                                ${turno.destino ? `<div style="font-size:11px;color:#475569;">Destino: ${destinoLabel[turno.destino] || turno.destino}</div>` : ''}
+                                                ${turno.motivo ? `<div style="font-size:11px;color:#475569;">${horaCita} - ${turno.motivo}</div>` : `<div style="font-size:11px;color:#475569;">${horaCita}</div>`}
                                             </div>
                                         </div>
                                     `;

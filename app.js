@@ -318,6 +318,14 @@ const LocalStorage = {
         return parseInt(localStorage.getItem('contadorTurnos')) || 0;
     },
 
+    guardarContadorPrefijo(prefijo, contador) {
+        localStorage.setItem(`contadorTurnos_${prefijo}`, contador.toString());
+    },
+
+    obtenerContadorPrefijo(prefijo) {
+        return parseInt(localStorage.getItem(`contadorTurnos_${prefijo}`)) || 0;
+    },
+
     guardarMiTurno(turno) {
         localStorage.setItem('miTurnoActual', JSON.stringify(turno));
     },
@@ -362,8 +370,9 @@ const SupabaseDB = {
         }
     },
 
-    async obtenerContadorTurnos() {
-        const contadorLocal = LocalStorage.obtenerContador();
+    async obtenerContadorTurnos(prefijo = 'T') {
+        const claveLocal = prefijo === 'C' ? 'contador_turnos_C' : 'contador_turnos';
+        const contadorLocal = LocalStorage.obtenerContadorPrefijo(prefijo);
         
         if (!window.supabaseClient) {
             return contadorLocal;
@@ -373,7 +382,7 @@ const SupabaseDB = {
             const { data, error } = await window.supabaseClient
                 .from('configuracion')
                 .select('valor')
-                .eq('clave', 'contador_turnos')
+                .eq('clave', claveLocal)
                 .single();
             
             if (error) {
@@ -381,9 +390,9 @@ const SupabaseDB = {
                     await window.supabaseClient
                         .from('configuracion')
                         .insert({ 
-                            clave: 'contador_turnos', 
+                            clave: claveLocal, 
                             valor: contadorLocal.toString(), 
-                            descripcion: 'Contador global de turnos' 
+                            descripcion: `Contador de turnos ${prefijo}` 
                         });
                     return contadorLocal;
                 }
@@ -399,35 +408,35 @@ const SupabaseDB = {
         }
     },
 
-    async incrementarContadorTurnos(signal = null) {
+    async incrementarContadorTurnos(prefijo = 'T', signal = null) {
         console.log('=== Incrementando contador ===');
         
         if (!window.supabaseClient) {
-            const contadorLocal = LocalStorage.obtenerContador();
+            const contadorLocal = LocalStorage.obtenerContadorPrefijo(prefijo);
             console.log('Supabase no disponible, usando contador local');
             const nuevoContador = contadorLocal + 1;
-            LocalStorage.guardarContador(nuevoContador);
+            LocalStorage.guardarContadorPrefijo(prefijo, nuevoContador);
             return nuevoContador;
         }
         
         try {
-            const contadorActual = await this.obtenerContadorTurnos();
+            const contadorActual = await this.obtenerContadorTurnos(prefijo);
             console.log('Contador actual (max local+supabase):', contadorActual);
             const nuevoContador = contadorActual + 1;
             console.log('Nuevo contador:', nuevoContador);
-            LocalStorage.guardarContador(nuevoContador);
+            LocalStorage.guardarContadorPrefijo(prefijo, nuevoContador);
             
+            const claveLocal = prefijo === 'C' ? 'contador_turnos_C' : 'contador_turnos';
             console.log('Actualizando contador en Supabase...');
-            // Timeout interno de 5 segundos
             const timeoutPromise = new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('Timeout Supabase (contador)')), 5000)
             );
             const upsertPromise = window.supabaseClient
                 .from('configuracion')
                 .upsert({ 
-                    clave: 'contador_turnos', 
+                    clave: claveLocal, 
                     valor: nuevoContador.toString(),
-                    descripcion: 'Contador global de turnos',
+                    descripcion: `Contador global de turnos ${prefijo}`,
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'clave' })
                 .abortSignal(signal);
@@ -443,10 +452,28 @@ const SupabaseDB = {
             return nuevoContador;
         } catch (error) {
             console.warn('Error al incrementar contador, usando local:', error.message);
-            const contadorLocal = LocalStorage.obtenerContador();
+            const contadorLocal = LocalStorage.obtenerContadorPrefijo(prefijo);
             const nuevoContador = contadorLocal + 1;
-            LocalStorage.guardarContador(nuevoContador);
+            LocalStorage.guardarContadorPrefijo(prefijo, nuevoContador);
             return nuevoContador;
+        }
+    },
+
+    async incrementarContadorTurnosHasta(prefijo, valor) {
+        const claveLocal = prefijo === 'C' ? 'contador_turnos_C' : 'contador_turnos';
+        LocalStorage.guardarContadorPrefijo(prefijo, valor);
+        if (!window.supabaseClient) return;
+        try {
+            await window.supabaseClient
+                .from('configuracion')
+                .upsert({ 
+                    clave: claveLocal, 
+                    valor: valor.toString(),
+                    descripcion: `Contador global de turnos ${prefijo}`,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'clave' });
+        } catch (e) {
+            console.warn('Error al fijar contador en Supabase:', e.message);
         }
     },
 
@@ -1552,23 +1579,24 @@ const Turnos = {
             await window.RenderAdmin.proveedores();
         }
 
-        let nuevoContador;
-        try {
-            console.log('📦 Paso 2: Incrementando contador de turnos...');
-            nuevoContador = await SupabaseDB.incrementarContadorTurnos(signal);
-            console.log('✅ Contador incrementado:', nuevoContador);
-        } catch (error) {
-            console.error('❌ Error al incrementar contador:', error);
-            AppState.contadorTurnos++;
-            nuevoContador = AppState.contadorTurnos;
-            LocalStorage.guardarContador(nuevoContador);
-        }
-        
         // Determinar prefijo según si la fecha es posterior a hoy
         const fechaCitaSola = datosProveedor.fechaCita ? datosProveedor.fechaCita.split('T')[0] : null;
         const hoy = new Date();
         const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
         const prefijoTurno = (fechaCitaSola && fechaCitaSola > hoyStr) ? 'C' : 'T';
+        
+        let nuevoContador;
+        try {
+            console.log('📦 Paso 2: Incrementando contador de turnos...');
+            nuevoContador = await SupabaseDB.incrementarContadorTurnos(prefijoTurno, signal);
+            console.log('✅ Contador incrementado:', nuevoContador);
+        } catch (error) {
+            console.error('❌ Error al incrementar contador:', error);
+            AppState.contadorTurnos++;
+            nuevoContador = AppState.contadorTurnos;
+            LocalStorage.guardarContadorPrefijo(prefijoTurno, nuevoContador);
+        }
+        
         const numeroTurno = prefijoTurno + nuevoContador.toString().padStart(3, '0');
         console.log('✅ Número de turno generado:', numeroTurno);
         console.log('📌 Prefijo:', prefijoTurno, '| Fecha cita:', fechaCitaSola, '| Hoy:', hoyStr);
@@ -1719,7 +1747,8 @@ const Turnos = {
             
             LocalStorage.guardarTurnos([]);
             LocalStorage.guardarTurnoActual(null);
-            LocalStorage.guardarContador(0);
+            LocalStorage.guardarContadorPrefijo('T', 0);
+            LocalStorage.guardarContadorPrefijo('C', 0);
             LocalStorage.eliminarMiTurno();
             
             return true;
@@ -1756,7 +1785,40 @@ const Turnos = {
                     
                     console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total`);
                     
-                    AppState.contadorTurnos = await SupabaseDB.obtenerContadorTurnos();
+                    let maxT = 0;
+                    let maxC = 0;
+                    
+                    if (localStorage.getItem('contador_reiniciado') !== 'true') {
+                        todosLosTurnos.forEach(t => {
+                            const num = parseInt(t.numero.replace(/^[TC]/i, ''));
+                            if (t.numero.toUpperCase().startsWith('T') && num > maxT) maxT = num;
+                            if (t.numero.toUpperCase().startsWith('C') && num > maxC) maxC = num;
+                        });
+                    }
+                    
+                    const [contadorT, contadorC] = await Promise.all([
+                        SupabaseDB.obtenerContadorTurnos('T'),
+                        SupabaseDB.obtenerContadorTurnos('C')
+                    ]);
+                    
+                    const nuevoMaxT = Math.max(contadorT, maxT);
+                    const nuevoMaxC = Math.max(contadorC, maxC);
+                    
+                    AppState.contadorTurnosT = nuevoMaxT;
+                    AppState.contadorTurnosC = nuevoMaxC;
+                    AppState.contadorTurnos = Math.max(nuevoMaxT, nuevoMaxC);
+                    
+                    if (nuevoMaxT > contadorT) {
+                        SupabaseDB.incrementarContadorTurnosHasta('T', nuevoMaxT);
+                        LocalStorage.guardarContadorPrefijo('T', nuevoMaxT);
+                    }
+                    if (nuevoMaxC > contadorC) {
+                        SupabaseDB.incrementarContadorTurnosHasta('C', nuevoMaxC);
+                        LocalStorage.guardarContadorPrefijo('C', nuevoMaxC);
+                    }
+                    
+                    localStorage.removeItem('contador_reiniciado');
+                    
                     return;
                 }
             }
@@ -2046,6 +2108,7 @@ const RenderAdmin = {
     turnoActual() {
         const turnoActualDiv = document.getElementById('turnoActual');
         const turnoInfoDiv = document.getElementById('turnoInfo');
+        const despachoDetail = document.getElementById('despachoDetail');
         
         if (turnoActualDiv) {
             turnoActualDiv.textContent = AppState.turnoActual ? AppState.turnoActual.numero : '--';
@@ -2055,41 +2118,25 @@ const RenderAdmin = {
             if (AppState.turnoActual) {
                 const motivo = AppState.turnoActual.motivo ? ` - ${AppState.turnoActual.motivo}` : '';
                 const placa = AppState.turnoActual.nit ? ` (Placa: ${AppState.turnoActual.nit})` : '';
-                
-                let despachoInfo = '';
-                if (AppState.turnoActual.numFactura || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable) {
-                    const partes = [];
-                    if (AppState.turnoActual.numFactura) partes.push(`Fact: ${AppState.turnoActual.numFactura}`);
-                    if (AppState.turnoActual.bultos) partes.push(`Bultos: ${AppState.turnoActual.bultos}`);
-                    if (AppState.turnoActual.peso) partes.push(`Peso: ${AppState.turnoActual.peso}`);
-                    if (AppState.turnoActual.responsable) partes.push(`Resp: ${AppState.turnoActual.responsable}`);
-                    despachoInfo = `\n(${partes.join(', ')})`;
-                }
-                
-                turnoInfoDiv.textContent = `${AppState.turnoActual.nombreEmpresa}${motivo}${placa}${despachoInfo}`;
-                
-                const despachoDetail = document.getElementById('despachoDetail');
-                if (despachoDetail) {
-                    if (AppState.turnoActual.numFactura || AppState.turnoActual.tipoVehiculo || AppState.turnoActual.bultos || AppState.turnoActual.peso || AppState.turnoActual.responsable || AppState.turnoActual.autorizadoSalida) {
-                        despachoDetail.innerHTML = `
-                            ${AppState.turnoActual.numFactura ? `<div><strong>Factura:</strong> ${AppState.turnoActual.numFactura}</div>` : ''}
-                            ${AppState.turnoActual.tipoVehiculo ? `<div><strong>Tipo Vehículo:</strong> ${AppState.turnoActual.tipoVehiculo}</div>` : ''}
-                            ${AppState.turnoActual.bultos ? `<div><strong>Bultos:</strong> ${AppState.turnoActual.bultos}</div>` : ''}
-                            ${AppState.turnoActual.peso ? `<div><strong>Peso:</strong> ${AppState.turnoActual.peso} kg</div>` : ''}
-                            ${AppState.turnoActual.responsable ? `<div><strong>Responsable:</strong> ${AppState.turnoActual.responsable}</div>` : ''}
-                            ${AppState.turnoActual.autorizadoSalida ? `<div class="autorizado-badge">✓ SALIDA AUTORIZADA</div>` : ''}
-                        `;
-                    } else {
-                        despachoDetail.innerHTML = '';
-                    }
-                }
+                turnoInfoDiv.textContent = `${AppState.turnoActual.nombreEmpresa}${motivo}${placa}`;
             } else {
                 turnoInfoDiv.textContent = 'Ningún turno en atención';
+            }
+        }
+        
+        if (despachoDetail) {
+            if (AppState.turnoActual) {
+                const lines = [];
+                if (AppState.turnoActual.numFactura) lines.push(`Factura: ${AppState.turnoActual.numFactura}`);
+                if (AppState.turnoActual.tipoVehiculo) lines.push(`Tipo Vehículo: ${AppState.turnoActual.tipoVehiculo}`);
+                if (AppState.turnoActual.bultos) lines.push(`Bultos: ${AppState.turnoActual.bultos}`);
+                if (AppState.turnoActual.peso) lines.push(`Peso: ${AppState.turnoActual.peso} kg`);
+                if (AppState.turnoActual.responsable) lines.push(`Responsable: ${AppState.turnoActual.responsable}`);
+                if (AppState.turnoActual.autorizadoSalida) lines.push(`✓ SALIDA AUTORIZADA`);
                 
-                const despachoDetail = document.getElementById('despachoDetail');
-                if (despachoDetail) {
-                    despachoDetail.innerHTML = '';
-                }
+                despachoDetail.innerHTML = lines.map(line => `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed #e2e8f0;">${line}</div>`).join('');
+            } else {
+                despachoDetail.innerHTML = '';
             }
         }
     },
@@ -2256,11 +2303,12 @@ const RenderAdmin = {
                         <span class="turn-item-number">${turno.numero}</span>
                         <div class="turn-item-info">
                             <div class="turn-item-company">${turno.nombreEmpresa}</div>
-                            <div class="turn-item-time">
-                                ${horaCita}
-                            </div>
                             <div class="turn-item-details">
-                                <span class="turn-destino">${turno.destino ? destinoLabel[turno.destino] || turno.destino : ''}</span>
+                                ${turno.nit ? `<div style="font-size:11px;color:#475569;">Placa: ${turno.nit}</div>` : ''}
+                                ${turno.nombreEmpresa ? `<div style="font-size:11px;color:#475569;">Contacto: ${turno.nombreEmpresa}</div>` : ''}
+                                ${turno.telefono ? `<div style="font-size:11px;color:#475569;">Tel: ${turno.telefono}</div>` : ''}
+                                ${turno.destino ? `<div style="font-size:11px;color:#475569;">Destino: ${destinoLabel[turno.destino] || turno.destino}</div>` : ''}
+                                ${turno.motivo ? `<div style="font-size:11px;color:#475569;">${horaCita} - ${turno.motivo}</div>` : `<div style="font-size:11px;color:#475569;">${horaCita}</div>`}
                             </div>
                         </div>
                         <div class="turn-item-actions">
@@ -3122,6 +3170,30 @@ const AdminHandlers = {
         }
     },
 
+    async reiniciarContador() {
+        if (confirm('¿Reiniciar contador de turnos? Los próximos turnos empezarán en T001 y C001.')) {
+            try {
+                LocalStorage.guardarContadorPrefijo('T', 0);
+                LocalStorage.guardarContadorPrefijo('C', 0);
+                localStorage.setItem('contador_reiniciado', 'true');
+                AppState.contadorTurnos = 0;
+                AppState.contadorTurnosT = 0;
+                AppState.contadorTurnosC = 0;
+                
+                if (window.supabaseClient) {
+                    await SupabaseDB.incrementarContadorTurnosHasta('T', 0);
+                    await SupabaseDB.incrementarContadorTurnosHasta('C', 0);
+                }
+                
+                Utils.mostrarNotificacion('Contador reiniciado. Próximo turno: T001 / C001', 'success');
+                await RenderAdmin.todo();
+            } catch (error) {
+                console.error('Error al reiniciar contador:', error);
+                Utils.mostrarNotificacion('Error al reiniciar contador', 'error');
+            }
+        }
+    },
+
     // CORRECCIÓN: Función eliminarProveedor añadida correctamente
     async eliminarProveedor(id) {
         if (confirm('¿Eliminar este proveedor?')) {
@@ -3882,131 +3954,124 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btnLlamarTurno = document.getElementById('btnLlamarTurno');
         if (btnLlamarTurno) {
             console.log('Configurando página de administrador...');
-            
-            if (window.InputConfig) {
-                window.InputConfig.configurarMayusculas();
-                window.InputConfig.configurarTelefono();
-            }
-            
             btnLlamarTurno.addEventListener('click', AdminHandlers.llamarTurno);
-            
-            const btnCompletarTurno = document.getElementById('btnCompletarTurno');
-            if (btnCompletarTurno) {
-                btnCompletarTurno.addEventListener('click', AdminHandlers.completarTurno);
-            }
-            
-            const btnReiniciar = document.getElementById('btnReiniciarCola');
-            if (btnReiniciar) btnReiniciar.addEventListener('click', AdminHandlers.reiniciarCola);
-            
-            const btnLimpiar = document.getElementById('btnLimpiarHistorial');
-            if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
-            
-            InputConfig.configurarPasswordToggle();
-            
-            const btnVerMes = document.getElementById('btnVerMes');
-            if (btnVerMes) btnVerMes.addEventListener('click', RenderAdmin.verEstadisticasMes);
-            
-            const btnGenerarCertificado = document.getElementById('btnGenerarCertificado');
-            if (btnGenerarCertificado) {
-                btnGenerarCertificado.addEventListener('click', async () => {
-                    const mesSelect = document.getElementById('mesSelect');
-                    if (mesSelect && mesSelect.value) {
-                        await GenerarCertificado.generar(mesSelect.value);
-                    } else {
-                        const mesActual = new Date();
-                        const mesString = mesActual.getFullYear() + '-' + (mesActual.getMonth() + 1);
-                        await GenerarCertificado.generar(mesString);
-                    }
-                });
-            }
+        }
+        
+        const btnCompletarTurno = document.getElementById('btnCompletarTurno');
+        if (btnCompletarTurno) {
+            btnCompletarTurno.addEventListener('click', AdminHandlers.completarTurno);
+        }
+        
+        const btnReiniciar = document.getElementById('btnReiniciarCola');
+        if (btnReiniciar) btnReiniciar.addEventListener('click', AdminHandlers.reiniciarCola);
+        
+        const btnReiniciarContador = document.getElementById('btnReiniciarContador');
+        if (btnReiniciarContador) btnReiniciarContador.addEventListener('click', AdminHandlers.reiniciarContador);
+        
+        const btnLimpiar = document.getElementById('btnLimpiarHistorial');
+        if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
+        
+        if (window.InputConfig) {
+            window.InputConfig.configurarMayusculas();
+            window.InputConfig.configurarTelefono();
+            window.InputConfig.configurarPasswordToggle();
+        }
+        
+        const btnVerMes = document.getElementById('btnVerMes');
+        if (btnVerMes) btnVerMes.addEventListener('click', RenderAdmin.verEstadisticasMes);
+        
+        const btnGenerarCertificado = document.getElementById('btnGenerarCertificado');
+        if (btnGenerarCertificado) {
+            btnGenerarCertificado.addEventListener('click', async () => {
+                const mesSelect = document.getElementById('mesSelect');
+                if (mesSelect && mesSelect.value) {
+                    await GenerarCertificado.generar(mesSelect.value);
+                } else {
+                    const mesActual = new Date();
+                    const mesString = mesActual.getFullYear() + '-' + (mesActual.getMonth() + 1);
+                    await GenerarCertificado.generar(mesString);
+                }
+            });
+        }
 
-            const btnToggleProveedores = document.getElementById('btnToggleProveedores');
-            const proveedoresContainer = document.getElementById('proveedoresContainer');
-            if (btnToggleProveedores && proveedoresContainer) {
-                btnToggleProveedores.addEventListener('click', () => {
-                    const oculto = proveedoresContainer.style.display === 'none';
-                    proveedoresContainer.style.display = oculto ? '' : 'none';
-                    btnToggleProveedores.textContent = oculto ? 'Ocultar' : 'Mostrar';
-                });
-            }
+        const btnToggleProveedores = document.getElementById('btnToggleProveedores');
+        const proveedoresContainer = document.getElementById('proveedoresContainer');
+        if (btnToggleProveedores && proveedoresContainer) {
+            btnToggleProveedores.addEventListener('click', () => {
+                const oculto = proveedoresContainer.style.display === 'none';
+                proveedoresContainer.style.display = oculto ? '' : 'none';
+                btnToggleProveedores.textContent = oculto ? 'Ocultar' : 'Mostrar';
+            });
+        }
 
-            // Búsquedas en tiempo real
-            document.getElementById('busquedaLlegados')?.addEventListener('input', () => RenderAdmin.listaTurnosLlegados());
-            document.getElementById('busquedaEspera')?.addEventListener('input', () => RenderAdmin.listaTurnosEspera());
-            document.getElementById('busquedaCitados')?.addEventListener('input', () => RenderAdmin.listaTurnosCitados());
-            
-            console.log('Renderizando admin...');
-            RenderAdmin.todo();
-            RenderAdmin.cargarMesesDisponibles();
-            
-            if (window.PanelRendimiento && typeof window.PanelRendimiento.cargar === 'function') {
-                window.PanelRendimiento.cargar();
-            }
-            
-            if (window.supabaseClient) {
-                console.log('Configurando suscripción a tiempo real para admin...');
-                AppState.subscription = SupabaseDB.suscribirCambiosTurnos(async (payload) => {
-                    console.log('Actualización en tiempo real recibida:', payload);
-                    try {
-                        await Turnos.cargarTurnos();
-                        await RenderAdmin.todo();
-                        
-                        if (payload.eventType === 'INSERT') {
-                            Utils.mostrarNotificacion(`Nuevo turno ${payload.new.numero} recibido`, 'info');
-                        }
-                    } catch (error) {
-                        console.error('Error al procesar actualización en tiempo real:', error);
-                    }
-                });
-                
-                window.supabaseClient.channel('notificacion_admin')
-                    .on('broadcast', { event: 'salida_autorizada' }, (payload) => {
-                        console.log('Salida autorizada:', payload);
-                    })
-                    .subscribe();
-                    
-                Conectividad.suscribirTodos({
-                    turnos: async (payload) => {
-                        console.log('Cambio en turnos (admin):', payload);
-                        await Turnos.cargarTurnos();
-                        await RenderAdmin.todo();
-                    },
-                    historial: async (payload) => {
-                        console.log('Cambio en historial (admin):', payload);
-                        await RenderAdmin.todo();
-                    },
-                    notificaciones: (payload) => {
-                        console.log('Notificación recibida en admin:', payload);
-                        if (window.SonidoAlerta) {
-                            SonidoAlerta.reproducir(3);
-                        }
-                        Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
-                    }
-                });
-            } else {
-                console.warn('Supabase no disponible');
-            }
-            
-            setInterval(async () => {
+        // Búsquedas en tiempo real
+        document.getElementById('busquedaLlegados')?.addEventListener('input', () => RenderAdmin.listaTurnosLlegados());
+        document.getElementById('busquedaEspera')?.addEventListener('input', () => RenderAdmin.listaTurnosEspera());
+        document.getElementById('busquedaCitados')?.addEventListener('input', () => RenderAdmin.listaTurnosCitados());
+        
+        console.log('Renderizando admin...');
+        RenderAdmin.todo();
+        RenderAdmin.cargarMesesDisponibles();
+        
+        if (window.PanelRendimiento && typeof window.PanelRendimiento.cargar === 'function') {
+            window.PanelRendimiento.cargar();
+        }
+        
+        if (window.supabaseClient) {
+            console.log('Configurando suscripción a tiempo real para admin...');
+            AppState.subscription = SupabaseDB.suscribirCambiosTurnos(async (payload) => {
+                console.log('Actualización en tiempo real recibida:', payload);
                 try {
                     await Turnos.cargarTurnos();
                     await RenderAdmin.todo();
-                } catch (e) {
-                    console.error('Error en actualización periódica admin:', e);
+                    
+                    if (payload.eventType === 'INSERT') {
+                        Utils.mostrarNotificacion(`Nuevo turno ${payload.new.numero} recibido`, 'info');
+                    }
+                } catch (error) {
+                    console.error('Error al procesar actualización en tiempo real:', error);
                 }
-            }, 5000);
+            });
             
-            if (window.NotificacionesPolling && typeof window.NotificacionesPolling.iniciar === 'function') {
-                window.NotificacionesPolling.iniciar();
-            }
-            
-            verificarSalidaAutorizadaAdmin();
+            window.supabaseClient.channel('notificacion_admin')
+                .on('broadcast', { event: 'salida_autorizada' }, (payload) => {
+                    console.log('Salida autorizada:', payload);
+                })
+                .subscribe();
+                
+            Conectividad.suscribirTodos({
+                turnos: async (payload) => {
+                    console.log('Cambio en turnos (admin):', payload);
+                    await Turnos.cargarTurnos();
+                    await RenderAdmin.todo();
+                },
+                historial: async (payload) => {
+                    console.log('Cambio en historial (admin):', payload);
+                    await RenderAdmin.todo();
+                },
+                notificaciones: (payload) => {
+                    console.log('Notificación recibida en admin:', payload);
+                    if (window.SonidoAlerta) {
+                        SonidoAlerta.reproducir(3);
+                    }
+                    Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
+                }
+            });
+        } else {
+            console.warn('Supabase no disponible');
         }
         
-        // La verificación de salida autorizada ahora se maneja en admin.html con modal y sonido
-        function verificarSalidaAutorizadaAdmin() {
-            // Eliminada - ahora admin.html maneja la alerta con sonido y modal
-            // El modal se muestra automáticamente cuando el despachador autoriza salida
+        setInterval(async () => {
+            try {
+                await Turnos.cargarTurnos();
+                await RenderAdmin.todo();
+            } catch (e) {
+                console.error('Error en actualización periódica admin:', e);
+            }
+        }, 5000);
+        
+        if (window.NotificacionesPolling && typeof window.NotificacionesPolling.iniciar === 'function') {
+            window.NotificacionesPolling.iniciar();
         }
         
         // Página de despachador (despachador.html)
