@@ -1202,6 +1202,27 @@
             }
         });
 
+        async function initNotificacionesRealtimeDespachador() {
+            if (!window.supabaseClient) return;
+            window.supabaseClient
+                .channel('notificaciones-despachador')
+                .on('postgres_changes',
+                    { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
+                    async (payload) => {
+                        console.log('🔔 Notificación realtime despachador:', payload);
+                        if (payload.new.remitente === 'admin') {
+                            if (window.SonidoAlerta) {
+                                SonidoAlerta.reproducir(3);
+                            }
+                            Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
+                        }
+                    }
+                )
+                .subscribe();
+        }
+
+        initNotificacionesRealtimeDespachador();
+
         (function() {
             const claveOk = sessionStorage.getItem('accesoAdmin') === 'ok';
             if (!claveOk) {

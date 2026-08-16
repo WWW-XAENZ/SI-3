@@ -913,6 +913,14 @@ const SupabaseDB = {
             
             if (error) throw error;
             
+            if (window.supabaseClient) {
+                await window.supabaseClient.from('notificaciones_salida').insert({
+                    mensaje: `Turno ${turnoMapeado.numero} completado por recepción`,
+                    remitente: 'admin',
+                    leido: false
+                });
+            }
+            
             return true;
         } catch (error) {
             console.error('Error al completar turno:', error);
@@ -1339,10 +1347,11 @@ const NotificacionesPolling = {
                 
                 if (data && data.length > 0) {
                     const ultimo = data[0];
-                    if (this._ultimoTimestamp !== ultimo.created_at && window.AppState && window.AppState.turnoActual) {
+                    if (this._ultimoTimestamp !== ultimo.created_at) {
                         this._ultimoTimestamp = ultimo.created_at;
                         if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
                         Utils.mostrarNotificacion(`Notificación: ${ultimo.mensaje}`, 'warning');
+                        await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', ultimo.id);
                     }
                 }
             } catch(e) {
@@ -1426,13 +1435,16 @@ const Conectividad = {
             .channel('notificaciones-global')
             .on('postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
-                (payload) => {
+                async (payload) => {
                     console.log('🔔 Nueva notificación:', payload);
-                    if (callback) callback(payload);
                     if (window.SonidoAlerta) {
                         SonidoAlerta.reproducir(3);
                     }
                     Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
+                    if (window.supabaseClient) {
+                        await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', payload.new.id);
+                    }
+                    if (callback) callback(payload);
                 }
             )
             .subscribe();
@@ -3932,6 +3944,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.log('Salida autorizada:', payload);
                     })
                     .subscribe();
+                    
+                Conectividad.suscribirTodos({
+                    turnos: async (payload) => {
+                        console.log('Cambio en turnos (admin):', payload);
+                        await Turnos.cargarTurnos();
+                        await RenderAdmin.todo();
+                    },
+                    historial: async (payload) => {
+                        console.log('Cambio en historial (admin):', payload);
+                        await RenderAdmin.todo();
+                    },
+                    notificaciones: (payload) => {
+                        console.log('Notificación recibida en admin:', payload);
+                        if (window.SonidoAlerta) {
+                            SonidoAlerta.reproducir(3);
+                        }
+                        Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
+                    }
+                });
             } else {
                 console.warn('Supabase no disponible');
             }
@@ -3944,6 +3975,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     console.error('Error en actualización periódica admin:', e);
                 }
             }, 5000);
+            
+            if (window.NotificacionesPolling && typeof window.NotificacionesPolling.iniciar === 'function') {
+                window.NotificacionesPolling.iniciar();
+            }
             
             verificarSalidaAutorizadaAdmin();
         }
@@ -4025,8 +4060,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.error('Error al procesar actualizacion:', error);
                     }
                 });
+                
+                Conectividad.suscribirTodos({
+                    turnos: async (payload) => {
+                        console.log('Cambio en turnos (despachador):', payload);
+                        await Turnos.cargarTurnos();
+                        if (window.RenderAdmin && typeof window.RenderAdmin.todo === 'function') await window.RenderAdmin.todo();
+                    },
+                    historial: async (payload) => {
+                        console.log('Cambio en historial (despachador):', payload);
+                        if (window.RenderAdmin && typeof window.RenderAdmin.todo === 'function') await window.RenderAdmin.todo();
+                    },
+                    notificaciones: (payload) => {
+                        console.log('Notificación recibida en despachador:', payload);
+                        if (window.SonidoAlerta) {
+                            SonidoAlerta.reproducir(3);
+                        }
+                        Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
+                    }
+                });
             } catch (e) {
                 console.warn('Suscripcion despachador fallo:', e);
+            }
+            
+            if (window.NotificacionesPolling && typeof window.NotificacionesPolling.iniciar === 'function') {
+                window.NotificacionesPolling.iniciar();
             }
         }
     } catch (error) {
@@ -4118,6 +4176,14 @@ const DespachadorHandlers = {
             }));
             localStorage.removeItem('proveedorListoSalir');
             
+            if (window.supabaseClient) {
+                await window.supabaseClient.from('notificaciones_salida').insert({
+                    mensaje: `Salida autorizada para ${turno.nombre || turno.nombreEmpresa || turno.numero}`,
+                    remitente: 'despachador',
+                    leido: false
+                });
+            }
+            
             const btnAutorizar = document.getElementById('btnAutorizarSalida');
             if (btnAutorizar) {
                 btnAutorizar.disabled = true;
@@ -4192,6 +4258,14 @@ const DespachadorHandlers = {
                 nit: turno.nit || '',
                 timestamp: Date.now()
             }));
+            
+            if (window.supabaseClient) {
+                await window.supabaseClient.from('notificaciones_salida').insert({
+                    mensaje: `Inspección física solicitada para ${turno.nombre || turno.nombreEmpresa || turno.numero}`,
+                    remitente: 'despachador',
+                    leido: false
+                });
+            }
             
             const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
             if (btnInspeccion) {

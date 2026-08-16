@@ -1177,6 +1177,40 @@
         });
 
 
+        async function initNotificacionesRealtime() {
+            if (!window.supabaseClient) return;
+            window.supabaseClient
+                .channel('notificaciones-admin')
+                .on('postgres_changes',
+                    { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
+                    async (payload) => {
+                        console.log('🔔 Notificación realtime admin:', payload);
+                        if (payload.new.remitente === 'despachador') {
+                            if (window.SonidoAlerta) {
+                                SonidoAlerta.reproducir(3);
+                            }
+                            if (payload.new.mensaje && payload.new.mensaje.includes('autorizada')) {
+                                mostrarAlertaSalidaDespachador({
+                                    numero: payload.new.mensaje.match(/Turno\s+([\w]+)/)?.[1] || '---',
+                                    nombre: payload.new.mensaje,
+                                    timestamp: Date.now()
+                                });
+                            } else if (payload.new.mensaje && payload.new.mensaje.includes('Inspección')) {
+                                mostrarAlertaInspeccion({
+                                    numero: payload.new.mensaje.match(/Turno\s+([\w]+)/)?.[1] || '---',
+                                    nombre: payload.new.mensaje,
+                                    timestamp: Date.now()
+                                });
+                            } else {
+                                Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
+                            }
+                        }
+                    }
+                )
+                .subscribe();
+        }
+
+        initNotificacionesRealtime();
     </script>
 
     <!-- Modal Certificado -->
