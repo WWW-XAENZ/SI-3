@@ -1,6 +1,6 @@
 ﻿// ============================================
 // SISTEMA DE TURNOS PROFESIONAL - ESTILO EPS
-// VERSIÓN CON RECARGA AUTO Y ELIMINAR PROVEEDOR CORREGIDO
+// VERSI�N CON RECARGA AUTO Y ELIMINAR PROVEEDOR CORREGIDO
 // ============================================
 
 window.getLocalDate = () => {
@@ -5019,7 +5019,7 @@ const MetricasRT = {
         const el = document.getElementById('metricaTiempoPromedio');
         if (!el) return;
         const prom = this.promedioAtencion();
-        el.textContent = prom !== null ? `${prom} min` : '—';
+        el.textContent = prom !== null ? `${prom} min` : '-';
     }
 };
 
@@ -5250,7 +5250,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.RelojVivo && document.querySelector('.reloj-vivo')) RelojVivo.iniciar();
     if (window.PanelRendimiento && document.getElementById('panelRendimientoDia')) PanelRendimiento.cargar();
     if (window.BusquedaHistorial) BusquedaHistorial.inicializar();
-    if (window.MetricasRT) MetricasRT.cargar();
+    if (window.MetricasRT) {
+        window.MetricasRT.cargar();
+        window.MetricasRT.actualizarUI();
+    }
 });
 
 window.MetricasRT = MetricasRT;
