@@ -400,18 +400,22 @@ const SupabaseDB = {
 
     async incrementarContadorTurnos(signal = null) {
         console.log('=== Incrementando contador ===');
-        const contadorLocal = LocalStorage.obtenerContador();
-        console.log('Contador local actual:', contadorLocal);
-        const nuevoContador = contadorLocal + 1;
-        console.log('Nuevo contador (local):', nuevoContador);
-        LocalStorage.guardarContador(nuevoContador);
         
         if (!window.supabaseClient) {
+            const contadorLocal = LocalStorage.obtenerContador();
             console.log('Supabase no disponible, usando contador local');
+            const nuevoContador = contadorLocal + 1;
+            LocalStorage.guardarContador(nuevoContador);
             return nuevoContador;
         }
         
         try {
+            const contadorActual = await this.obtenerContadorTurnos();
+            console.log('Contador actual (max local+supabase):', contadorActual);
+            const nuevoContador = contadorActual + 1;
+            console.log('Nuevo contador:', nuevoContador);
+            LocalStorage.guardarContador(nuevoContador);
+            
             console.log('Actualizando contador en Supabase...');
             // Timeout interno de 5 segundos
             const timeoutPromise = new Promise((_, reject) => 
@@ -437,7 +441,10 @@ const SupabaseDB = {
             
             return nuevoContador;
         } catch (error) {
-            console.warn('Error al actualizar contador en Supabase:', error.message);
+            console.warn('Error al incrementar contador, usando local:', error.message);
+            const contadorLocal = LocalStorage.obtenerContador();
+            const nuevoContador = contadorLocal + 1;
+            LocalStorage.guardarContador(nuevoContador);
             return nuevoContador;
         }
     },
@@ -482,6 +489,44 @@ const SupabaseDB = {
                 if (error) throw error;
                 return this._mapearProveedor(data);
             } else {
+                console.log('🔹 Verificando duplicado por NIT:', proveedor.nit);
+                const selectPromise = window.supabaseClient
+                    .from('proveedores')
+                    .select('id, nombre_empresa, nit, contacto, telefono, servicio')
+                    .eq('nit', proveedor.nit)
+                    .maybeSingle()
+                    .abortSignal(signal);
+                
+                const { data: existente, error: errorSelect } = await Promise.race([selectPromise, timeoutPromise]);
+                
+                if (errorSelect) {
+                    console.warn('Error al buscar proveedor existente:', errorSelect.message);
+                }
+                
+                if (existente) {
+                    const mismoNombre = existente.nombre_empresa === proveedor.nombreEmpresa;
+                    const mismaPlaca = existente.nit === proveedor.nit;
+                    
+                    if (mismoNombre && mismaPlaca) {
+                        console.log('🔹 Proveedor ya existe con los mismos datos, no se guarda duplicado');
+                        return this._mapearProveedor(existente);
+                    } else {
+                        console.log('🔹 Proveedor existe pero cambió datos, actualizando...');
+                        const updatePromise2 = window.supabaseClient
+                            .from('proveedores')
+                            .update(proveedorData)
+                            .eq('nit', proveedor.nit)
+                            .select()
+                            .single()
+                            .abortSignal(signal);
+                        
+                        const { data: updateData, error: updateError } = await Promise.race([updatePromise2, timeoutPromise]);
+                        
+                        if (updateError) throw updateError;
+                        return this._mapearProveedor(updateData);
+                    }
+                }
+                
                 console.log('🔹 Insertando nuevo proveedor NIT:', proveedor.nit);
                 const insertPromise = window.supabaseClient
                     .from('proveedores')
@@ -496,7 +541,7 @@ const SupabaseDB = {
                     console.log('⚠︝ Error en insert, código:', error.code, 'mensaje:', error.message);
                     if (error.code === '23505') {
                         console.log('🔹 Duplicado, actualizando por NIT...');
-                        const updatePromise2 = window.supabaseClient
+                        const updatePromise3 = window.supabaseClient
                             .from('proveedores')
                             .update(proveedorData)
                             .eq('nit', proveedor.nit)
@@ -504,10 +549,10 @@ const SupabaseDB = {
                             .single()
                             .abortSignal(signal);
                         
-                        const { data: updateData, error: updateError } = await Promise.race([updatePromise2, timeoutPromise]);
+                        const { data: updateData2, error: updateError2 } = await Promise.race([updatePromise3, timeoutPromise]);
                         
-                        if (updateError) throw updateError;
-                        return this._mapearProveedor(updateData);
+                        if (updateError2) throw updateError2;
+                        return this._mapearProveedor(updateData2);
                     }
                     throw error;
                 }
@@ -1489,6 +1534,10 @@ const Turnos = {
         if (!proveedorGuardado && window.supabaseClient) {
             console.warn('⚠︝ Proveedor no guardado en Supabase, continuando...');
         }
+        
+        if (window.RenderAdmin && typeof window.RenderAdmin.proveedores === 'function') {
+            await window.RenderAdmin.proveedores();
+        }
 
         let nuevoContador;
         try {
@@ -1777,7 +1826,7 @@ const RenderUsuario = {
 
             try {
                 const esCitado = miTurno.estado === 'citado' || miTurno.fechaCita;
-                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÝSTICOS', 'ambos': 'AMBOS' };
+                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
                 
                 if (esCitado && !siendoAtendido) {
                     const fechaHoraMostrar = miTurno.fechaCita ? (() => {
@@ -2154,7 +2203,7 @@ const RenderAdmin = {
         if (turnosCitados.length === 0) {
             listaDiv.innerHTML = '<p class="empty-message">No hay citas reservadas</p>';
         } else {
-            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÝSTICOS', 'ambos': 'AMBOS' };
+            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
             
             // Agrupar por fecha
             const gruposPorFecha = {};
@@ -2226,19 +2275,40 @@ const RenderAdmin = {
             if (proveedores.length === 0) {
                 proveedoresBody.innerHTML = '<tr><td colspan="5" class="empty-message">No hay proveedores registrados</td></tr>';
             } else {
-                proveedoresBody.innerHTML = proveedores.map(p => `
-                    <tr>
-                        <td>${p.nombreEmpresa}</td>
-                        <td>${p.nit || '-'}</td>
-                        <td>${p.contacto || '-'}</td>
-                        <td>${p.telefono || '-'}</td>
-                        <td>
-                            <button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarProveedor(${p.id})">
-                                Eliminar
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
+                const grupos = proveedores.reduce((acc, p) => {
+                    const nombre = p.nombreEmpresa || 'Sin nombre';
+                    if (!acc[nombre]) acc[nombre] = [];
+                    acc[nombre].push(p);
+                    return acc;
+                }, {});
+                
+                proveedoresBody.innerHTML = Object.entries(grupos).map(([empresa, items], idx) => {
+                    const btnExpandir = `<button class="btn btn-secondary btn-small" onclick="var btn=this;var tr=btn.closest('tr');var next=tr.nextElementSibling;while(next&&next.classList.contains('vehiculos-grupo')){next.style.display=next.style.display==='none'?'table-row-group':'none';next=next.nextElementSibling;}btn.textContent=btn.textContent==='▶'?'▼':'▶';" style="margin-right:6px;">▶</button>`;
+                    const vehiculosFilas = items.map(p => `
+                        <tr class="vehiculos-grupo" style="display:none;">
+                            <td style="padding-left:32px;">—</td>
+                            <td>${p.nit || '-'}</td>
+                            <td>${p.contacto || '-'}</td>
+                            <td>${p.telefono || '-'}</td>
+                            <td>
+                                <button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarProveedor(${p.id})">
+                                    Eliminar
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+                    
+                    return `
+                        <tr>
+                            <td colspan="5">
+                                ${btnExpandir}
+                                <strong>${empresa}</strong>
+                                <span style="color:#64748b;font-size:11px;">(${items.length} vehículo${items.length !== 1 ? 's' : ''})</span>
+                            </td>
+                        </tr>
+                        ${vehiculosFilas}
+                    `;
+                }).join('');
             }
         } catch (error) {
             console.error('Error al cargar proveedores:', error);
@@ -2259,7 +2329,7 @@ async historial() {
             if (historial.length === 0) {
                 historialDiv.innerHTML = '<p class="empty-message">No hay historial de turnos</p>';
             } else {
-                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÝSTICOS', 'ambos': 'AMBOS' };
+                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
                 historialDiv.innerHTML = `
                     <table class="history-table">
                         <thead>
@@ -2275,6 +2345,8 @@ async historial() {
                                 <th>Hora Fin</th>
                                 <th>Inspeccion</th>
                                 <th>Estado</th>
+                                <th>Destino</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -2291,6 +2363,8 @@ async historial() {
                                     <td>${Utils.formatearHora(h.horaFinalizacion)}</td>
                                     <td>${h.inspeccionFisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
                                     <td>${h.autorizadoSalida ? '<span style="color:#10b981;font-weight:600;">✓ SALIDA OK</span>' : '<span style="color:#f59e0b;">PENDIENTE</span>'}</td>
+                                    <td>${destinoLabel[h.destino] || h.destino || '-'}</td>
+                                    <td><button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -3032,6 +3106,27 @@ const AdminHandlers = {
         }
     },
 
+    async eliminarHistorial(id) {
+        if (!confirm('¿Eliminar este registro del historial?')) return;
+        try {
+            if (window.supabaseClient) {
+                const { error } = await window.supabaseClient
+                    .from('historial_turnos')
+                    .delete()
+                    .eq('id', id);
+                if (error) throw error;
+            }
+            const historial = LocalStorage.obtenerHistorial().filter(h => h.id !== id);
+            LocalStorage.guardarHistorial(historial);
+            AppState.historial = historial;
+            Utils.mostrarNotificacion('Registro eliminado', 'success');
+            await RenderAdmin.historial();
+        } catch (error) {
+            console.error('Error al eliminar historial:', error);
+            Utils.mostrarNotificacion('Error al eliminar', 'error');
+        }
+    },
+
     async limpiarHistorial() {
         if (confirm('¿Está seguro de que desea limpiar todo el historial?')) {
             try {
@@ -3764,6 +3859,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const mesString = mesActual.getFullYear() + '-' + (mesActual.getMonth() + 1);
                         await GenerarCertificado.generar(mesString);
                     }
+                });
+            }
+
+            const btnToggleProveedores = document.getElementById('btnToggleProveedores');
+            const proveedoresContainer = document.getElementById('proveedoresContainer');
+            if (btnToggleProveedores && proveedoresContainer) {
+                btnToggleProveedores.addEventListener('click', () => {
+                    const oculto = proveedoresContainer.style.display === 'none';
+                    proveedoresContainer.style.display = oculto ? '' : 'none';
+                    btnToggleProveedores.textContent = oculto ? 'Ocultar' : 'Mostrar';
                 });
             }
 
@@ -4649,7 +4754,7 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
         const destinosData = [['Destino', 'Cantidad', '% del Total']];
         Object.entries(destinoCount).forEach(([destino, count]) => {
-            const nombre = destino === 'ensambles' ? 'SI ENSAMBLES' : destino === 'plasticos' ? 'SI PLASTICOS' : 'AMBOS';
+            const nombre = destino === 'ensambles' ? 'SI ENSAMBLES' : destino === 'plasticos' ? 'SI3 ZF SAS' : 'AMBOS';
             destinosData.push([nombre, count, ((count / totalVehiculos) * 100).toFixed(1) + '%']);
         });
         crearHojaTabla(destinosData, [{ wch: 22 }, { wch: 14 }, { wch: 14 }], C_AZUL_MEDIO, 'Destinos');
@@ -4730,9 +4835,9 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
         crearHojaDetalle(h => h.destino === 'ensambles' || h.destino === 'ambos', C_VERDE, 'SI ENSAMBLES');
 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
-        // HOJA 8 — SI PLASTICOS
+        // HOJA 8 — SI3 ZF SAS
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
-        crearHojaDetalle(h => h.destino === 'plasticos' || h.destino === 'ambos', C_AZUL_MEDIO, 'SI PLASTICOS');
+        crearHojaDetalle(h => h.destino === 'plasticos' || h.destino === 'ambos', C_AZUL_MEDIO, 'SI3 ZF SAS');
 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
         // GENERAR Y DESCARGAR

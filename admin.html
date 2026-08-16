@@ -785,8 +785,10 @@
 
                 <!-- Proveedores -->
                 <section class="admin-section providers-list">
-                    <h2>Proveedores (<span id="contadorProveedores">0</span>)</h2>
-                    <div style="overflow-x: auto;">
+                    <h2>Proveedores (<span id="contadorProveedores">0</span>)
+                        <button id="btnToggleProveedores" class="btn btn-secondary btn-small" style="margin-left: 10px;">Ocultar</button>
+                    </h2>
+                    <div id="proveedoresContainer" style="overflow-x: auto;">
                         <table class="providers-table">
                             <thead>
                                 <tr>
@@ -1040,7 +1042,7 @@
                         .single();
                     
                     if (data && !error) {
-                        const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'PLASTICOS', 'ambos': 'AMBOS' };
+                        const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
                         detallesHTML = `
                             <table style="width: 100%; font-size: 13px; color: #475569;">
                                 <tr>

@@ -1538,6 +1538,16 @@ input[type="time"]:focus {
     transform: scale(1.01);
 }
 
+.vehiculos-grupo {
+    background: #f8fafc;
+}
+
+.vehiculos-grupo td {
+    padding-left: 32px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
 /* Historial */
 .history-header {
     display: flex;

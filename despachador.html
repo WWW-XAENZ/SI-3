@@ -478,12 +478,13 @@
                     if (!data || data.length === 0) {
                         listaDiv.innerHTML = '<p class="empty-message">Sin historial</p>';
                     } else {
+                        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
                         listaDiv.innerHTML = `
                             <table class="history-table-desp">
                                 <thead>
                                     <tr>
                                         <th>#</th><th>Empresa</th><th>Placa</th><th>Factura</th>
-                                        <th>Tipo</th><th>Peso</th><th>Responsable</th><th>Hora</th><th>Estado</th>
+                                        <th>Destino</th><th>Tipo</th><th>Peso</th><th>Responsable</th><th>Hora</th><th>Estado</th><th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -505,11 +506,13 @@
                                                 <td>${h.nombre_empresa || '-'}</td>
                                                 <td>${h.nit || '-'}</td>
                                                 <td>${h.num_factura || '-'}</td>
+                                                <td>${destinoLabel[h.destino] || h.destino || '-'}</td>
                                                 <td>${h.tipo_vehiculo || '-'}</td>
                                                 <td>${h.peso || '-'}</td>
                                                 <td>${h.responsable || '-'}</td>
                                                 <td>${horaFin}</td>
                                                 <td>${h.autorizado_salida ? '<span style="color:#10b981;">✓ OK</span>' : '<span style="color:#f59e0b;">PEND</span>'}</td>
+                                                <td><button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button></td>
                                             </tr>
                                         `;
                                     }).join('')}
@@ -547,7 +550,7 @@
                     if (!data || data.length === 0) {
                         listaDiv.innerHTML = '<p class="empty-message">Sin citas reservadas</p>';
                     } else {
-                        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI PLÁSTICOS', 'ambos': 'AMBOS' };
+                        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
                         const gruposPorFecha = {};
                         data.forEach(turno => {
                             const fecha = turno.fecha_cita ? turno.fecha_cita.split('T')[0] : 'Sin fecha';
@@ -835,7 +838,7 @@
                     const modalExistente = document.getElementById('modal-proveedor-listo');
                     if (modalExistente) modalExistente.remove();
                     
-                    const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'PLASTICOS', 'ambos': 'AMBOS' };
+                    const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
                     
                     const modal = document.createElement('div');
                     modal.id = 'modal-proveedor-listo';
@@ -962,7 +965,7 @@
                         if (!data || data.length === 0) {
                             if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Sin citas reservadas</p>';
                         } else {
-                            const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'PLASTICOS', 'ambos': 'AMBOS' };
+                            const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
                             
                             // Agrupar por fecha
                             const gruposPorFecha = {};
@@ -1035,6 +1038,7 @@
                         if (!data || data.length === 0) {
                             listaDiv.innerHTML = '<p class="empty-message">Sin historial</p>';
                         } else {
+                            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
                             listaDiv.innerHTML = `
                                 <table class="history-table-desp">
                                     <thead>
@@ -1043,11 +1047,13 @@
                                             <th>Empresa</th>
                                             <th>Placa</th>
                                             <th>Factura</th>
+                                            <th>Destino</th>
                                             <th>Tipo</th>
                                             <th>Peso</th>
                                             <th>Responsable</th>
                                             <th>Hora</th>
                                             <th>Estado</th>
+                                            <th></th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1069,11 +1075,13 @@
                                                     <td>${h.nombre_empresa || '-'}</td>
                                                     <td>${h.nit || '-'}</td>
                                                     <td>${h.num_factura || '-'}</td>
+                                                    <td>${destinoLabel[h.destino] || h.destino || '-'}</td>
                                                     <td>${h.tipo_vehiculo || '-'}</td>
                                                     <td>${h.peso || '-'}</td>
                                                     <td>${h.responsable || '-'}</td>
                                                     <td>${horaFin}</td>
                                                     <td>${h.autorizado_salida ? '<span style="color:#10b981;">✓ OK</span>' : '<span style="color:#f59e0b;">PEND</span>'}</td>
+                                                    <td><button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button></td>
                                                 </tr>
                                             `;
                                         }).join('')}
