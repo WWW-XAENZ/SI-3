@@ -1187,5 +1187,14 @@
             <div id="contenidoCertificado" style="padding: 20px;"></div>
         </div>
     </div>
+
+    <script>
+        (function() {
+            const claveOk = sessionStorage.getItem('accesoAdmin') === 'ok';
+            if (!claveOk) {
+                window.location.href = 'index.html';
+            }
+        })();
+    </script>
 </body>
 </html>

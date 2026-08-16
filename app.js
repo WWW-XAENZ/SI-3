@@ -21,6 +21,7 @@ const getLocalISOString = window.getLocalISOString;
 const CONFIG = {
     ADMIN_PASSWORD: 'RECEPCIONCEDI2',
     DESPACHADOR_PASSWORD: 'RECEPCIONDESPACHO',
+    FACTURAS_PASSWORD: 'FACTURASLOG2',
     LOGO_CLICKS_REQUIRED: 5,
     LOGO_CLICK_TIMEOUT: 2000,
     TURN_TIME_ESTIMATE: 5,
@@ -3170,6 +3171,7 @@ const AdminAccess = {
         
         if (logoClickCount >= CONFIG.LOGO_CLICKS_REQUIRED) {
             logoClickCount = 0;
+            sessionStorage.removeItem('accesoAdmin');
             const modal = document.getElementById('adminAccessModal');
             if (modal) {
                 const accessTypeSelect = document.getElementById('accessType');
@@ -3193,8 +3195,10 @@ const AdminAccess = {
         
         if (accessType === 'despachador') {
             if (password === CONFIG.DESPACHADOR_PASSWORD) {
+                sessionStorage.setItem('accesoAdmin', 'ok');
                 window.location.href = 'despachador.html';
             } else {
+                sessionStorage.removeItem('accesoAdmin');
                 const errorEl = document.getElementById('loginError');
                 if (errorEl) {
                     errorEl.textContent = 'Contraseña de despachador incorrecta';
@@ -3202,10 +3206,25 @@ const AdminAccess = {
                 }
                 Utils.mostrarNotificacion('Contraseña incorrecta', 'error');
             }
+        } else if (accessType === 'facturas') {
+            if (password === CONFIG.FACTURAS_PASSWORD) {
+                sessionStorage.setItem('accesoAdmin', 'ok');
+                window.location.href = 'facturas.html';
+            } else {
+                sessionStorage.removeItem('accesoAdmin');
+                const errorEl = document.getElementById('loginError');
+                if (errorEl) {
+                    errorEl.textContent = 'Contraseña de facturas incorrecta';
+                    errorEl.style.display = 'block';
+                }
+                Utils.mostrarNotificacion('Contraseña incorrecta', 'error');
+            }
         } else {
             if (password === CONFIG.ADMIN_PASSWORD) {
+                sessionStorage.setItem('accesoAdmin', 'ok');
                 window.location.href = 'admin.html';
             } else {
+                sessionStorage.removeItem('accesoAdmin');
                 const errorEl = document.getElementById('loginError');
                 if (errorEl) {
                     errorEl.textContent = 'Contraseña de administrador incorrecta';
@@ -3524,12 +3543,18 @@ const ModalConfig = {
                     this._cancelarDespacho();
                 }
                 modal.style.display = 'none';
+                if (modal && modal.id === 'adminAccessModal') {
+                    sessionStorage.removeItem('accesoAdmin');
+                }
             };
         });
 
         window.onclick = (e) => {
             if (e.target.classList.contains('modal') && e.target.id !== 'despachoModal') {
                 e.target.style.display = 'none';
+                if (e.target.id === 'adminAccessModal') {
+                    sessionStorage.removeItem('accesoAdmin');
+                }
             }
         };
     },
@@ -3742,6 +3767,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (document.getElementById('logoClick')) {
             document.getElementById('logoClick').addEventListener('click', AdminAccess.handleLogoClick);
             document.getElementById('logoClick').style.cursor = 'pointer';
+        }
+        
+        const adminLoginForm = document.getElementById('adminLoginForm');
+        if (adminLoginForm) {
+            adminLoginForm.addEventListener('submit', AdminAccess.handleLogin);
         }
         
         // Página de usuario (index.html)

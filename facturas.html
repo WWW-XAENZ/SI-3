@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Panel de Facturas - Sistema de Turnos SI-3">
+    <title>Panel de Facturas - Sistema de Turnos SI-3</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .admin-grid { 
+            grid-template-columns: 1fr; 
+            gap: 24px;
+            padding: 28px;
+        }
+        .admin-section {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+            border: 1px solid #e2e8f0;
+            margin-bottom: 0;
+            transition: all 0.3s ease;
+        }
+        
+        .admin-section:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.06);
+            transform: translateY(-2px);
+        }
+        
+        .facturas-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        
+        .facturas-table th {
+            background: #f1f5f9;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #e2e8f0;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #475569;
+        }
+        
+        .facturas-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .facturas-table tr:hover {
+            background: #f8fafc;
+        }
+        
+        .empty-message {
+            text-align: center;
+            padding: 20px;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-grid">
+        <section class="admin-section">
+            <h2>Panel de Facturas</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">Solo lectura - Visualización de facturas registradas</p>
+            <div style="overflow-x: auto;">
+                <table class="facturas-table">
+                    <thead>
+                        <tr>
+                            <th>Factura</th>
+                            <th>Empresa</th>
+                            <th>Destino</th>
+                            <th>Bultos</th>
+                            <th>Peso</th>
+                            <th>Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody id="facturasBody">
+                        <tr><td colspan="6" class="empty-message">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js?v=3"></script>
+    <script>
+        async function cargarFacturas() {
+            const tbody = document.getElementById('facturasBody');
+            if (!tbody) return;
+            
+            if (!window.supabaseClient) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-message">Sin conexión a Supabase</td></tr>';
+                return;
+            }
+            
+            try {
+                const { data, error } = await window.supabaseClient
+                    .from('historial_turnos')
+                    .select('num_factura, nombre_empresa, destino, bultos, peso, fecha')
+                    .order('fecha', { ascending: false })
+                    .limit(200);
+                
+                if (error) throw error;
+                
+                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="empty-message">No hay facturas registradas</td></tr>';
+                } else {
+                    tbody.innerHTML = data.map(f => `
+                        <tr>
+                            <td>${f.num_factura || '-'}</td>
+                            <td>${f.nombre_empresa || '-'}</td>
+                            <td>${destinoLabel[f.destino] || f.destino || '-'}</td>
+                            <td>${f.bultos || '-'}</td>
+                            <td>${f.peso || '-'}</td>
+                            <td>${f.fecha ? f.fecha.split('T')[0] : '-'}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error al cargar facturas:', error);
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-message">Error al cargar</td></tr>';
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            cargarFacturas();
+        });
+
+        (function() {
+            const claveOk = sessionStorage.getItem('accesoAdmin') === 'ok';
+            if (!claveOk) {
+                window.location.href = 'index.html';
+            }
+        })();
+    </script>
+</body>
+</html>

@@ -1202,6 +1202,12 @@
             }
         });
 
+        (function() {
+            const claveOk = sessionStorage.getItem('accesoAdmin') === 'ok';
+            if (!claveOk) {
+                window.location.href = 'index.html';
+            }
+        })();
     </script>
 </body>
 </html>
