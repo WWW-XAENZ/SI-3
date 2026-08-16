@@ -1,6 +1,6 @@
 ﻿// ============================================
 // SISTEMA DE TURNOS PROFESIONAL - ESTILO EPS
-// VERSI�N CON RECARGA AUTO Y ELIMINAR PROVEEDOR CORREGIDO
+// VERSIÓN CON RECARGA AUTO Y ELIMINAR PROVEEDOR CORREGIDO
 // ============================================
 
 window.getLocalDate = () => {
