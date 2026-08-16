@@ -5090,7 +5090,11 @@ const RelojVivo = {
             const relojes = document.querySelectorAll('.reloj-vivo');
             const ahora = new Date();
             const hora = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-            relojes.forEach(el => el.textContent = hora);
+            relojes.forEach(el => {
+                if (el.id !== 'tiempoTranscurrido') {
+                    el.textContent = hora;
+                }
+            });
             const elTiempo = document.getElementById('tiempoTranscurrido');
             if (elTiempo && window.AppState && window.AppState.turnoActual) {
                 const inicio = localStorage.getItem('mt_inicio') ? JSON.parse(localStorage.getItem('mt_inicio'))[window.AppState.turnoActual.id] : null;
@@ -5103,7 +5107,7 @@ const RelojVivo = {
                     else if (min >= 15) elTiempo.style.color = '#f59e0b';
                     else elTiempo.style.color = '';
                 } else {
-                    elTiempo.textContent = '—';
+                    elTiempo.textContent = '-';
                 }
             }
         }, 1000);
