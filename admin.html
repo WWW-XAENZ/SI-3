@@ -705,16 +705,16 @@
                 <section class="admin-section control-panel">
                     <h2>Panel de Control</h2>
                     <div class="current-turn-display">
-                        <h3>Turno en Atención</h3>
+                        <h3>Turno en Atencion</h3>
                         <div id="turnoActual" class="turn-number">--</div>
-                        <div id="turnoInfo" class="turn-info">Sin turno en atención</div>
+                        <div id="turnoInfo" class="turn-info">Sin turno en Atencion</div>
                     </div>
         
                     <!-- Tiempo transcurrido del turno actual -->
                     <div id="tiempoTurnoWrap" style="text-align:center;margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">
-                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Tiempo en atención</div>
-                        <div id="tiempoTranscurrido">—</div>
-                        <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Promedio: <span id="metricaTiempoPromedio">—</span></div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Tiempo en Atencion</div>
+                        <div id="tiempoTranscurrido">-</div>
+                        <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Promedio: <span id="metricaTiempoPromedio">-</span></div>
                     </div>
                     <div id="despachoDetail" style="font-size:13px;color:#475569;padding:10px;background:#f8fafc;border-radius:8px;margin-bottom:14px;min-height:36px;line-height:1.7;"></div>
                     <div class="control-buttons">
@@ -810,7 +810,7 @@
                 <section class="admin-section turn-history">
                     <h2>Historial Reciente</h2>
                     <div class="historial-toolbar">
-                        <input type="text" id="busquedaHistorial" placeholder="🔍 Buscar por empresa, placa, factura..." />
+                        <input type="text" id="busquedaHistorial" placeholder="Buscar por empresa, placa, factura..." />
                         <button id="btnExportarHoy" class="btn btn-secondary btn-small" onclick="ExportarHoy.exportar()" title="Exportar turnos de hoy a CSV">
                             ↓ CSV Hoy
                         </button>
@@ -907,19 +907,19 @@
         </div>
     </div>
 
-    <!-- Modal Inspección Solicitada -->
+    <!-- Modal Inspeccion Solicitada -->
     <div id="modalInspeccion" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 500px; border: 3px solid #f59e0b;">
             <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; text-align: center; border-radius: 10px 10px 0 0; margin: -24px -24px 20px -24px;">
-                <h2 style="color: white; margin: 0; font-size: 22px;">INSPECCIÓN FÍSICA REQUERIDA</h2>
-                <p style="color: #fef3c7; margin: 5px 0 0 0;">El despachador ha solicitado inspección física</p>
+                <h2 style="color: white; margin: 0; font-size: 22px;">Inspeccion fisica REQUERIDA</h2>
+                <p style="color: #fef3c7; margin: 5px 0 0 0;">El despachador ha solicitado Inspeccion fisica</p>
             </div>
             <div style="text-align: center; margin-bottom: 20px;">
                 <div style="font-size: 64px; font-weight: 700; color: #d97706; line-height: 1;" id="inspeccionNumero">---</div>
                 <div style="font-size: 16px; font-weight: 600; color: #1e293b; margin-top: 5px;" id="inspeccionEmpresa">Proveedor</div>
             </div>
             <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px;" id="inspeccionDetalles">
-                <p style="color: #475569;">Se requiere inspección física antes de autorizar la salida.</p>
+                <p style="color: #475569;">Se requiere Inspeccion fisica antes de autorizar la salida.</p>
             </div>
             <button class="btn btn-warning" style="width: 100%; padding: 14px; font-size: 16px;" onclick="cerrarModalInspeccion()">ACEPTAR</button>
         </div>
@@ -1054,7 +1054,7 @@
                                     <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.num_factura || 'N/A'}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Tipo Vehículo:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Tipo Vehiculo:</strong></td>
                                     <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.tipo_vehiculo || 'N/A'}</td>
                                 </tr>
                                 <tr>
@@ -1195,7 +1195,7 @@
                                     nombre: payload.new.mensaje,
                                     timestamp: Date.now()
                                 });
-                            } else if (payload.new.mensaje && payload.new.mensaje.includes('Inspección')) {
+                            } else if (payload.new.mensaje && payload.new.mensaje.includes('Inspeccion')) {
                                 mostrarAlertaInspeccion({
                                     numero: payload.new.mensaje.match(/Turno\s+([\w]+)/)?.[1] || '---',
                                     nombre: payload.new.mensaje,
@@ -1232,3 +1232,5 @@
     </script>
 </body>
 </html>
+
+

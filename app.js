@@ -1693,6 +1693,10 @@ const Turnos = {
             AppState.turnoActual = null;
             LocalStorage.guardarTurnoActual(null);
             
+            if (window.MetricasRT && typeof window.MetricasRT.registrarFin === 'function') {
+                window.MetricasRT.registrarFin(turnoCompletado.id);
+            }
+            
             console.log('✅ Turno completado exitosamente');
             return true;
             
@@ -2080,7 +2084,7 @@ const RenderAdmin = {
                     }
                 }
             } else {
-                turnoInfoDiv.textContent = 'Ning�n turno en atenci�n';
+                turnoInfoDiv.textContent = 'Ningún turno en atención';
                 
                 const despachoDetail = document.getElementById('despachoDetail');
                 if (despachoDetail) {
@@ -2659,6 +2663,10 @@ const AdminHandlers = {
         AppState.turnos = AppState.turnos.filter(t => t.id !== turno.id);
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
+        
+        if (window.MetricasRT && typeof window.MetricasRT.registrarInicio === 'function') {
+            window.MetricasRT.registrarInicio(turno.id);
+        }
 
         if (window.supabaseClient) {
             try {
@@ -2700,6 +2708,10 @@ const AdminHandlers = {
         AppState.turnos = AppState.turnos.filter(t => t.id !== turno.id);
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
+        
+        if (window.MetricasRT && typeof window.MetricasRT.registrarInicio === 'function') {
+            window.MetricasRT.registrarInicio(turno.id);
+        }
 
         if (window.supabaseClient) {
             try {
@@ -2981,6 +2993,10 @@ const AdminHandlers = {
         AppState.turnos = AppState.turnos.filter(t => t.id !== turno.id);
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
         LocalStorage.guardarTurnos(AppState.turnos);
+        
+        if (window.MetricasRT && typeof window.MetricasRT.registrarInicio === 'function') {
+            window.MetricasRT.registrarInicio(turno.id);
+        }
 
         this.mostrarModalDespacho(turno, 'siguiente');
         Utils.mostrarNotificacion(`TURNO ${turno.numero} LLAMADO`, 'success');
@@ -3922,6 +3938,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Renderizando admin...');
             RenderAdmin.todo();
             RenderAdmin.cargarMesesDisponibles();
+            
+            if (window.PanelRendimiento && typeof window.PanelRendimiento.cargar === 'function') {
+                window.PanelRendimiento.cargar();
+            }
             
             if (window.supabaseClient) {
                 console.log('Configurando suscripción a tiempo real para admin...');
@@ -4981,6 +5001,7 @@ const MetricasRT = {
                 delete data[turnoId];
                 localStorage.setItem('mt_inicio', JSON.stringify(data));
                 localStorage.setItem('mt_tiempos', JSON.stringify(this.tiemposAtencion));
+                this.actualizarUI();
             }
         } catch(e) {}
     },
