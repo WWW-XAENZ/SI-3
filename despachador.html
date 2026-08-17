@@ -1088,8 +1088,21 @@
                 }
             }
             
-            setInterval(() => {
-                if (window.supabaseClient) cargarTodoDespachador();
+            let inicializado = false;
+            
+            const checkInterval = setInterval(() => {
+                if (window.AppState && window.RenderAdmin && window.DespachadorHandlers && !inicializado) {
+                    clearInterval(checkInterval);
+                    inicializado = true;
+                    inicializarDespachador();
+                }
+            }, 200);
+            setTimeout(() => {
+                clearInterval(checkInterval);
+                if (!inicializado) {
+                    inicializado = true;
+                    inicializarDespachador();
+                }
             }, 10000);
             
             document.addEventListener('storage', (e) => {
@@ -1105,18 +1118,6 @@
                 }
             });
             
-            const checkInterval = setInterval(() => {
-                if (window.AppState && window.RenderAdmin && window.DespachadorHandlers) {
-                    clearInterval(checkInterval);
-                    inicializarDespachador();
-                }
-            }, 200);
-            setTimeout(() => {
-                clearInterval(checkInterval);
-                inicializarDespachador();
-            }, 10000);
-            
-            // Listener para salida autorizada desde admin
             window.addEventListener('storage', (e) => {
                 if (e.key === 'salidaAutorizada' && e.newValue) {
                     console.log('📥 Salida autorizada detectada');
@@ -1127,23 +1128,6 @@
                     }, 500);
                 }
             });
-            
-            const intervalo = setInterval(() => {
-                if (window.AppState && window.RenderAdmin && window.DespachadorHandlers) {
-                    clearInterval(intervalo);
-                    console.log('✅ AppState y handlers cargados');
-                    inicializarDespachador();
-                }
-            }, 200);
-            setTimeout(() => {
-                clearInterval(intervalo);
-                if (window.AppState) {
-                    inicializarDespachador();
-                } else {
-                    console.warn('⚠️ AppState no disponible después de 10s');
-                    inicializarDespachador();
-                }
-            }, 10000);
             
             async function inicializarDespachador() {
                 console.log('Inicializando panel de despachador...');
@@ -1167,7 +1151,7 @@
                     cargarEstadisticasDespachador();
                     cargarHistorialDespachador();
                     verificarProveedorListo();
-                }, 10000);
+                }, 15000);
                 
                 const btnActualizarHistorialDesp = document.getElementById('btnActualizarHistorialDesp');
                 if (btnActualizarHistorialDesp) {
@@ -1196,7 +1180,7 @@
                             console.log('📦 Datos encontrados en localStorage');
                         }
                     }
-                }, 2000);
+                }, 5000);
                 
                 function verificarProveedorListo() {
                     console.log('🔍 Verificando proveedorListoSalir...');
