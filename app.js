@@ -694,7 +694,32 @@ const SupabaseDB = {
             
             console.log('📤 Insertando en Supabase:', JSON.stringify(turnoData, null, 2));
             
-            // Timeout interno de 5 segundos
+            const { data: existente, error: errorExistente } = await window.supabaseClient
+                .from('turnos')
+                .select('id')
+                .eq('numero', turno.numero)
+                .eq('fecha_solicitud', getLocalDate())
+                .maybeSingle();
+            
+            if (existente && !errorExistente) {
+                console.warn('⚠️ Turno duplicado detectado:', turno.numero);
+                throw new Error(`El turno ${turno.numero} ya fue registrado hoy.`);
+            }
+            
+            const { data: turnoPlaca, error: errorPlaca } = await window.supabaseClient
+                .from('turnos')
+                .select('id, numero, estado')
+                .eq('nit', turno.nit)
+                .gte('fecha_solicitud', getLocalDate() + 'T00:00:00')
+                .lt('fecha_solicitud', getLocalDate() + 'T23:59:59')
+                .in('estado', ['espera', 'citado', 'atendiendo'])
+                .maybeSingle();
+            
+            if (turnoPlaca && !errorPlaca) {
+                console.warn('⚠️ Placa con turno activo:', turno.nit, 'Turno:', turnoPlaca.numero);
+                throw new Error(`La placa ${turno.nit} ya tiene un turno activo (${turnoPlaca.numero}). Complete o cancele ese turno antes de solicitar uno nuevo.`);
+            }
+            
             const timeoutPromise = new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('Timeout Supabase (turno)')), 5000)
             );
@@ -1555,6 +1580,28 @@ const Turnos = {
         datosProveedor.nit = placa;
         datosProveedor.nombreEmpresa = datosProveedor.nombreEmpresa.trim();
 
+        if (window.supabaseClient) {
+            try {
+                const hoy = getLocalDate();
+                const { data: turnoActivo, error: errorActivo } = await window.supabaseClient
+                    .from('turnos')
+                    .select('id, numero, estado')
+                    .eq('nit', placa)
+                    .gte('fecha_solicitud', `${hoy}T00:00:00`)
+                    .lt('fecha_solicitud', `${hoy}T23:59:59`)
+                    .in('estado', ['espera', 'citado', 'atendiendo'])
+                    .maybeSingle();
+                
+                if (turnoActivo && !errorActivo) {
+                    console.warn('⚠️ Placa con turno activo:', placa, 'Turno:', turnoActivo.numero);
+                    throw new Error(`La placa ${placa} ya tiene un turno activo (${turnoActivo.numero}). Complete o cancele ese turno antes de solicitar uno nuevo.`);
+                }
+            } catch (e) {
+                if (e.message.includes('La placa')) throw e;
+                console.warn('Error validando placa activa:', e.message);
+            }
+        }
+        
         // Re-validar disponibilidad justo antes de guardar (previene condiciones de carrera)
         if (datosProveedor.fechaCita) {
             const slotHora  = datosProveedor.fechaCita.split('T')[1]?.slice(0, 5);
@@ -1787,8 +1834,9 @@ const Turnos = {
                     
                     let maxT = 0;
                     let maxC = 0;
+                    const contadorReiniciado = localStorage.getItem('contador_reiniciado') === 'true';
                     
-                    if (localStorage.getItem('contador_reiniciado') !== 'true') {
+                    if (!contadorReiniciado) {
                         todosLosTurnos.forEach(t => {
                             const num = parseInt(t.numero.replace(/^[TC]/i, ''));
                             if (t.numero.toUpperCase().startsWith('T') && num > maxT) maxT = num;
@@ -1801,8 +1849,13 @@ const Turnos = {
                         SupabaseDB.obtenerContadorTurnos('C')
                     ]);
                     
-                    const nuevoMaxT = Math.max(contadorT, maxT);
-                    const nuevoMaxC = Math.max(contadorC, maxC);
+                    const nuevoMaxT = contadorReiniciado ? 0 : Math.max(contadorT, maxT);
+                    const nuevoMaxC = contadorReiniciado ? 0 : Math.max(contadorC, maxC);
+                    
+                    if (contadorReiniciado) {
+                        LocalStorage.guardarContadorPrefijo('T', 0);
+                        LocalStorage.guardarContadorPrefijo('C', 0);
+                    }
                     
                     AppState.contadorTurnosT = nuevoMaxT;
                     AppState.contadorTurnosC = nuevoMaxC;
@@ -2132,6 +2185,7 @@ const RenderAdmin = {
                 if (AppState.turnoActual.bultos) lines.push(`Bultos: ${AppState.turnoActual.bultos}`);
                 if (AppState.turnoActual.peso) lines.push(`Peso: ${AppState.turnoActual.peso} kg`);
                 if (AppState.turnoActual.responsable) lines.push(`Responsable: ${AppState.turnoActual.responsable}`);
+                if (AppState.turnoActual.destino) lines.push(`Destino: ${AppState.turnoActual.destino}`);
                 if (AppState.turnoActual.autorizadoSalida) lines.push(`✓ SALIDA AUTORIZADA`);
                 
                 despachoDetail.innerHTML = lines.map(line => `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed #e2e8f0;">${line}</div>`).join('');
@@ -2173,6 +2227,11 @@ const RenderAdmin = {
                             ${turno.contacto ? `<span>Contacto: ${turno.contacto}</span>` : ''}
                             ${turno.telefono ? `<span>Tel: ${turno.telefono}</span>` : ''}
                             ${turno.destino ? `<span>Destino: ${turno.destino}</span>` : ''}
+                            ${turno.numFactura ? `<span>Fact: ${turno.numFactura}</span>` : ''}
+                            ${turno.tipoVehiculo ? `<span>Tipo: ${turno.tipoVehiculo}</span>` : ''}
+                            ${turno.bultos ? `<span>Bultos: ${turno.bultos}</span>` : ''}
+                            ${turno.peso ? `<span>Peso: ${turno.peso} kg</span>` : ''}
+                            ${turno.responsable ? `<span>Resp: ${turno.responsable}</span>` : ''}
                         </div>
                         <div class="turn-item-time">
                             ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
@@ -2223,6 +2282,11 @@ const RenderAdmin = {
                             ${turno.contacto ? `<span>Contacto: ${turno.contacto}</span>` : ''}
                             ${turno.telefono ? `<span>Tel: ${turno.telefono}</span>` : ''}
                             ${turno.destino ? `<span>Destino: ${turno.destino}</span>` : ''}
+                            ${turno.numFactura ? `<span>Fact: ${turno.numFactura}</span>` : ''}
+                            ${turno.tipoVehiculo ? `<span>Tipo: ${turno.tipoVehiculo}</span>` : ''}
+                            ${turno.bultos ? `<span>Bultos: ${turno.bultos}</span>` : ''}
+                            ${turno.peso ? `<span>Peso: ${turno.peso} kg</span>` : ''}
+                            ${turno.responsable ? `<span>Resp: ${turno.responsable}</span>` : ''}
                         </div>
                         <div class="turn-item-time">
                             ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
@@ -2817,7 +2881,9 @@ const AdminHandlers = {
         const bultosInput = document.getElementById('despachoBultos');
         const pesoInput = document.getElementById('despachoPeso');
         const responsableInput = document.getElementById('despachoResponsable');
+        const placaInput = document.getElementById('despachoPlaca');
 
+        if (placaInput) placaInput.value = turno.nit || '';
         if (numFacturaInput) numFacturaInput.value = turno.numFactura || '';
         if (tipoVehiculoInput) tipoVehiculoInput.value = turno.tipoVehiculo || '';
         if (bultosInput) bultosInput.value = turno.bultos || '';
@@ -2841,11 +2907,19 @@ const AdminHandlers = {
         const bultosInput = document.getElementById('despachoBultos');
         const pesoInput = document.getElementById('despachoPeso');
         const responsableInput = document.getElementById('despachoResponsable');
+        const placaInput = document.getElementById('despachoPlaca');
 
         const turnoActual = AppState.turnoActual;
 
         if (!turnoActual) {
             Utils.mostrarNotificacion('No hay turno en atención', 'error');
+            return;
+        }
+
+        const placaIngresada = placaInput?.value?.trim().toUpperCase() || '';
+        const placaOriginal = (turnoActual.nit || '').toUpperCase();
+        if (placaIngresada && placaOriginal && placaIngresada !== placaOriginal) {
+            Utils.mostrarNotificacion(`La placa ingresada (${placaIngresada}) no coincide con la placa del turno (${placaOriginal})`, 'error');
             return;
         }
 
@@ -2903,127 +2977,6 @@ const AdminHandlers = {
         await RenderAdmin.todo();
     },
 
-    mostrarModalDespacho(turno, tipo, turnoId = null) {
-        const modal = document.getElementById('despachoModal');
-        if (!modal) {
-            Utils.mostrarNotificacion('Error: Modal de despacho no encontrado', 'error');
-            return;
-        }
-
-        const modalTurnNumber = document.getElementById('despachoTurnNumber');
-        const modalTurnInfo = document.getElementById('despachoTurnInfo');
-        const infoDespachoDiv = document.getElementById('despachoInfo');
-
-        if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
-        if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}${turno.nit ? ' - ' + turno.nit : ''}`;
-
-        if (turno.numFactura || turno.tipoVehiculo || turno.bultos || turno.peso || turno.responsable) {
-            if (infoDespachoDiv) {
-                infoDespachoDiv.innerHTML = `
-                    ${turno.numFactura ? `<p><strong>Factura:</strong> ${turno.numFactura}</p>` : ''}
-                    ${turno.tipoVehiculo ? `<p><strong>Tipo Vehículo:</strong> ${turno.tipoVehiculo}</p>` : ''}
-                    ${turno.bultos ? `<p><strong>Bultos:</strong> ${turno.bultos}</p>` : ''}
-                    ${turno.peso ? `<p><strong>Peso:</strong> ${turno.peso}</p>` : ''}
-                    ${turno.responsable ? `<p><strong>Responsable:</strong> ${turno.responsable}</p>` : ''}
-                `;
-            }
-        } else {
-            if (infoDespachoDiv) infoDespachoDiv.innerHTML = '';
-        }
-
-        const numFacturaInput = document.getElementById('despachoNumFactura');
-        const tipoVehiculoInput = document.getElementById('despachoTipoVehiculo');
-        const bultosInput = document.getElementById('despachoBultos');
-        const pesoInput = document.getElementById('despachoPeso');
-        const responsableInput = document.getElementById('despachoResponsable');
-
-        if (numFacturaInput) numFacturaInput.value = turno.numFactura || '';
-        if (tipoVehiculoInput) tipoVehiculoInput.value = turno.tipoVehiculo || '';
-        if (bultosInput) bultosInput.value = turno.bultos || '';
-        if (pesoInput) pesoInput.value = turno.peso || '';
-        if (responsableInput) responsableInput.value = turno.responsable || '';
-
-        modal.dataset.turnoId = turnoId || turno.id;
-        modal.dataset.tipo = tipo;
-        modal.style.display = 'flex';
-    },
-
-    async guardarDespacho() {
-        const modal = document.getElementById('despachoModal');
-        if (!modal) return;
-
-        const turnoId = parseInt(modal.dataset.turnoId);
-        const tipo = modal.dataset.tipo;
-
-        const numFacturaInput = document.getElementById('despachoNumFactura');
-        const tipoVehiculoInput = document.getElementById('despachoTipoVehiculo');
-        const bultosInput = document.getElementById('despachoBultos');
-        const pesoInput = document.getElementById('despachoPeso');
-        const responsableInput = document.getElementById('despachoResponsable');
-
-        const turnoActual = AppState.turnoActual;
-
-        if (!turnoActual) {
-            Utils.mostrarNotificacion('No hay turno en atención', 'error');
-            return;
-        }
-
-        const infoDespacho = {
-            numFactura: numFacturaInput?.value?.trim() || turnoActual.numFactura,
-            tipoVehiculo: tipoVehiculoInput?.value?.trim() || turnoActual.tipoVehiculo,
-            bultos: bultosInput?.value?.trim() || turnoActual.bultos,
-            peso: pesoInput?.value?.trim() || turnoActual.peso,
-            responsable: responsableInput?.value?.trim() || turnoActual.responsable,
-        };
-
-        turnoActual.numFactura = infoDespacho.numFactura;
-        turnoActual.tipoVehiculo = infoDespacho.tipoVehiculo;
-        turnoActual.bultos = infoDespacho.bultos;
-        turnoActual.peso = infoDespacho.peso;
-        turnoActual.responsable = infoDespacho.responsable;
-        turnoActual.estado = 'atendiendo';
-        turnoActual.horaLlamada = Utils.obtenerHoraActual();
-
-        LocalStorage.guardarTurnoActual(AppState.turnoActual);
-        LocalStorage.guardarTurnos(AppState.turnos);
-
-        if (window.supabaseClient) {
-            try {
-                await SupabaseDB.llamarTurno(turnoActual.id, {
-                    numFactura: infoDespacho.numFactura,
-                    tipoVehiculo: infoDespacho.tipoVehiculo,
-                    bultos: infoDespacho.bultos,
-                    peso: infoDespacho.peso,
-                    responsable: infoDespacho.responsable,
-                    contacto: turnoActual.contacto,
-                    telefono: turnoActual.telefono,
-                    servicio: turnoActual.servicio,
-                    destino: turnoActual.destino
-                });
-            } catch (error) {
-                console.error('Error al guardar despacho en Supabase:', error);
-                Utils.mostrarNotificacion('Guardado localmente', 'warning');
-            }
-        }
-
-        modal.style.display = 'none';
-
-        const confirmModal = document.getElementById('turnoModal');
-        if (confirmModal) {
-            const confirmTurnNumber = document.getElementById('modalTurnNumber');
-            const confirmTurnInfo = document.getElementById('modalTurnInfo');
-            
-            if (confirmTurnNumber) confirmTurnNumber.textContent = AppState.turnoActual?.numero || '--';
-            if (confirmTurnInfo) confirmTurnInfo.textContent = AppState.turnoActual ? 
-                `${AppState.turnoActual.nombreEmpresa}\n${infoDespacho.numFactura ? 'Factura: ' + infoDespacho.numFactura : ''}` : '';
-            
-            confirmModal.style.display = 'flex';
-        }
-
-        Utils.mostrarNotificacion(`TURNO ${AppState.turnoActual?.numero} LLAMADO`, 'success');
-        await RenderAdmin.todo();
-    },
-
     async llamarTurno() {
         if (AppState.turnoActual) {
             Utils.mostrarNotificacion(`Ya hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
@@ -3049,51 +3002,6 @@ const AdminHandlers = {
         this.mostrarModalDespacho(turno, 'siguiente');
         Utils.mostrarNotificacion(`TURNO ${turno.numero} LLAMADO`, 'success');
         await RenderAdmin.todo();
-    },
-
-    mostrarModalDespacho(turno, tipo, turnoId = null) {
-        const modal = document.getElementById('despachoModal');
-        if (!modal) {
-            Utils.mostrarNotificacion('Error: Modal de despacho no encontrado', 'error');
-            return;
-        }
-
-        const modalTurnNumber = document.getElementById('despachoTurnNumber');
-        const modalTurnInfo = document.getElementById('despachoTurnInfo');
-        const infoDespachoDiv = document.getElementById('despachoInfo');
-
-        if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
-        if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}${turno.nit ? ' - ' + turno.nit : ''}`;
-
-        if (turno.numFactura || turno.tipoVehiculo || turno.bultos || turno.peso || turno.responsable) {
-            if (infoDespachoDiv) {
-                infoDespachoDiv.innerHTML = `
-                    ${turno.numFactura ? `<p><strong>Factura:</strong> ${turno.numFactura}</p>` : ''}
-                    ${turno.tipoVehiculo ? `<p><strong>Tipo Vehículo:</strong> ${turno.tipoVehiculo}</p>` : ''}
-                    ${turno.bultos ? `<p><strong>Bultos:</strong> ${turno.bultos}</p>` : ''}
-                    ${turno.peso ? `<p><strong>Peso:</strong> ${turno.peso}</p>` : ''}
-                    ${turno.responsable ? `<p><strong>Responsable:</strong> ${turno.responsable}</p>` : ''}
-                `;
-            }
-        } else {
-            if (infoDespachoDiv) infoDespachoDiv.innerHTML = '';
-        }
-
-        const numFacturaInput = document.getElementById('despachoNumFactura');
-        const tipoVehiculoInput = document.getElementById('despachoTipoVehiculo');
-        const bultosInput = document.getElementById('despachoBultos');
-        const pesoInput = document.getElementById('despachoPeso');
-        const responsableInput = document.getElementById('despachoResponsable');
-
-        if (numFacturaInput) numFacturaInput.value = turno.numFactura || '';
-        if (tipoVehiculoInput) tipoVehiculoInput.value = turno.tipoVehiculo || '';
-        if (bultosInput) bultosInput.value = turno.bultos || '';
-        if (pesoInput) pesoInput.value = turno.peso || '';
-        if (responsableInput) responsableInput.value = turno.responsable || '';
-
-        modal.dataset.turnoId = turnoId || turno.id;
-        modal.dataset.tipo = tipo;
-        modal.style.display = 'flex';
     },
 
     async completarTurno() {
@@ -3183,6 +3091,17 @@ const AdminHandlers = {
                 if (window.supabaseClient) {
                     await SupabaseDB.incrementarContadorTurnosHasta('T', 0);
                     await SupabaseDB.incrementarContadorTurnosHasta('C', 0);
+                    
+                    const [verifT, verifC] = await Promise.all([
+                        SupabaseDB.obtenerContadorTurnos('T'),
+                        SupabaseDB.obtenerContadorTurnos('C')
+                    ]);
+                    
+                    if (verifT > 0 || verifC > 0) {
+                        console.warn('⚠️ Contadores no se resetearon completamente en Supabase. Reintentando...');
+                        await SupabaseDB.incrementarContadorTurnosHasta('T', 0);
+                        await SupabaseDB.incrementarContadorTurnosHasta('C', 0);
+                    }
                 }
                 
                 Utils.mostrarNotificacion('Contador reiniciado. Próximo turno: T001 / C001', 'success');

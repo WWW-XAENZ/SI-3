@@ -30,58 +30,503 @@
         .pending-exit .turn-item:hover { border-color: #7c3aed; }
         
         .admin-section {
-            background: #fff;
-            border-radius: 12px;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        
+        .admin-section:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.06);
+            transform: translateY(-2px);
+        }
+        
+        .current-turn-display { 
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); 
+            border-radius: 16px; 
+            padding: 36px 28px; 
+            text-align: center; 
+            border: 2px solid #16a34a; 
+            margin-bottom: 24px;
+            box-shadow: 0 8px 24px rgba(22, 163, 74, 0.25);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .current-turn-display::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: rotate 15s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .current-turn-display h3 { 
+            font-size: 13px; 
+            color: rgba(255,255,255,0.9); 
+            margin-bottom: 16px; 
+            text-transform: uppercase; 
+            letter-spacing: 2px;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+        .turno-listo .turn-number-large { 
+            font-size: 72px; 
+            font-weight: 800; 
+            color: white; 
+            text-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            position: relative;
+            z-index: 1;
+        }
+        .turno-listo .turn-empresa { 
+            font-size: 16px; 
+            color: rgba(255,255,255,0.95); 
+            margin-top: 12px; 
+            line-height: 1.5;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+        .turno-listo .turn-badge { 
+            display: inline-block; 
+            background: rgba(255,255,255,0.2); 
+            backdrop-filter: blur(10px);
+            color: white; 
+            padding: 10px 24px; 
+            border-radius: 20px; 
+            font-size: 12px; 
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.3);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .despacho-actions { 
+            margin-top: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+            position: relative;
+            z-index: 1;
+        }
+        .despacho-actions .btn { 
+            padding: 18px; 
+            font-size: 15px; 
+            border-radius: 12px; 
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .despacho-actions .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+        }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+        .stat-card { 
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); 
+            padding: 24px 18px; 
+            border-radius: 14px; 
+            text-align: center; 
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #2563eb, #60a5fa);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+        }
+        
+        .stat-card .stat-number { 
+            font-size: 36px; 
+            font-weight: 800; 
+            color: #2563eb;
+            text-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+        }
+        .stat-card .stat-label { 
+            font-size: 13px; 
+            color: #64748b; 
+            margin-top: 10px; 
+            text-transform: uppercase; 
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        
+        .pending-exit-list { 
+            max-height: 280px; 
+            overflow-y: auto; 
+            padding-right: 10px;
+        }
+        
+        .pending-exit-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .pending-exit-list::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        
+        .pending-exit-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        
+        .pending-exit-list::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        .pending-exit-item { 
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); 
+            border: 2px solid #f59e0b; 
+            border-radius: 14px; 
+            padding: 20px; 
+            margin-bottom: 16px; 
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+        }
+        .pending-exit-item:hover { 
+            box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
+            transform: translateY(-2px);
+        }
+        .pending-exit-header { 
+            display: flex; 
+            align-items: center; 
+            gap: 14px; 
+            margin-bottom: 14px; 
+        }
+        .pending-exit-number { 
+            font-size: 28px; 
+            font-weight: 800; 
+            color: #d97706; 
+            text-shadow: 0 2px 4px rgba(217, 119, 6, 0.2);
+        }
+        .pending-exit-company { 
+            flex: 1; 
+            font-weight: 700; 
+            font-size: 15px; 
+            color: #1e293b;
+        }
+        .pending-exit-status { 
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); 
+            color: white; 
+            padding: 6px 16px; 
+            border-radius: 20px; 
+            font-size: 11px; 
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .pending-exit-details { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 12px; 
+            font-size: 13px; 
+            color: #475569; 
+            margin-bottom: 14px; 
+        }
+        .pending-exit-item .btn-authorize { 
+            padding: 14px; 
+            border-radius: 10px; 
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .pending-exit-item .btn-authorize:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+        }
+        
+        .despacho-detail { 
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); 
+            padding: 20px; 
+            border-radius: 12px; 
+            font-size: 13px; 
+            line-height: 1.8;
+            border: 1px solid #e2e8f0;
+        }
+        .despacho-detail p { 
+            margin: 6px 0; 
+            color: #475569; 
+            padding: 4px 0;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        .despacho-detail p:last-child {
+            border-bottom: none;
+        }
+        
+        .turn-list { 
+            max-height: 220px; 
+            overflow-y: auto; 
+            padding-right: 10px;
+        }
+        
+        .turn-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .turn-list::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        
+        .turn-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        
+        .turn-list::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        .turn-item { 
+            display: flex; 
+            align-items: center; 
+            gap: 14px; 
+            padding: 16px; 
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); 
+            border-radius: 12px; 
+            margin-bottom: 12px; 
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .turn-item:hover { 
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); 
+            border-color: #2563eb; 
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+        }
+        .turn-item-number { 
+            font-size: 24px; 
+            font-weight: 800; 
+            color: #2563eb; 
+            min-width: 60px;
+            text-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+        }
+        .turn-item-info { 
+            flex: 1; 
+            min-width: 0; 
+        }
+        .turn-item-company { 
+            font-weight: 700; 
+            font-size: 14px; 
+            color: #1e293b; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap;
+        }
+        .turn-item-time { 
+            font-size: 12px; 
+            color: #64748b; 
+            margin-top: 6px; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis;
+            font-weight: 500;
+        }
+        .turn-item-details { 
+            display: flex; 
+            gap: 10px; 
+            font-size: 12px; 
+            color: #64748b; 
+            margin-top: 6px; 
+            flex-wrap: wrap; 
+        }
+        
+        .turn-item-detail {
+            font-size: 11px;
+            color: #475569;
+            margin-top: 2px;
+        }
+        
+        .admin-section h2 { 
+            font-size: 18px; 
+            color: #1e293b; 
+            border-bottom: 3px solid #2563eb; 
+            padding-bottom: 14px; 
+            margin-bottom: 20px; 
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            position: relative;
+        }
+        
+        .admin-section h2::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            left: 0;
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(90deg, #2563eb, transparent);
+        }
+        
+        .history-list { 
+            max-height: 300px; 
+            overflow-y: auto;
+        }
+        
+        .history-table-desp { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 12px;
+        }
+        .history-table-desp th { 
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            padding: 12px; 
+            text-align: left; 
+            border-bottom: 3px solid #2563eb; 
+            font-size: 11px; 
+            text-transform: uppercase; 
+            color: #475569;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .history-table-desp td { 
+            padding: 10px; 
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .history-table-desp tr {
+            transition: all 0.3s ease;
+        }
+        .history-table-desp tr:hover { 
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            transform: scale(1.01);
+        }
+        
+        .estado-ok { 
+            color: #16a34a; 
+            font-weight: 700; 
+        }
+        .estado-pend { 
+            color: #d97706; 
+            font-weight: 700; 
+        }
+        
+        .modal-proveedor-content {
+            max-width: 500px;
+            border: 3px solid #22c55e;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .modal-proveedor-header {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
             padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+            margin: -24px -24px 20px -24px;
+        }
+        
+        .modal-proveedor-header h2 {
+            color: white;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .modal-proveedor-header p {
+            color: #dcfce7;
+            margin: 5px 0 0 0;
+            font-size: 14px;
+        }
+        
+        .modal-proveedor-body {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-proveedor-numero {
+            font-size: 72px;
+            font-weight: 700;
+            color: #22c55e;
+            line-height: 1;
+            text-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+        }
+        
+        .modal-proveedor-nombre {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-top: 5px;
+        }
+        
+        .modal-proveedor-detalles {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
             border: 1px solid #e2e8f0;
         }
         
-        .current-turn-display { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; padding: 25px 20px; text-align: center; border: 2px solid #22c55e; margin-bottom: 20px; }
-        .current-turn-display h3 { font-size: 12px; color: #64748b; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
-        .turno-listo .turn-number-large { font-size: 48px; font-weight: 700; color: #16a34a; }
-        .turno-listo .turn-empresa { font-size: 15px; color: #334155; margin: 10px 0; }
-        .turno-listo .turn-badge { display: inline-block; background: #22c55e; color: white; padding: 8px 18px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .modal-proveedor-detalles table {
+            width: 100%;
+            font-size: 13px;
+            color: #475569;
+            border-collapse: collapse;
+        }
         
-        .despacho-actions { margin-top: 20px; }
-        .despacho-actions .btn { width: 100%; padding: 14px; font-size: 15px; border-radius: 8px; }
+        .modal-proveedor-detalles td {
+            padding: 6px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
         
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-        .stat-card { background: #f8fafc; padding: 20px 15px; border-radius: 10px; text-align: center; border: 1px solid #e2e8f0; }
-        .stat-card .stat-number { font-size: 32px; font-weight: 700; color: #2563eb; }
-        .stat-card .stat-label { font-size: 12px; color: #64748b; margin-top: 6px; text-transform: uppercase; }
+        .modal-proveedor-detalles td:last-child {
+            text-align: right;
+            font-weight: 600;
+        }
         
-        .pending-exit-list { max-height: 250px; overflow-y: auto; padding-right: 5px; }
-        .pending-exit-item { background: #fffbeb; border: 2px solid #f59e0b; border-radius: 10px; padding: 15px; margin-bottom: 12px; transition: all 0.2s; }
-        .pending-exit-item:hover { box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2); }
-        .pending-exit-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-        .pending-exit-number { font-size: 24px; font-weight: 700; color: #d97706; }
-        .pending-exit-company { flex: 1; font-weight: 600; font-size: 14px; }
-        .pending-exit-status { background: #f59e0b; color: white; padding: 5px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-        .pending-exit-details { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; font-size: 12px; color: #64748b; margin-bottom: 12px; }
-        .pending-exit-item .btn-authorize { width: 100%; margin-top: 10px; padding: 12px; border-radius: 8px; }
+        .modal-proveedor-detalles tr:last-child td {
+            border-bottom: none;
+        }
         
-        .despacho-detail { background: #f8fafc; padding: 18px; border-radius: 10px; font-size: 13px; line-height: 1.8; }
-        .despacho-detail p { margin: 6px 0; color: #475569; }
+        .modal-proveedor-detalles-table {
+            width: 100%;
+            font-size: 13px;
+            color: #475569;
+            border-collapse: collapse;
+        }
         
-        .turn-list { max-height: 150px; overflow-y: auto; }
+        .modal-proveedor-detalles-table td {
+            padding: 6px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
         
-        .turn-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; border: 1px solid #e2e8f0; }
-        .turn-item:hover { background: #f1f5f9; }
-        .turn-item-number { font-size: 18px; font-weight: 700; color: #2563eb; min-width: 45px; }
-        .turn-item-info { flex: 1; min-width: 0; }
-        .turn-item-company { font-weight: 600; font-size: 12px; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .turn-item-time { font-size: 11px; color: #64748b; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .modal-proveedor-detalles-table td:last-child {
+            text-align: right;
+            font-weight: 600;
+        }
         
-        .admin-section h2 { font-size: 15px; color: #1e293b; border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 15px; font-weight: 600; }
+        .modal-proveedor-detalles-table tr:last-child td {
+            border-bottom: none;
+        }
         
-        .despachador-historial { grid-column: 1 / 3; }
-        
-        .history-list { max-height: 180px; overflow-y: auto; }
-        .history-table-desp { width: 100%; border-collapse: collapse; font-size: 11px; }
-        .history-table-desp th { background: #f1f5f9; padding: 8px 6px; text-align: left; border-bottom: 2px solid #e2e8f0; font-size: 10px; text-transform: uppercase; color: #475569; }
-        .history-table-desp td { padding: 6px; border-bottom: 1px solid #e2e8f0; }
-        .history-table-desp tr:hover { background: #f8fafc; }
+        .error-message {
+            color: #dc2626;
+        }
         
         @media (max-width: 1000px) {
             .admin-grid { grid-template-columns: 1fr; }
@@ -89,10 +534,25 @@
             .stats-grid { grid-template-columns: repeat(3, 1fr); }
         }
         
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
+            .admin-grid { grid-template-columns: 1fr; gap: 15px; padding: 15px; }
+            .control-panel, .statistics, .despacho-actual, .pending-exit, .cited-list, .turnos-confirmados, .despachador-historial { grid-column: 1; }
             .stats-grid { grid-template-columns: 1fr; }
-            .admin-grid { gap: 15px; padding: 10px; }
-            .admin-section { padding: 15px; }
+            .admin-section { padding: 20px; }
+            .turn-number-large { font-size: 48px; }
+            .turn-item { flex-direction: column; align-items: flex-start; }
+            .pending-exit-details { grid-template-columns: 1fr; }
+        }
+        
+        @media (max-width: 480px) {
+            .admin-grid { padding: 10px; gap: 10px; }
+            .admin-section { padding: 16px; }
+            .current-turn-display { padding: 24px 18px; }
+            .stats-grid { grid-template-columns: 1fr; gap: 10px; }
+            .stat-card { padding: 18px 14px; }
+            .stat-card .stat-number { font-size: 28px; }
+            .pending-exit-header { flex-direction: column; align-items: flex-start; }
+            .pending-exit-details { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -115,7 +575,7 @@
                     <h2>Proveedor Listo para Salir</h2>
                     <div class="current-turn-display">
                         <div id="turnoListoSalir" class="turno-listo">
-                            <div class="esperando-mensaje" style="color: #64748b; padding: 20px;">Esperando que completen un turno...</div>
+                            <div class="esperando-mensaje">Esperando que completen un turno...</div>
                         </div>
                     </div>
                     <div class="despacho-actions">
@@ -147,14 +607,14 @@
                 <section class="admin-section despacho-actual">
                     <h2>Detalles del Proveedor</h2>
                     <div id="infoDespachoActual" class="despacho-detail">
-                        <p style="color: #94a3b8;">Sin proveedor esperando</p>
+                        <p class="despacho-empty">Sin proveedor esperando</p>
                     </div>
                 </section>
 
                 <!-- Citas Reservadas -->
                 <section class="admin-section pending-exit">
                     <h2>Citas Reservadas (<span id="contadorTurnosCitadosDespachador">0</span>)</h2>
-                    <div style="margin-bottom: 10px;">
+                    <div class="toolbar-spaced">
                         <button id="btnActualizarCitas" class="btn btn-secondary btn-small">Actualizar</button>
                     </div>
                     <div id="listaTurnosCitadosDespachador" class="turn-list">
@@ -182,10 +642,10 @@
                 <!-- Historial de Turnos -->
                 <section class="admin-section despachador-historial">
                     <h2>Historial Reciente</h2>
-                    <div style="margin-bottom: 10px;">
+                    <div class="toolbar-spaced">
                         <button id="btnActualizarHistorialDesp" class="btn btn-secondary btn-small">Actualizar</button>
                     </div>
-                    <div id="historialDespachador" class="history-list" style="max-height: 200px; overflow-y: auto;">
+                    <div id="historialDespachador" class="history-list historial-scroll">
                         <p class="empty-message">Cargando...</p>
                     </div>
                 </section>
@@ -281,12 +741,15 @@
                         <div class="pending-exit-details">
                             <span><strong>Placa:</strong> ${h.nit || 'N/A'}</span>
                             <span><strong>Fact:</strong> ${h.num_factura || 'N/A'}</span>
+                            <span><strong>Destino:</strong> ${h.destino || 'N/A'}</span>
                             <span><strong>Peso:</strong> ${h.peso || '0'} kg</span>
                             <span><strong>Bultos:</strong> ${h.bultos || '0'}</span>
                             <span><strong>Vehículo:</strong> ${h.tipo_vehiculo || 'N/A'}</span>
                             <span><strong>Responsable:</strong> ${h.responsable || 'N/A'}</span>
+                            ${h.contacto ? `<span><strong>Contacto:</strong> ${h.contacto}</span>` : ''}
+                            ${h.telefono ? `<span><strong>Tel:</strong> ${h.telefono}</span>` : ''}
                         </div>
-                        ${h.autorizado_salida !== true ? '<div style="display:flex;gap:8px;"><button class="btn btn-success btn-authorize btn-large" onclick="autorizarSalidaDesdeLista(this)" style="flex:1;">Autorizar Salida</button><button class="btn btn-warning btn-authorize btn-large" onclick="solicitarInspeccionDesdeLista(this)" style="flex:1;">Solicitar Inspeccion</button></div>' : '<span class="autorizado-badge">✓ Autorizado</span>'}
+                        ${h.autorizado_salida !== true ? '<div class="pending-exit-actions"><button class="btn btn-success btn-authorize btn-large" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button><button class="btn btn-warning btn-authorize btn-large" onclick="solicitarInspeccionDesdeLista(this)">Solicitar Inspeccion</button></div>' : '<span class="autorizado-badge">✓ Autorizado</span>'}
                     </div>
                 `).join('');
             }
@@ -381,7 +844,7 @@
                     Object.values(contenedores).forEach((_, i) => {
                         const ids = Object.keys(contenedores);
                         const el = document.getElementById(ids[i]);
-                        if (el) el.innerHTML = '<p class="empty-message" style="color:#dc2626;">⚠️ Sin conexión a Supabase</p>';
+                        if (el)                             el.innerHTML = '<p class="empty-message error-message">⚠️ Sin conexión a Supabase</p>';
                     });
                     return;
                 }
@@ -406,7 +869,7 @@
                     Object.entries(contenedores).forEach(([id]) => {
                         const el = document.getElementById(id);
                         if (el && el.querySelector('.empty-message')?.textContent === 'Cargando...') {
-                            el.innerHTML = '<p class="empty-message" style="color:#dc2626;">Error al cargar datos</p>';
+                            el.innerHTML = '<p class="empty-message error-message">Error al cargar datos</p>';
                         }
                     });
                 }
@@ -511,7 +974,7 @@
                                                 <td>${h.peso || '-'}</td>
                                                 <td>${h.responsable || '-'}</td>
                                                 <td>${horaFin}</td>
-                                                <td>${h.autorizado_salida ? '<span style="color:#10b981;">✓ OK</span>' : '<span style="color:#f59e0b;">PEND</span>'}</td>
+                                                <td>${h.autorizado_salida ? '<span class="estado-ok">✓ OK</span>' : '<span class="estado-pend">PEND</span>'}</td>
                                                 <td><button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button></td>
                                             </tr>
                                         `;
@@ -783,6 +1246,9 @@
                             <p><strong>Bultos:</strong> ${proveedor.bultos || 'N/A'}</p>
                             <p><strong>Peso:</strong> ${proveedor.peso || 'N/A'} kg</p>
                             <p><strong>Responsable:</strong> ${proveedor.responsable || 'N/A'}</p>
+                            <p><strong>Destino:</strong> ${proveedor.destino || 'N/A'}</p>
+                            <p><strong>Contacto:</strong> ${proveedor.contacto || 'N/A'}</p>
+                            <p><strong>Teléfono:</strong> ${proveedor.telefono || 'N/A'}</p>
                         `;
                     }
                     
@@ -844,57 +1310,57 @@
                     modal.id = 'modal-proveedor-listo';
                     modal.className = 'modal-overlay';
                     modal.innerHTML = `
-                        <div class="modal-content" style="max-width: 500px; border: 3px solid #22c55e; animation: slideIn 0.3s ease-out;">
-                            <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 20px; text-align: center; border-radius: 10px 10px 0 0; margin: -20px -20px 20px -20px;">
-                                <h2 style="color: white; margin: 0; font-size: 24px;">PROVEEDOR COMPLETÓ ATENCIÓN</h2>
-                                <p style="color: #dcfce7; margin: 5px 0 0 0;">Listo para autorización de salida</p>
+                        <div class="modal-content modal-proveedor-content">
+                            <div class="modal-proveedor-header">
+                                <h2>PROVEEDOR COMPLETÓ ATENCIÓN</h2>
+                                <p>Listo para autorización de salida</p>
                             </div>
-                            <div style="text-align: center; margin-bottom: 20px;">
-                                <div style="font-size: 72px; font-weight: 700; color: #22c55e; line-height: 1;">${proveedor.numero}</div>
-                                <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-top: 5px;">${proveedor.nombre || 'Proveedor'}</div>
+                            <div class="modal-proveedor-body">
+                                <div class="modal-proveedor-numero">${proveedor.numero}</div>
+                                <div class="modal-proveedor-nombre">${proveedor.nombre || 'Proveedor'}</div>
                             </div>
-                            <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-                                <table style="width: 100%; font-size: 13px; color: #475569;">
+                            <div class="modal-proveedor-detalles">
+                                <table class="modal-proveedor-detalles-table">
                                     <tr>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Placa:</strong></td>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${proveedor.nit || 'N/A'}</td>
+                                        <td><strong>Placa:</strong></td>
+                                        <td>${proveedor.nit || 'N/A'}</td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Factura:</strong></td>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${proveedor.numFactura || 'N/A'}</td>
+                                        <td><strong>Factura:</strong></td>
+                                        <td>${proveedor.numFactura || 'N/A'}</td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Tipo Vehículo:</strong></td>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${proveedor.tipoVehiculo || 'N/A'}</td>
+                                        <td><strong>Tipo Vehículo:</strong></td>
+                                        <td>${proveedor.tipoVehiculo || 'N/A'}</td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Bultos:</strong></td>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${proveedor.bultos || 'N/A'}</td>
+                                        <td><strong>Bultos:</strong></td>
+                                        <td>${proveedor.bultos || 'N/A'}</td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Peso:</strong></td>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${proveedor.peso || 'N/A'} kg</td>
+                                        <td><strong>Peso:</strong></td>
+                                        <td>${proveedor.peso || 'N/A'} kg</td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Responsable:</strong></td>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${proveedor.responsable || 'N/A'}</td>
+                                        <td><strong>Responsable:</strong></td>
+                                        <td>${proveedor.responsable || 'N/A'}</td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Destino:</strong></td>
-                                        <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${destinoLabel[proveedor.destino] || proveedor.destino || 'N/A'}</td>
+                                        <td><strong>Destino:</strong></td>
+                                        <td>${destinoLabel[proveedor.destino] || proveedor.destino || 'N/A'}</td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 6px 0;"><strong>Contacto:</strong></td>
-                                        <td style="padding: 6px 0; text-align: right;">${proveedor.contacto || 'N/A'}</td>
+                                        <td><strong>Contacto:</strong></td>
+                                        <td>${proveedor.contacto || 'N/A'}</td>
                                     </tr>
                                     <tr>
-                                        <td style="padding: 6px 0;"><strong>Teléfono:</strong></td>
-                                        <td style="padding: 6px 0; text-align: right;">${proveedor.telefono || 'N/A'}</td>
+                                        <td><strong>Teléfono:</strong></td>
+                                        <td>${proveedor.telefono || 'N/A'}</td>
                                     </tr>
                                 </table>
                             </div>
-                            <div style="display: flex; gap: 10px;">
-                                <button class="btn btn-success" style="flex: 1; padding: 14px; font-size: 16px;" onclick="cerrarModalProveedorListo()">CERRAR</button>
+                            <div class="pending-exit-actions">
+                                <button class="btn btn-success" onclick="cerrarModalProveedorListo()">CERRAR</button>
                             </div>
                         </div>
                     `;
@@ -922,7 +1388,7 @@
                         turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Esperando que completen un turno...</div>';
                     }
                     if (infoDespachoDiv) {
-                        infoDespachoDiv.innerHTML = '<p style="color: #94a3b8;">Sin proveedor esperando</p>';
+                        infoDespachoDiv.innerHTML = '<p class="despacho-empty">Sin proveedor esperando</p>';
                     }
                     if (btnAutorizar) {
                         btnAutorizar.disabled = true;
@@ -1002,11 +1468,11 @@
                                             <span class="turn-item-number">${turno.numero}</span>
                                             <div class="turn-item-info">
                                                 <div class="turn-item-company">${turno.nombre_empresa || '-'}</div>
-                                                ${turno.nit ? `<div style="font-size:11px;color:#475569;">Placa: ${turno.nit}</div>` : ''}
-                                                ${turno.nombre_empresa ? `<div style="font-size:11px;color:#475569;">Contacto: ${turno.nombre_empresa}</div>` : ''}
-                                                ${turno.telefono ? `<div style="font-size:11px;color:#475569;">Tel: ${turno.telefono}</div>` : ''}
-                                                ${turno.destino ? `<div style="font-size:11px;color:#475569;">Destino: ${destinoLabel[turno.destino] || turno.destino}</div>` : ''}
-                                                ${turno.motivo ? `<div style="font-size:11px;color:#475569;">${horaCita} - ${turno.motivo}</div>` : `<div style="font-size:11px;color:#475569;">${horaCita}</div>`}
+                                                ${turno.nit ? `<div class="turn-item-detail">Placa: ${turno.nit}</div>` : ''}
+                                                ${turno.nombre_empresa ? `<div class="turn-item-detail">Contacto: ${turno.nombre_empresa}</div>` : ''}
+                                                ${turno.telefono ? `<div class="turn-item-detail">Tel: ${turno.telefono}</div>` : ''}
+                                                ${turno.destino ? `<div class="turn-item-detail">Destino: ${destinoLabel[turno.destino] || turno.destino}</div>` : ''}
+                                                ${turno.motivo ? `<div class="turn-item-detail">${horaCita} - ${turno.motivo}</div>` : `<div class="turn-item-detail">${horaCita}</div>`}
                                             </div>
                                         </div>
                                     `;
@@ -1084,7 +1550,7 @@
                                                     <td>${h.peso || '-'}</td>
                                                     <td>${h.responsable || '-'}</td>
                                                     <td>${horaFin}</td>
-                                                    <td>${h.autorizado_salida ? '<span style="color:#10b981;">✓ OK</span>' : '<span style="color:#f59e0b;">PEND</span>'}</td>
+                                                <td>${h.autorizado_salida ? '<span class="estado-ok">✓ OK</span>' : '<span class="estado-pend">PEND</span>'}</td>
                                                     <td><button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button></td>
                                                 </tr>
                                             `;
