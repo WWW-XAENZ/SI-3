@@ -129,6 +129,12 @@
                 return;
             }
             
+            if ((turno.nit || '').toUpperCase() !== placa) {
+                status.innerHTML = 'La placa no coincide con el turno';
+                alert('La placa ingresada no coincide con la placa registrada para este turno.');
+                return;
+            }
+            
             const ahora = new Date();
             const horaLlegada = ahora.toTimeString().split(' ')[0];
             const fechaLlegada = new Date(ahora.getTime() - ahora.getTimezoneOffset() * 60000).toISOString();
