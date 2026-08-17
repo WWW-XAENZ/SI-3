@@ -9,60 +9,130 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <style>
+        :root {
+            --facturas-primary: #2563eb;
+            --facturas-accent: #7c3aed;
+            --facturas-bg: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+            --facturas-card: rgba(255, 255, 255, 0.85);
+        }
+
         .admin-grid { 
             grid-template-columns: 1fr; 
             gap: 24px;
             padding: 28px;
         }
         .admin-section {
-            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-            border-radius: 16px;
+            background: var(--facturas-card);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
             padding: 28px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
-            border: 1px solid #e2e8f0;
+            box-shadow: 0 10px 30px rgba(37, 99, 235, 0.08), 0 4px 12px rgba(0,0,0,0.04);
+            border: 1px solid rgba(226, 232, 240, 0.8);
             margin-bottom: 0;
-            transition: all 0.3s ease;
+            transition: all 0.4s ease;
         }
         
         .admin-section:hover {
-            box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.06);
-            transform: translateY(-2px);
+            box-shadow: 0 20px 40px rgba(37, 99, 235, 0.12), 0 8px 16px rgba(0,0,0,0.06);
+            transform: translateY(-3px);
         }
-        
+
+        .admin-section h2 {
+            font-size: 22px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0 0 6px 0;
+        }
+
+        .admin-section > p {
+            color: #64748b;
+            margin: 0 0 20px 0;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
         .facturas-table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
             font-size: 0.9rem;
+            overflow: hidden;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
         }
         
-        .facturas-table th {
-            background: #f1f5f9;
-            padding: 12px;
+        .facturas-table thead th {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            padding: 14px 16px;
             text-align: left;
-            border-bottom: 2px solid #e2e8f0;
-            font-size: 0.8rem;
+            border-bottom: 2px solid #2563eb;
+            font-size: 0.75rem;
             text-transform: uppercase;
             color: #475569;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            white-space: nowrap;
+        }
+        
+        .facturas-table tbody tr {
+            transition: all 0.3s ease;
+        }
+
+        .facturas-table tbody tr:nth-child(even) {
+            background: rgba(248, 250, 252, 0.6);
+        }
+        
+        .facturas-table tbody tr:hover {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            transform: scale(1.005);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
         }
         
         .facturas-table td {
-            padding: 10px 12px;
-            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #1e293b;
+            font-weight: 500;
+            font-size: 0.85rem;
         }
-        
-        .facturas-table tr:hover {
-            background: #f8fafc;
+
+        .facturas-table td:first-child {
+            font-weight: 700;
+            color: #2563eb;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.5px;
         }
-        
+
         .empty-message {
             text-align: center;
-            padding: 20px;
-            color: #64748b;
+            padding: 32px;
+            color: #94a3b8;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .facturas-table tbody tr:last-child td {
+            border-bottom: none;
         }
     </style>
 </head>
 <body>
-    <div class="admin-grid">
+    <div class="container">
+        <header>
+            <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo">
+            <h1>Panel de Facturas</h1>
+        </header>
+        
+        <nav class="main-nav">
+            <a href="index.html" class="nav-link">Inicio</a>
+            <a href="facturas.html" class="nav-link active">Panel de Facturas</a>
+        </nav>
+
+        <main>
+            <div class="admin-grid">
         <section class="admin-section">
             <h2>Panel de Facturas</h2>
             <p style="color: var(--text-secondary); margin-bottom: 20px;">Solo lectura - Visualización de facturas registradas</p>
