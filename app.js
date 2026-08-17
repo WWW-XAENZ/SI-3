@@ -2404,18 +2404,17 @@ const RenderAdmin = {
             if (proveedores.length === 0) {
                 proveedoresBody.innerHTML = '<tr><td colspan="5" class="empty-message">No hay proveedores registrados</td></tr>';
             } else {
-                const grupos = proveedores.reduce((acc, p) => {
-                    const nombre = p.nombreEmpresa || 'Sin nombre';
-                    if (!acc[nombre]) acc[nombre] = [];
-                    acc[nombre].push(p);
-                    return acc;
-                }, {});
+                proveedores.sort((a, b) => (a.nombreEmpresa || '').localeCompare(b.nombreEmpresa || ''));
                 
-                proveedoresBody.innerHTML = Object.entries(grupos).map(([empresa, items], idx) => {
-                    const btnExpandir = `<button class="btn btn-secondary btn-small" onclick="var btn=this;var tr=btn.closest('tr');var next=tr.nextElementSibling;while(next&&next.classList.contains('vehiculos-grupo')){next.style.display=next.style.display==='none'?'table-row-group':'none';next=next.nextElementSibling;}btn.textContent=btn.textContent==='▶'?'▼':'▶';" style="margin-right:6px;">▶</button>`;
-                    const vehiculosFilas = items.map(p => `
-                        <tr class="vehiculos-grupo" style="display:none;">
-                            <td style="padding-left:32px;">—</td>
+                let empresaAnterior = null;
+                proveedoresBody.innerHTML = proveedores.map(p => {
+                    const empresa = p.nombreEmpresa || '-';
+                    const esNuevoGrupo = empresa !== empresaAnterior;
+                    empresaAnterior = empresa;
+                    
+                    return `
+                        <tr>
+                            <td>${esNuevoGrupo ? `<strong>${empresa}</strong>` : '<span style="color:#cbd5e1;">—</span>'}</td>
                             <td>${p.nit || '-'}</td>
                             <td>${p.contacto || '-'}</td>
                             <td>${p.telefono || '-'}</td>
@@ -2425,17 +2424,6 @@ const RenderAdmin = {
                                 </button>
                             </td>
                         </tr>
-                    `).join('');
-                    
-                    return `
-                        <tr>
-                            <td colspan="5">
-                                ${btnExpandir}
-                                <strong>${empresa}</strong>
-                                <span style="color:#64748b;font-size:11px;">(${items.length} vehículo${items.length !== 1 ? 's' : ''})</span>
-                            </td>
-                        </tr>
-                        ${vehiculosFilas}
                     `;
                 }).join('');
             }
