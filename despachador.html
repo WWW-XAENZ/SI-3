@@ -692,17 +692,51 @@
             }
             
             try {
-                const today = window.getLocalDate ? window.getLocalDate() : new Date().toISOString().split('T')[0];
-                const { data, error } = await window.supabaseClient
-                    .from('historial_turnos')
-                    .select('*')
-                    .gte('fecha', `${today}T00:00:00`)
-                    .lte('fecha', `${today}T23:59:59`)
-                    .order('hora_finalizacion', { ascending: false });
+                const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
                 
-                if (error) throw error;
+                const [historialRes, proveedoresRes] = await Promise.all([
+                    window.supabaseClient
+                        .from('historial_turnos')
+                        .select('*')
+                        .gte('fecha', `${today}T00:00:00`)
+                        .lte('fecha', `${today}T23:59:59`)
+                        .order('hora_finalizacion', { ascending: false }),
+                    
+                    window.supabaseClient
+                        .from('proveedores_transporte')
+                        .select('*')
+                ]);
                 
-                turnosDelDia = data || [];
+                const historial = historialRes.data || [];
+                const proveedoresTransporte = proveedoresRes.data || [];
+                
+                turnosDelDia = historial.map(h => {
+                    if (h.proveedor_transporte_id) {
+                        const pt = proveedoresTransporte.find(p => p.id === h.proveedor_transporte_id);
+                        if (pt) {
+                            return {
+                                ...h,
+                                esProveedorTransporte: true,
+                                proveedorTransporte: pt,
+                                nit: pt.nit,
+                                nombre_proveedor: pt.nombre_proveedor,
+                                num_factura: pt.num_factura,
+                                tipo_vehiculo: pt.tipo_vehiculo,
+                                bultos: pt.bultos,
+                                peso: pt.peso,
+                                responsable: pt.responsable,
+                                nombre_empresa: pt.nombre_empresa || h.nombre_empresa,
+                                motivo: pt.motivo || h.motivo,
+                                destino: pt.destino || h.destino,
+                                contacto: pt.contacto || h.contacto,
+                                telefono: pt.telefono || h.telefono,
+                                servicio: pt.servicio || h.servicio
+                            };
+                        }
+                    }
+                    return { ...h, esProveedorTransporte: false };
+                });
+                
                 filtrarYMostrarTurnos();
             } catch (e) {
                 console.error('Error:', e);
@@ -716,10 +750,15 @@
             const filtroEstado = document.getElementById('filtroEstado')?.value || 'todos';
             
             let filtrados = turnosDelDia.filter(h => {
+                if (h.es_transporte === true && !h.proveedor_transporte_id) {
+                    return false;
+                }
+                
                 const coincideBusqueda = !busqueda || 
                     (h.nit && h.nit.toLowerCase().includes(busqueda)) ||
                     (h.nombre_empresa && h.nombre_empresa.toLowerCase().includes(busqueda)) ||
-                    (h.numero && h.numero.toLowerCase().includes(busqueda));
+                    (h.numero && h.numero.toLowerCase().includes(busqueda)) ||
+                    (h.nombre_proveedor && h.nombre_proveedor.toLowerCase().includes(busqueda));
                 
                 let coincideEstado = true;
                 if (filtroEstado === 'pendiente') coincideEstado = h.autorizado_salida !== true;
@@ -732,24 +771,26 @@
                 listaDiv.innerHTML = '<p class="empty-message">No hay turnos que coincidan</p>';
             } else {
                 listaDiv.innerHTML = filtrados.map(h => `
-                    <div class="pending-exit-item ${h.autorizado_salida === true ? 'autorizado' : ''}" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos || ''}" data-peso="${h.peso || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}">
+                    <div class="pending-exit-item ${h.autorizado_salida === true ? 'autorizado' : ''}" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos || ''}" data-peso="${h.peso || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}" data-proveedortransporteid="${h.esProveedorTransporte ? h.proveedorTransporte?.id || '' : ''}" data-estransporte="${h.esProveedorTransporte ? 'true' : 'false'}" data-nombreproveedor="${h.nombre_proveedor || ''}" data-inspeccion="${h.inspeccion_fisica ? 'true' : 'false'}" data-estado="${h.autorizado_salida ? 'autorizado' : 'pendiente'}">
                         <div class="pending-exit-header">
                             <span class="pending-exit-number">${h.numero}</span>
-                            <span class="pending-exit-company">${h.nombre_empresa}</span>
-                            <span class="pending-exit-status">${h.autorizado_salida === true ? 'AUTORIZADO' : 'PENDIENTE'}</span>
+                            <span class="pending-exit-company">${h.nombre_empresa}${h.esProveedorTransporte ? ' (' + (h.nombre_proveedor || 'Proveedor') + ')' : ''}</span>
+                            <span class="pending-exit-status">${h.autorizado_salida === true ? 'AUTORIZADO' : (h.inspeccion_fisica ? 'INSPEC. OK' : 'PENDIENTE')}${h.esProveedorTransporte ? ' (Transporte)' : ''}</span>
                         </div>
                         <div class="pending-exit-details">
                             <span><strong>Placa:</strong> ${h.nit || 'N/A'}</span>
+                            <span><strong>Proveedor:</strong> ${h.nombre_proveedor || h.nombre_empresa || 'N/A'}</span>
                             <span><strong>Fact:</strong> ${h.num_factura || 'N/A'}</span>
                             <span><strong>Destino:</strong> ${h.destino || 'N/A'}</span>
                             <span><strong>Peso:</strong> ${h.peso || '0'} kg</span>
                             <span><strong>Bultos:</strong> ${h.bultos || '0'}</span>
                             <span><strong>Vehículo:</strong> ${h.tipo_vehiculo || 'N/A'}</span>
                             <span><strong>Responsable:</strong> ${h.responsable || 'N/A'}</span>
-                            ${h.contacto ? `<span><strong>Contacto:</strong> ${h.contacto}</span>` : ''}
-                            ${h.telefono ? `<span><strong>Tel:</strong> ${h.telefono}</span>` : ''}
                         </div>
-                        ${h.autorizado_salida !== true ? '<div class="pending-exit-actions"><button class="btn btn-success btn-authorize btn-large" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button><button class="btn btn-warning btn-authorize btn-large" onclick="solicitarInspeccionDesdeLista(this)">Solicitar Inspeccion</button></div>' : '<span class="autorizado-badge">✓ Autorizado</span>'}
+                         <div class="pending-exit-actions">
+                            ${h.autorizado_salida !== true ? '<button class="btn btn-success btn-authorize btn-large" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button>' : '<span class="autorizado-badge" style="margin-right: 8px;">✓ Autorizado</span>'}
+                            ${h.inspeccion_fisica ? '<span class="autorizado-badge" style="margin-left: 8px;">Inspección: SI</span>' : (h.autorizado_salida !== true ? '<button class="btn btn-warning btn-authorize btn-large" onclick="solicitarInspeccionDesdeLista(this)">Solicitar Inspección</button>' : '<span class="autorizado-badge" style="margin-left: 8px;">Inspección: NO</span>')}
+                        </div>
                     </div>
                 `).join('');
             }
@@ -766,7 +807,7 @@
             if (!window.supabaseClient) return;
             
             try {
-                const hoy = new Date().toISOString().split('T')[0];
+                const hoy = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
                 const { data, error } = await window.supabaseClient
                     .from('historial_turnos')
                     .select('autorizado_salida')
@@ -880,18 +921,51 @@
                 if (!listaDiv || !window.supabaseClient) return [];
                 
                 try {
-                    const { data, error } = await window.supabaseClient
-                        .from('historial_turnos')
-                        .select('*')
-                        .gte('fecha', `${hoy}T00:00:00`)
-                        .lte('fecha', `${hoy}T23:59:59`)
-                        .order('hora_finalizacion', { ascending: false });
+                    const [historialRes, proveedoresRes] = await Promise.all([
+                        window.supabaseClient
+                            .from('historial_turnos')
+                            .select('*')
+                            .gte('fecha', `${hoy}T00:00:00`)
+                            .lte('fecha', `${hoy}T23:59:59`)
+                            .order('hora_finalizacion', { ascending: false }),
+                        
+                        window.supabaseClient
+                            .from('proveedores_transporte')
+                            .select('*')
+                    ]);
                     
-                    if (error) throw error;
+                    const historial = historialRes.data || [];
+                    const proveedoresTransporte = proveedoresRes.data || [];
                     
-                    turnosDelDia = data || [];
+                    turnosDelDia = historial.map(h => {
+                        if (h.proveedor_transporte_id) {
+                            const pt = proveedoresTransporte.find(p => p.id === h.proveedor_transporte_id);
+                            if (pt) {
+                                return {
+                                    ...h,
+                                    esProveedorTransporte: true,
+                                    proveedorTransporte: pt,
+                                    nit: pt.nit,
+                                    nombre_proveedor: pt.nombre_proveedor,
+                                    num_factura: pt.num_factura,
+                                    tipo_vehiculo: pt.tipo_vehiculo,
+                                    bultos: pt.bultos,
+                                    peso: pt.peso,
+                                    responsable: pt.responsable,
+                                    nombre_empresa: pt.nombre_empresa || h.nombre_empresa,
+                                    motivo: pt.motivo || h.motivo,
+                                    destino: pt.destino || h.destino,
+                                    contacto: pt.contacto || h.contacto,
+                                    telefono: pt.telefono || h.telefono,
+                                    servicio: pt.servicio || h.servicio
+                                };
+                            }
+                        }
+                        return { ...h, esProveedorTransporte: false };
+                    });
+                    
                     filtrarYMostrarTurnos();
-                    return data || [];
+                    return historial || [];
                 } catch (e) {
                     console.error('Error consultando pendientes:', e);
                     if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
@@ -930,28 +1004,52 @@
                 if (!listaDiv || !window.supabaseClient) return [];
                 
                 try {
-                    const { data, error } = await window.supabaseClient
-                        .from('historial_turnos')
-                        .select('numero, nombre_empresa, nit, destino, contacto, telefono, num_factura, tipo_vehiculo, bultos, peso, responsable, hora_finalizacion, autorizado_salida')
-                        .order('hora_finalizacion', { ascending: false })
-                        .limit(20);
+            const hoy = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
                     
-                    if (error) throw error;
+                    const [historialRes, proveedoresRes] = await Promise.all([
+                        window.supabaseClient
+                            .from('historial_turnos')
+                            .select('*')
+                            .order('hora_finalizacion', { ascending: false })
+                            .limit(20),
+                        
+                        window.supabaseClient
+                            .from('proveedores_transporte')
+                            .select('*')
+                            .gte('fecha_registro', `${hoy}T00:00:00`)
+                    ]);
                     
-                    if (!data || data.length === 0) {
+                    const data = historialRes.data || [];
+                    const proveedoresTransporte = proveedoresRes.data || [];
+                    
+                    const historialConProveedores = data.filter(h => !(h.es_transporte === true && !h.proveedor_transporte_id)).map(h => {
+                        if (h.es_transporte && h.proveedor_transporte_id) {
+                            const pt = proveedoresTransporte.find(p => p.id === h.proveedor_transporte_id);
+                            if (pt) {
+                                return {
+                                    ...h,
+                                    nombre_proveedor: pt.nombre_proveedor || h.nombre_proveedor,
+                                    proveedor_destino: pt.destino || h.destino
+                                };
+                            }
+                        }
+                        return { ...h, nombre_proveedor: h.nombre_proveedor || null };
+                    });
+                    
+                    if (!historialConProveedores || historialConProveedores.length === 0) {
                         listaDiv.innerHTML = '<p class="empty-message">Sin historial</p>';
                     } else {
                         const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
                         listaDiv.innerHTML = `
                             <table class="history-table-desp">
-                                <thead>
-                                    <tr>
-                                        <th>#</th><th>Empresa</th><th>Placa</th><th>Factura</th>
-                                        <th>Destino</th><th>Tipo</th><th>Peso</th><th>Responsable</th><th>Hora</th><th>Estado</th><th></th>
-                                    </tr>
-                                </thead>
+                                    <thead>
+                                        <tr>
+                                            <th>#</th><th>Empresa</th><th>Proveedor</th><th>Placa</th><th>Factura</th>
+                                            <th>Tipo</th><th>Bultos</th><th>Peso</th><th>Responsable</th><th>Hora</th><th>Inspeccion</th><th>Estado</th><th>Destino</th><th></th>
+                                        </tr>
+                                    </thead>
                                 <tbody>
-                                    ${data.map(h => {
+                                    ${historialConProveedores.map(h => {
                                         let horaFin = '-';
                                         if (h.hora_finalizacion) {
                                             const partes = h.hora_finalizacion.split(':');
@@ -963,18 +1061,24 @@
                                                 horaFin = `${hra}:${min} ${ampm}`;
                                             }
                                         }
+                                        const displayDestino = h.proveedor_destino && h.proveedor_destino !== h.destino 
+                                            ? (destinoLabel[h.proveedor_destino] || h.proveedor_destino) 
+                                            : (destinoLabel[h.destino] || h.destino || '-');
                                         return `
                                             <tr>
                                                 <td><strong>${h.numero}</strong></td>
-                                                <td>${h.nombre_empresa || '-'}</td>
+                                                <td>${h.es_transporte ? (h.nombre_empresa || '-') : '-'}</td>
+                                                <td>${h.nombre_proveedor || (h.es_transporte ? '-' : h.nombre_empresa || '-')}</td>
                                                 <td>${h.nit || '-'}</td>
                                                 <td>${h.num_factura || '-'}</td>
-                                                <td>${destinoLabel[h.destino] || h.destino || '-'}</td>
                                                 <td>${h.tipo_vehiculo || '-'}</td>
+                                                <td>${h.bultos || '-'}</td>
                                                 <td>${h.peso || '-'}</td>
                                                 <td>${h.responsable || '-'}</td>
                                                 <td>${horaFin}</td>
+                                                <td>${h.inspeccion_fisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
                                                 <td>${h.autorizado_salida ? '<span class="estado-ok">✓ OK</span>' : '<span class="estado-pend">PEND</span>'}</td>
+                                                <td>${displayDestino}</td>
                                                 <td><button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button></td>
                                             </tr>
                                         `;
@@ -983,7 +1087,7 @@
                             </table>
                         `;
                     }
-                    return data || [];
+                    return historialConProveedores || [];
                 } catch (e) {
                     console.error('Error consultando historial:', e);
                     if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
@@ -1072,6 +1176,11 @@
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos' }, () => {
                             console.log('📋 Cambio en turnos detectado, recargando...');
                             cargarTodoDespachador();
+                        })
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'proveedores_transporte' }, () => {
+                            console.log('🚛 Cambio en proveedores_transporte detectado, recargando...');
+                            cargarTurnosPendientesSalida();
+                            cargarEstadisticasDespachador();
                         })
                         .subscribe(status => {
                             console.log('📡 Estado suscripción:', status);
@@ -1214,42 +1323,99 @@
                     const infoDespachoDiv = document.getElementById('infoDespachoActual');
                     const btnAutorizar = document.getElementById('btnAutorizarSalida');
                     
-                    if (turnoListoDiv) {
+                    if (!turnoListoDiv) return;
+                    
+                    if (proveedor.esTransporte && Array.isArray(proveedor.proveedores) && proveedor.proveedores.length > 0) {
+                        const proveedoresPendientes = proveedor.proveedores.filter(p => !p.autorizadoSalida);
+                        
+                        if (proveedoresPendientes.length === 0) {
+                            turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Todos los proveedores autorizados</div>';
+                            if (btnAutorizar) btnAutorizar.disabled = true;
+                            localStorage.removeItem('proveedorListoSalir');
+                            return;
+                        }
+                        
+                        turnoListoDiv.innerHTML = `
+                            <div class="turn-number-large">${proveedor.proveedores.length}</div>
+                            <div class="turn-empresa">Proveedores de Transporte (${proveedoresPendientes.length} pendientes)</div>
+                            <div class="turn-badge">TRANSPORTE - ${proveedoresPendientes.length} PROVEEDOR(es) PENDIENTES</div>
+                        `;
+                        
+                        if (infoDespachoDiv) {
+                            infoDespachoDiv.innerHTML = `
+                                <p><strong>Turno:</strong> ${proveedor.numero}</p>
+                                <p><strong>Total proveedores:</strong> ${proveedor.proveedores.length}</p>
+                                <p><strong>Pendientes de salida:</strong> ${proveedoresPendientes.length}</p>
+                            `;
+                        }
+                        
+                        if (btnAutorizar) {
+                            btnAutorizar.disabled = true;
+                            btnAutorizar.textContent = 'Autorizar Salida';
+                        }
+                        
+                        renderizarProveedoresPendientes(proveedoresPendientes, proveedor.numero);
+                    } else {
                         turnoListoDiv.innerHTML = `
                             <div class="turn-number-large">${proveedor.numero}</div>
                             <div class="turn-empresa">${proveedor.nombre || 'Proveedor'}</div>
                             <div class="turn-badge">COMPLETADO - Esperando Salida</div>
                         `;
-                    }
-                    
-                    if (infoDespachoDiv) {
-                        infoDespachoDiv.innerHTML = `
-                            <p><strong>Placa:</strong> ${proveedor.nit || 'N/A'}</p>
-                            <p><strong>Factura:</strong> ${proveedor.numFactura || 'N/A'}</p>
-                            <p><strong>Tipo:</strong> ${proveedor.tipoVehiculo || 'N/A'}</p>
-                            <p><strong>Bultos:</strong> ${proveedor.bultos || 'N/A'}</p>
-                            <p><strong>Peso:</strong> ${proveedor.peso || 'N/A'} kg</p>
-                            <p><strong>Responsable:</strong> ${proveedor.responsable || 'N/A'}</p>
-                            <p><strong>Destino:</strong> ${proveedor.destino || 'N/A'}</p>
-                            <p><strong>Contacto:</strong> ${proveedor.contacto || 'N/A'}</p>
-                            <p><strong>Teléfono:</strong> ${proveedor.telefono || 'N/A'}</p>
-                        `;
-                    }
-                    
-                    if (btnAutorizar) {
-                        btnAutorizar.disabled = false;
-                    }
-                    
-                    const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
-                    if (btnInspeccion) {
-                        btnInspeccion.disabled = false;
-                        btnInspeccion.textContent = 'Solicitar Inspeccion';
+                        
+                        if (infoDespachoDiv) {
+                            infoDespachoDiv.innerHTML = `
+                                <p><strong>Placa:</strong> ${proveedor.nit || 'N/A'}</p>
+                                <p><strong>Proveedor:</strong> ${proveedor.nombre || 'N/A'}</p>
+                                <p><strong>Factura:</strong> ${proveedor.numFactura || 'N/A'}</p>
+                                <p><strong>Tipo:</strong> ${proveedor.tipoVehiculo || 'N/A'}</p>
+                                <p><strong>Bultos:</strong> ${proveedor.bultos || 'N/A'}</p>
+                                <p><strong>Peso:</strong> ${proveedor.peso || 'N/A'} kg</p>
+                                <p><strong>Responsable:</strong> ${proveedor.responsable || 'N/A'}</p>
+                                <p><strong>Destino:</strong> ${proveedor.destino || 'N/A'}</p>
+                                <p><strong>Inspección:</strong> ${proveedor.inspeccionFisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</p>
+                            `;
+                        }
+                        
+                        if (btnAutorizar) {
+                            btnAutorizar.disabled = false;
+                        }
+                        
+                        const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
+                        if (btnInspeccion) {
+                            btnInspeccion.disabled = false;
+                            btnInspeccion.textContent = 'Solicitar Inspeccion';
+                        }
                     }
                     
                     if (proveedorListoAnterior !== proveedor.timestamp) {
                         proveedorListoAnterior = proveedor.timestamp;
                         reproducirAlertaSalida(proveedor);
                     }
+                }
+                
+                function renderizarProveedoresPendientes(proveedores, turnoNumero) {
+                    const infoDiv = document.getElementById('infoDespachoActual');
+                    if (!infoDiv) return;
+                    
+                    if (proveedores.length === 0) {
+                        infoDiv.innerHTML += '<div style="margin-top: 12px; padding: 10px; background: #dcfce7; border-radius: 6px; color: #166534;">Todos los proveedores autorizados</div>';
+                        return;
+                    }
+                    
+                    const html = proveedores.map((p, i) => `
+                        <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #8b5cf6;">
+                            <div style="font-weight: 600; color: #3741a5;">${p.nombreProveedor || p.nit || 'N/A'}</div>
+                            <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
+                                Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
+                            </div>
+                            <div style="margin-top: 6px;">
+                                <button class="btn btn-success btn-small" style="margin-right: 6px;" onclick="DespachadorHandlers.autorizarProveedorTransporteIndividual(${p.id}, '${turnoNumero || ''}', '${p.nombreProveedor || ''}'); setTimeout(() => { const d = JSON.parse(localStorage.getItem('proveedorListoSalir')||'{}'); if(d.proveedores){ d.proveedores = d.proveedores.filter(p2 => p2.id !== ${p.id}); if(d.proveedores.length) localStorage.setItem('proveedorListoSalir', JSON.stringify(d)); else localStorage.removeItem('proveedorListoSalir'); } mostrarProveedorListo(d); cargarTurnosPendientesSalida(); cargarEstadisticasDespachador(); }, 800);">Autorizar</button>
+                                <button class="btn btn-secondary btn-small" onclick="DespachadorHandlers.solicitarInspeccionProveedorTransporteIndividual(${p.id}, '${p.nombreProveedor || ''}'); setTimeout(() => { cargarTurnosPendientesSalida(); }, 800);">Inspección</button>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    infoDiv.innerHTML += `<hr style="margin: 12px 0;"><h4 style="color: #3741a5;">Proveedores Pendientes:</h4>${html}`;
                 }
                 
                 async function reproducirAlertaSalida(proveedor) {
@@ -1481,15 +1647,39 @@
                     }
                     
                     try {
-                        const { data, error } = await window.supabaseClient
-                            .from('historial_turnos')
-                            .select('numero, nombre_empresa, nit, destino, contacto, telefono, num_factura, tipo_vehiculo, bultos, peso, responsable, hora_finalizacion, autorizado_salida')
-                            .order('hora_finalizacion', { ascending: false })
-                            .limit(20);
+            const hoy = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
                         
-                        if (error) throw error;
+                        const [historialRes, proveedoresRes] = await Promise.all([
+                            window.supabaseClient
+                                .from('historial_turnos')
+                                .select('*')
+                                .order('hora_finalizacion', { ascending: false })
+                                .limit(20),
+                            
+                            window.supabaseClient
+                                .from('proveedores_transporte')
+                                .select('*')
+                                .gte('fecha_registro', `${hoy}T00:00:00`)
+                        ]);
                         
-                        if (!data || data.length === 0) {
+                        const data = historialRes.data || [];
+                        const proveedoresTransporte = proveedoresRes.data || [];
+                        
+                        const historialConProveedores = data.filter(h => !(h.es_transporte === true && !h.proveedor_transporte_id)).map(h => {
+                            if (h.es_transporte && h.proveedor_transporte_id) {
+                                const pt = proveedoresTransporte.find(p => p.id === h.proveedor_transporte_id);
+                                if (pt) {
+                                    return {
+                                        ...h,
+                                        nombre_proveedor: pt.nombre_proveedor || h.nombre_proveedor,
+                                        proveedor_destino: pt.destino || h.destino
+                                    };
+                                }
+                            }
+                            return { ...h, nombre_proveedor: h.nombre_proveedor || null };
+                        });
+                        
+                        if (!historialConProveedores || historialConProveedores.length === 0) {
                             listaDiv.innerHTML = '<p class="empty-message">Sin historial</p>';
                         } else {
                             const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
@@ -1499,19 +1689,22 @@
                                         <tr>
                                             <th>#</th>
                                             <th>Empresa</th>
+                                            <th>Proveedor</th>
                                             <th>Placa</th>
                                             <th>Factura</th>
-                                            <th>Destino</th>
                                             <th>Tipo</th>
+                                            <th>Bultos</th>
                                             <th>Peso</th>
                                             <th>Responsable</th>
                                             <th>Hora</th>
+                                            <th>Inspeccion</th>
                                             <th>Estado</th>
+                                            <th>Destino</th>
                                             <th></th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${data.map(h => {
+                                        ${historialConProveedores.map(h => {
                                             let horaFin = '-';
                                             if (h.hora_finalizacion) {
                                                 const partes = h.hora_finalizacion.split(':');
@@ -1523,20 +1716,26 @@
                                                     horaFin = `${hra}:${min} ${ampm}`;
                                                 }
                                             }
+                                            const displayDestino = h.proveedor_destino && h.proveedor_destino !== h.destino 
+                                                ? (destinoLabel[h.proveedor_destino] || h.proveedor_destino) 
+                                                : (destinoLabel[h.destino] || h.destino || '-');
                                             return `
-                                                <tr>
-                                                    <td><strong>${h.numero}</strong></td>
-                                                    <td>${h.nombre_empresa || '-'}</td>
-                                                    <td>${h.nit || '-'}</td>
-                                                    <td>${h.num_factura || '-'}</td>
-                                                    <td>${destinoLabel[h.destino] || h.destino || '-'}</td>
-                                                    <td>${h.tipo_vehiculo || '-'}</td>
-                                                    <td>${h.peso || '-'}</td>
-                                                    <td>${h.responsable || '-'}</td>
-                                                    <td>${horaFin}</td>
+                                            <tr>
+                                                <td><strong>${h.numero}</strong></td>
+                                                <td>${h.es_transporte ? (h.nombre_empresa || '-') : '-'}</td>
+                                                <td>${h.nombre_proveedor || (h.es_transporte ? '-' : h.nombre_empresa || '-')}</td>
+                                                <td>${h.nit || '-'}</td>
+                                                <td>${h.num_factura || '-'}</td>
+                                                <td>${h.tipo_vehiculo || '-'}</td>
+                                                <td>${h.bultos || '-'}</td>
+                                                <td>${h.peso || '-'}</td>
+                                                <td>${h.responsable || '-'}</td>
+                                                <td>${horaFin}</td>
+                                                <td>${h.inspeccion_fisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
                                                 <td>${h.autorizado_salida ? '<span class="estado-ok">✓ OK</span>' : '<span class="estado-pend">PEND</span>'}</td>
-                                                    <td><button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button></td>
-                                                </tr>
+                                                <td>${displayDestino}</td>
+                                                <td><button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button></td>
+                                            </tr>
                                             `;
                                         }).join('')}
                                     </tbody>
@@ -1569,7 +1768,21 @@
                         horaLlamada: item.dataset.horallamada
                     };
                     
-                    await window.DespachadorHandlers.autorizarSalida(turno);
+                    if (item.dataset.estransporte === 'true' && item.dataset.proveedortransporteid) {
+                        turno.proveedorTransporteId = parseInt(item.dataset.proveedortransporteid);
+                        turno.esTransporte = true;
+                        turno.nombreProveedor = item.dataset.nombreproveedor || '';
+                        await window.DespachadorHandlers._autorizarProveedorTransporteIndividual(turno);
+                        if (window.supabaseClient) {
+                            await window.supabaseClient.from('notificaciones_salida').insert({
+                                mensaje: `Salida autorizada para proveedor ${item.dataset.nombreproveedor || item.dataset.nit || turno.numero}`,
+                                remitente: 'despachador',
+                                leido: false
+                            });
+                        }
+                    } else {
+                        await window.DespachadorHandlers.autorizarSalida(turno);
+                    }
                     setTimeout(() => {
                         cargarTurnosPendientesSalida();
                         cargarEstadisticasDespachador();
@@ -1582,6 +1795,7 @@
                     const turno = {
                         numero: item.dataset.numero,
                         nombre: item.dataset.nombre,
+                        nombreProveedor: item.dataset.nombreproveedor || '',
                         nit: item.dataset.nit,
                         motivo: item.dataset.motivo,
                         destino: item.dataset.destino,
@@ -1594,10 +1808,16 @@
                         peso: item.dataset.peso,
                         responsable: item.dataset.responsable,
                         horaSolicitud: item.dataset.horasolicitud,
-                        horaLlamada: item.dataset.horallamada
+                        horaLlamada: item.dataset.horallamada,
+                        inspeccionFisica: item.dataset.inspeccion === 'true'
                     };
                     
-                    await window.DespachadorHandlers.solicitarInspeccion(turno);
+                    if (item.dataset.estransporte === 'true' && item.dataset.proveedortransporteid) {
+                        turno.proveedorTransporteId = parseInt(item.dataset.proveedortransporteid);
+                        await window.DespachadorHandlers.solicitarInspeccion(turno);
+                    } else {
+                        await window.DespachadorHandlers.solicitarInspeccion(turno);
+                    }
                 };
                 
                 const btnActualizarPendientes = document.getElementById('btnActualizarPendientes');

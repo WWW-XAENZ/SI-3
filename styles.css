@@ -2026,6 +2026,24 @@ input[type="time"]:focus {
     animation: fadeIn 0.3s ease;
 }
 
+.modal.no-close {
+    pointer-events: auto;
+}
+
+.modal.no-close .modal-content {
+    pointer-events: auto;
+}
+
+.modal.no-close::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -1;
+}
+
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }

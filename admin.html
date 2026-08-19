@@ -696,9 +696,8 @@
     </div>
 
     <!-- Modal Despacho -->
-    <div id="despachoModal" class="modal">
+    <div id="despachoModal" class="modal no-close">
         <div class="modal-content">
-            <button class="close-modal">&times;</button>
             <h2>Informacion de Despacho</h2>
             <div class="modal-turn-number" id="despachoTurnNumber">--</div>
             <div class="modal-turn-info" id="despachoTurnInfo"></div>
@@ -737,19 +736,97 @@
                     <label>Responsable:</label>
                     <input type="text" id="despachoResponsable" placeholder="Nombre del responsable">
                 </div>
-                <button type="button" class="btn btn-primary" onclick="AdminHandlers.guardarDespacho()">Confirmar</button>
-            </form>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="supabase-config.js"></script>
-    <script src="app.js?v=3"></script>
-
-    <!-- Modal Salida Autorizada (por despachador) -->
-    <div id="modalSalidaDespachador" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 500px; border: 3px solid #22c55e;">
+                 <button type="button" class="btn btn-primary" onclick="AdminHandlers.guardarDespacho()">Confirmar</button>
+             </form>
+             
+             <div class="form-group" style="margin-top: 20px; padding-top: 20px; border-top: 2px dashed #e2e8f0;">
+                 <label>
+                     <input type="checkbox" id="esTransporteCheckbox" onchange="AdminHandlers.toggleEsTransporte()">
+                     Es transporte (múltiples proveedores)
+                 </label>
+                 <button type="button" id="btnEsTransporte" class="btn btn-warning" style="margin-top: 10px; display: none;" onclick="AdminHandlers.abrirModalTransportista()">
+                     [ES TRANSPORTADORA]
+                 </button>
+             </div>
+         </div>
+     </div>
+     
+     <!-- Modal Transportistas -->
+      <div id="transportistaModal" class="modal no-close">
+          <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+              <h2>Proveedores de Transporte</h2>
+              <div class="modal-turn-number" id="transportistaTurnoNumero">--</div>
+              <div class="modal-turn-info" id="transportistaTurnoInfo"></div>
+              
+               <div style="background: #f8fafc; padding: 16px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
+                   <h3 style="margin: 0 0 12px 0; font-size: 14px; color: #475569;">Agregar Proveedor</h3>
+                   <p style="font-size: 12px; color: #94a3b8; margin-top: 0;">Placa: <strong style="color: #334155;" id="transportistaPlacaInfo">--</strong> | Tipo: <strong style="color: #334155;" id="transportistaTipoInfo">--</strong></p>
+                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label>Nombre del proveedor:</label>
+                             <input type="text" id="transportistaNombreProveedor" placeholder="Nombre del proveedor">
+                         </div>
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label>Tipo Vehiculo:</label>
+                             <select id="transportistaTipoVehiculo">
+                                 <option value="">Seleccionar...</option>
+                                 <option value="MULA">MULA</option>
+                                 <option value="SENCILLO">SENCILLO</option>
+                                 <option value="CARPADO">CARPADO</option>
+                                 <option value="FURGON">FURGON</option>
+                                 <option value="MOTO">MOTO</option>
+                                 <option value="PARTICULAR">PARTICULAR</option>
+                                 <option value="OTRO">OTRO</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Factura:</label>
+                            <input type="text" id="transportistaFactura" placeholder="Número de factura">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Bultos:</label>
+                            <input type="number" id="transportistaBultos" placeholder="Cantidad" min="0">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Peso (kg):</label>
+                            <input type="text" id="transportistaPeso" placeholder="Peso en kg">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Responsable:</label>
+                            <input type="text" id="transportistaResponsable" placeholder="Nombre del responsable">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Destino:</label>
+                            <select id="transportistaDestino">
+                                <option value="">Seleccionar...</option>
+                                <option value="ensambles">SI ENSAMBLES</option>
+                                <option value="plasticos">SI3 ZF SAS</option>
+                                <option value="ambos">AMBOS</option>
+                            </select>
+                        </div>
+                   </div>
+                  <button type="button" class="btn btn-primary" style="margin-top: 16px;" onclick="AdminHandlers.agregarProveedorTransportista()">
+                      Agregar Proveedor
+                  </button>
+              </div>
+             
+             <div>
+                 <h3 style="font-size: 14px; color: #475569; margin-top: 0;">Proveedores Agregados (<span id="contadorProveedoresTransporte">0</span>)</h3>
+                 <div id="listaProveedoresTransporte" style="max-height: 240px; overflow-y: auto;">
+                     <p class="empty-message">No hay proveedores agregados</p>
+                 </div>
+             </div>
+             
+             <div style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #e2e8f0; text-align: center;">
+                 <button type="button" class="btn btn-success" style="padding: 16px 32px; font-size: 16px;" onclick="AdminHandlers.finalizarProveedores()">
+                     FINALIZAR REGISTRO DE PROVEEDORES
+                 </button>
+             </div>
+         </div>
+      </div>
+      
+     <!-- Modal Salida Autorizada (por despachador) -->
+     <div id="modalSalidaDespachador" class="modal" style="display: none;"><div class="modal-content" style="max-width: 500px; border: 3px solid #22c55e;">
             <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 20px; text-align: center; border-radius: 10px 10px 0 0; margin: -24px -24px 20px -24px;">
                 <h2 style="color: white; margin: 0; font-size: 22px;">SALIDA AUTORIZADA</h2>
                 <p style="color: #dcfce7; margin: 5px 0 0 0;">El despachador ha confirmado la salida</p>
@@ -779,10 +856,14 @@
                 <p style="color: #475569;">Se requiere Inspeccion fisica antes de autorizar la salida.</p>
             </div>
             <button class="btn btn-warning" style="width: 100%; padding: 14px; font-size: 16px;" onclick="cerrarModalInspeccion()">ACEPTAR</button>
-        </div>
-    </div>
+         </div>
+     </div>
 
-    <script>
+     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+     <script src="supabase-config.js"></script>
+     <script src="app.js?v=4"></script>
+     <script>
         window.salidaDespachadorAnterior = null;
         window.inspeccionAnterior = null;
         let modalVisible = false;
@@ -1068,6 +1149,15 @@
         }
 
         initNotificacionesRealtime();
+        
+        if (window.supabaseClient && window.SupabaseDB && typeof window.SupabaseDB.suscribirCambiosProveedoresTransporte === 'function') {
+            window.SupabaseDB.suscribirCambiosProveedoresTransporte(async () => {
+                console.log('🚛 Cambio en proveedores_transporte detectado');
+                if (AppState.proveedoresTransporte && AppState.proveedoresTransporte.length > 0) {
+                    await RenderAdmin.todo();
+                }
+            });
+        }
     </script>
 
     <!-- Modal Certificado -->

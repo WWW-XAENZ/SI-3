@@ -137,12 +137,16 @@
             <h2>Panel de Facturas</h2>
             <p style="color: var(--text-secondary); margin-bottom: 20px;">Solo lectura - Visualización de facturas registradas</p>
             <div style="overflow-x: auto;">
+                <div style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center;">
+                    <label for="buscadorFacturas" style="font-weight: 600; color: #334155;">Buscar:</label>
+                    <input type="text" id="buscadorFacturas" placeholder="Factura, proveedor o destino" style="flex: 1; padding: 10px 12px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 14px;">
+                </div>
                 <table class="facturas-table">
                     <thead>
                         <tr>
-                            <th>Factura</th>
-                            <th>Empresa</th>
-                            <th>Destino</th>
+                             <th>Factura</th>
+                             <th>Proveedor</th>
+                             <th>Destino</th>
                             <th>Bultos</th>
                             <th>Peso</th>
                             <th>Fecha</th>
@@ -160,6 +164,8 @@
     <script src="supabase-config.js"></script>
     <script src="app.js?v=3"></script>
     <script>
+        let todasLasFacturas = [];
+
         async function cargarFacturas() {
             const tbody = document.getElementById('facturasBody');
             if (!tbody) return;
@@ -171,36 +177,59 @@
             
             try {
                 const { data, error } = await window.supabaseClient
-                    .from('historial_turnos')
-                    .select('num_factura, nombre_empresa, destino, bultos, peso, fecha')
+                     .from('historial_turnos')
+                    .select('num_factura, nombre_empresa, nombre_proveedor, es_transporte, destino, bultos, peso, fecha')
                     .order('fecha', { ascending: false })
                     .limit(200);
                 
                 if (error) throw error;
                 
-                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
-                
-                if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="empty-message">No hay facturas registradas</td></tr>';
-                } else {
-                    tbody.innerHTML = data.map(f => `
-                        <tr>
-                            <td>${f.num_factura || '-'}</td>
-                            <td>${f.nombre_empresa || '-'}</td>
-                            <td>${destinoLabel[f.destino] || f.destino || '-'}</td>
-                            <td>${f.bultos || '-'}</td>
-                            <td>${f.peso || '-'}</td>
-                            <td>${f.fecha ? f.fecha.split('T')[0] : '-'}</td>
-                        </tr>
-                    `).join('');
-                }
+                todasLasFacturas = data || [];
+                aplicarFiltroFacturas();
             } catch (error) {
                 console.error('Error al cargar facturas:', error);
                 tbody.innerHTML = '<tr><td colspan="6" class="empty-message">Error al cargar</td></tr>';
             }
         }
-        
+
+        function aplicarFiltroFacturas() {
+            const tbody = document.getElementById('facturasBody');
+            if (!tbody) return;
+
+            const buscador = document.getElementById('buscadorFacturas');
+            const query = (buscador?.value || '').trim().toLowerCase();
+
+            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+
+            const filtradas = todasLasFacturas.filter(f => {
+                if (!query) return true;
+                const factura = (f.num_factura || '').toLowerCase();
+                const proveedor = ((f.es_transporte && f.nombre_proveedor) ? f.nombre_proveedor : (f.nombre_empresa || f.nombre_proveedor || '')).toLowerCase();
+                const destino = (destinoLabel[f.destino] || f.destino || '').toLowerCase();
+                return factura.includes(query) || proveedor.includes(query) || destino.includes(query);
+            });
+
+            if (filtradas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-message">No hay facturas registradas</td></tr>';
+            } else {
+                tbody.innerHTML = filtradas.map(f => `
+                    <tr>
+                        <td>${f.num_factura || '-'}</td>
+                        <td>${(f.es_transporte && f.nombre_proveedor) ? f.nombre_proveedor : (f.nombre_empresa || f.nombre_proveedor || '-')}</td>
+                        <td>${destinoLabel[f.destino] || f.destino || '-'}</td>
+                        <td>${f.bultos || '-'}</td>
+                        <td>${f.peso || '-'}</td>
+                        <td>${f.fecha ? f.fecha.split('T')[0] : '-'}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
+            const buscador = document.getElementById('buscadorFacturas');
+            if (buscador) {
+                buscador.addEventListener('input', aplicarFiltroFacturas);
+            }
             cargarFacturas();
         });
 
