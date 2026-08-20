@@ -2762,16 +2762,24 @@ const RenderAdmin = {
         }
     },
 
-async historial() {
+    async historial(historialParam) {
         const historialDiv = document.getElementById('historialTurnos');
         if (!historialDiv) return;
 
         console.log('RenderAdmin.historial llamado');
+
+        let historial;
+        if (Array.isArray(historialParam)) {
+            historial = historialParam;
+        } else {
+            const fechaInput = document.getElementById('fechaHistorial');
+            const fechaFiltro = fechaInput && fechaInput.value ? fechaInput.value : null;
+            historial = await SupabaseDB.cargarHistorial(100, fechaFiltro);
+        }
+        if (window.BusquedaHistorial) BusquedaHistorial.setHistorial(historial || []);
+        console.log('Historial cargado:', historial.length, 'registros');
         
         try {
-            const historial = await SupabaseDB.cargarHistorial();
-            console.log('Historial cargado:', historial.length, 'registros');
-            
             if (historial.length === 0) {
                 historialDiv.innerHTML = '<p class="empty-message">No hay historial de turnos</p>';
             } else {
@@ -4637,6 +4645,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btnLimpiar = document.getElementById('btnLimpiarHistorial');
         if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
         
+        const fechaHistorialInput = document.getElementById('fechaHistorial');
+        if (fechaHistorialInput) {
+            fechaHistorialInput.value = getLocalDate();
+            fechaHistorialInput.addEventListener('change', () => RenderAdmin.historial());
+        }
         if (window.InputConfig) {
             window.InputConfig.configurarMayusculas();
             window.InputConfig.configurarTelefono();
@@ -5961,7 +5974,8 @@ const ExportarHoy = {
             return;
         }
         try {
-            const hoy = window.getLocalDate ? window.getLocalDate() : new Date().toISOString().split('T')[0];
+            const fechaInput = document.getElementById('fechaHistorial');
+            const hoy = (fechaInput && fechaInput.value) ? fechaInput.value : (window.getLocalDate ? window.getLocalDate() : new Date().toISOString().split('T')[0]);
             const historial = await SupabaseDB.cargarHistorial(500, hoy);
             if (!historial.length) {
                 Utils.mostrarNotificacion('No hay turnos completados hoy', 'warning');
@@ -6131,6 +6145,8 @@ const PanelRendimiento = {
         .historial-toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
         #busquedaHistorial { flex: 1; min-width: 180px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #f8fafc; }
         #busquedaHistorial:focus { outline: none; border-color: #3b82f6; background: #fff; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+        #fechaHistorial { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #f8fafc; color: #1e293b; }
+        #fechaHistorial:focus { outline: none; border-color: #3b82f6; background: #fff; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
         .reloj-vivo { font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: 1px; }
         .metrica-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #475569; padding: 8px 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
         .metrica-val { font-weight: 700; color: #2563eb; font-size: 15px; }

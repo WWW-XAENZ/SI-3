@@ -663,9 +663,10 @@
                 <section class="admin-section turn-history">
                     <h2>Historial Reciente</h2>
                     <div class="historial-toolbar">
+                        <input type="date" id="fechaHistorial" title="Filtrar por día" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         <input type="text" id="busquedaHistorial" placeholder="Buscar por empresa, placa, factura..." />
-                        <button id="btnExportarHoy" class="btn btn-secondary btn-small" onclick="ExportarHoy.exportar()" title="Exportar turnos de hoy a CSV">
-                            ↓ CSV Hoy
+                        <button id="btnExportarHoy" class="btn btn-secondary btn-small" onclick="ExportarHoy.exportar()" title="Exportar turnos del día filtrado a CSV">
+                            ↓ CSV Día
                         </button>
                         <button id="btnLimpiarHistorial" class="btn btn-secondary btn-small">Limpiar</button>
                     </div>

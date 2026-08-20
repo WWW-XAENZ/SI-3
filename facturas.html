@@ -137,7 +137,9 @@
             <h2>Panel de Facturas</h2>
             <p style="color: var(--text-secondary); margin-bottom: 20px;">Solo lectura - Visualización de facturas registradas</p>
             <div style="overflow-x: auto;">
-                <div style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center;">
+                <div style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <label for="fechaFacturas" style="font-weight: 600; color: #334155;">Día:</label>
+                    <input type="date" id="fechaFacturas" title="Filtrar por día" style="padding: 10px 12px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 14px;">
                     <label for="buscadorFacturas" style="font-weight: 600; color: #334155;">Buscar:</label>
                     <input type="text" id="buscadorFacturas" placeholder="Factura, proveedor o destino" style="flex: 1; padding: 10px 12px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 14px;">
                 </div>
@@ -180,7 +182,7 @@
                      .from('historial_turnos')
                     .select('num_factura, nombre_empresa, nombre_proveedor, es_transporte, destino, bultos, peso, fecha')
                     .order('fecha', { ascending: false })
-                    .limit(200);
+                    .limit(1000);
                 
                 if (error) throw error;
                 
@@ -198,15 +200,22 @@
 
             const buscador = document.getElementById('buscadorFacturas');
             const query = (buscador?.value || '').trim().toLowerCase();
+            const fechaInput = document.getElementById('fechaFacturas');
+            const fechaFiltro = (fechaInput && fechaInput.value) ? fechaInput.value : '';
 
             const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
 
             const filtradas = todasLasFacturas.filter(f => {
-                if (!query) return true;
-                const factura = (f.num_factura || '').toLowerCase();
-                const proveedor = ((f.es_transporte && f.nombre_proveedor) ? f.nombre_proveedor : (f.nombre_empresa || f.nombre_proveedor || '')).toLowerCase();
-                const destino = (destinoLabel[f.destino] || f.destino || '').toLowerCase();
-                return factura.includes(query) || proveedor.includes(query) || destino.includes(query);
+                const fechaFactura = (f.fecha || '').split('T')[0];
+
+                if (query) {
+                    const factura = (f.num_factura || '').toLowerCase();
+                    const proveedor = ((f.es_transporte && f.nombre_proveedor) ? f.nombre_proveedor : (f.nombre_empresa || f.nombre_proveedor || '')).toLowerCase();
+                    const destino = (destinoLabel[f.destino] || f.destino || '').toLowerCase();
+                    return factura.includes(query) || proveedor.includes(query) || destino.includes(query);
+                }
+
+                return !fechaFiltro || fechaFactura === fechaFiltro;
             });
 
             if (filtradas.length === 0) {
@@ -229,6 +238,11 @@
             const buscador = document.getElementById('buscadorFacturas');
             if (buscador) {
                 buscador.addEventListener('input', aplicarFiltroFacturas);
+            }
+            const fechaInput = document.getElementById('fechaFacturas');
+            if (fechaInput) {
+                fechaInput.value = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                fechaInput.addEventListener('change', aplicarFiltroFacturas);
             }
             cargarFacturas();
         });

@@ -586,7 +586,7 @@
 
                 <!-- Estadisticas del Dia -->
                 <section class="admin-section statistics">
-                    <h2>Estadisticas de Hoy</h2>
+                    <h2>Estadisticas del Dia</h2>
                     <div class="stats-grid">
                         <div class="stat-card">
                             <div class="stat-number" id="totalTurnosDia">0</div>
@@ -643,7 +643,7 @@
                 <section class="admin-section despachador-historial">
                     <h2>Historial Reciente</h2>
                     <div class="toolbar-spaced">
-                        <button id="btnActualizarHistorialDesp" class="btn btn-secondary btn-small">Actualizar</button>
+                        <input type="date" id="fechaHistorialDesp" title="Filtrar por día" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                     </div>
                     <div id="historialDespachador" class="history-list historial-scroll">
                         <p class="empty-message">Cargando...</p>
@@ -682,6 +682,14 @@
 
         let turnosDelDia = [];
 
+        function fechaDespSeleccionada() {
+            const inp = document.getElementById('fechaHistorialDesp');
+            const val = (inp && inp.value) ? inp.value : '';
+            if (val) return val;
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+
         async function cargarTurnosPendientesSalida() {
             const listaDiv = document.getElementById('listaTurnosPendientesSalida');
             if (!listaDiv) return;
@@ -692,7 +700,7 @@
             }
             
             try {
-                const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                const today = fechaDespSeleccionada();
                 
                 const [historialRes, proveedoresRes] = await Promise.all([
                     window.supabaseClient
@@ -807,7 +815,7 @@
             if (!window.supabaseClient) return;
             
             try {
-                const hoy = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                const hoy = fechaDespSeleccionada();
                 const { data, error } = await window.supabaseClient
                     .from('historial_turnos')
                     .select('autorizado_salida')
@@ -829,6 +837,10 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🔄 Iniciando despachador...');
+            
+            const fechaDespHoy = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+            const fechaDespInput = document.getElementById('fechaHistorialDesp');
+            if (fechaDespInput) fechaDespInput.value = fechaDespHoy;
             
             window.addEventListener('storage', (e) => {
                 if (e.key === 'proveedorListoSalir' && e.newValue) {
@@ -858,6 +870,7 @@
                 }, 12000);
                 
                 cargarTodoDespachador().then(() => clearTimeout(timeoutId)).catch(() => clearTimeout(timeoutId));
+                cargarHistorialDespachador().catch(e => console.error('Error cargando historial:', e));
                 suscribirRealtime();
             });
             
@@ -893,10 +906,9 @@
                 try {
                     console.log('🔄 Ejecutando consultas a Supabase...');
                     
-                    const [resultadoPendientes, resultadoStats, resultadoHistorial, resultadoCitas] = await Promise.all([
-                        consultarPendientesSalida(hoy),
-                        consultarEstadisticas(hoy),
-                        consultarHistorial(),
+                    const [resultadoPendientes, resultadoStats, resultadoCitas] = await Promise.all([
+                        consultarPendientesSalida(fechaDespSeleccionada()),
+                        consultarEstadisticas(fechaDespSeleccionada()),
                         consultarCitas()
                     ]);
                     
@@ -979,7 +991,8 @@
                     const { data, error } = await window.supabaseClient
                         .from('historial_turnos')
                         .select('autorizado_salida')
-                        .gte('fecha', `${hoy}T00:00:00`);
+                        .gte('fecha', `${hoy}T00:00:00`)
+                        .lte('fecha', `${hoy}T23:59:59`);
                     
                     if (error) throw error;
                     
@@ -1003,21 +1016,24 @@
                 const listaDiv = document.getElementById('historialDespachador');
                 if (!listaDiv || !window.supabaseClient) return [];
                 
-                try {
-            const hoy = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
-                    
-                    const [historialRes, proveedoresRes] = await Promise.all([
-                        window.supabaseClient
-                            .from('historial_turnos')
-                            .select('*')
-                            .order('hora_finalizacion', { ascending: false })
-                            .limit(20),
-                        
-                        window.supabaseClient
-                            .from('proveedores_transporte')
-                            .select('*')
-                            .gte('fecha_registro', `${hoy}T00:00:00`)
-                    ]);
+                    try {
+            const fechaInput = document.getElementById('fechaHistorialDesp');
+            const fechaFiltro = (fechaInput && fechaInput.value) ? fechaInput.value : (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                         
+                        const [historialRes, proveedoresRes] = await Promise.all([
+                            window.supabaseClient
+                                .from('historial_turnos')
+                                .select('*')
+                                .gte('fecha', `${fechaFiltro}T00:00:00`)
+                                .lte('fecha', `${fechaFiltro}T23:59:59`)
+                                .order('hora_finalizacion', { ascending: false })
+                                .limit(50),
+                            
+                            window.supabaseClient
+                                .from('proveedores_transporte')
+                                .select('*')
+                                .gte('fecha_registro', `${fechaFiltro}T00:00:00`)
+                        ]);
                     
                     const data = historialRes.data || [];
                     const proveedoresTransporte = proveedoresRes.data || [];
@@ -1262,10 +1278,13 @@
                     verificarProveedorListo();
                 }, 15000);
                 
-                const btnActualizarHistorialDesp = document.getElementById('btnActualizarHistorialDesp');
-                if (btnActualizarHistorialDesp) {
-                    btnActualizarHistorialDesp.addEventListener('click', () => {
+                const fechaHistorialDespInput = document.getElementById('fechaHistorialDesp');
+                if (fechaHistorialDespInput) {
+                    fechaHistorialDespInput.value = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                    fechaHistorialDespInput.addEventListener('change', () => {
                         cargarHistorialDespachador();
+                        cargarTurnosPendientesSalida();
+                        cargarEstadisticasDespachador();
                     });
                 }
                 
@@ -1647,19 +1666,22 @@
                     }
                     
                     try {
-            const hoy = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
-                        
+            const fechaInput = document.getElementById('fechaHistorialDesp');
+            const fechaFiltro = (fechaInput && fechaInput.value) ? fechaInput.value : (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                         
                         const [historialRes, proveedoresRes] = await Promise.all([
                             window.supabaseClient
                                 .from('historial_turnos')
                                 .select('*')
+                                .gte('fecha', `${fechaFiltro}T00:00:00`)
+                                .lte('fecha', `${fechaFiltro}T23:59:59`)
                                 .order('hora_finalizacion', { ascending: false })
-                                .limit(20),
+                                .limit(50),
                             
                             window.supabaseClient
                                 .from('proveedores_transporte')
                                 .select('*')
-                                .gte('fecha_registro', `${hoy}T00:00:00`)
+                                .gte('fecha_registro', `${fechaFiltro}T00:00:00`)
                         ]);
                         
                         const data = historialRes.data || [];
