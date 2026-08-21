@@ -534,6 +534,90 @@
             max-height: 300px;
             overflow-y: auto;
         }
+
+        /* Tarjetas de Proveedores */
+        .proveedores-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .prov-empresa-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #fff;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+        }
+        .prov-empresa-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .prov-empresa-header:hover { background: #f8fafc; }
+        .prov-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: #fff;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .prov-empresa-info { flex: 1; min-width: 0; }
+        .prov-empresa-nombre {
+            font-weight: 700;
+            color: #1e293b;
+            font-size: 15px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .prov-empresa-sub {
+            font-size: 12px;
+            color: #64748b;
+        }
+        .prov-chevron {
+            transition: transform 0.2s ease;
+            color: #64748b;
+            font-size: 14px;
+        }
+        .prov-chevron.abierto { transform: rotate(90deg); }
+        .prov-detalles {
+            border-top: 1px solid #eef2f7;
+            padding: 8px 14px 12px 14px;
+            background: #fcfdff;
+        }
+        .prov-proveedor {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            border-radius: 8px;
+            background: #f8fafc;
+            margin-top: 8px;
+        }
+        .prov-proveedor:hover { background: #f1f5f9; }
+        .prov-proveedor-info { flex: 1; min-width: 0; }
+        .prov-proveedor-nombre { font-weight: 600; color: #334155; font-size: 14px; }
+        .prov-proveedor-meta { font-size: 12px; color: #64748b; margin-top: 2px; }
+        .prov-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .prov-badge.transporte { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+        .prov-badge.normal { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
     </style>
 </head>
 <body>
@@ -642,20 +726,9 @@
                         <button id="btnToggleProveedores" class="btn btn-secondary btn-small btn-toggle">Ocultar</button>
                     </h2>
                     <div id="proveedoresContainer" class="proveedores-container">
-                        <table class="providers-table">
-                            <thead>
-                                <tr>
-                                    <th>Empresa</th>
-                                    <th>Placa</th>
-                                    <th>Contacto</th>
-                                    <th>Telefono</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody id="proveedoresBody">
-                                <tr><td colspan="5" class="empty-message">Cargando...</td></tr>
-                            </tbody>
-                        </table>
+                        <div id="proveedoresBody" class="proveedores-cards">
+                            <p class="empty-message">Cargando...</p>
+                        </div>
                     </div>
                 </section>
 
@@ -1128,18 +1201,17 @@
                             if (window.SonidoAlerta) {
                                 SonidoAlerta.reproducir(3);
                             }
-                            if (payload.new.mensaje && payload.new.mensaje.includes('autorizada')) {
-                                mostrarAlertaSalidaDespachador({
-                                    numero: payload.new.mensaje.match(/Turno\s+([\w]+)/)?.[1] || '---',
-                                    nombre: payload.new.mensaje,
-                                    timestamp: Date.now()
-                                });
-                            } else if (payload.new.mensaje && payload.new.mensaje.includes('Inspeccion')) {
-                                mostrarAlertaInspeccion({
-                                    numero: payload.new.mensaje.match(/Turno\s+([\w]+)/)?.[1] || '---',
-                                    nombre: payload.new.mensaje,
-                                    timestamp: Date.now()
-                                });
+                            const msgNorm = (payload.new.mensaje || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+                            const esTransportadora = msgNorm.includes('transportadora');
+                            const datosAlerta = {
+                                numero: payload.new.mensaje.match(/Turno\s+([\w]+)/)?.[1] || '---',
+                                nombre: (esTransportadora ? 'TRANSPORTADORA - ' : '') + (payload.new.mensaje || ''),
+                                timestamp: Date.now()
+                            };
+                            if (msgNorm.includes('autorizada')) {
+                                mostrarAlertaSalidaDespachador(datosAlerta);
+                            } else if (msgNorm.includes('inspeccion')) {
+                                mostrarAlertaInspeccion(datosAlerta);
                             } else {
                                 Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
                             }

@@ -1344,27 +1344,28 @@
                     
                     if (!turnoListoDiv) return;
                     
+                    if (proveedor.esTransporte && (!Array.isArray(proveedor.proveedores) || proveedor.proveedores.length === 0)) {
+                        turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Todos los proveedores autorizados</div>';
+                        if (btnAutorizar) btnAutorizar.disabled = true;
+                        return;
+                    }
+                    
                     if (proveedor.esTransporte && Array.isArray(proveedor.proveedores) && proveedor.proveedores.length > 0) {
+                        const total = proveedor.proveedores.length;
                         const proveedoresPendientes = proveedor.proveedores.filter(p => !p.autorizadoSalida);
                         
-                        if (proveedoresPendientes.length === 0) {
-                            turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Todos los proveedores autorizados</div>';
-                            if (btnAutorizar) btnAutorizar.disabled = true;
-                            localStorage.removeItem('proveedorListoSalir');
-                            return;
-                        }
-                        
                         turnoListoDiv.innerHTML = `
-                            <div class="turn-number-large">${proveedor.proveedores.length}</div>
-                            <div class="turn-empresa">Proveedores de Transporte (${proveedoresPendientes.length} pendientes)</div>
-                            <div class="turn-badge">TRANSPORTE - ${proveedoresPendientes.length} PROVEEDOR(es) PENDIENTES</div>
+                            <div class="turn-number-large">${proveedor.numero}</div>
+                            <div class="turn-empresa">TRANSPORTADORA</div>
+                            <div class="turn-badge">${total} PROVEEDOR(ES) RECIBIDOS DE RECEPCIÓN</div>
                         `;
                         
                         if (infoDespachoDiv) {
                             infoDespachoDiv.innerHTML = `
                                 <p><strong>Turno:</strong> ${proveedor.numero}</p>
-                                <p><strong>Total proveedores:</strong> ${proveedor.proveedores.length}</p>
+                                <p><strong>Proveedores de la transportadora:</strong> ${total}</p>
                                 <p><strong>Pendientes de salida:</strong> ${proveedoresPendientes.length}</p>
+                                <p><strong>Autorizados:</strong> ${total - proveedoresPendientes.length}</p>
                             `;
                         }
                         
@@ -1373,7 +1374,7 @@
                             btnAutorizar.textContent = 'Autorizar Salida';
                         }
                         
-                        renderizarProveedoresPendientes(proveedoresPendientes, proveedor.numero);
+                        renderizarProveedoresPendientes(proveedor.proveedores, proveedor.numero);
                     } else {
                         turnoListoDiv.innerHTML = `
                             <div class="turn-number-large">${proveedor.numero}</div>
@@ -1416,25 +1417,33 @@
                     const infoDiv = document.getElementById('infoDespachoActual');
                     if (!infoDiv) return;
                     
-                    if (proveedores.length === 0) {
-                        infoDiv.innerHTML += '<div style="margin-top: 12px; padding: 10px; background: #dcfce7; border-radius: 6px; color: #166534;">Todos los proveedores autorizados</div>';
-                        return;
-                    }
-                    
-                    const html = proveedores.map((p, i) => `
-                        <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #8b5cf6;">
-                            <div style="font-weight: 600; color: #3741a5;">${p.nombreProveedor || p.nit || 'N/A'}</div>
-                            <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
-                                Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
+                    const html = proveedores.map((p) => {
+                        const autorizado = p.autorizadoSalida === true;
+                        const estadoBadge = autorizado
+                            ? '<span style="color:#16a34a;font-weight:700;margin-left:8px;">✓ AUTORIZADO</span>'
+                            : '<span style="color:#d97706;font-weight:700;margin-left:8px;">PENDIENTE</span>';
+                        const acciones = autorizado
+                            ? '<span class="autorizado-badge" style="margin-right:8px;">✓ Autorizado</span>'
+                            : `<button class="btn btn-success btn-small" style="margin-right: 6px;" onclick="DespachadorHandlers.autorizarProveedorTransporteIndividual(${p.id}, '${turnoNumero || ''}', '${p.nombreProveedor || ''}'); setTimeout(() => { const d = JSON.parse(localStorage.getItem('proveedorListoSalir')||'{}'); if(d.proveedores){ d.proveedores = d.proveedores.filter(p2 => p2.id !== ${p.id}); if(d.proveedores.length) localStorage.setItem('proveedorListoSalir', JSON.stringify(d)); else localStorage.removeItem('proveedorListoSalir'); } mostrarProveedorListo(d); cargarTurnosPendientesSalida(); cargarEstadisticasDespachador(); }, 800);">Autorizar</button>`;
+                        const inspeccion = autorizado
+                            ? '<span class="autorizado-badge" style="margin-left:8px;">Inspección: NO</span>'
+                            : `<button class="btn btn-secondary btn-small" onclick="DespachadorHandlers.solicitarInspeccionProveedorTransporteIndividual(${p.id}, '${p.nombreProveedor || ''}'); setTimeout(() => { cargarTurnosPendientesSalida(); }, 800);">Inspección</button>`;
+                        return `
+                            <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${autorizado ? '#22c55e' : '#8b5cf6'};">
+                                <div style="font-weight: 600; color: #3741a5;">${p.nombreProveedor || p.nit || 'N/A'}${estadoBadge}</div>
+                                <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
+                                    Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
+                                </div>
+                                <div style="margin-top: 6px;">
+                                    ${acciones}${inspeccion}
+                                </div>
                             </div>
-                            <div style="margin-top: 6px;">
-                                <button class="btn btn-success btn-small" style="margin-right: 6px;" onclick="DespachadorHandlers.autorizarProveedorTransporteIndividual(${p.id}, '${turnoNumero || ''}', '${p.nombreProveedor || ''}'); setTimeout(() => { const d = JSON.parse(localStorage.getItem('proveedorListoSalir')||'{}'); if(d.proveedores){ d.proveedores = d.proveedores.filter(p2 => p2.id !== ${p.id}); if(d.proveedores.length) localStorage.setItem('proveedorListoSalir', JSON.stringify(d)); else localStorage.removeItem('proveedorListoSalir'); } mostrarProveedorListo(d); cargarTurnosPendientesSalida(); cargarEstadisticasDespachador(); }, 800);">Autorizar</button>
-                                <button class="btn btn-secondary btn-small" onclick="DespachadorHandlers.solicitarInspeccionProveedorTransporteIndividual(${p.id}, '${p.nombreProveedor || ''}'); setTimeout(() => { cargarTurnosPendientesSalida(); }, 800);">Inspección</button>
-                            </div>
-                        </div>
-                    `).join('');
+                        `;
+                    }).join('');
                     
-                    infoDiv.innerHTML += `<hr style="margin: 12px 0;"><h4 style="color: #3741a5;">Proveedores Pendientes:</h4>${html}`;
+                    const btnTodos = `<button class="btn btn-success btn-small" style="margin-bottom: 10px;" onclick="DespachadorHandlers.autorizarTodaTransportadora('${turnoNumero || ''}'); setTimeout(() => { const d = JSON.parse(localStorage.getItem('proveedorListoSalir')||'{}'); if (d.proveedores && d.proveedores.length && d.proveedores.every(p => p.autorizadoSalida)) { localStorage.removeItem('proveedorListoSalir'); if (window.limpiarProveedorListo) window.limpiarProveedorListo(); } else if (window.mostrarProveedorListo) { window.mostrarProveedorListo(d); } cargarTurnosPendientesSalida(); cargarEstadisticasDespachador(); }, 1000);">Autorizar toda la transportadora</button>`;
+                    
+                    infoDiv.innerHTML += `<hr style="margin: 12px 0;"><h4 style="color: #3741a5;">Proveedores de la Transportadora (${proveedores.length}):</h4>${btnTodos}${html}`;
                 }
                 
                 async function reproducirAlertaSalida(proveedor) {
@@ -1474,6 +1483,48 @@
                     if (modalExistente) modalExistente.remove();
                     
                     const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+
+                    if (proveedor.esTransporte && Array.isArray(proveedor.proveedores) && proveedor.proveedores.length > 0) {
+                        const total = proveedor.proveedores.length;
+                        const pendientes = proveedor.proveedores.filter(p => !p.autorizadoSalida).length;
+                        const proveedoresHtml = proveedor.proveedores.map(p => {
+                            const autorizado = p.autorizadoSalida === true;
+                            return `
+                                <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${autorizado ? '#22c55e' : '#8b5cf6'};">
+                                    <div style="font-weight: 600; color: #3741a5;">${p.nombreProveedor || p.nit || 'N/A'} ${autorizado ? '<span style="color:#16a34a;font-weight:700;">✓ AUTORIZADO</span>' : '<span style="color:#d97706;font-weight:700;">PENDIENTE</span>'}</div>
+                                    <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
+                                        Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+
+                        const modal = document.createElement('div');
+                        modal.id = 'modal-proveedor-listo';
+                        modal.className = 'modal-overlay';
+                        modal.innerHTML = `
+                            <div class="modal-content modal-proveedor-content" style="max-width: 560px;">
+                                <div class="modal-proveedor-header" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">
+                                    <h2>TRANSPORTADORA - TURNO ${proveedor.numero}</h2>
+                                    <p>${total} proveedor(es) recibidos de recepción - ${pendientes} pendientes</p>
+                                </div>
+                                <div class="modal-proveedor-body">
+                                    <div class="modal-proveedor-numero" style="color: #7c3aed;">${proveedor.numero}</div>
+                                    <div class="modal-proveedor-nombre">Listo para autorización de salida</div>
+                                </div>
+                                <div class="modal-proveedor-detalles" style="max-height: 320px; overflow-y: auto;">
+                                    ${proveedoresHtml}
+                                </div>
+                                <div class="pending-exit-actions">
+                                    <button class="btn btn-success" onclick="DespachadorHandlers.autorizarTodaTransportadora('${proveedor.numero}'); setTimeout(() => { const d = JSON.parse(localStorage.getItem('proveedorListoSalir')||'{}'); if (d.proveedores && d.proveedores.length && d.proveedores.every(p => p.autorizadoSalida)) { localStorage.removeItem('proveedorListoSalir'); if (window.limpiarProveedorListo) window.limpiarProveedorListo(); } else if (window.mostrarProveedorListo) { window.mostrarProveedorListo(d); } cargarTurnosPendientesSalida(); cargarEstadisticasDespachador(); cerrarModalProveedorListo(); }, 1000);">Autorizar toda la transportadora</button>
+                                    <button class="btn btn-secondary" onclick="cerrarModalProveedorListo()">CERRAR</button>
+                                </div>
+                            </div>
+                        `;
+                        document.body.appendChild(modal);
+                        setTimeout(() => { modal.style.opacity = '1'; }, 10);
+                        return;
+                    }
                     
                     const modal = document.createElement('div');
                     modal.id = 'modal-proveedor-listo';
@@ -1547,6 +1598,9 @@
                         modal.remove();
                     }
                 };
+
+                window.mostrarProveedorListo = mostrarProveedorListo;
+                window.limpiarProveedorListo = limpiarProveedorListo;
                 
                 function limpiarProveedorListo() {
                     const turnoListoDiv = document.getElementById('turnoListoSalir');
@@ -1918,6 +1972,13 @@
         }
 
         initNotificacionesRealtimeDespachador();
+
+        const desbloquearAudio = () => {
+            if (window.SonidoAlerta) window.SonidoAlerta.inicializar();
+        };
+        ['click', 'keydown', 'touchstart'].forEach(ev =>
+            document.addEventListener(ev, desbloquearAudio, { once: true })
+        );
 
         (function() {
             const claveOk = sessionStorage.getItem('accesoAdmin') === 'ok';

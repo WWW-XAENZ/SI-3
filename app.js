@@ -57,10 +57,16 @@ const SonidoAlerta = {
         if (!this.contexto) {
             this.contexto = new (window.AudioContext || window.webkitAudioContext)();
         }
+        if (this.contexto && this.contexto.state === 'suspended') {
+            this.contexto.resume().catch(() => {});
+        }
     },
     
     reproducir(veces = 3) {
         this.inicializar();
+        if (this.contexto && this.contexto.state === 'suspended') {
+            this.contexto.resume().catch(() => {});
+        }
         
         for (let i = 0; i < veces; i++) {
             setTimeout(() => {
@@ -2722,44 +2728,107 @@ const RenderAdmin = {
     async proveedores() {
         const proveedoresBody = document.getElementById('proveedoresBody');
         const contadorDiv = document.getElementById('contadorProveedores');
-        
+
         if (!proveedoresBody) return;
 
         try {
             const proveedores = await SupabaseDB.cargarProveedores();
-            
+
             if (contadorDiv) contadorDiv.textContent = proveedores.length;
-            
+
             if (proveedores.length === 0) {
-                proveedoresBody.innerHTML = '<tr><td colspan="5" class="empty-message">No hay proveedores registrados</td></tr>';
-            } else {
-                proveedores.sort((a, b) => (a.nombreEmpresa || '').localeCompare(b.nombreEmpresa || ''));
-                
-                let empresaAnterior = null;
-                proveedoresBody.innerHTML = proveedores.map(p => {
-                    const empresa = p.nombreEmpresa || '-';
-                    const esNuevoGrupo = empresa !== empresaAnterior;
-                    empresaAnterior = empresa;
-                    
+                proveedoresBody.innerHTML = '<p class="empty-message">No hay proveedores registrados</p>';
+                return;
+            }
+
+            const grupos = {};
+            proveedores.forEach(p => {
+                const empresa = p.nombreEmpresa || 'Sin empresa';
+                if (!grupos[empresa]) grupos[empresa] = [];
+                grupos[empresa].push(p);
+            });
+
+            const empresas = Object.keys(grupos).sort((a, b) => a.localeCompare(b));
+
+            proveedoresBody.innerHTML = empresas.map((empresa, idx) => {
+                const lista = grupos[empresa];
+                const color = this._colorPorEmpresa(empresa);
+                const iniciales = this._iniciales(empresa);
+                const multiple = lista.length > 1;
+                const detallesId = 'prov-det-' + idx;
+                const chevronId = 'prov-chev-' + idx;
+                const expandido = !multiple;
+
+                const proveedoresHtml = lista.map(p => {
+                    const esTransporte = (p.servicio || '').toLowerCase() === 'transporte';
+                    const badge = esTransporte
+                        ? '<span class="prov-badge transporte">TRANSPORTE</span>'
+                        : (p.servicio ? `<span class="prov-badge normal">${this._labelServicio(p.servicio)}</span>` : '');
                     return `
-                        <tr>
-                            <td>${esNuevoGrupo ? `<strong>${empresa}</strong>` : '<span style="color:#cbd5e1;">—</span>'}</td>
-                            <td>${p.nit || '-'}</td>
-                            <td>${p.contacto || '-'}</td>
-                            <td>${p.telefono || '-'}</td>
-                            <td>
-                                <button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarProveedor(${p.id})">
-                                    Eliminar
-                                </button>
-                            </td>
-                        </tr>
+                        <div class="prov-proveedor">
+                            <div class="prov-proveedor-info">
+                                <div class="prov-proveedor-nombre">${p.contacto || 'Proveedor'}${badge}</div>
+                                <div class="prov-proveedor-meta">Placa/NIT: ${p.nit || '-'} &nbsp;|&nbsp; Tel: ${p.telefono || '-'}</div>
+                            </div>
+                            <button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarProveedor(${p.id})">Eliminar</button>
+                        </div>
                     `;
                 }).join('');
-            }
+
+                const subTexto = multiple
+                    ? `${lista.length} conductores - click para ${expandido ? 'ocultar' : 'mostrar'}`
+                    : (lista[0].servicio ? this._labelServicio(lista[0].servicio) : 'Proveedor');
+
+                const header = `
+                    <div class="prov-empresa-header" onclick="window.toggleProveedoresEmpresa('${detallesId}', '${chevronId}')">
+                        <div class="prov-avatar" style="background:${color};">${iniciales}</div>
+                        <div class="prov-empresa-info">
+                            <div class="prov-empresa-nombre">${empresa}</div>
+                            <div class="prov-empresa-sub">${subTexto}</div>
+                        </div>
+                        ${multiple ? `<span class="prov-chevron ${expandido ? 'abierto' : ''}" id="${chevronId}">▶</span>` : ''}
+                    </div>
+                `;
+
+                const detalles = `
+                    <div class="prov-detalles" id="${detallesId}" style="display:${expandido ? 'block' : 'none'};">
+                        ${proveedoresHtml}
+                    </div>
+                `;
+
+                return `<div class="prov-empresa-card">${header}${detalles}</div>`;
+            }).join('');
         } catch (error) {
             console.error('Error al cargar proveedores:', error);
-            proveedoresBody.innerHTML = '<tr><td colspan="5" class="empty-message">Error al cargar proveedores</td></tr>';
+            proveedoresBody.innerHTML = '<p class="empty-message">Error al cargar proveedores</p>';
         }
+    },
+
+    _iniciales(nombre) {
+        const palabras = (nombre || '?').trim().split(/\s+/).filter(Boolean);
+        if (palabras.length === 0) return '?';
+        if (palabras.length === 1) return palabras[0].slice(0, 2).toUpperCase();
+        return (palabras[0][0] + palabras[1][0]).toUpperCase();
+    },
+
+    _colorPorEmpresa(nombre) {
+        let hash = 0;
+        for (let i = 0; i < (nombre || '').length; i++) {
+            hash = nombre.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const hue = Math.abs(hash) % 360;
+        return `hsl(${hue}, 55%, 45%)`;
+    },
+
+    _labelServicio(servicio) {
+        const mapa = {
+            'entrega': 'ENTREGA',
+            'servicio': 'SERV. TÉCNICO',
+            'reunion': 'REUNIÓN',
+            'otro': 'OTRO',
+            'transporte': 'TRANSPORTE'
+        };
+        return mapa[(servicio || '').toLowerCase()] || (servicio || '').toUpperCase();
     },
 
     async historial(historialParam) {
@@ -3575,6 +3644,42 @@ const AdminHandlers = {
         if (!turnoActual) {
             Utils.mostrarNotificacion('No hay turno en atención', 'error');
             return;
+        }
+
+        if (window.supabaseClient && turnoActual.nit) {
+            try {
+                const empresa = turnoActual.nombre_empresa || 'Transportadora';
+                const { data: provExistente, error: errSel } = await window.supabaseClient
+                    .from('proveedores')
+                    .select('id')
+                    .eq('nit', turnoActual.nit)
+                    .limit(1);
+                
+                if (!errSel && provExistente && provExistente.length > 0) {
+                    await window.supabaseClient
+                        .from('proveedores')
+                        .update({
+                            servicio: 'transporte',
+                            nombre_empresa: empresa,
+                            activo: true,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('nit', turnoActual.nit);
+                } else {
+                    await window.supabaseClient
+                        .from('proveedores')
+                        .insert({
+                            nombre_empresa: empresa,
+                            nit: turnoActual.nit,
+                            servicio: 'transporte',
+                            activo: true,
+                            fecha_registro: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        });
+                }
+            } catch (e) {
+                console.warn('No se pudo marcar la empresa como transporte en el directorio:', e);
+            }
         }
 
         Utils.setLoading(true);
@@ -4863,6 +4968,15 @@ window.RenderUsuario = RenderUsuario;
 window.RenderAdmin = RenderAdmin;
 window.ModoEspera = ModoEspera;
 window.SonidoAlerta = SonidoAlerta;
+
+window.toggleProveedoresEmpresa = function(detallesId, chevronId) {
+    const det = document.getElementById(detallesId);
+    const chev = document.getElementById(chevronId);
+    if (!det) return;
+    const abierto = det.style.display !== 'none';
+    det.style.display = abierto ? 'none' : 'block';
+    if (chev) chev.classList.toggle('abierto', !abierto);
+};
 window.AppState = AppState;
 
 // ============================================
@@ -5070,6 +5184,16 @@ const DespachadorHandlers = {
                     leido: false
                 });
             }
+
+            try {
+                localStorage.setItem('salidaAutorizada', JSON.stringify({
+                    numero: turnoNumero || '---',
+                    nombre: `TRANSPORTADORA - Proveedor ${nombreEmpresa || proveedorId}`,
+                    timestamp: Date.now()
+                }));
+            } catch (e) {
+                console.warn('No se pudo enviar señal de salida a recepción:', e);
+            }
             
             try {
                 const datos = localStorage.getItem('proveedorListoSalir');
@@ -5088,6 +5212,80 @@ const DespachadorHandlers = {
             Utils.mostrarNotificacion(`Proveedor ${nombreEmpresa} - salida autorizada`, 'success');
         } catch (error) {
             console.error('Error al autorizar proveedor individual:', error);
+            Utils.mostrarNotificacion('Error al autorizar salida', 'error');
+        }
+    },
+
+    async autorizarTodaTransportadora(turnoNumero) {
+        if (!window.supabaseClient) return;
+
+        try {
+            const datos = localStorage.getItem('proveedorListoSalir');
+            if (!datos) {
+                Utils.mostrarNotificacion('No hay transportadora pendiente', 'error');
+                return;
+            }
+
+            const d = JSON.parse(datos);
+            if (!d.esTransporte || !Array.isArray(d.proveedores) || d.proveedores.length === 0) {
+                Utils.mostrarNotificacion('No hay transportadora pendiente', 'error');
+                return;
+            }
+
+            if (turnoNumero && d.numero && String(d.numero) !== String(turnoNumero)) {
+                Utils.mostrarNotificacion('El turno no coincide', 'error');
+                return;
+            }
+
+            const pendientes = d.proveedores.filter(p => !p.autorizadoSalida && p.id);
+            if (pendientes.length === 0) {
+                Utils.mostrarNotificacion('Todos los proveedores ya están autorizados', 'info');
+                return;
+            }
+
+            const ids = pendientes.map(p => p.id);
+            const horaFin = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+            const { error } = await window.supabaseClient
+                .from('proveedores_transporte')
+                .update({
+                    autorizado_salida: true,
+                    estado: 'autorizado_salida',
+                    hora_finalizacion: horaFin
+                })
+                .in('id', ids);
+
+            if (error) throw error;
+
+            await window.supabaseClient
+                .from('historial_turnos')
+                .update({ autorizado_salida: true })
+                .in('proveedor_transporte_id', ids);
+
+            if (window.supabaseClient) {
+                await window.supabaseClient.from('notificaciones_salida').insert({
+                    mensaje: `Salida autorizada para toda la transportadora - Turno ${d.numero}`,
+                    remitente: 'despachador',
+                    leido: false
+                });
+            }
+
+            d.proveedores.forEach(p => { if (ids.includes(p.id)) p.autorizadoSalida = true; });
+            localStorage.setItem('proveedorListoSalir', JSON.stringify(d));
+
+            try {
+                localStorage.setItem('salidaAutorizada', JSON.stringify({
+                    numero: d.numero,
+                    nombre: `TRANSPORTADORA - Turno ${d.numero} (${pendientes.length} proveedor(es))`,
+                    timestamp: Date.now()
+                }));
+            } catch (e) {
+                console.warn('No se pudo enviar señal de salida a recepción:', e);
+            }
+
+            Utils.mostrarNotificacion(`Transportadora ${d.numero} - salida autorizada (${pendientes.length} proveedor(es))`, 'success');
+        } catch (error) {
+            console.error('Error al autorizar toda la transportadora:', error);
             Utils.mostrarNotificacion('Error al autorizar salida', 'error');
         }
     },
@@ -5208,6 +5406,16 @@ const DespachadorHandlers = {
                     remitente: 'despachador',
                     leido: false
                 });
+            }
+
+            try {
+                localStorage.setItem('inspeccionSolicitada', JSON.stringify({
+                    numero: '---',
+                    nombre: `TRANSPORTADORA - Inspección proveedor ${nombreEmpresa || proveedorId}`,
+                    timestamp: Date.now()
+                }));
+            } catch (e) {
+                console.warn('No se pudo enviar señal de inspección a recepción:', e);
             }
             
             Utils.mostrarNotificacion(`Proveedor ${nombreEmpresa} - inspección solicitada`, 'success');
