@@ -142,6 +142,7 @@
                     <input type="date" id="fechaFacturas" title="Filtrar por día" style="padding: 10px 12px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 14px;">
                     <label for="buscadorFacturas" style="font-weight: 600; color: #334155;">Buscar:</label>
                     <input type="text" id="buscadorFacturas" placeholder="Factura, proveedor o destino" style="flex: 1; padding: 10px 12px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 14px;">
+                    <button id="btnMostrarTodas" class="btn btn-secondary" style="padding: 10px 16px; border-radius: 10px; font-size: 14px; white-space: nowrap;">Mostrar todas las facturas</button>
                 </div>
                 <table class="facturas-table">
                     <thead>
@@ -167,6 +168,7 @@
     <script src="app.js?v=3"></script>
     <script>
         let todasLasFacturas = [];
+        let mostrandoTodas = false;
 
         async function cargarFacturas() {
             const tbody = document.getElementById('facturasBody');
@@ -178,11 +180,16 @@
             }
             
             try {
-                const { data, error } = await window.supabaseClient
+                let query = window.supabaseClient
                      .from('historial_turnos')
                     .select('num_factura, nombre_empresa, nombre_proveedor, es_transporte, destino, bultos, peso, fecha')
-                    .order('fecha', { ascending: false })
-                    .limit(1000);
+                    .order('fecha', { ascending: false });
+                
+                if (!mostrandoTodas) {
+                    query = query.limit(1000);
+                }
+                
+                const { data, error } = await query;
                 
                 if (error) throw error;
                 
@@ -207,6 +214,8 @@
 
             const filtradas = todasLasFacturas.filter(f => {
                 const fechaFactura = (f.fecha || '').split('T')[0];
+
+                if (mostrandoTodas && !query) return true;
 
                 if (query) {
                     const factura = (f.num_factura || '').toLowerCase();
@@ -244,6 +253,20 @@
                 fechaInput.value = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
                 fechaInput.addEventListener('change', aplicarFiltroFacturas);
             }
+
+            const btnMostrarTodas = document.getElementById('btnMostrarTodas');
+            if (btnMostrarTodas) {
+                btnMostrarTodas.addEventListener('click', () => {
+                    mostrandoTodas = !mostrandoTodas;
+                    btnMostrarTodas.textContent = mostrandoTodas ? 'Mostrar solo del día' : 'Mostrar todas las facturas';
+                    if (mostrandoTodas) {
+                        cargarFacturas();
+                    } else {
+                        aplicarFiltroFacturas();
+                    }
+                });
+            }
+
             cargarFacturas();
         });
 
