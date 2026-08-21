@@ -931,12 +931,76 @@
             </div>
             <button class="btn btn-warning" style="width: 100%; padding: 14px; font-size: 16px;" onclick="cerrarModalInspeccion()">ACEPTAR</button>
          </div>
-     </div>
+      </div>
 
-     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+      <!-- Modal Editar Historial / Proveedor -->
+      <div id="modalEditarHistorial" class="modal" style="display: none;">
+          <div class="modal-content" style="max-width: 560px;">
+              <h2>Editar Registro</h2>
+              <input type="hidden" id="editHistId">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Empresa:</label>
+                      <input type="text" id="editHistEmpresa" placeholder="Empresa">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Proveedor:</label>
+                      <input type="text" id="editHistProveedor" placeholder="Proveedor">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Placa:</label>
+                      <input type="text" id="editHistPlaca" placeholder="Placa">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Factura:</label>
+                      <input type="text" id="editHistFactura" placeholder="Factura">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Tipo Vehículo:</label>
+                      <select id="editHistTipo">
+                          <option value="">Seleccionar...</option>
+                          <option value="MULA">MULA</option>
+                          <option value="SENCILLO">SENCILLO</option>
+                          <option value="CARPADO">CARPADO</option>
+                          <option value="FURGON">FURGON</option>
+                          <option value="MOTO">MOTO</option>
+                          <option value="PARTICULAR">PARTICULAR</option>
+                          <option value="OTRO">OTRO</option>
+                      </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Bultos:</label>
+                      <input type="number" id="editHistBultos" placeholder="Cantidad" min="0">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Peso (kg):</label>
+                      <input type="text" id="editHistPeso" placeholder="Peso en kg">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Responsable:</label>
+                      <input type="text" id="editHistResponsable" placeholder="Responsable">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Destino:</label>
+                      <select id="editHistDestino">
+                          <option value="">Seleccionar...</option>
+                          <option value="ensambles">SI ENSAMBLES</option>
+                          <option value="plasticos">SI3 ZF SAS</option>
+                          <option value="ambos">AMBOS</option>
+                      </select>
+                  </div>
+              </div>
+              <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                  <button class="btn btn-secondary" onclick="cerrarModalEditarHistorial()">Cancelar</button>
+                  <button class="btn btn-success" onclick="AdminHandlers.guardarEdicionHistorial()">Guardar</button>
+              </div>
+          </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
      <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
      <script src="supabase-config.js"></script>
-     <script src="app.js?v=4"></script>
+     <script src="app.js?v=5"></script>
      <script>
         window.salidaDespachadorAnterior = null;
         window.inspeccionAnterior = null;
@@ -1174,6 +1238,11 @@
             } catch (e) {
                 console.warn('Error limpiando localStorage:', e);
             }
+        };
+
+        window.cerrarModalEditarHistorial = function() {
+            const modal = document.getElementById('modalEditarHistorial');
+            if (modal) modal.style.display = 'none';
         };
 
         document.addEventListener('DOMContentLoaded', () => {

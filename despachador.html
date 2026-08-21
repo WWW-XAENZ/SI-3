@@ -1083,7 +1083,7 @@
                                         return `
                                             <tr>
                                                 <td><strong>${h.numero}</strong></td>
-                                                <td>${h.es_transporte ? (h.nombre_empresa || '-') : '-'}</td>
+                                                <td>${h.nombre_empresa || '-'}</td>
                                                 <td>${h.nombre_proveedor || (h.es_transporte ? '-' : h.nombre_empresa || '-')}</td>
                                                 <td>${h.nit || '-'}</td>
                                                 <td>${h.num_factura || '-'}</td>
@@ -1798,7 +1798,7 @@
                                             return `
                                             <tr>
                                                 <td><strong>${h.numero}</strong></td>
-                                                <td>${h.es_transporte ? (h.nombre_empresa || '-') : '-'}</td>
+                                                <td>${h.nombre_empresa || '-'}</td>
                                                 <td>${h.nombre_proveedor || (h.es_transporte ? '-' : h.nombre_empresa || '-')}</td>
                                                 <td>${h.nit || '-'}</td>
                                                 <td>${h.num_factura || '-'}</td>

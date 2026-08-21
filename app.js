@@ -1077,7 +1077,7 @@ const SupabaseDB = {
                 autorizado_salida: false,
                 inspeccion_fisica: false,
                 es_transporte: turno.esTransporte === true || false,
-                nombre_proveedor: turno.nombreProveedor || null,
+                nombre_proveedor: turno.esTransporte ? (turno.nombreProveedor || null) : null,
                 proveedor_transporte_id: turno.proveedorTransporteId || null,
                 fecha: getLocalISOString()
             };
@@ -1596,6 +1596,7 @@ const SupabaseDB = {
             const historialData = {
                 numero: proveedor.numeroTurno,
                 nombre_empresa: proveedor.nombreEmpresa || proveedor.nombre,
+                nombre_proveedor: proveedor.nombreProveedor || null,
                 nit: proveedor.nit,
                 motivo: proveedor.motivo || '',
                 hora_solicitud: proveedor.horaSolicitud || null,
@@ -2845,6 +2846,7 @@ const RenderAdmin = {
             const fechaFiltro = fechaInput && fechaInput.value ? fechaInput.value : null;
             historial = await SupabaseDB.cargarHistorial(100, fechaFiltro);
         }
+        AppState.historial = historial;
         if (window.BusquedaHistorial) BusquedaHistorial.setHistorial(historial || []);
         console.log('Historial cargado:', historial.length, 'registros');
         
@@ -2890,8 +2892,8 @@ const RenderAdmin = {
                             }).map(h => `
                                 <tr>
                                     <td><strong>${h.numero}</strong></td>
-                                    <td>${h.esTransporte ? (h.nombreEmpresa || '-') : '-'}</td>
-                                    <td>${h.nombreProveedor || (h.esTransporte ? '-' : h.nombreEmpresa || '-')}</td>
+                                    <td>${h.nombreEmpresa || '-'}</td>
+                                    <td>${h.nombreProveedor || h.nombreEmpresa || '-'}</td>
                                     <td>${h.nit || '-'}</td>
                                     <td>${h.numFactura || '-'}</td>
                                     <td>${h.tipoVehiculo || '-'}</td>
@@ -2902,7 +2904,10 @@ const RenderAdmin = {
                                     <td>${h.inspeccionFisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
                                     <td>${h.autorizadoSalida ? '<span style="color:#10b981;font-weight:600;">✓ SALIDA OK</span>' : '<span style="color:#f59e0b;">PENDIENTE</span>'}</td>
                                     <td>${destinoLabel[h.destino] || h.destino || '-'}</td>
-                                    <td><button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button></td>
+                                    <td>
+                                        <button class="btn btn-secondary btn-small" onclick="AdminHandlers.editarHistorial(${h.id})">Editar</button>
+                                        <button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button>
+                                    </td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -3998,6 +4003,107 @@ const AdminHandlers = {
         }
     },
 
+    async editarHistorial(id) {
+        try {
+            if (!window.supabaseClient) {
+                Utils.mostrarNotificacion('Sin conexión', 'error');
+                return;
+            }
+            const { data, error } = await window.supabaseClient
+                .from('historial_turnos')
+                .select('*')
+                .eq('id', id)
+                .single();
+            if (error) throw error;
+            if (!data) {
+                Utils.mostrarNotificacion('Registro no encontrado', 'error');
+                return;
+            }
+            const esTransporte = data.es_transporte === true;
+            document.getElementById('editHistId').value = data.id;
+            document.getElementById('editHistEmpresa').value = data.nombre_empresa || data.nombre_proveedor || '';
+            document.getElementById('editHistProveedor').value = data.nombre_proveedor || '';
+            document.getElementById('editHistPlaca').value = data.nit || '';
+            document.getElementById('editHistFactura').value = data.num_factura || '';
+            document.getElementById('editHistTipo').value = data.tipo_vehiculo || '';
+            document.getElementById('editHistBultos').value = data.bultos || '';
+            document.getElementById('editHistPeso').value = data.peso || '';
+            document.getElementById('editHistResponsable').value = data.responsable || '';
+            document.getElementById('editHistDestino').value = data.destino || '';
+            this._editTransporteId = data.proveedor_transporte_id || null;
+            this._editOriginalPayload = {
+                nombre_empresa: data.nombre_empresa || data.nombre_proveedor || '',
+                nombre_proveedor: data.nombre_proveedor || data.nombre_empresa || '',
+                nit: data.nit || '',
+                num_factura: data.num_factura || '',
+                tipo_vehiculo: data.tipo_vehiculo || '',
+                bultos: data.bultos || '',
+                peso: data.peso || '',
+                responsable: data.responsable || '',
+                destino: data.destino || ''
+            };
+            document.getElementById('modalEditarHistorial').style.display = 'flex';
+        } catch (error) {
+            console.error('Error al cargar registro:', error);
+            Utils.mostrarNotificacion('Error al cargar', 'error');
+        }
+    },
+
+    async guardarEdicionHistorial() {
+        const id = parseInt(document.getElementById('editHistId').value, 10);
+        if (!id) return;
+        const bultosRaw = document.getElementById('editHistBultos').value;
+        const bultosVal = bultosRaw !== '' ? parseInt(bultosRaw, 10) : null;
+        const empresaVal = (document.getElementById('editHistEmpresa').value || '').trim();
+        const proveedorVal = (document.getElementById('editHistProveedor').value || '').trim();
+        const payload = {
+            nombre_empresa: empresaVal || proveedorVal,
+            nombre_proveedor: proveedorVal,
+            nit: (document.getElementById('editHistPlaca').value || '').trim(),
+            num_factura: (document.getElementById('editHistFactura').value || '').trim(),
+            tipo_vehiculo: document.getElementById('editHistTipo').value || null,
+            bultos: (bultosVal !== null && !isNaN(bultosVal)) ? bultosVal : null,
+            peso: (document.getElementById('editHistPeso').value || '').trim() || null,
+            responsable: (document.getElementById('editHistResponsable').value || '').trim(),
+            destino: document.getElementById('editHistDestino').value || null
+        };
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('historial_turnos')
+                .update(payload)
+                .eq('id', id)
+                .select();
+            if (error) throw error;
+            console.log('Edicion historial - update response:', data);
+
+            if (this._editTransporteId) {
+                try {
+                    const { data: propData, error: propError } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .update({
+                            nombre_empresa: payload.nombre_empresa,
+                            nombre_proveedor: payload.nombre_proveedor,
+                            destino: payload.destino
+                        })
+                        .eq('proveedor_transporte_id', this._editTransporteId)
+                        .select();
+                    if (propError) throw propError;
+                    console.log('Edicion historial - propagate response:', propData);
+                } catch (e) {
+                    console.warn('No se pudo propagar a los demás proveedores de la transportadora:', e);
+                }
+            }
+
+            document.getElementById('modalEditarHistorial').style.display = 'none';
+            Utils.mostrarNotificacion('Registro actualizado', 'success');
+            await new Promise(r => setTimeout(r, 500));
+            await RenderAdmin.historial();
+        } catch (error) {
+            console.error('Error al guardar registro:', error);
+            Utils.mostrarNotificacion('Error al guardar: ' + (error?.message || error), 'error');
+        }
+    },
+
     async limpiarHistorial() {
         if (confirm('¿Está seguro de que desea limpiar todo el historial?')) {
             try {
@@ -5078,6 +5184,7 @@ const DespachadorHandlers = {
                     .insert([{
                         numero: turno.numero,
                         nombre_empresa: turno.nombre || turno.nombreEmpresa || turno.nombre,
+                        nombre_proveedor: turno.esTransporte ? (turno.nombreProveedor || turno.nombre || turno.nombreEmpresa || null) : null,
                         nit: turno.nit || '',
                         motivo: turno.motivo || '',
                         hora_solicitud: turno.horaSolicitud || '',
@@ -5095,6 +5202,7 @@ const DespachadorHandlers = {
                         servicio: turno.servicio || null,
                         autorizado_salida: true,
                         inspeccion_fisica: false,
+                        es_transporte: turno.esTransporte === true || false,
                         fecha: getLocalISOString()
                     }])
                     .select()
