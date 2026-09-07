@@ -2841,8 +2841,27 @@ const RenderAdmin = {
     },
 
     async historial(historialParam) {
+        // Debounce no bloqueante: evita recargas bruscas del historial cuando
+        // polling/realtime disparan varios renderizados seguidos.
+        if (!document.getElementById('historialTurnos')) return;
+        this._historialParams = historialParam;
+        if (this._historialTimer) {
+            clearTimeout(this._historialTimer);
+        }
+        this._historialTimer = setTimeout(() => {
+            this._historialTimer = null;
+            this._renderHistorial(this._historialParams).catch(e => console.error('Error historial:', e));
+        }, 600);
+    },
+
+    async _renderHistorial(historialParam) {
         const historialDiv = document.getElementById('historialTurnos');
         if (!historialDiv) return;
+
+        // Evitar recargas bruscas del historial mientras se edita un registro:
+        // el polling/realtime no debe reconstruir la tabla durante la edición.
+        const modalEditar = document.getElementById('modalEditarHistorial');
+        if (modalEditar && modalEditar.style.display === 'flex') return;
 
         console.log('RenderAdmin.historial llamado');
 
@@ -2900,8 +2919,8 @@ const RenderAdmin = {
                             }).map(h => `
                                 <tr>
                                     <td><strong>${h.numero}</strong></td>
-                                    <td>${h.nombreEmpresa || '-'}</td>
-                                    <td>${h.nombreProveedor || h.nombreEmpresa || '-'}</td>
+                                      <td>${h.esTransporte ? (h.nombreEmpresa || '-') : ''}</td>
+                                      <td>${(h.esTransporte && h.nombreProveedor) ? h.nombreProveedor : (h.nombreEmpresa || h.nombreProveedor || '-')}</td>
                                     <td>${h.nit || '-'}</td>
                                     <td>${h.numFactura || '-'}</td>
                                     <td>${h.tipoVehiculo || '-'}</td>
