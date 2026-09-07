@@ -1884,7 +1884,7 @@ window.Conectividad = Conectividad;
 // ============================================
 
 const Turnos = {
-    async solicitar(datosProveedor, motivo = '', signal = null) {
+    async solicitar(datosProveedor, motivo = '', signal = null, estadoOverride = null) {
         console.log('=== CREANDO TURNO ===');
         console.log('📌 Datos recibidos:', datosProveedor);
         console.log('📌 Signal:', !!signal);
@@ -1913,13 +1913,16 @@ const Turnos = {
         if (window.supabaseClient) {
             try {
                 const hoy = getLocalDate();
+                const estadosActivos = estadoOverride === 'llegado'
+                    ? ['espera', 'citado', 'atendiendo', 'llegado']
+                    : ['espera', 'citado', 'atendiendo'];
                 const { data: turnoActivo, error: errorActivo } = await window.supabaseClient
                     .from('turnos')
                     .select('id, numero, estado')
                     .eq('nit', placa)
                     .gte('fecha_solicitud', `${hoy}T00:00:00`)
                     .lt('fecha_solicitud', `${hoy}T23:59:59`)
-                    .in('estado', ['espera', 'citado', 'atendiendo'])
+                    .in('estado', estadosActivos)
                     .maybeSingle();
                 
                 if (turnoActivo && !errorActivo) {
@@ -1995,7 +1998,12 @@ const Turnos = {
                 return `${horas}:${minutos}`;
             })() : Utils.obtenerHoraActual(),
             fechaSolicitud: getLocalISOString(),
-            estado: prefijoTurno === 'C' ? 'citado' : 'espera'
+            estado: estadoOverride || (prefijoTurno === 'C' ? 'citado' : 'espera'),
+            numFactura: datosProveedor.numFactura || null,
+            tipoVehiculo: datosProveedor.tipoVehiculo || null,
+            bultos: datosProveedor.bultos || null,
+            peso: datosProveedor.peso || null,
+            responsable: datosProveedor.responsable || null
         };
 
         console.log('📦 Paso 3: Guardando turno en Supabase...');
@@ -3982,6 +3990,98 @@ const AdminHandlers = {
         }
     },
 
+    abrirModalProveedorSinTurno() {
+        const modal = document.getElementById('proveedorSinTurnoModal');
+        if (!modal) return;
+
+        const limpiar = (id, val = '') => {
+            const el = document.getElementById(id);
+            if (el) el.value = val;
+        };
+        limpiar('sinTurnoProveedor');
+        limpiar('sinTurnoPlaca');
+        limpiar('sinTurnoFactura');
+        limpiar('sinTurnoBultos');
+        limpiar('sinTurnoPeso');
+        limpiar('sinTurnoResponsable');
+        limpiar('sinTurnoDestino');
+        limpiar('sinTurnoTipo');
+
+        modal.style.display = 'flex';
+        const proveedorInput = document.getElementById('sinTurnoProveedor');
+        if (proveedorInput) proveedorInput.focus();
+    },
+
+    cerrarModalProveedorSinTurno() {
+        const modal = document.getElementById('proveedorSinTurnoModal');
+        if (modal) modal.style.display = 'none';
+    },
+
+    async registrarProveedorSinTurno(e) {
+        if (e) e.preventDefault();
+
+        const proveedorInput = (document.getElementById('sinTurnoProveedor')?.value?.trim() || '');
+        const placa = (document.getElementById('sinTurnoPlaca')?.value?.trim().toUpperCase() || '');
+        const destino = document.getElementById('sinTurnoDestino')?.value || '';
+        const factura = document.getElementById('sinTurnoFactura')?.value?.trim() || null;
+        const tipo = document.getElementById('sinTurnoTipo')?.value || null;
+        const bultos = document.getElementById('sinTurnoBultos')?.value?.trim() || null;
+        const peso = document.getElementById('sinTurnoPeso')?.value?.trim() || null;
+        const responsable = document.getElementById('sinTurnoResponsable')?.value?.trim() || null;
+
+        if (!proveedorInput) {
+            Utils.mostrarNotificacion('El nombre del proveedor es requerido', 'error');
+            return;
+        }
+        if (!placa || placa.length !== 6) {
+            Utils.mostrarNotificacion('La placa debe tener exactamente 6 caracteres', 'error');
+            return;
+        }
+        if (!destino) {
+            Utils.mostrarNotificacion('El destino es requerido', 'error');
+            return;
+        }
+
+        Utils.setLoading(true);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        try {
+            const datosProveedor = {
+                nombreEmpresa: proveedorInput,
+                nit: placa,
+                contacto: responsable || proveedorInput,
+                telefono: '',
+                servicio: '',
+                destino: destino,
+                fechaCita: null,
+                numFactura: factura,
+                tipoVehiculo: tipo,
+                bultos: bultos,
+                peso: peso,
+                responsable: responsable
+            };
+
+            const turno = await Turnos.solicitar(datosProveedor, '', controller.signal, 'llegado');
+
+            if (turno) {
+                Utils.mostrarNotificacion(`Proveedor ${proveedorInput} registrado. Turno ${turno.numero} confirmado`, 'success');
+                this.cerrarModalProveedorSinTurno();
+                await RenderAdmin.todo();
+            }
+        } catch (error) {
+            console.error('Error registrando proveedor sin turno:', error);
+            if (error.name === 'AbortError' || (error.message && error.message.includes('Timeout'))) {
+                Utils.mostrarNotificacion('Tiempo de espera agotado. Intente nuevamente.', 'error');
+            } else {
+                Utils.mostrarNotificacion(error.message || 'Error al registrar proveedor', 'error');
+            }
+        } finally {
+            clearTimeout(timeoutId);
+            Utils.setLoading(false);
+        }
+    },
+
     async eliminarHistorial(id) {
         if (!confirm('¿Eliminar este registro del historial?')) return;
         try {
@@ -4852,6 +4952,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const btnReiniciarContador = document.getElementById('btnReiniciarContador');
         if (btnReiniciarContador) btnReiniciarContador.addEventListener('click', AdminHandlers.reiniciarContador);
+
+        const btnProveedorSinTurno = document.getElementById('btnProveedorSinTurno');
+        if (btnProveedorSinTurno) {
+            btnProveedorSinTurno.addEventListener('click', AdminHandlers.abrirModalProveedorSinTurno);
+        }
         
         const btnLimpiar = document.getElementById('btnLimpiarHistorial');
         if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);

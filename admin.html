@@ -648,6 +648,7 @@
                         <button id="btnCompletarTurno" class="btn btn-success">Completar Turno</button>
                         <button id="btnReiniciarCola" class="btn btn-danger">Reiniciar Cola</button>
                         <button id="btnReiniciarContador" class="btn btn-warning">Reiniciar Contador</button>
+                        <button id="btnProveedorSinTurno" class="btn btn-primary">Proveedor Sin Turno</button>
                     </div>
                     
                     <!-- Tiempo transcurrido del turno actual -->
@@ -994,8 +995,76 @@
                   <button class="btn btn-secondary" onclick="cerrarModalEditarHistorial()">Cancelar</button>
                   <button class="btn btn-success" onclick="AdminHandlers.guardarEdicionHistorial()">Guardar</button>
               </div>
-          </div>
-      </div>
+           </div>
+       </div>
+
+       <!-- Modal Proveedor Sin Turno -->
+       <div id="proveedorSinTurnoModal" class="modal" style="display: none;">
+           <div class="modal-content" style="max-width: 600px;">
+               <button class="close-modal">&times;</button>
+               <h2>Proveedor Sin Turno</h2>
+               <p style="font-size: 13px; color: #64748b; margin-top: 0;">Registre un proveedor que llega sin turno previo. Se generará un turno de espera automáticamente.</p>
+               <form id="formProveedorSinTurno" onsubmit="AdminHandlers.registrarProveedorSinTurno(event)">
+                   <div class="form-group">
+                       <label>Proveedor:</label>
+                       <input type="text" id="sinTurnoProveedor" placeholder="Nombre del proveedor" autocomplete="off">
+                   </div>
+                   <div class="form-group">
+                       <label>Placa:</label>
+                       <input type="text" id="sinTurnoPlaca" placeholder="ABC123 (6 caracteres)" maxlength="6" autocomplete="off">
+                   </div>
+                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                       <div class="form-group">
+                           <label>Destino:</label>
+                           <select id="sinTurnoDestino">
+                               <option value="">Seleccionar...</option>
+                               <option value="ensambles">SI ENSAMBLES</option>
+                               <option value="plasticos">SI3 ZF SAS</option>
+                               <option value="ambos">AMBOS</option>
+                           </select>
+                       </div>
+                       <div class="form-group">
+                           <label>Factura:</label>
+                           <input type="text" id="sinTurnoFactura" placeholder="Número de factura">
+                       </div>
+                   </div>
+                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                       <div class="form-group">
+                           <label>Tipo:</label>
+                           <select id="sinTurnoTipo">
+                               <option value="">Seleccionar...</option>
+                               <option value="MULA">MULA</option>
+                               <option value="SENCILLO">SENCILLO</option>
+                               <option value="CARPADO">CARPADO</option>
+                               <option value="FURGON">FURGON</option>
+                               <option value="MOTO">MOTO</option>
+                               <option value="PARTICULAR">PARTICULAR</option>
+                               <option value="OTRO">OTRO</option>
+                           </select>
+                       </div>
+                       <div class="form-group">
+                           <label>Bultos:</label>
+                           <input type="number" id="sinTurnoBultos" placeholder="Cantidad" min="0">
+                       </div>
+                   </div>
+                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                       <div class="form-group">
+                           <label>Peso (kg):</label>
+                           <input type="text" id="sinTurnoPeso" placeholder="Peso en kg">
+                       </div>
+                       <div class="form-group">
+                           <label>Responsable:</label>
+                           <input type="text" id="sinTurnoResponsable" placeholder="Nombre del responsable">
+                       </div>
+                   </div>
+                   <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                       <button type="button" class="btn btn-secondary" onclick="AdminHandlers.cerrarModalProveedorSinTurno()">Cancelar</button>
+                       <button type="submit" class="btn btn-success">Registrar Proveedor</button>
+                   </div>
+               </form>
+           </div>
+       </div>
+
 
       <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
      <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
