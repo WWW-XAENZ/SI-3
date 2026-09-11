@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel Despachador - Sistema de Turnos SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <style>
@@ -344,9 +345,9 @@
             font-size: 12px; 
             color: #64748b; 
             margin-top: 6px; 
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis;
+            white-space: normal; 
+            overflow: visible; 
+            text-overflow: clip;
             font-weight: 500;
         }
         .turn-item-details { 
@@ -662,6 +663,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js?v=3"></script>
+    <script src="push-notifications.js"></script>
     <script>
         function esperarClienteSupabase(callback, intentosMax = 100) {
             let intentos = 0;
@@ -789,8 +791,9 @@
                             <span><strong>Placa:</strong> ${h.nit || 'N/A'}</span>
                             <span><strong>Proveedor:</strong> ${h.nombre_proveedor || h.nombre_empresa || 'N/A'}</span>
                             <span><strong>Fact:</strong> ${h.num_factura || 'N/A'}</span>
-                            <span><strong>Destino:</strong> ${h.destino || 'N/A'}</span>
-                            <span><strong>Peso:</strong> ${h.peso || '0'} kg</span>
+                            <span><strong>FMM:</strong> ${h.consecutivo_ingreso || 'FMM'}</span>
+                            <span><strong>Destino:</strong> ${h.destino === 'ensambles' ? 'SIE' : h.destino === 'plasticos' ? 'SI3 ZF' : h.destino || 'N/A'}</span>
+                            <span><strong>Peso:</strong> ${h.peso ? (h.peso.toString().toUpperCase().includes('KG') ? h.peso : h.peso + ' kg') : '0 kg'}</span>
                             <span><strong>Bultos:</strong> ${h.bultos || '0'}</span>
                             <span><strong>Vehículo:</strong> ${h.tipo_vehiculo || 'N/A'}</span>
                             <span><strong>Responsable:</strong> ${h.responsable || 'N/A'}</span>
@@ -969,7 +972,8 @@
                                     destino: pt.destino || h.destino,
                                     contacto: pt.contacto || h.contacto,
                                     telefono: pt.telefono || h.telefono,
-                                    servicio: pt.servicio || h.servicio
+                                    servicio: pt.servicio || h.servicio,
+                                    consecutivo_ingreso: pt.consecutivo_ingreso || h.consecutivo_ingreso
                                 };
                             }
                         }
@@ -1081,8 +1085,8 @@
                                     <tbody>
                                         ${historialConProveedores.map(h => {
                         let horaInicio = '-';
-                        if (h.hora_solicitud) {
-                            const partesIni = h.hora_solicitud.split(':');
+                        if (h.hora_llamada) {
+                            const partesIni = h.hora_llamada.split(':');
                             if (partesIni.length >= 2) {
                                 let hraI = parseInt(partesIni[0]);
                                 const minI = partesIni[1];
@@ -1102,10 +1106,11 @@
                                 horaFin = `${hra}:${min} ${ampm}`;
                             }
                         }
-                        const consecutivo = h.consecutivo_ingreso || '-';
-                                        const displayDestino = h.proveedor_destino && h.proveedor_destino !== h.destino 
-                                            ? (destinoLabel[h.proveedor_destino] || h.proveedor_destino) 
-                                            : (destinoLabel[h.destino] || h.destino || '-');
+const consecutivo = h.consecutivo_ingreso || 'FMM';
+                        const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
+                        const displayDestino = h.proveedor_destino && h.proveedor_destino !== h.destino 
+                            ? (destinoLabel[h.proveedor_destino] || h.proveedor_destino) 
+                            : (destinoLabel[h.destino] || h.destino || '-');
                                         return `
                                             <tr>
                                             <td><strong>${h.numero}</strong></td>
@@ -1115,7 +1120,7 @@
                                             <td>${h.num_factura || '-'}</td>
                                             <td>${h.tipo_vehiculo || '-'}</td>
                                             <td>${h.bultos || '-'}</td>
-                                            <td>${h.peso || '-'}</td>
+                                            <td>${h.peso ? (h.peso.toString().toUpperCase().includes('KG') ? h.peso : h.peso + ' kg') : '-'}</td>
                                             <td>${h.responsable || '-'}</td>
                                             <td>${horaInicio}</td>
                                             <td>${horaFin}</td>
@@ -1161,7 +1166,7 @@
                     if (!data || data.length === 0) {
                         listaDiv.innerHTML = '<p class="empty-message">Sin citas reservadas</p>';
                     } else {
-                        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                        const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
                         const gruposPorFecha = {};
                         data.forEach(turno => {
                             const fecha = turno.fecha_cita ? turno.fecha_cita.split('T')[0] : 'Sin fecha';
@@ -1188,15 +1193,16 @@
                                         horaCita = `${h12}:${min} ${ampm}`;
                                     }
                                 }
-                                return `
-                                    <div class="turn-item">
-                                        <span class="turn-item-number">${turno.numero}</span>
-                                        <div class="turn-item-info">
-                                            <div class="turn-item-company">${turno.nombre_empresa || '-'}</div>
-                                            <div class="turn-item-time">${horaCita} - ${destinoLabel[turno.destino] || turno.destino}</div>
-                                        </div>
-                                    </div>
-                                `;
+return `
+                                     <div class="turn-item">
+                                         <span class="turn-item-number">${turno.numero}</span>
+                                         <div class="turn-item-info">
+                                             <div class="turn-item-company">${turno.nombre_empresa || '-'}</div>
+                                             <div class="turn-item-time">${turno.fecha_cita ? turno.fecha_cita.split('T')[0] + ' ' : ''}${horaCita} - ${destinoLabel[turno.destino] || turno.destino}</div>
+                                             ${turno.consecutivo_ingreso ? `<div class="turn-item-details" style="font-size:11px;color:#475569;margin-top:4px;">Cons: ${turno.consecutivo_ingreso}</div>` : ''}
+                                         </div>
+                                     </div>
+                                 `;
                             }).join('');
                         }
                         listaDiv.innerHTML = html;
@@ -1415,6 +1421,7 @@
                                 <p><strong>Placa:</strong> ${proveedor.nit || 'N/A'}</p>
                                 <p><strong>Proveedor:</strong> ${proveedor.nombre || 'N/A'}</p>
                                 <p><strong>Factura:</strong> ${proveedor.numFactura || 'N/A'}</p>
+                                <p><strong>Consecutivo:</strong> ${proveedor.consecutivoIngreso || 'N/A'}</p>
                                 <p><strong>Tipo:</strong> ${proveedor.tipoVehiculo || 'N/A'}</p>
                                 <p><strong>Bultos:</strong> ${proveedor.bultos || 'N/A'}</p>
                                 <p><strong>Peso:</strong> ${proveedor.peso || 'N/A'} kg</p>
@@ -1438,6 +1445,10 @@
                     if (proveedorListoAnterior !== proveedor.timestamp) {
                         proveedorListoAnterior = proveedor.timestamp;
                         reproducirAlertaSalida(proveedor);
+                        // Push notification
+                        if (window.PushManager) {
+                            window.PushManager.notifyProveedorListo(proveedor);
+                        }
                     }
                 }
                 
@@ -1460,7 +1471,7 @@
                             <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${autorizado ? '#22c55e' : '#8b5cf6'};">
                                 <div style="font-weight: 600; color: #3741a5;">${p.nombreProveedor || p.nit || 'N/A'}${estadoBadge}</div>
                                 <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
-                                    Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
+                                    Consecutivo: ${p.consecutivoIngreso || 'N/A'} | Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
                                 </div>
                                 <div style="margin-top: 6px;">
                                     ${acciones}${inspeccion}
@@ -1786,7 +1797,7 @@
                         if (!historialConProveedores || historialConProveedores.length === 0) {
                             listaDiv.innerHTML = '<p class="empty-message">Sin historial</p>';
                         } else {
-                            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
                             listaDiv.innerHTML = `
                                 <table class="history-table-desp">
                                     <thead>

@@ -7,6 +7,7 @@
     <meta name="keywords" content="turnos, proveedores, solicitar, cola">
     <title>Solicitar Turno - Sistema de Turnos SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="manifest" href="manifest.json">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -426,15 +427,15 @@
                                  aria-required="true"
                              >
                          </div>
-                         <div class="form-group">
-                             <label for="consecutivoIngreso">Consecutivo de Ingreso:</label>
-                             <input 
-                                 type="text" 
-                                 id="consecutivoIngreso" 
-                                 placeholder="Consecutivo de ingreso"
-                                 autocomplete="off"
-                             >
-                         </div>
+<div class="form-group">
+                              <label for="consecutivoIngreso">Consecutivo de Ingreso <span style="color: #94a3b8; font-weight: 400; font-size: 12px;">(FMM)</span>:</label>
+                              <input 
+                                  type="text" 
+                                  id="consecutivoIngreso" 
+                                  placeholder="Consecutivo de ingreso"
+                                  autocomplete="off"
+                              >
+                          </div>
                           <div class="form-group">
                               <label for="numFacturas">Numero de Facturas:</label>
                               <input 
@@ -653,5 +654,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js?v=3"></script>
+    <script src="push-notifications.js"></script>
 </body>
 </html>

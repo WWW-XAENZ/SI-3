@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Panel de Administrador - Sistema de Turnos SI-3">
-    <title>Panel de Administrador - Sistema de Turnos SI-3</title>
+    <title>Panel de Recepción - Sistema de Turnos SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <style>
@@ -251,14 +252,14 @@
             font-size: 12px; 
             color: #64748b; 
             margin-top: 6px; 
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis;
+            white-space: normal; 
+            overflow: visible; 
+            text-overflow: clip;
             font-weight: 500;
         }
         .turn-item-details { 
             display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); 
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
             gap: 6px 16px; 
             font-size: 12px; 
             color: #475569; 
@@ -267,6 +268,8 @@
         .turn-item-details span {
             padding: 2px 0;
             border-bottom: 1px dashed #e2e8f0;
+            white-space: normal;
+            overflow: visible;
         }
         .turn-item-actions { 
             display: flex; 
@@ -539,41 +542,48 @@
         .proveedores-cards {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
         }
         .prov-empresa-card {
             border: 1px solid #e2e8f0;
-            border-radius: 12px;
+            border-radius: 14px;
             background: #fff;
             overflow: hidden;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .prov-empresa-card:hover {
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+            border-color: #cbd5e1;
         }
         .prov-empresa-header {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px 14px;
+            gap: 14px;
+            padding: 16px 18px;
             cursor: pointer;
             user-select: none;
+            background: linear-gradient(135deg, #fafbfc 0%, #f8fafc 100%);
         }
-        .prov-empresa-header:hover { background: #f8fafc; }
+        .prov-empresa-header:hover { background: linear-gradient(135deg, #f0f4f8 0%, #eef2f6 100%); }
         .prov-avatar {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 700;
             color: #fff;
-            font-size: 16px;
+            font-size: 17px;
             flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         .prov-empresa-info { flex: 1; min-width: 0; }
         .prov-empresa-nombre {
             font-weight: 700;
             color: #1e293b;
-            font-size: 15px;
+            font-size: 16px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -581,31 +591,50 @@
         .prov-empresa-sub {
             font-size: 12px;
             color: #64748b;
+            margin-top: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .prov-chevron {
             transition: transform 0.2s ease;
-            color: #64748b;
-            font-size: 14px;
+            color: #94a3b8;
+            font-size: 12px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            background: #f1f5f9;
         }
+        .prov-chevron:hover { background: #e2e8f0; }
         .prov-chevron.abierto { transform: rotate(90deg); }
         .prov-detalles {
             border-top: 1px solid #eef2f7;
-            padding: 8px 14px 12px 14px;
+            padding: 12px 18px 16px 18px;
             background: #fcfdff;
         }
         .prov-proveedor {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px;
-            border-radius: 8px;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 10px;
             background: #f8fafc;
-            margin-top: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #f1f5f9;
+            transition: all 0.2s ease;
         }
-        .prov-proveedor:hover { background: #f1f5f9; }
+        .prov-proveedor:last-child { margin-bottom: 0; }
+        .prov-proveedor:hover { 
+            background: #f0f4f8; 
+            border-color: #e2e8f0;
+            transform: translateX(2px);
+        }
         .prov-proveedor-info { flex: 1; min-width: 0; }
         .prov-proveedor-nombre { font-weight: 600; color: #334155; font-size: 14px; }
-        .prov-proveedor-meta { font-size: 12px; color: #64748b; margin-top: 2px; }
+        .prov-proveedor-meta { font-size: 12px; color: #64748b; margin-top: 3px; }
         .prov-badge {
             display: inline-block;
             padding: 2px 8px;
@@ -616,20 +645,20 @@
             margin-left: 8px;
             vertical-align: middle;
         }
-        .prov-badge.transporte { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
-        .prov-badge.normal { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+        .prov-badge.transporte { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+        .prov-badge.normal { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo">
-            <h1>Panel de Administrador</h1>
+            <h1>Panel de Recepción</h1>
         </header>
         
         <nav class="main-nav">
             <a href="index.html" class="nav-link">Inicio</a>
-            <a href="admin.html" class="nav-link active">Panel Administrador</a>
+            <a href="admin.html" class="nav-link active">Panel Recepción</a>
         </nav>
 
         <main>
@@ -724,9 +753,12 @@
                 <!-- Proveedores -->
                 <section class="admin-section providers-list">
                     <h2>Proveedores (<span id="contadorProveedores">0</span>)
-                        <button id="btnToggleProveedores" class="btn btn-secondary btn-small btn-toggle">Ocultar</button>
+                        <button id="btnToggleProveedores" class="btn btn-secondary btn-small btn-toggle">Mostrar</button>
                     </h2>
-                    <div id="proveedoresContainer" class="proveedores-container">
+                    <div class="admin-filters" style="margin-bottom: 16px;">
+                        <input type="text" id="busquedaProveedores" placeholder="Buscar por empresa, placa, contacto, teléfono, consecutivo..." class="filter-input-small" style="flex: 1;">
+                    </div>
+                    <div id="proveedoresContainer" class="proveedores-container" style="display: none;">
                         <div id="proveedoresBody" class="proveedores-cards">
                             <p class="empty-message">Cargando...</p>
                         </div>
@@ -770,7 +802,7 @@
         </div>
     </div>
 
-    <!-- Modal Despacho -->
+<!-- Modal Despacho -->
     <div id="despachoModal" class="modal no-close">
         <div class="modal-content">
             <h2>Informacion de Despacho</h2>
@@ -783,8 +815,27 @@
                     <input type="text" id="despachoPlaca" placeholder="Placa del vehículo" readonly>
                 </div>
                 <div class="form-group">
+                    <label>Destino:</label>
+                    <select id="despachoDestino">
+                        <option value="">Seleccionar...</option>
+                        <option value="ensambles">SI ENSAMBLES</option>
+                        <option value="plasticos">SI3 ZF SAS</option>
+                        <option value="ambos">AMBOS</option>
+                    </select>
+                </div>
+                <div class="form-group" id="despachoFacturaGroup">
                     <label>Factura:</label>
                     <input type="text" id="despachoNumFactura" placeholder="Numero de factura">
+                </div>
+                <div id="despachoFacturaAmbosGroup" style="display: none; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="form-group">
+                        <label>Factura SIE (SI ENSAMBLES):</label>
+                        <input type="text" id="despachoNumFacturaSIE" placeholder="Factura para SI ENSAMBLES">
+                    </div>
+                    <div class="form-group">
+                        <label>Factura SI3 ZF SAS:</label>
+                        <input type="text" id="despachoNumFacturaSI3" placeholder="Factura para SI3 ZF SAS">
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Tipo Vehiculo:</label>
@@ -812,7 +863,7 @@
                     <input type="text" id="despachoResponsable" placeholder="Nombre del responsable">
                 </div>
                  <button type="button" class="btn btn-primary" onclick="AdminHandlers.guardarDespacho()">Confirmar</button>
-             </form>
+            </form>
              
              <div class="form-group" style="margin-top: 20px; padding-top: 20px; border-top: 2px dashed #e2e8f0;">
                  <label>
@@ -836,50 +887,54 @@
                <div style="background: #f8fafc; padding: 16px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
                    <h3 style="margin: 0 0 12px 0; font-size: 14px; color: #475569;">Agregar Proveedor</h3>
                    <p style="font-size: 12px; color: #94a3b8; margin-top: 0;">Placa: <strong style="color: #334155;" id="transportistaPlacaInfo">--</strong> | Tipo: <strong style="color: #334155;" id="transportistaTipoInfo">--</strong></p>
-                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                         <div class="form-group" style="margin-bottom: 0;">
-                             <label>Nombre del proveedor:</label>
-                             <input type="text" id="transportistaNombreProveedor" placeholder="Nombre del proveedor">
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                          <div class="form-group" style="margin-bottom: 0;">
+                              <label>Nombre del proveedor:</label>
+                              <input type="text" id="transportistaNombreProveedor" placeholder="Nombre del proveedor">
+                          </div>
+                          <div class="form-group" style="margin-bottom: 0;">
+                              <label>Tipo Vehiculo:</label>
+                              <select id="transportistaTipoVehiculo">
+                                  <option value="">Seleccionar...</option>
+                                  <option value="MULA">MULA</option>
+                                  <option value="SENCILLO">SENCILLO</option>
+                                  <option value="CARPADO">CARPADO</option>
+                                  <option value="FURGON">FURGON</option>
+                                  <option value="MOTO">MOTO</option>
+                                  <option value="PARTICULAR">PARTICULAR</option>
+                                  <option value="OTRO">OTRO</option>
+                             </select>
                          </div>
                          <div class="form-group" style="margin-bottom: 0;">
-                             <label>Tipo Vehiculo:</label>
-                             <select id="transportistaTipoVehiculo">
+                             <label>Factura:</label>
+                             <input type="text" id="transportistaFactura" placeholder="Número de factura">
+                         </div>
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label>Consecutivo FMM:</label>
+                             <input type="text" id="transportistaConsecutivo" placeholder="Consecutivo FMM">
+                         </div>
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label>Bultos:</label>
+                             <input type="number" id="transportistaBultos" placeholder="Cantidad" min="0">
+                         </div>
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label>Peso (kg):</label>
+                             <input type="text" id="transportistaPeso" placeholder="Peso en kg">
+                         </div>
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label>Responsable:</label>
+                             <input type="text" id="transportistaResponsable" placeholder="Nombre del responsable">
+                         </div>
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label>Destino:</label>
+                             <select id="transportistaDestino">
                                  <option value="">Seleccionar...</option>
-                                 <option value="MULA">MULA</option>
-                                 <option value="SENCILLO">SENCILLO</option>
-                                 <option value="CARPADO">CARPADO</option>
-                                 <option value="FURGON">FURGON</option>
-                                 <option value="MOTO">MOTO</option>
-                                 <option value="PARTICULAR">PARTICULAR</option>
-                                 <option value="OTRO">OTRO</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label>Factura:</label>
-                            <input type="text" id="transportistaFactura" placeholder="Número de factura">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label>Bultos:</label>
-                            <input type="number" id="transportistaBultos" placeholder="Cantidad" min="0">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label>Peso (kg):</label>
-                            <input type="text" id="transportistaPeso" placeholder="Peso en kg">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label>Responsable:</label>
-                            <input type="text" id="transportistaResponsable" placeholder="Nombre del responsable">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label>Destino:</label>
-                            <select id="transportistaDestino">
-                                <option value="">Seleccionar...</option>
-                                <option value="ensambles">SI ENSAMBLES</option>
-                                <option value="plasticos">SI3 ZF SAS</option>
-                                <option value="ambos">AMBOS</option>
-                            </select>
-                        </div>
-                   </div>
+                                 <option value="ensambles">SI ENSAMBLES</option>
+                                 <option value="plasticos">SI3 ZF SAS</option>
+                                 <option value="ambos">AMBOS</option>
+                             </select>
+                         </div>
+                    </div>
                   <button type="button" class="btn btn-primary" style="margin-top: 16px;" onclick="AdminHandlers.agregarProveedorTransportista()">
                       Agregar Proveedor
                   </button>
@@ -934,7 +989,7 @@
          </div>
       </div>
 
-      <!-- Modal Editar Historial / Proveedor -->
+<!-- Modal Editar Historial / Proveedor -->
       <div id="modalEditarHistorial" class="modal" style="display: none;">
           <div class="modal-content" style="max-width: 560px;">
               <h2>Editar Registro</h2>
@@ -952,9 +1007,19 @@
                       <label>Placa:</label>
                       <input type="text" id="editHistPlaca" placeholder="Placa">
                   </div>
-                  <div class="form-group" style="margin-bottom: 0;">
+                  <div class="form-group" style="margin-bottom: 0;" id="editHistFacturaGroup">
                       <label>Factura:</label>
                       <input type="text" id="editHistFactura" placeholder="Factura">
+                  </div>
+                  <div id="editHistFacturaAmbosGroup" style="display: none; grid-template-columns: 1fr 1fr; gap: 12px;">
+                      <div class="form-group" style="margin-bottom: 0;">
+                          <label>Factura SIE (SI ENSAMBLES):</label>
+                          <input type="text" id="editHistFacturaSIE" placeholder="Factura para SI ENSAMBLES">
+                      </div>
+                      <div class="form-group" style="margin-bottom: 0;">
+                          <label>Factura SI3 ZF SAS:</label>
+                          <input type="text" id="editHistFacturaSI3" placeholder="Factura para SI3 ZF SAS">
+                      </div>
                   </div>
                   <div class="form-group" style="margin-bottom: 0;">
                       <label>Tipo Vehículo:</label>
@@ -996,68 +1061,82 @@
                   <button class="btn btn-success" onclick="AdminHandlers.guardarEdicionHistorial()">Guardar</button>
               </div>
            </div>
-       </div>
+      </div>
 
-       <!-- Modal Proveedor Sin Turno -->
-       <div id="proveedorSinTurnoModal" class="modal" style="display: none;">
-           <div class="modal-content" style="max-width: 600px;">
-               <button class="close-modal">&times;</button>
-               <h2>Proveedor Sin Turno</h2>
-               <p style="font-size: 13px; color: #64748b; margin-top: 0;">Registre un proveedor que llega sin turno previo. Se generará un turno de espera automáticamente.</p>
-               <form id="formProveedorSinTurno" onsubmit="AdminHandlers.registrarProveedorSinTurno(event)">
-                   <div class="form-group">
-                       <label>Proveedor:</label>
-                       <input type="text" id="sinTurnoProveedor" placeholder="Nombre del proveedor" autocomplete="off">
-                   </div>
-                   <div class="form-group">
-                       <label>Placa:</label>
-                       <input type="text" id="sinTurnoPlaca" placeholder="ABC123 (6 caracteres)" maxlength="6" autocomplete="off">
-                   </div>
-                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                       <div class="form-group">
-                           <label>Destino:</label>
-                           <select id="sinTurnoDestino">
-                               <option value="">Seleccionar...</option>
-                               <option value="ensambles">SI ENSAMBLES</option>
-                               <option value="plasticos">SI3 ZF SAS</option>
-                               <option value="ambos">AMBOS</option>
-                           </select>
-                       </div>
-                       <div class="form-group">
-                           <label>Factura:</label>
-                           <input type="text" id="sinTurnoFactura" placeholder="Número de factura">
-                       </div>
-                   </div>
-                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                       <div class="form-group">
-                           <label>Tipo:</label>
-                           <select id="sinTurnoTipo">
-                               <option value="">Seleccionar...</option>
-                               <option value="MULA">MULA</option>
-                               <option value="SENCILLO">SENCILLO</option>
-                               <option value="CARPADO">CARPADO</option>
-                               <option value="FURGON">FURGON</option>
-                               <option value="MOTO">MOTO</option>
-                               <option value="PARTICULAR">PARTICULAR</option>
-                               <option value="OTRO">OTRO</option>
-                           </select>
-                       </div>
-                       <div class="form-group">
-                           <label>Bultos:</label>
-                           <input type="number" id="sinTurnoBultos" placeholder="Cantidad" min="0">
-                       </div>
-                   </div>
-                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                       <div class="form-group">
-                           <label>Peso (kg):</label>
-                           <input type="text" id="sinTurnoPeso" placeholder="Peso en kg">
-                       </div>
-                       <div class="form-group">
-                           <label>Responsable:</label>
-                           <input type="text" id="sinTurnoResponsable" placeholder="Nombre del responsable">
-                       </div>
-                   </div>
-                   <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+<!-- Modal Proveedor Sin Turno -->
+        <div id="proveedorSinTurnoModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 600px;">
+                <button class="close-modal">&times;</button>
+                <h2>Proveedor Sin Turno</h2>
+                <p style="font-size: 13px; color: #64748b; margin-top: 0;">Registre un proveedor que llega sin turno previo. Se generará un turno de espera automáticamente.</p>
+                <form id="formProveedorSinTurno" onsubmit="AdminHandlers.registrarProveedorSinTurno(event)">
+                    <div class="form-group">
+                        <label>Proveedor:</label>
+                        <input type="text" id="sinTurnoProveedor" placeholder="Nombre del proveedor" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label>Placa:</label>
+                        <input type="text" id="sinTurnoPlaca" placeholder="ABC123 (6 caracteres)" maxlength="6" autocomplete="off">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label>Destino:</label>
+                            <select id="sinTurnoDestino">
+                                <option value="">Seleccionar...</option>
+                                <option value="ensambles">SI ENSAMBLES</option>
+                                <option value="plasticos">SI3 ZF SAS</option>
+                                <option value="ambos">AMBOS</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="sinTurnoFacturaGroup">
+                            <label>Factura:</label>
+                            <input type="text" id="sinTurnoFactura" placeholder="Número de factura">
+                        </div>
+                    </div>
+                    <div id="sinTurnoFacturaAmbosGroup" style="display: none; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label>Factura SIE (SI ENSAMBLES):</label>
+                            <input type="text" id="sinTurnoFacturaSIE" placeholder="Factura para SI ENSAMBLES">
+                        </div>
+                        <div class="form-group">
+                            <label>Factura SI3 ZF SAS:</label>
+                            <input type="text" id="sinTurnoFacturaSI3" placeholder="Factura para SI3 ZF SAS">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label>Tipo:</label>
+                            <select id="sinTurnoTipo">
+                                <option value="">Seleccionar...</option>
+                                <option value="MULA">MULA</option>
+                                <option value="SENCILLO">SENCILLO</option>
+                                <option value="CARPADO">CARPADO</option>
+                                <option value="FURGON">FURGON</option>
+                                <option value="MOTO">MOTO</option>
+                                <option value="PARTICULAR">PARTICULAR</option>
+                                <option value="OTRO">OTRO</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Bultos:</label>
+                            <input type="number" id="sinTurnoBultos" placeholder="Cantidad" min="0">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label>Peso (kg):</label>
+                            <input type="text" id="sinTurnoPeso" placeholder="Peso en kg">
+                        </div>
+                        <div class="form-group">
+                            <label>Responsable:</label>
+                            <input type="text" id="sinTurnoResponsable" placeholder="Nombre del responsable">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Consecutivo de Ingreso <span style="color: #94a3b8; font-weight: 400; font-size: 12px;">(FMM)</span>:</label>
+                        <input type="text" id="sinTurnoConsecutivo" placeholder="FMM">
+                    </div>
+                    <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
                        <button type="button" class="btn btn-secondary" onclick="AdminHandlers.cerrarModalProveedorSinTurno()">Cancelar</button>
                        <button type="submit" class="btn btn-success">Registrar Proveedor</button>
                    </div>
@@ -1220,7 +1299,7 @@
                                 </tr>
                                 <tr>
                                     <td style="padding: 6px 0;"><strong>Hora Salida:</strong></td>
-                                    <td style="padding: 6px 0; text-align: right;">${data.hora_finalizacion || 'N/A'}</td>
+                                    <td style="padding: 6px 0; text-align: right;">${data.hora_finalizacion || '-'}</td>
                                 </tr>
                             </table>
                         `;
@@ -1418,7 +1497,7 @@
             }, 5000);
         }
         
-        if (window.SonidoAlerta) window.SonidoAlerta.inicializar();
+if (window.SonidoAlerta) window.SonidoAlerta.inicializar();
         
         if (window.supabaseClient && window.SupabaseDB && typeof window.SupabaseDB.suscribirCambiosProveedoresTransporte === 'function') {
             window.SupabaseDB.suscribirCambiosProveedoresTransporte(async () => {
@@ -1428,7 +1507,13 @@
                 }
             });
         }
+        
+        // Inicializar Push Notifications
+        if (window.PushManager) {
+            window.PushManager.init();
+        }
     </script>
+    <script src="push-notifications.js"></script>
 
     <!-- Modal Certificado -->
 <div id="modalCertificado" class="modal" style="display: none;">

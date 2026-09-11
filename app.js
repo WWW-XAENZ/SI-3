@@ -817,7 +817,14 @@ const SupabaseDB = {
             }
             
             console.log('✅ Turno guardado exitosamente:', data);
-            return this._mapearTurno(data);
+            const turnoGuardado = this._mapearTurno(data);
+            
+            // Push notification - Nuevo turno
+            if (window.PushManager) {
+                window.PushManager.notifyNuevoTurno(turnoGuardado);
+            }
+            
+            return turnoGuardado;
         } catch (error) {
             console.error('❌ Error al guardar turno:', error);
             console.log('🔄 Fallback a localStorage para turno');
@@ -1007,6 +1014,12 @@ const SupabaseDB = {
             console.log('Turno actualizado desde DB:', turnoActualizado);
             
             Object.assign(updateData, turnoActualizado);
+            
+            // Push notification - Turno llamado
+            if (window.PushManager) {
+                window.PushManager.notifyTurnoLlamado(turnoActualizado);
+            }
+            
             return updateData;
         } catch (error) {
             console.error('Error al llamar turno:', error);
@@ -1080,10 +1093,20 @@ const SupabaseDB = {
                 });
             }
             
+            // Push notification - Turno completado
+            this._notificarTurnoCompletado(turnoMapeado);
+            
             return true;
         } catch (error) {
             console.error('Error al completar turno:', error);
             return false;
+        }
+    },
+
+    // Push notification - Turno completado
+    _notificarTurnoCompletado(turnoMapeado) {
+        if (window.PushManager) {
+            window.PushManager.notifyTurnoCompletado(turnoMapeado);
         }
     },
 
@@ -1146,12 +1169,6 @@ const SupabaseDB = {
         }
         
         try {
-            const horaFinalizacion = new Date().toLocaleTimeString('es-CO', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: false 
-            });
-            
             const historialData = {
                 numero: turno.numero,
                 nombre_empresa: turno.nombreEmpresa,
@@ -1159,8 +1176,8 @@ const SupabaseDB = {
                 motivo: turno.motivo || '',
                 hora_solicitud: turno.horaSolicitud,
                 hora_llamada: turno.horaLlamada || null,
-                hora_finalizacion: horaFinalizacion,
-                estado: 'completado',
+                hora_finalizacion: null,
+                estado: turno.estado,
                 destino: turno.destino || null,
                 fecha_cita: turno.fechaCita || null,
                 num_factura: turno.numFactura || null,
@@ -1541,6 +1558,7 @@ const SupabaseDB = {
                 estado: 'pendiente',
                 autorizado_salida: false,
                 inspeccion_fisica: false,
+                consecutivo_ingreso: proveedor.consecutivoIngreso || null,
                 hora_solicitud: proveedor.horaSolicitud || null,
                 updated_at: new Date().toISOString()
             };
@@ -1562,6 +1580,29 @@ const SupabaseDB = {
             return this._mapearProveedorTransporte(data);
         } catch (error) {
             console.error('Error al guardar proveedor transporte:', error);
+            // Reintentar sin consecutivo_ingreso si la columna no existe
+            if (error.message?.includes('consecutivo_ingreso')) {
+                console.warn('⚠️ Columna consecutivo_ingreso no existe en proveedores_transporte, reintentando...');
+                delete proveedorData.consecutivo_ingreso;
+                try {
+                    const retryTimeout = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Timeout Supabase (proveedor transporte retry)')), 5000)
+                    );
+                    const retryPromise = window.supabaseClient
+                        .from('proveedores_transporte')
+                        .insert([proveedorData])
+                        .select()
+                        .single()
+                        .abortSignal(signal);
+                    
+                    const { data: retryData, error: retryError } = await Promise.race([retryPromise, retryTimeout]);
+                    if (retryError) throw retryError;
+                    return this._mapearProveedorTransporte(retryData);
+                } catch (retryErr) {
+                    console.error('❌ Reintento de proveedor transporte también falló:', retryErr);
+                    return null;
+                }
+            }
             return null;
         }
     },
@@ -1706,12 +1747,6 @@ const SupabaseDB = {
         }
         
         try {
-            const horaFinalizacion = new Date().toLocaleTimeString('es-CO', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: false 
-            });
-            
             const historialData = {
                 numero: proveedor.numeroTurno,
                 nombre_empresa: proveedor.nombreEmpresa || proveedor.nombre,
@@ -1720,7 +1755,7 @@ const SupabaseDB = {
                 motivo: proveedor.motivo || '',
                 hora_solicitud: proveedor.horaSolicitud || null,
                 hora_llamada: proveedor.horaLlamada || null,
-                hora_finalizacion: horaFinalizacion,
+                hora_finalizacion: null,
                 estado: 'completado',
                 destino: proveedor.destino || null,
                 num_factura: proveedor.numFactura || null,
@@ -1772,6 +1807,7 @@ const SupabaseDB = {
             estado: p.estado,
             autorizadoSalida: p.autorizado_salida,
             inspeccionFisica: p.inspeccion_fisica,
+            consecutivoIngreso: p.consecutivo_ingreso,
             horaSolicitud: p.hora_solicitud,
             horaLlamada: p.hora_llamada,
             horaFinalizacion: p.hora_finalizacion,
@@ -2727,12 +2763,13 @@ const RenderAdmin = {
                             ${turno.nit ? `<span>Placa: ${turno.nit}</span>` : ''}
                             ${turno.contacto ? `<span>Contacto: ${turno.contacto}</span>` : ''}
                             ${turno.telefono ? `<span>Tel: ${turno.telefono}</span>` : ''}
-                            ${turno.destino ? `<span>Destino: ${turno.destino}</span>` : ''}
+                            ${turno.destino ? `<span>Destino: ${turno.destino === 'ensambles' ? 'SIE' : turno.destino === 'plasticos' ? 'SI3 ZF' : turno.destino}</span>` : ''}
                             ${turno.numFactura ? `<span>Fact: ${turno.numFactura}</span>` : ''}
                             ${turno.tipoVehiculo ? `<span>Tipo: ${turno.tipoVehiculo}</span>` : ''}
                             ${turno.bultos ? `<span>Bultos: ${turno.bultos}</span>` : ''}
-                            ${turno.peso ? `<span>Peso: ${turno.peso} kg</span>` : ''}
+                            ${turno.peso ? `<span>Peso: ${turno.peso.toString().toUpperCase().includes('KG') ? turno.peso : turno.peso + ' kg'}</span>` : ''}
                             ${turno.responsable ? `<span>Resp: ${turno.responsable}</span>` : ''}
+                            ${turno.consecutivoIngreso ? `<span>FMM: ${turno.consecutivoIngreso}</span>` : ''}
                         </div>
                         <div class="turn-item-time">
                             ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
@@ -2782,15 +2819,16 @@ const RenderAdmin = {
                             ${turno.nit ? `<span>Placa: ${turno.nit}</span>` : ''}
                             ${turno.contacto ? `<span>Contacto: ${turno.contacto}</span>` : ''}
                             ${turno.telefono ? `<span>Tel: ${turno.telefono}</span>` : ''}
-                            ${turno.destino ? `<span>Destino: ${turno.destino}</span>` : ''}
+                            ${turno.destino ? `<span>Destino: ${turno.destino === 'ensambles' ? 'SIE' : turno.destino === 'plasticos' ? 'SI3 ZF' : turno.destino}</span>` : ''}
                             ${turno.numFactura ? `<span>Fact: ${turno.numFactura}</span>` : ''}
                             ${turno.tipoVehiculo ? `<span>Tipo: ${turno.tipoVehiculo}</span>` : ''}
                             ${turno.bultos ? `<span>Bultos: ${turno.bultos}</span>` : ''}
                             ${turno.peso ? `<span>Peso: ${turno.peso} kg</span>` : ''}
                             ${turno.responsable ? `<span>Resp: ${turno.responsable}</span>` : ''}
+                            ${turno.consecutivoIngreso ? `<span>Cons: ${turno.consecutivoIngreso}</span>` : ''}
                         </div>
                         <div class="turn-item-time">
-                            ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
+                            ${turno.fechaCita ? turno.fechaCita.split('T')[0] + ' ' : ''}${turno.horaSolicitud ? turno.horaSolicitud.slice(0,5) : ''}${turno.motivo ? ' - ' + turno.motivo : ''}
                         </div>
                     </div>
                     <div class="turn-item-actions">
@@ -2832,7 +2870,7 @@ const RenderAdmin = {
         if (turnosCitados.length === 0) {
             listaDiv.innerHTML = '<p class="empty-message">No hay citas reservadas</p>';
         } else {
-            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+            const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
             
             // Agrupar por fecha
             const gruposPorFecha = {};
@@ -2873,7 +2911,8 @@ const RenderAdmin = {
                                 ${turno.nombreEmpresa ? `<div style="font-size:11px;color:#475569;">Contacto: ${turno.nombreEmpresa}</div>` : ''}
                                 ${turno.telefono ? `<div style="font-size:11px;color:#475569;">Tel: ${turno.telefono}</div>` : ''}
                                 ${turno.destino ? `<div style="font-size:11px;color:#475569;">Destino: ${destinoLabel[turno.destino] || turno.destino}</div>` : ''}
-                                ${turno.motivo ? `<div style="font-size:11px;color:#475569;">${horaCita} - ${turno.motivo}</div>` : `<div style="font-size:11px;color:#475569;">${horaCita}</div>`}
+                                ${turno.consecutivoIngreso ? `<div style="font-size:11px;color:#475569;">Cons: ${turno.consecutivoIngreso}</div>` : ''}
+                                ${turno.motivo ? `<div style="font-size:11px;color:#475569;">${horaCita.slice(0,5)} - ${turno.motivo}</div>` : `<div style="font-size:11px;color:#475569;">${horaCita.slice(0,5)}</div>`}
                             </div>
                         </div>
                         <div class="turn-item-actions">
@@ -2895,21 +2934,35 @@ const RenderAdmin = {
     async proveedores() {
         const proveedoresBody = document.getElementById('proveedoresBody');
         const contadorDiv = document.getElementById('contadorProveedores');
+        const busquedaInput = document.getElementById('busquedaProveedores');
+        const busqueda = busquedaInput?.value?.toLowerCase() || '';
 
         if (!proveedoresBody) return;
 
         try {
             const proveedores = await SupabaseDB.cargarProveedores();
 
-            if (contadorDiv) contadorDiv.textContent = proveedores.length;
+            // Filtrar por búsqueda
+            const proveedoresFiltrados = proveedores.filter(p => {
+                if (!busqueda) return true;
+                return (p.nombreEmpresa || '').toLowerCase().includes(busqueda) ||
+                       (p.nit || '').toLowerCase().includes(busqueda) ||
+                       (p.contacto || '').toLowerCase().includes(busqueda) ||
+                       (p.telefono || '').toLowerCase().includes(busqueda) ||
+                       (p.consecutivoIngreso || '').toLowerCase().includes(busqueda);
+            });
 
-            if (proveedores.length === 0) {
-                proveedoresBody.innerHTML = '<p class="empty-message">No hay proveedores registrados</p>';
+            if (contadorDiv) contadorDiv.textContent = proveedoresFiltrados.length;
+
+            if (proveedoresFiltrados.length === 0) {
+                proveedoresBody.innerHTML = busqueda 
+                    ? '<p class="empty-message">No se encontraron proveedores</p>'
+                    : '<p class="empty-message">No hay proveedores registrados</p>';
                 return;
             }
 
             const grupos = {};
-            proveedores.forEach(p => {
+            proveedoresFiltrados.forEach(p => {
                 const empresa = p.nombreEmpresa || 'Sin empresa';
                 if (!grupos[empresa]) grupos[empresa] = [];
                 grupos[empresa].push(p);
@@ -2935,7 +2988,7 @@ const RenderAdmin = {
                         <div class="prov-proveedor">
                             <div class="prov-proveedor-info">
                                 <div class="prov-proveedor-nombre">${p.contacto || 'Proveedor'}${badge}</div>
-                                <div class="prov-proveedor-meta">Placa/NIT: ${p.nit || '-'} &nbsp;|&nbsp; Tel: ${p.telefono || '-'}</div>
+                                <div class="prov-proveedor-meta">${p.nit || '—'}${p.telefono ? ` · ${p.telefono}` : ''}${p.consecutivoIngreso ? ` · Cons: ${p.consecutivoIngreso}` : ''}</div>
                             </div>
                             <button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarProveedor(${p.id})">Eliminar</button>
                         </div>
@@ -2943,7 +2996,7 @@ const RenderAdmin = {
                 }).join('');
 
                 const subTexto = multiple
-                    ? `${lista.length} conductores - click para ${expandido ? 'ocultar' : 'mostrar'}`
+                    ? `${lista.length} conductores · ${lista.map(p => p.nit).filter(Boolean).join(', ')}`
                     : (lista[0].servicio ? this._labelServicio(lista[0].servicio) : 'Proveedor');
 
                 const header = `
@@ -3051,7 +3104,7 @@ const RenderAdmin = {
                         </label>
                         <span style="font-size: 13px; color: #8b5cf6;">${turnosTransporte.length} turno(s) transporte | ${soloTransporte.length} proveedor(es)</span>
                     </div>
-                    <table class="history-table">
+<table class="history-table">
                         <thead>
                             <tr>
                                 <th>#</th>
@@ -3063,6 +3116,7 @@ const RenderAdmin = {
                                 <th>Bultos</th>
                                 <th>Peso</th>
                                 <th>Responsable</th>
+                                <th>Hora Inicio</th>
                                 <th>Hora Fin</th>
                                 <th>Inspeccion</th>
                                 <th>Estado</th>
@@ -3085,6 +3139,7 @@ const RenderAdmin = {
                                     <td>${h.bultos || '-'}</td>
                                     <td>${h.peso || '-'}</td>
                                     <td>${h.responsable || '-'}</td>
+                                    <td>${Utils.formatearHora(h.horaLlamada)}</td>
                                     <td>${Utils.formatearHora(h.horaFinalizacion)}</td>
                                     <td>${h.inspeccionFisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
                                     <td>${h.autorizadoSalida ? '<span style="color:#10b981;font-weight:600;">✓ SALIDA OK</span>' : '<span style="color:#f59e0b;">PENDIENTE</span>'}</td>
@@ -3491,19 +3546,56 @@ const AdminHandlers = {
         const pesoInput = document.getElementById('despachoPeso');
         const responsableInput = document.getElementById('despachoResponsable');
         const placaInput = document.getElementById('despachoPlaca');
+        
+        const facturaGroup = document.getElementById('despachoFacturaGroup');
+        const facturaAmbosGroup = document.getElementById('despachoFacturaAmbosGroup');
+        const facturaSIEInput = document.getElementById('despachoNumFacturaSIE');
+        const facturaSI3Input = document.getElementById('despachoNumFacturaSI3');
+        
+        const destino = turno.destino || '';
+        if (destino === 'ambos') {
+            // Parse combined factura: "SI3 ZF (FEM149394) SIE (FEM14386)"
+            const si3Match = (turno.numFactura || '').match(/SI3 ZF \(([^)]+)\)/);
+            const sieMatch = (turno.numFactura || '').match(/SIE \(([^)]+)\)/);
+            if (facturaSIEInput) facturaSIEInput.value = sieMatch ? sieMatch[1] : '';
+            if (facturaSI3Input) facturaSI3Input.value = si3Match ? si3Match[1] : '';
+            if (facturaGroup) facturaGroup.style.display = 'none';
+            if (facturaAmbosGroup) facturaAmbosGroup.style.display = 'grid';
+        } else {
+            if (numFacturaInput) numFacturaInput.value = turno.numFactura || '';
+            if (facturaGroup) facturaGroup.style.display = 'block';
+            if (facturaAmbosGroup) facturaAmbosGroup.style.display = 'none';
+        }
 
         if (placaInput) placaInput.value = turno.nit || '';
-        if (numFacturaInput) numFacturaInput.value = turno.numFactura || '';
         if (tipoVehiculoInput) tipoVehiculoInput.value = turno.tipoVehiculo || '';
         if (bultosInput) bultosInput.value = turno.bultos || '';
         if (pesoInput) pesoInput.value = turno.peso || '';
         if (responsableInput) responsableInput.value = turno.responsable || '';
+        
+        const despachoDestinoSelect = document.getElementById('despachoDestino');
+        if (despachoDestinoSelect) despachoDestinoSelect.value = turno.destino || '';
         
         const esTransporteCheckbox = document.getElementById('esTransporteCheckbox');
         const btnEsTransporte = document.getElementById('btnEsTransporte');
         if (esTransporteCheckbox) esTransporteCheckbox.checked = false;
         if (btnEsTransporte) btnEsTransporte.style.display = 'none';
 
+        // Add event listener for destino change in despacho modal
+        if (despachoDestinoSelect) {
+            despachoDestinoSelect.onchange = () => {
+                const facturaGroup = document.getElementById('despachoFacturaGroup');
+                const facturaAmbosGroup = document.getElementById('despachoFacturaAmbosGroup');
+                if (despachoDestinoSelect.value === 'ambos') {
+                    facturaGroup.style.display = 'none';
+                    facturaAmbosGroup.style.display = 'grid';
+                } else {
+                    facturaGroup.style.display = 'block';
+                    facturaAmbosGroup.style.display = 'none';
+                }
+            };
+        }
+        
         modal.dataset.turnoId = turnoId || turno.id;
         modal.dataset.tipo = tipo;
         modal.style.display = 'flex';
@@ -3549,6 +3641,10 @@ const AdminHandlers = {
         const pesoInput = document.getElementById('despachoPeso');
         const responsableInput = document.getElementById('despachoResponsable');
         const placaInput = document.getElementById('despachoPlaca');
+        
+        const facturaSIEInput = document.getElementById('despachoNumFacturaSIE');
+        const facturaSI3Input = document.getElementById('despachoNumFacturaSI3');
+        const despachoDestinoSelect = document.getElementById('despachoDestino');
 
         const turnoActual = AppState.turnoActual;
 
@@ -3564,8 +3660,23 @@ const AdminHandlers = {
             return null;
         }
 
+        // Handle factura(s) based on destino
+        let numFactura = null;
+        const destino = despachoDestinoSelect?.value || turnoActual.destino || '';
+        if (destino === 'ambos') {
+            const facturaSIE = facturaSIEInput?.value?.trim();
+            const facturaSI3 = facturaSI3Input?.value?.trim();
+            if (!facturaSIE || !facturaSI3) {
+                Utils.mostrarNotificacion('Ambas facturas (SIE y SI3 ZF) son requeridas para destino AMBOS', 'error');
+                return null;
+            }
+            numFactura = `SI3 ZF (${facturaSI3}) SIE (${facturaSIE})`;
+        } else {
+            numFactura = numFacturaInput?.value?.trim() || null;
+        }
+
         const infoDespacho = {
-            numFactura: numFacturaInput?.value?.trim() || null,
+            numFactura: numFactura,
             tipoVehiculo: tipoVehiculoInput?.value ? tipoVehiculoInput.value.trim() : null,
             bultos: bultosInput?.value?.trim() || null,
             peso: pesoInput?.value?.trim() || null,
@@ -3574,7 +3685,7 @@ const AdminHandlers = {
             telefono: turnoActual.telefono || null,
             servicio: turnoActual.servicio || null,
             nit: turnoActual.nit || null,
-            destino: turnoActual.destino || null
+            destino: destino
         };
 
         turnoActual.numFactura = infoDespacho.numFactura;
@@ -3643,12 +3754,23 @@ const AdminHandlers = {
         transportistaModal.style.display = 'flex';
         this._renderProveedoresTransporte();
         
+        // Clear form fields
+        document.getElementById('transportistaNombreProveedor').value = '';
+        document.getElementById('transportistaFactura').value = '';
+        document.getElementById('transportistaConsecutivo').value = '';
+        document.getElementById('transportistaBultos').value = '';
+        document.getElementById('transportistaPeso').value = '';
+        document.getElementById('transportistaResponsable').value = '';
+        document.getElementById('transportistaTipoVehiculo').value = '';
+        document.getElementById('transportistaDestino').value = '';
+        
         Utils.mostrarNotificacion(`Turno ${turnoActual.numero} - Registre proveedores`, 'info');
     },
 
     agregarProveedorTransportista() {
         const nombreProveedorInput = document.getElementById('transportistaNombreProveedor');
         const facturaInput = document.getElementById('transportistaFactura');
+        const consecutivoInput = document.getElementById('transportistaConsecutivo');
         const destinoInput = document.getElementById('transportistaDestino');
         const bultosInput = document.getElementById('transportistaBultos');
         const pesoInput = document.getElementById('transportistaPeso');
@@ -3691,7 +3813,8 @@ const AdminHandlers = {
             horaSolicitud: turnoActual.horaSolicitud || Utils.obtenerHoraActual(),
             estado: 'pendiente',
             autorizadoSalida: false,
-            inspeccionFisica: false
+            inspeccionFisica: false,
+            consecutivoIngreso: consecutivoInput?.value?.trim() || turnoActual.consecutivoIngreso || null
         };
 
         if (AppState.editandoProveedorIndex !== null) {
@@ -3904,7 +4027,8 @@ const AdminHandlers = {
                     bultos: p.bultos,
                     peso: p.peso,
                     responsable: p.responsable,
-                    destino: p.destino || ''
+                    destino: p.destino || '',
+                    consecutivoIngreso: p.consecutivoIngreso || ''
                 })),
                 timestamp: Date.now()
             };
@@ -3991,7 +4115,7 @@ const AdminHandlers = {
                     motivo: proveedor.motivo || '',
                     hora_solicitud: proveedor.horaSolicitud || null,
                     hora_llamada: proveedor.horaLlamada || null,
-                    hora_finalizacion: horaFin,
+                    hora_finalizacion: null,
                     estado: 'completado',
                     destino: proveedor.destino || null,
                     nombre_proveedor: proveedor.nombreProveedor || null,
@@ -4003,6 +4127,7 @@ const AdminHandlers = {
                     contacto: proveedor.contacto || null,
                     telefono: proveedor.telefono || null,
                     servicio: proveedor.servicio || null,
+                    consecutivo_ingreso: proveedor.consecutivoIngreso || null,
                     autorizado_salida: false,
                     inspeccion_fisica: false,
                     es_transporte: true,
@@ -4068,7 +4193,7 @@ const AdminHandlers = {
         
         const turnoParaDespacho = { ...AppState.turnoActual };
         
-        const proveedorData = {
+const proveedorData = {
             numero: turnoParaDespacho.numero,
             nombre: turnoParaDespacho.nombreEmpresa,
             nit: turnoParaDespacho.nit || '',
@@ -4083,7 +4208,8 @@ const AdminHandlers = {
             tipoVehiculo: turnoParaDespacho.tipoVehiculo || '',
             bultos: turnoParaDespacho.bultos || '',
             peso: turnoParaDespacho.peso || '',
-             responsable: turnoParaDespacho.responsable || '',
+            responsable: turnoParaDespacho.responsable || '',
+            consecutivoIngreso: turnoParaDespacho.consecutivoIngreso || '',
             inspeccionFisica: turnoParaDespacho.inspeccionFisica || false,
             autorizadoSalida: turnoParaDespacho.autorizadoSalida || false,
             timestamp: Date.now()
@@ -4184,15 +4310,34 @@ const AdminHandlers = {
         limpiar('sinTurnoProveedor');
         limpiar('sinTurnoPlaca');
         limpiar('sinTurnoFactura');
+        limpiar('sinTurnoFacturaSIE');
+        limpiar('sinTurnoFacturaSI3');
         limpiar('sinTurnoBultos');
         limpiar('sinTurnoPeso');
         limpiar('sinTurnoResponsable');
         limpiar('sinTurnoDestino');
         limpiar('sinTurnoTipo');
+        limpiar('sinTurnoConsecutivo');
 
         modal.style.display = 'flex';
         const proveedorInput = document.getElementById('sinTurnoProveedor');
         if (proveedorInput) proveedorInput.focus();
+        
+        // Toggle factura fields based on destino
+        const destinoSelect = document.getElementById('sinTurnoDestino');
+        if (destinoSelect) {
+            destinoSelect.addEventListener('change', () => {
+                const facturaGroup = document.getElementById('sinTurnoFacturaGroup');
+                const facturaAmbosGroup = document.getElementById('sinTurnoFacturaAmbosGroup');
+                if (destinoSelect.value === 'ambos') {
+                    facturaGroup.style.display = 'none';
+                    facturaAmbosGroup.style.display = 'grid';
+                } else {
+                    facturaGroup.style.display = 'block';
+                    facturaAmbosGroup.style.display = 'none';
+                }
+            });
+        }
     },
 
     cerrarModalProveedorSinTurno() {
@@ -4206,11 +4351,25 @@ const AdminHandlers = {
         const proveedorInput = (document.getElementById('sinTurnoProveedor')?.value?.trim() || '');
         const placa = (document.getElementById('sinTurnoPlaca')?.value?.trim().toUpperCase() || '');
         const destino = document.getElementById('sinTurnoDestino')?.value || '';
-        const factura = document.getElementById('sinTurnoFactura')?.value?.trim() || null;
         const tipo = document.getElementById('sinTurnoTipo')?.value || null;
         const bultos = document.getElementById('sinTurnoBultos')?.value?.trim() || null;
         const peso = document.getElementById('sinTurnoPeso')?.value?.trim() || null;
         const responsable = document.getElementById('sinTurnoResponsable')?.value?.trim() || null;
+        const consecutivo = document.getElementById('sinTurnoConsecutivo')?.value?.trim() || null;
+
+        // Handle factura(s) based on destino
+        let factura = null;
+        if (destino === 'ambos') {
+            const facturaSIE = document.getElementById('sinTurnoFacturaSIE')?.value?.trim();
+            const facturaSI3 = document.getElementById('sinTurnoFacturaSI3')?.value?.trim();
+            if (!facturaSIE || !facturaSI3) {
+                Utils.mostrarNotificacion('Ambas facturas (SIE y SI3 ZF) son requeridas para destino AMBOS', 'error');
+                return;
+            }
+            factura = `SI3 ZF (${facturaSI3}) SIE (${facturaSIE})`;
+        } else {
+            factura = document.getElementById('sinTurnoFactura')?.value?.trim() || null;
+        }
 
         if (!proveedorInput) {
             Utils.mostrarNotificacion('El nombre del proveedor es requerido', 'error');
@@ -4242,7 +4401,8 @@ const AdminHandlers = {
                 tipoVehiculo: tipo,
                 bultos: bultos,
                 peso: peso,
-                responsable: responsable
+                responsable: responsable,
+                consecutivoIngreso: consecutivo
             };
 
             const turno = await Turnos.solicitar(datosProveedor, '', controller.signal, 'llegado');
@@ -4307,12 +4467,32 @@ const AdminHandlers = {
             document.getElementById('editHistEmpresa').value = data.nombre_empresa || data.nombre_proveedor || '';
             document.getElementById('editHistProveedor').value = data.nombre_proveedor || '';
             document.getElementById('editHistPlaca').value = data.nit || '';
-            document.getElementById('editHistFactura').value = data.num_factura || '';
+            
+            // Handle factura fields based on destino
+            const editDestino = data.destino || '';
+            const facturaGroup = document.getElementById('editHistFacturaGroup');
+            const facturaAmbosGroup = document.getElementById('editHistFacturaAmbosGroup');
+            const numFactura = data.num_factura || '';
+            
+            if (editDestino === 'ambos' && numFactura) {
+                // Parse combined factura: "SI3 ZF (FEM149394) SIE (FEM14386)"
+                const si3Match = numFactura.match(/SI3 ZF \(([^)]+)\)/);
+                const sieMatch = numFactura.match(/SIE \(([^)]+)\)/);
+                document.getElementById('editHistFacturaSIE').value = sieMatch ? sieMatch[1] : '';
+                document.getElementById('editHistFacturaSI3').value = si3Match ? si3Match[1] : '';
+                facturaGroup.style.display = 'none';
+                facturaAmbosGroup.style.display = 'grid';
+            } else {
+                document.getElementById('editHistFactura').value = numFactura;
+                facturaGroup.style.display = 'block';
+                facturaAmbosGroup.style.display = 'none';
+            }
+            
             document.getElementById('editHistTipo').value = data.tipo_vehiculo || '';
             document.getElementById('editHistBultos').value = data.bultos || '';
             document.getElementById('editHistPeso').value = data.peso || '';
             document.getElementById('editHistResponsable').value = data.responsable || '';
-            document.getElementById('editHistDestino').value = data.destino || '';
+document.getElementById('editHistDestino').value = editDestino;
             this._editTransporteId = data.proveedor_transporte_id || null;
             this._editOriginalPayload = {
                 nombre_empresa: data.nombre_empresa || data.nombre_proveedor || '',
@@ -4325,6 +4505,23 @@ const AdminHandlers = {
                 responsable: data.responsable || '',
                 destino: data.destino || ''
             };
+            
+            // Add event listener for destino change in edit modal
+            const editDestinoSelect = document.getElementById('editHistDestino');
+            if (editDestinoSelect) {
+                editDestinoSelect.onchange = () => {
+                    const facturaGroup = document.getElementById('editHistFacturaGroup');
+                    const facturaAmbosGroup = document.getElementById('editHistFacturaAmbosGroup');
+                    if (editDestinoSelect.value === 'ambos') {
+                        facturaGroup.style.display = 'none';
+                        facturaAmbosGroup.style.display = 'grid';
+                    } else {
+                        facturaGroup.style.display = 'block';
+                        facturaAmbosGroup.style.display = 'none';
+                    }
+                };
+            }
+            
             document.getElementById('modalEditarHistorial').style.display = 'flex';
         } catch (error) {
             console.error('Error al cargar registro:', error);
@@ -4339,16 +4536,32 @@ const AdminHandlers = {
         const bultosVal = bultosRaw !== '' ? parseInt(bultosRaw, 10) : null;
         const empresaVal = (document.getElementById('editHistEmpresa').value || '').trim();
         const proveedorVal = (document.getElementById('editHistProveedor').value || '').trim();
+        const destino = document.getElementById('editHistDestino').value || null;
+        
+        // Handle factura(s) based on destino
+        let numFactura = '';
+        if (destino === 'ambos') {
+            const facturaSIE = document.getElementById('editHistFacturaSIE')?.value?.trim();
+            const facturaSI3 = document.getElementById('editHistFacturaSI3')?.value?.trim();
+            if (!facturaSIE || !facturaSI3) {
+                Utils.mostrarNotificacion('Ambas facturas (SIE y SI3 ZF) son requeridas para destino AMBOS', 'error');
+                return;
+            }
+            numFactura = `SI3 ZF (${facturaSI3}) SIE (${facturaSIE})`;
+        } else {
+            numFactura = (document.getElementById('editHistFactura').value || '').trim();
+        }
+        
         const payload = {
             nombre_empresa: empresaVal || proveedorVal,
             nombre_proveedor: proveedorVal,
             nit: (document.getElementById('editHistPlaca').value || '').trim(),
-            num_factura: (document.getElementById('editHistFactura').value || '').trim(),
+            num_factura: numFactura,
             tipo_vehiculo: document.getElementById('editHistTipo').value || null,
             bultos: (bultosVal !== null && !isNaN(bultosVal)) ? bultosVal : null,
             peso: (document.getElementById('editHistPeso').value || '').trim() || null,
             responsable: (document.getElementById('editHistResponsable').value || '').trim(),
-            destino: document.getElementById('editHistDestino').value || null
+            destino: destino
         };
         try {
             const { data, error } = await window.supabaseClient
@@ -5186,10 +5399,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('busquedaLlegados')?.addEventListener('input', () => RenderAdmin.listaTurnosLlegados());
         document.getElementById('busquedaEspera')?.addEventListener('input', () => RenderAdmin.listaTurnosEspera());
         document.getElementById('busquedaCitados')?.addEventListener('input', () => RenderAdmin.listaTurnosCitados());
+        document.getElementById('busquedaProveedores')?.addEventListener('input', () => RenderAdmin.proveedores());
         
         console.log('Renderizando admin...');
         RenderAdmin.todo();
         RenderAdmin.cargarMesesDisponibles();
+        
+        // Toggle function for provider cards
+        window.toggleProveedoresEmpresa = (detallesId, chevronId) => {
+            const detalles = document.getElementById(detallesId);
+            const chevron = document.getElementById(chevronId);
+            if (detalles && chevron) {
+                const abierto = detalles.style.display !== 'none';
+                detalles.style.display = abierto ? 'none' : 'block';
+                chevron.classList.toggle('abierto', !abierto);
+            }
+        };
         
         if (window.PanelRendimiento && typeof window.PanelRendimiento.cargar === 'function') {
             window.PanelRendimiento.cargar();
@@ -5483,7 +5708,10 @@ const DespachadorHandlers = {
             if (historialActual && !errorGet) {
                 const { error: errorUpdate } = await window.supabaseClient
                     .from('historial_turnos')
-                    .update({ autorizado_salida: true })
+                    .update({ 
+                        autorizado_salida: true,
+                        hora_finalizacion: horaFin
+                    })
                     .eq('id', historialActual.id);
                 
                 if (errorUpdate) console.warn('No se pudo actualizar historial:', errorUpdate.message);
@@ -5542,7 +5770,10 @@ const DespachadorHandlers = {
             
             const { error: errorH } = await window.supabaseClient
                 .from('historial_turnos')
-                .update({ autorizado_salida: true })
+                .update({ 
+                    autorizado_salida: true,
+                    hora_finalizacion: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })
+                })
                 .eq('proveedor_transporte_id', turno.proveedorTransporteId);
             
             if (errorH) console.warn('No se pudo actualizar historial para proveedor transporte:', errorH.message);
@@ -5568,7 +5799,10 @@ const DespachadorHandlers = {
                 
                 await window.supabaseClient
                     .from('historial_turnos')
-                    .update({ autorizado_salida: true })
+                    .update({ 
+                        autorizado_salida: true,
+                        hora_finalizacion: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })
+                    })
                     .eq('proveedor_transporte_id', proveedor.id);
             }
         }
@@ -5591,7 +5825,10 @@ const DespachadorHandlers = {
             
             await window.supabaseClient
                 .from('historial_turnos')
-                .update({ autorizado_salida: true })
+                .update({ 
+                    autorizado_salida: true,
+                    hora_finalizacion: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })
+                })
                 .eq('proveedor_transporte_id', proveedorId);
             
             if (window.supabaseClient) {
@@ -5684,7 +5921,10 @@ const DespachadorHandlers = {
 
             await window.supabaseClient
                 .from('historial_turnos')
-                .update({ autorizado_salida: true })
+                .update({ 
+                    autorizado_salida: true,
+                    hora_finalizacion: horaFin
+                })
                 .in('proveedor_transporte_id', ids);
 
             if (window.supabaseClient) {
@@ -5779,6 +6019,11 @@ const DespachadorHandlers = {
                         responsable: turno.responsable || ''
                     }))
                 });
+            }
+            
+            // Push notification - Inspección requerida
+            if (window.PushManager) {
+                window.PushManager.notifyInspeccionRequerida(turno);
             }
             
             const btnInspeccion = document.getElementById('btnSolicitarInspeccion');

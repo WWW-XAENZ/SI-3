@@ -145,21 +145,22 @@
                     <button id="btnMostrarTodas" class="btn btn-secondary" style="padding: 10px 16px; border-radius: 10px; font-size: 14px; white-space: nowrap;">Mostrar todas las facturas</button>
                 </div>
                 <table class="facturas-table">
-                    <thead>
-                         <tr>
-                              <th>Factura</th>
-                              <th>Proveedor</th>
-                              <th>Destino</th>
-                             <th>Bultos</th>
-                             <th>Peso</th>
-                              <th>Consecutivo de Ingreso</th>
-                              <th>Hora Inicio</th>
-                              <th>Hora Fin</th>
-                             <th>Fecha</th>
-                         </tr>
-                    </thead>
+<thead>
+                     <tr>
+                          <th>Factura</th>
+                          <th>Proveedor</th>
+                          <th>Destino</th>
+                          <th>Bultos</th>
+                          <th>Peso</th>
+                          <th>Consecutivo de Ingreso</th>
+                          <th>Hora Inicio</th>
+                          <th>Hora Fin</th>
+                          <th>Fecha</th>
+                          <th>Turno</th>
+                     </tr>
+                </thead>
                     <tbody id="facturasBody">
-                        <tr><td colspan="9" class="empty-message">Cargando...</td></tr>
+                        <tr><td colspan="10" class="empty-message">Cargando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -178,14 +179,14 @@
             if (!tbody) return;
             
             if (!window.supabaseClient) {
-                tbody.innerHTML = '<tr><td colspan="9" class="empty-message">Sin conexión a Supabase</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="empty-message">Sin conexión a Supabase</td></tr>';
                 return;
             }
             
             try {
                 let query = window.supabaseClient
                      .from('historial_turnos')
-                     .select('num_factura, nombre_empresa, nombre_proveedor, es_transporte, destino, bultos, peso, consecutivo_ingreso, hora_llamada, hora_finalizacion, fecha')
+                     .select('num_factura, nombre_empresa, nombre_proveedor, es_transporte, destino, bultos, peso, consecutivo_ingreso, hora_llamada, hora_finalizacion, fecha, estado, fecha_cita, hora_solicitud')
                     .order('fecha', { ascending: false });
                 
                 if (!mostrandoTodas) {
@@ -200,7 +201,7 @@
                 aplicarFiltroFacturas();
             } catch (error) {
                 console.error('Error al cargar facturas:', error);
-                tbody.innerHTML = '<tr><td colspan="9" class="empty-message">Error al cargar</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="empty-message">Error al cargar</td></tr>';
             }
         }
 
@@ -232,7 +233,7 @@
             });
 
             if (filtradas.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="empty-message">No hay facturas registradas</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="empty-message">No hay facturas registradas</td></tr>';
             } else {
                 tbody.innerHTML = filtradas.map(f => `
                     <tr>
@@ -245,6 +246,7 @@
                         <td>${typeof Utils !== 'undefined' ? Utils.formatearHora(f.hora_llamada) : (f.hora_llamada || '-')}</td>
                         <td>${typeof Utils !== 'undefined' ? Utils.formatearHora(f.hora_finalizacion) : (f.hora_finalizacion || '-')}</td>
                         <td>${f.fecha ? f.fecha.split('T')[0] : '-'}</td>
+                        <td>${f.estado === 'llegado' || !f.fecha_cita || (f.hora_solicitud && f.hora_llamada && f.hora_solicitud === f.hora_llamada) ? '<span style="color: #dc2626; font-weight: 600;">Sin turno</span>' : '<span style="color: #059669; font-weight: 600;">Con turno</span>'}</td>
                     </tr>
                 `).join('');
             }
