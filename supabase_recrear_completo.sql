@@ -37,6 +37,8 @@ CREATE TABLE proveedores (
     telefono VARCHAR(50),
     email VARCHAR(255),
     servicio VARCHAR(50),
+    consecutivo_ingreso VARCHAR(100),
+    num_facturas INTEGER,
     activo BOOLEAN DEFAULT true,
     fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -61,6 +63,8 @@ CREATE TABLE turnos (
     destino VARCHAR(50),
     fecha_cita TIMESTAMP WITH TIME ZONE,
     num_factura VARCHAR(50),
+    consecutivo_ingreso VARCHAR(100),
+    num_facturas INTEGER,
     tipo_vehiculo VARCHAR(50),
     bultos INTEGER,
     peso VARCHAR(50),
@@ -92,6 +96,8 @@ CREATE TABLE historial_turnos (
     destino VARCHAR(50),
     fecha_cita TIMESTAMP WITH TIME ZONE,
     num_factura VARCHAR(50),
+    consecutivo_ingreso VARCHAR(100),
+    num_facturas INTEGER,
     tipo_vehiculo VARCHAR(50),
     bultos INTEGER,
     peso VARCHAR(50),
@@ -132,6 +138,7 @@ CREATE TABLE notificaciones_salida (
     fecha_cita TIMESTAMP WITH TIME ZONE,
     tipo TEXT CHECK (tipo IN ('salida_pendiente', 'salida_autorizada')),
     mensaje TEXT,
+    datos JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     leido BOOLEAN DEFAULT false
 );

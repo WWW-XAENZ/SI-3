@@ -146,17 +146,20 @@
                 </div>
                 <table class="facturas-table">
                     <thead>
-                        <tr>
-                             <th>Factura</th>
-                             <th>Proveedor</th>
-                             <th>Destino</th>
-                            <th>Bultos</th>
-                            <th>Peso</th>
-                            <th>Fecha</th>
-                        </tr>
+                         <tr>
+                              <th>Factura</th>
+                              <th>Proveedor</th>
+                              <th>Destino</th>
+                             <th>Bultos</th>
+                             <th>Peso</th>
+                              <th>Consecutivo de Ingreso</th>
+                              <th>Hora Inicio</th>
+                              <th>Hora Fin</th>
+                             <th>Fecha</th>
+                         </tr>
                     </thead>
                     <tbody id="facturasBody">
-                        <tr><td colspan="6" class="empty-message">Cargando...</td></tr>
+                        <tr><td colspan="9" class="empty-message">Cargando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -175,14 +178,14 @@
             if (!tbody) return;
             
             if (!window.supabaseClient) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-message">Sin conexión a Supabase</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-message">Sin conexión a Supabase</td></tr>';
                 return;
             }
             
             try {
                 let query = window.supabaseClient
                      .from('historial_turnos')
-                    .select('num_factura, nombre_empresa, nombre_proveedor, es_transporte, destino, bultos, peso, fecha')
+                     .select('num_factura, nombre_empresa, nombre_proveedor, es_transporte, destino, bultos, peso, consecutivo_ingreso, hora_llamada, hora_finalizacion, fecha')
                     .order('fecha', { ascending: false });
                 
                 if (!mostrandoTodas) {
@@ -197,7 +200,7 @@
                 aplicarFiltroFacturas();
             } catch (error) {
                 console.error('Error al cargar facturas:', error);
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-message">Error al cargar</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-message">Error al cargar</td></tr>';
             }
         }
 
@@ -221,14 +224,15 @@
                     const factura = (f.num_factura || '').toLowerCase();
                     const proveedor = ((f.es_transporte && f.nombre_proveedor) ? f.nombre_proveedor : (f.nombre_empresa || f.nombre_proveedor || '')).toLowerCase();
                     const destino = (destinoLabel[f.destino] || f.destino || '').toLowerCase();
-                    return factura.includes(query) || proveedor.includes(query) || destino.includes(query);
+                    const consecutivo = (f.consecutivo_ingreso || '').toLowerCase();
+                    return factura.includes(query) || proveedor.includes(query) || destino.includes(query) || consecutivo.includes(query);
                 }
 
                 return !fechaFiltro || fechaFactura === fechaFiltro;
             });
 
             if (filtradas.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-message">No hay facturas registradas</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-message">No hay facturas registradas</td></tr>';
             } else {
                 tbody.innerHTML = filtradas.map(f => `
                     <tr>
@@ -237,6 +241,9 @@
                         <td>${destinoLabel[f.destino] || f.destino || '-'}</td>
                         <td>${f.bultos || '-'}</td>
                         <td>${f.peso || '-'}</td>
+                        <td>${f.consecutivo_ingreso || '-'}</td>
+                        <td>${typeof Utils !== 'undefined' ? Utils.formatearHora(f.hora_llamada) : (f.hora_llamada || '-')}</td>
+                        <td>${typeof Utils !== 'undefined' ? Utils.formatearHora(f.hora_finalizacion) : (f.hora_finalizacion || '-')}</td>
                         <td>${f.fecha ? f.fecha.split('T')[0] : '-'}</td>
                     </tr>
                 `).join('');

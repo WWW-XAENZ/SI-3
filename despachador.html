@@ -1057,46 +1057,74 @@
                     } else {
                         const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
                         listaDiv.innerHTML = `
-                            <table class="history-table-desp">
+                                    <table class="history-table-desp">
                                     <thead>
                                         <tr>
-                                            <th>#</th><th>Empresa</th><th>Proveedor</th><th>Placa</th><th>Factura</th>
-                                            <th>Tipo</th><th>Bultos</th><th>Peso</th><th>Responsable</th><th>Hora</th><th>Inspeccion</th><th>Estado</th><th>Destino</th><th></th>
+                                            <th>#</th>
+                                            <th>Empresa</th>
+                                            <th>Proveedor</th>
+                                            <th>Placa</th>
+                                            <th>Factura</th>
+                                            <th>Tipo</th>
+                                            <th>Bultos</th>
+                                            <th>Peso</th>
+                                            <th>Responsable</th>
+                                            <th>Hora Inicio</th>
+                                            <th>Hora Fin</th>
+                                            <th>Consecutivo</th>
+                                            <th>Inspeccion</th>
+                                            <th>Estado</th>
+                                            <th>Destino</th>
+                                            <th></th>
                                         </tr>
                                     </thead>
-                                <tbody>
-                                    ${historialConProveedores.map(h => {
-                                        let horaFin = '-';
-                                        if (h.hora_finalizacion) {
-                                            const partes = h.hora_finalizacion.split(':');
-                                            if (partes.length >= 2) {
-                                                let hra = parseInt(partes[0]);
-                                                const min = partes[1];
-                                                const ampm = hra >= 12 ? 'PM' : 'AM';
-                                                hra = hra % 12 || 12;
-                                                horaFin = `${hra}:${min} ${ampm}`;
-                                            }
-                                        }
+                                    <tbody>
+                                        ${historialConProveedores.map(h => {
+                        let horaInicio = '-';
+                        if (h.hora_solicitud) {
+                            const partesIni = h.hora_solicitud.split(':');
+                            if (partesIni.length >= 2) {
+                                let hraI = parseInt(partesIni[0]);
+                                const minI = partesIni[1];
+                                const ampmI = hraI >= 12 ? 'PM' : 'AM';
+                                hraI = hraI % 12 || 12;
+                                horaInicio = `${hraI}:${minI} ${ampmI}`;
+                            }
+                        }
+                        let horaFin = '-';
+                        if (h.hora_finalizacion) {
+                            const partes = h.hora_finalizacion.split(':');
+                            if (partes.length >= 2) {
+                                let hra = parseInt(partes[0]);
+                                const min = partes[1];
+                                const ampm = hra >= 12 ? 'PM' : 'AM';
+                                hra = hra % 12 || 12;
+                                horaFin = `${hra}:${min} ${ampm}`;
+                            }
+                        }
+                        const consecutivo = h.consecutivo_ingreso || '-';
                                         const displayDestino = h.proveedor_destino && h.proveedor_destino !== h.destino 
                                             ? (destinoLabel[h.proveedor_destino] || h.proveedor_destino) 
                                             : (destinoLabel[h.destino] || h.destino || '-');
                                         return `
                                             <tr>
-                                                <td><strong>${h.numero}</strong></td>
-                                                <td>${h.nombre_empresa || '-'}</td>
-                                                <td>${h.nombre_proveedor || (h.es_transporte ? '-' : h.nombre_empresa || '-')}</td>
-                                                <td>${h.nit || '-'}</td>
-                                                <td>${h.num_factura || '-'}</td>
-                                                <td>${h.tipo_vehiculo || '-'}</td>
-                                                <td>${h.bultos || '-'}</td>
-                                                <td>${h.peso || '-'}</td>
-                                                <td>${h.responsable || '-'}</td>
-                                                <td>${horaFin}</td>
-                                                <td>${h.inspeccion_fisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
-                                                <td>${h.autorizado_salida ? '<span class="estado-ok">✓ OK</span>' : '<span class="estado-pend">PEND</span>'}</td>
-                                                <td>${displayDestino}</td>
-                                                <td><button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button></td>
-                                            </tr>
+                                            <td><strong>${h.numero}</strong></td>
+                                            <td>${h.es_transporte ? (h.nombre_empresa || '-') : ''}</td>
+                                            <td>${h.nombre_proveedor || (h.es_transporte ? '-' : h.nombre_empresa || '-')}</td>
+                                            <td>${h.nit || '-'}</td>
+                                            <td>${h.num_factura || '-'}</td>
+                                            <td>${h.tipo_vehiculo || '-'}</td>
+                                            <td>${h.bultos || '-'}</td>
+                                            <td>${h.peso || '-'}</td>
+                                            <td>${h.responsable || '-'}</td>
+                                            <td>${horaInicio}</td>
+                                            <td>${horaFin}</td>
+                                            <td>${consecutivo}</td>
+                                            <td>${h.inspeccion_fisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
+                                            <td>${h.autorizado_salida ? '<span class="estado-ok">✓ OK</span>' : '<span class="estado-pend">PEND</span>'}</td>
+                                            <td>${displayDestino}</td>
+                                            <td><button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarHistorial(${h.id})">Eliminar</button></td>
+                                        </tr>
                                         `;
                                     }).join('')}
                                 </tbody>
@@ -1772,7 +1800,9 @@
                                             <th>Bultos</th>
                                             <th>Peso</th>
                                             <th>Responsable</th>
-                                            <th>Hora</th>
+                                            <th>Hora Inicio</th>
+                                            <th>Hora Fin</th>
+                                            <th>Consecutivo</th>
                                             <th>Inspeccion</th>
                                             <th>Estado</th>
                                             <th>Destino</th>
@@ -1781,6 +1811,17 @@
                                     </thead>
                                     <tbody>
                                         ${historialConProveedores.map(h => {
+                                            let horaInicio = '-';
+                                            if (h.hora_solicitud) {
+                                                const partesIni = h.hora_solicitud.split(':');
+                                                if (partesIni.length >= 2) {
+                                                    let hraI = parseInt(partesIni[0]);
+                                                    const minI = partesIni[1];
+                                                    const ampmI = hraI >= 12 ? 'PM' : 'AM';
+                                                    hraI = hraI % 12 || 12;
+                                                    horaInicio = `${hraI}:${minI} ${ampmI}`;
+                                                }
+                                            }
                                             let horaFin = '-';
                                             if (h.hora_finalizacion) {
                                                 const partes = h.hora_finalizacion.split(':');
@@ -1795,10 +1836,11 @@
                                             const displayDestino = h.proveedor_destino && h.proveedor_destino !== h.destino 
                                                 ? (destinoLabel[h.proveedor_destino] || h.proveedor_destino) 
                                                 : (destinoLabel[h.destino] || h.destino || '-');
+                                            const consecutivo = h.consecutivo_ingreso || '-';
                                             return `
                                             <tr>
                                                 <td><strong>${h.numero}</strong></td>
-                                                <td>${h.nombre_empresa || '-'}</td>
+                                                <td>${h.es_transporte ? (h.nombre_empresa || '-') : ''}</td>
                                                 <td>${h.nombre_proveedor || (h.es_transporte ? '-' : h.nombre_empresa || '-')}</td>
                                                 <td>${h.nit || '-'}</td>
                                                 <td>${h.num_factura || '-'}</td>
@@ -1806,7 +1848,9 @@
                                                 <td>${h.bultos || '-'}</td>
                                                 <td>${h.peso || '-'}</td>
                                                 <td>${h.responsable || '-'}</td>
+                                                <td>${horaInicio}</td>
                                                 <td>${horaFin}</td>
+                                                <td>${consecutivo}</td>
                                                 <td>${h.inspeccion_fisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
                                                 <td>${h.autorizado_salida ? '<span class="estado-ok">✓ OK</span>' : '<span class="estado-pend">PEND</span>'}</td>
                                                 <td>${displayDestino}</td>
@@ -1844,21 +1888,34 @@
                         horaLlamada: item.dataset.horallamada
                     };
                     
-                    if (item.dataset.estransporte === 'true' && item.dataset.proveedortransporteid) {
-                        turno.proveedorTransporteId = parseInt(item.dataset.proveedortransporteid);
-                        turno.esTransporte = true;
-                        turno.nombreProveedor = item.dataset.nombreproveedor || '';
-                        await window.DespachadorHandlers._autorizarProveedorTransporteIndividual(turno);
-                        if (window.supabaseClient) {
-                            await window.supabaseClient.from('notificaciones_salida').insert({
-                                mensaje: `Salida autorizada para proveedor ${item.dataset.nombreproveedor || item.dataset.nit || turno.numero}`,
-                                remitente: 'despachador',
-                                leido: false
-                            });
-                        }
-                    } else {
-                        await window.DespachadorHandlers.autorizarSalida(turno);
-                    }
+                     if (item.dataset.estransporte === 'true' && item.dataset.proveedortransporteid) {
+                         turno.proveedorTransporteId = parseInt(item.dataset.proveedortransporteid);
+                         turno.esTransporte = true;
+                         turno.nombreProveedor = item.dataset.nombreproveedor || '';
+                         await window.DespachadorHandlers._autorizarProveedorTransporteIndividual(turno);
+                         if (window.supabaseClient) {
+                             try {
+                                 await window.supabaseClient.from('notificaciones_salida').insert({
+                                     mensaje: `Salida autorizada para proveedor ${item.dataset.nombreproveedor || item.dataset.nit || turno.numero}`,
+                                     remitente: 'despachador',
+                                     leido: false,
+                                     tipo: 'salida_autorizada',
+                                     proveedor_nit: item.dataset.nit || null,
+                                     nombre_empresa: item.dataset.nombreproveedor || null,
+                                     datos: JSON.parse(JSON.stringify({
+                                         numero: turno.numero,
+                                         nombreEmpresa: item.dataset.nombreproveedor || '',
+                                         proveedorId: turno.proveedorTransporteId,
+                                         nit: item.dataset.nit || '',
+                                         autorizadoSalida: true,
+                                         timestamp: Date.now()
+                                     }))
+                                 });
+                             } catch(e) { console.warn('Error notificación:', e); }
+                         }
+                     } else {
+                         await window.DespachadorHandlers.autorizarSalida(turno);
+                     }
                     setTimeout(() => {
                         cargarTurnosPendientesSalida();
                         cargarEstadisticasDespachador();
@@ -1960,11 +2017,28 @@
                     { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
                     async (payload) => {
                         console.log('🔔 Notificación realtime despachador:', payload);
-                        if (payload.new.remitente === 'admin') {
+                        const notif = payload.new;
+                        if (notif.remitente === 'admin') {
                             if (window.SonidoAlerta) {
                                 SonidoAlerta.reproducir(3);
                             }
-                            Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
+                            
+                            if (notif.tipo === 'salida_pendiente' && notif.datos) {
+                                if (typeof window.mostrarProveedorListo === 'function') {
+                                    try {
+                                        window.mostrarProveedorListo(notif.datos);
+                                    } catch (e) {
+                                        console.warn('Error al mostrar proveedor:', e);
+                                        Utils.mostrarNotificacion(notif.mensaje, 'warning');
+                                    }
+                                } else {
+                                    Utils.mostrarNotificacion(notif.mensaje, 'warning');
+                                }
+                            } else {
+                                Utils.mostrarNotificacion(notif.mensaje, 'warning');
+                            }
+                            
+                            await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notif.id);
                         }
                     }
                 )

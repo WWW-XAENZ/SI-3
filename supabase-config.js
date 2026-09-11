@@ -15,13 +15,12 @@ try {
                 params: {
                     eventsPerSecond: 10,
                 },
-                // CORRECCIÓN: timeout y heartbeat van DENTRO de realtime
-                timeout: 20000,
-                heartbeatIntervalMs: 15000,
+                autoConnect: true,
             },
             db: {
                 schema: 'public'
-            }
+            },
+            fetch: window.fetch.bind(window)
         });
 
         // Hacer disponible globalmente

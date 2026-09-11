@@ -501,6 +501,8 @@ const SupabaseDB = {
                 contacto: proveedor.contacto || null,
                 telefono: proveedor.telefono || null,
                 servicio: proveedor.servicio || null,
+                consecutivo_ingreso: proveedor.consecutivoIngreso || null,
+                num_facturas: proveedor.numFacturas || null,
                 activo: true,
                 updated_at: new Date().toISOString()
             };
@@ -595,8 +597,46 @@ const SupabaseDB = {
                 
                 return this._mapearProveedor(data);
             }
-        } catch (error) {
+         } catch (error) {
             console.error('❌ Error al guardar proveedor:', error);
+            // Si el error es por columna inexistente, reintentar sin los campos nuevos
+            if (error.message?.includes('consecutivo_ingreso') || error.message?.includes('num_facturas')) {
+                console.warn('⚠️ Columnas nuevas no existen en proveedores, reintentando sin ellas...');
+                const proveedorDataBasico = {
+                    nombre_empresa: proveedor.nombreEmpresa,
+                    nit: proveedor.nit,
+                    contacto: proveedor.contacto || null,
+                    telefono: proveedor.telefono || null,
+                    servicio: proveedor.servicio || null,
+                    activo: true,
+                    updated_at: new Date().toISOString()
+                };
+                try {
+                    if (proveedor.id) {
+                        const { data, error: errUpdate } = await window.supabaseClient
+                            .from('proveedores')
+                            .update(proveedorDataBasico)
+                            .eq('id', proveedor.id)
+                            .select()
+                            .single()
+                            .abortSignal(signal);
+                        if (errUpdate) throw errUpdate;
+                        return this._mapearProveedor(data);
+                    } else {
+                        const { data, error: errInsert } = await window.supabaseClient
+                            .from('proveedores')
+                            .insert(proveedorDataBasico)
+                            .select()
+                            .single()
+                            .abortSignal(signal);
+                        if (errInsert) throw errInsert;
+                        return this._mapearProveedor(data);
+                    }
+                } catch (retryError) {
+                    console.error('❌ Reintento de proveedor también falló:', retryError);
+                    return null;
+                }
+            }
             console.log('🔄 Fallback a localStorage para proveedor');
             return null; // Señal para usar fallback
         }
@@ -658,6 +698,8 @@ const SupabaseDB = {
             contacto: p.contacto,
             telefono: p.telefono,
             servicio: p.servicio,
+            consecutivoIngreso: p.consecutivo_ingreso,
+            numFacturas: p.num_facturas,
             activo: p.activo,
             createdAt: p.created_at,
             updatedAt: p.updated_at
@@ -697,6 +739,8 @@ const SupabaseDB = {
                 contacto: turno.contacto || null,
                 telefono: turno.telefono || null,
                 servicio: turno.servicio || null,
+                consecutivo_ingreso: turno.consecutivoIngreso || null,
+                num_facturas: turno.numFacturas || null,
                 autorizado_salida: turno.autorizadoSalida || false
             };
             
@@ -745,6 +789,30 @@ const SupabaseDB = {
                 console.error('❌ Error de Supabase:', error);
                 console.error('   Código:', error.code);
                 console.error('   Mensaje:', error.message);
+                
+                // Reintentar sin los campos nuevos si las columnas no existen aún en la BD
+                if ((turnoData.consecutivo_ingreso !== undefined || turnoData.num_facturas !== undefined) && 
+                    (error.message?.includes('consecutivo_ingreso') || error.message?.includes('consecutivo') ||
+                     error.message?.includes('num_facturas'))) {
+                    console.warn('⚠️ Columnas nuevas no existen en la BD, reintentando sin ellas...');
+                    if (turnoData.consecutivo_ingreso !== undefined) delete turnoData.consecutivo_ingreso;
+                    if (turnoData.num_facturas !== undefined) delete turnoData.num_facturas;
+                    const retryTimeout = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Timeout Supabase (turno retry)')), 5000)
+                    );
+                    const retryPromise = window.supabaseClient
+                        .from('turnos')
+                        .insert([turnoData])
+                        .select()
+                        .single()
+                        .abortSignal(signal);
+                    
+                    const { data: retryData, error: retryError } = await Promise.race([retryPromise, retryTimeout]);
+                    if (retryError) throw retryError;
+                    console.log('✅ Turno guardado exitosamente (sin consecutivo_ingreso):', retryData);
+                    return this._mapearTurno(retryData);
+                }
+                
                 throw error;
             }
             
@@ -978,10 +1046,37 @@ const SupabaseDB = {
             if (error) throw error;
             
             if (window.supabaseClient) {
+                const datosNotificacion = {
+                    numero: turnoMapeado.numero,
+                    nombreEmpresa: turnoMapeado.nombreEmpresa,
+                    nombre: turnoMapeado.nombreEmpresa,
+                    nit: turnoMapeado.nit || '',
+                    contacto: turnoMapeado.contacto || '',
+                    telefono: turnoMapeado.telefono || '',
+                    servicio: turnoMapeado.servicio || '',
+                    destino: turnoMapeado.destino || '',
+                    fechaCita: turnoMapeado.fechaCita || '',
+                    numFactura: turnoMapeado.numFactura || '',
+                    numFacturas: turnoMapeado.numFacturas || null,
+                    tipoVehiculo: turnoMapeado.tipoVehiculo || '',
+                    bultos: turnoMapeado.bultos || null,
+                    peso: turnoMapeado.peso || '',
+                    responsable: turnoMapeado.responsable || '',
+                    consecutivoIngreso: turnoMapeado.consecutivoIngreso || '',
+                    inspeccionFisica: turnoMapeado.inspeccionFisica || false,
+                    autorizadoSalida: turnoMapeado.autorizadoSalida || false,
+                    horaSolicitud: turnoMapeado.horaSolicitud || '',
+                    horaLlamada: turnoMapeado.horaLlamada || '',
+                    timestamp: Date.now()
+                };
                 await window.supabaseClient.from('notificaciones_salida').insert({
                     mensaje: `Turno ${turnoMapeado.numero} completado por recepción`,
                     remitente: 'admin',
-                    leido: false
+                    leido: false,
+                    tipo: 'salida_pendiente',
+                    proveedor_nit: turnoMapeado.nit || null,
+                    nombre_empresa: turnoMapeado.nombreEmpresa || null,
+                    datos: datosNotificacion
                 });
             }
             
@@ -1034,6 +1129,8 @@ const SupabaseDB = {
             contacto: t.contacto,
             telefono: t.telefono,
             servicio: t.servicio,
+            consecutivoIngreso: t.consecutivo_ingreso,
+            numFacturas: t.num_facturas,
             autorizadoSalida: t.autorizado_salida,
             inspeccionFisica: t.inspeccion_fisica,
             createdAt: t.created_at,
@@ -1074,6 +1171,8 @@ const SupabaseDB = {
                 contacto: turno.contacto || null,
                 telefono: turno.telefono || null,
                 servicio: turno.servicio || null,
+                consecutivo_ingreso: turno.consecutivoIngreso || null,
+                num_facturas: turno.numFacturas || null,
                 autorizado_salida: false,
                 inspeccion_fisica: false,
                 es_transporte: turno.esTransporte === true || false,
@@ -1094,6 +1193,24 @@ const SupabaseDB = {
             return true;
         } catch (error) {
             console.error('Error al guardar en historial:', error);
+            // Reintentar sin los campos nuevos si las columnas no existen
+            if (error.message?.includes('consecutivo_ingreso') || error.message?.includes('num_facturas')) {
+                console.warn('⚠️ Columnas nuevas no existen en historial_turnos, reintentando...');
+                if (historialData.consecutivo_ingreso !== undefined) delete historialData.consecutivo_ingreso;
+                if (historialData.num_facturas !== undefined) delete historialData.num_facturas;
+                try {
+                    const { data: retryData, error: retryError } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .insert([historialData])
+                        .select()
+                        .single();
+                    if (retryError) throw retryError;
+                    return true;
+                } catch (retryErr) {
+                    console.error('❌ Reintento de historial también falló:', retryErr);
+                    return false;
+                }
+            }
             return false;
         }
     },
@@ -1144,6 +1261,8 @@ const SupabaseDB = {
                 contacto: h.contacto,
                 telefono: h.telefono,
                 servicio: h.servicio,
+                consecutivoIngreso: h.consecutivo_ingreso,
+                numFacturas: h.num_facturas,
                 autorizadoSalida: h.autorizado_salida,
                 inspeccionFisica: h.inspeccion_fisica,
                 esTransporte: h.es_transporte === true,
@@ -1728,12 +1847,43 @@ const NotificacionesPolling = {
                     .limit(5);
                 
                 if (data && data.length > 0) {
-                    const ultimo = data[0];
-                    if (this._ultimoTimestamp !== ultimo.created_at) {
-                        this._ultimoTimestamp = ultimo.created_at;
-                        if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
-                        Utils.mostrarNotificacion(`Notificación: ${ultimo.mensaje}`, 'warning');
-                        await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', ultimo.id);
+                    for (const notif of data) {
+                        if (this._ultimoTimestamp !== notif.created_at) {
+                            this._ultimoTimestamp = notif.created_at;
+                            if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
+                            
+                            const isFromAdmin = notif.remitente === 'admin';
+                            const isSalidaPendiente = notif.tipo === 'salida_pendiente';
+                            const isSalidaAutorizada = notif.tipo === 'salida_autorizada';
+                            
+                            if (isFromAdmin && isSalidaPendiente && notif.datos) {
+                                if (typeof window.mostrarProveedorListo === 'function') {
+                                    try {
+                                        window.mostrarProveedorListo(notif.datos);
+                                    } catch (e) {
+                                        console.warn('Error al mostrar proveedor:', e);
+                                        Utils.mostrarNotificacion(`Notificación: ${notif.mensaje}`, 'warning');
+                                    }
+                                } else {
+                                    Utils.mostrarNotificacion(`Notificación: ${notif.mensaje}`, 'warning');
+                                }
+                            } else if (isFromAdmin && isSalidaAutorizada && notif.datos) {
+                                if (window.mostrarAlertaSalidaDespachador) {
+                                    window.mostrarAlertaSalidaDespachador({
+                                        numero: notif.datos.numero || '---',
+                                        nombre: notif.mensaje,
+                                        timestamp: Date.now(),
+                                        datos: notif.datos
+                                    });
+                                } else {
+                                    Utils.mostrarNotificacion(`Notificación: ${notif.mensaje}`, 'warning');
+                                }
+                            } else {
+                                Utils.mostrarNotificacion(`Notificación: ${notif.mensaje}`, 'warning');
+                            }
+                            
+                            await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notif.id);
+                        }
                     }
                 }
             } catch(e) {
@@ -1819,12 +1969,18 @@ const Conectividad = {
                 { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
                 async (payload) => {
                     console.log('🔔 Nueva notificación:', payload);
+                    const notificacion = payload.new;
+                    
                     if (window.SonidoAlerta) {
                         SonidoAlerta.reproducir(3);
                     }
-                    Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
+                    
+                    if (!notificacion.leido) {
+                        Utils.mostrarNotificacion(notificacion.mensaje || 'Nueva notificación', 'warning');
+                    }
+                    
                     if (window.supabaseClient) {
-                        await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', payload.new.id);
+                        await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notificacion.id);
                     }
                     if (callback) callback(payload);
                 }
@@ -1999,7 +2155,9 @@ const Turnos = {
             })() : Utils.obtenerHoraActual(),
             fechaSolicitud: getLocalISOString(),
             estado: estadoOverride || (prefijoTurno === 'C' ? 'citado' : 'espera'),
+            consecutivoIngreso: datosProveedor.consecutivoIngreso || null,
             numFactura: datosProveedor.numFactura || null,
+            numFacturas: datosProveedor.numFacturas || null,
             tipoVehiculo: datosProveedor.tipoVehiculo || null,
             bultos: datosProveedor.bultos || null,
             peso: datosProveedor.peso || null,
@@ -3088,6 +3246,8 @@ const UsuarioHandlers = {
                 nit: placaInput,
                 contacto: document.getElementById('contacto')?.value?.trim(),
                 telefono: document.getElementById('telefono')?.value?.trim(),
+                consecutivoIngreso: document.getElementById('consecutivoIngreso')?.value?.trim() || null,
+                numFacturas: parseInt(document.getElementById('numFacturas')?.value) || 0,
                 servicio: document.getElementById('servicio')?.value,
                 destino: destino,
                 fechaCita: fechaCitaISO
@@ -3778,14 +3938,17 @@ const AdminHandlers = {
             await this._crearHistorialProveedoresTransporte(proveedoresListos, horaFin);
             
             if (window.supabaseClient) {
-            try {
-                await window.supabaseClient.from('notificaciones_salida').insert({
-                    mensaje: `Turno ${turnoActual.numero} - ${proveedoresListos.length} proveedores registrados`,
-                    remitente: 'admin',
-                    leido: false,
-                    tipo: 'salida_pendiente'
-                });
-            } catch(err) { console.warn('Notificación:', err); }
+                try {
+                    await window.supabaseClient.from('notificaciones_salida').insert({
+                        mensaje: `Turno ${turnoActual.numero} - ${proveedoresListos.length} proveedores registrados`,
+                        remitente: 'admin',
+                        leido: false,
+                        tipo: 'salida_pendiente',
+                        proveedor_nit: turnoActual.nit || null,
+                        nombre_empresa: turnoActual.nombreEmpresa || null,
+                        datos: JSON.parse(JSON.stringify(proveedorDataPrincipal))
+                    });
+                } catch(err) { console.warn('Notificación:', err); }
             }
             
             if (typeof SonidoAlerta !== 'undefined' && SonidoAlerta.reproducir) {
@@ -3934,6 +4097,7 @@ const AdminHandlers = {
         } catch (e) {
             console.error('❌ Error al guardar en localStorage:', e);
         }
+        
         
         const resultado = await Turnos.completarTurnoActual();
         
@@ -5247,7 +5411,28 @@ const DespachadorHandlers = {
                 await window.supabaseClient.from('notificaciones_salida').insert({
                     mensaje: `Salida autorizada para ${turno.nombre || turno.nombreEmpresa || turno.numero}`,
                     remitente: 'despachador',
-                    leido: false
+                    leido: false,
+                    tipo: 'salida_autorizada',
+                    turno_id: turno.id || null,
+                    proveedor_nit: turno.nit || null,
+                    nombre_empresa: turno.nombreEmpresa || null,
+                    datos: JSON.parse(JSON.stringify({
+                        numero: turno.numero,
+                        nombreEmpresa: turno.nombreEmpresa,
+                        nit: turno.nit || '',
+                        destino: turno.destino || '',
+                        numFactura: turno.numFactura || '',
+                        numFacturas: turno.numFacturas || null,
+                        tipoVehiculo: turno.tipoVehiculo || '',
+                        bultos: turno.bultos || null,
+                        peso: turno.peso || '',
+                        responsable: turno.responsable || '',
+                        contacto: turno.contacto || '',
+                        telefono: turno.telefono || '',
+                        servicio: turno.servicio || '',
+                        fechaCita: turno.fechaCita || '',
+                        autorizadoSalida: true
+                    }))
                 });
             }
             
@@ -5413,7 +5598,15 @@ const DespachadorHandlers = {
                 await window.supabaseClient.from('notificaciones_salida').insert({
                     mensaje: `Salida autorizada para proveedor ${nombreEmpresa || proveedorId}`,
                     remitente: 'despachador',
-                    leido: false
+                    leido: false,
+                    tipo: 'salida_autorizada',
+                    proveedor_nit: turnoNumero || null,
+                    nombre_empresa: nombreEmpresa || null,
+                    datos: JSON.parse(JSON.stringify({
+                        nombreEmpresa: nombreEmpresa || '',
+                        proveedorId: proveedorId,
+                        turnoNumero: turnoNumero || ''
+                    }))
                 });
             }
 
@@ -5498,7 +5691,26 @@ const DespachadorHandlers = {
                 await window.supabaseClient.from('notificaciones_salida').insert({
                     mensaje: `Salida autorizada para toda la transportadora - Turno ${d.numero}`,
                     remitente: 'despachador',
-                    leido: false
+                    leido: false,
+                    tipo: 'salida_autorizada',
+                    proveedor_nit: null,
+                    nombre_empresa: d.nombreEmpresa || null,
+                    datos: JSON.parse(JSON.stringify({
+                        numero: d.numero,
+                        esTransporte: true,
+                        nombreEmpresa: d.nombreEmpresa || '',
+                        proveedores: d.proveedores.map(p => ({
+                            id: p.id,
+                            nombreProveedor: p.nombreProveedor || '',
+                            numFactura: p.numFactura || '',
+                            tipoVehiculo: p.tipoVehiculo || '',
+                            bultos: p.bultos || null,
+                            peso: p.peso || '',
+                            responsable: p.responsable || '',
+                            destino: p.destino || '',
+                            autorizadoSalida: true
+                        }))
+                    }))
                 });
             }
 
@@ -5552,7 +5764,20 @@ const DespachadorHandlers = {
                 await window.supabaseClient.from('notificaciones_salida').insert({
                     mensaje: `Inspección física solicitada para ${turno.nombre || turno.nombreEmpresa || turno.numero}`,
                     remitente: 'despachador',
-                    leido: false
+                    leido: false,
+                    tipo: 'salida_pendiente',
+                    turno_id: turno.id || null,
+                    proveedor_nit: turno.nit || null,
+                    nombre_empresa: turno.nombreEmpresa || null,
+                    datos: JSON.parse(JSON.stringify({
+                        numero: turno.numero,
+                        nombreEmpresa: turno.nombreEmpresa,
+                        nit: turno.nit || '',
+                        tipoVehiculo: turno.tipoVehiculo || '',
+                        bultos: turno.bultos || null,
+                        peso: turno.peso || '',
+                        responsable: turno.responsable || ''
+                    }))
                 });
             }
             
@@ -5636,14 +5861,21 @@ const DespachadorHandlers = {
                 await window.supabaseClient.from('notificaciones_salida').insert({
                     mensaje: `Inspección solicitada para proveedor ${nombreEmpresa || proveedorId}`,
                     remitente: 'despachador',
-                    leido: false
+                    leido: false,
+                    tipo: 'salida_pendiente',
+                    proveedor_nit: null,
+                    nombre_empresa: nombreEmpresa || null,
+                    datos: JSON.parse(JSON.stringify({
+                        nombreEmpresa: nombreEmpresa || '',
+                        proveedorId: proveedorId
+                    }))
                 });
             }
 
             try {
                 localStorage.setItem('inspeccionSolicitada', JSON.stringify({
                     numero: '---',
-                    nombre: `TRANSPORTADORA - Inspección proveedor ${nombreEmpresa || proveedorId}`,
+                    nombre: `TRANSPORTADORA - Proveedor ${nombreEmpresa || proveedorId}`,
                     timestamp: Date.now()
                 }));
             } catch (e) {
