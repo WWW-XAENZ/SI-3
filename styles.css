@@ -3095,3 +3095,90 @@ footer {
     transform: scale(1.1) !important;
 }
 
+/* Proveedor Sin Turno Modal - Responsive */
+#proveedorSinTurnoModal .modal-content {
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    width: calc(100% - 40px);
+}
+
+#proveedorSinTurnoModal .form-group {
+    margin-bottom: 12px;
+}
+
+#proveedorSinTurnoModal .form-group label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 4px;
+    display: block;
+}
+
+#proveedorSinTurnoModal .form-group input,
+#proveedorSinTurnoModal .form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+    #proveedorSinTurnoModal .modal-content {
+        max-width: calc(100% - 20px);
+        max-height: 95vh;
+        margin: 10px;
+        padding: 16px;
+    }
+    
+    #proveedorSinTurnoModal #sinTurnoGrid1,
+    #proveedorSinTurnoModal #sinTurnoGrid2,
+    #proveedorSinTurnoModal #sinTurnoGrid3,
+    #proveedorSinTurnoModal #sinTurnoFacturaAmbosGroup {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+    }
+    
+    #proveedorSinTurnoModal .form-group {
+        margin-bottom: 10px;
+    }
+    
+    #proveedorSinTurnoModal .form-group label {
+        font-size: 12px;
+    }
+    
+    #proveedorSinTurnoModal .form-group input,
+    #proveedorSinTurnoModal .form-group select {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+    
+    #proveedorSinTurnoModal h2 {
+        font-size: 18px;
+    }
+    
+    #proveedorSinTurnoModal .modal-content > p {
+        font-size: 12px;
+    }
+    
+    #proveedorSinTurnoModal [style*="margin-top: 20px"] {
+        margin-top: 16px;
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    #proveedorSinTurnoModal [style*="margin-top: 20px"] .btn {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+@media (max-width: 480px) {
+    #proveedorSinTurnoModal .modal-content {
+        padding: 12px;
+        max-height: 98vh;
+    }
+}
+

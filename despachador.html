@@ -663,6 +663,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js?v=3"></script>
+    <script src="sonido.js"></script>
     <script src="push-notifications.js"></script>
     <script>
         function esperarClienteSupabase(callback, intentosMax = 100) {
@@ -1222,10 +1223,14 @@ return `
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'historial_turnos' }, () => {
                             console.log('📊 Cambio en historial detectado, recargando...');
                             cargarTodoDespachador();
+                            if (window.SonidoSI3) window.SonidoSI3.inicializar();
+                            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_completado' } }));
                         })
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos' }, () => {
                             console.log('📋 Cambio en turnos detectado, recargando...');
                             cargarTodoDespachador();
+                            if (window.SonidoSI3) window.SonidoSI3.inicializar();
+                            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_llamado' } }));
                         })
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'proveedores_transporte' }, () => {
                             console.log('🚛 Cambio en proveedores_transporte detectado, recargando...');
@@ -1486,6 +1491,8 @@ return `
                 }
                 
                 async function reproducirAlertaSalida(proveedor) {
+                    window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
+                    if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
                     if (window.SonidoAlerta && window.SonidoAlerta.reproducir) {
                         window.SonidoAlerta.reproducir(3);
                     } else {
@@ -2029,11 +2036,12 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                     async (payload) => {
                         console.log('🔔 Notificación realtime despachador:', payload);
                         const notif = payload.new;
+                        
+                        window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
+                        if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
+                        if (window.SonidoAlerta) { window.SonidoAlerta.inicializar(); window.SonidoAlerta.reproducir(3); }
+                        
                         if (notif.remitente === 'admin') {
-                            if (window.SonidoAlerta) {
-                                SonidoAlerta.reproducir(3);
-                            }
-                            
                             if (notif.tipo === 'salida_pendiente' && notif.datos) {
                                 if (typeof window.mostrarProveedorListo === 'function') {
                                     try {

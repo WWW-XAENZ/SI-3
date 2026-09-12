@@ -54,40 +54,61 @@ const SonidoAlerta = {
     contexto: null,
     
     inicializar() {
+        if (window.SonidoSI3) {
+            window.SonidoSI3.inicializar();
+        }
         if (!this.contexto) {
-            this.contexto = new (window.AudioContext || window.webkitAudioContext)();
+            try {
+                this.contexto = new (window.AudioContext || window.webkitAudioContext)();
+            } catch(e) {}
         }
         if (this.contexto && this.contexto.state === 'suspended') {
             this.contexto.resume().catch(() => {});
+        }
+        if (window.SonidoSI3) {
+            window.SonidoSI3.asegurarContexto();
         }
     },
     
     reproducir(veces = 3) {
+        if (window.SonidoSI3) {
+            window.SonidoSI3.tocarAlerta();
+        }
         this.inicializar();
         if (this.contexto && this.contexto.state === 'suspended') {
             this.contexto.resume().catch(() => {});
         }
+        if (!this.contexto || this.contexto.state === 'closed') return;
         
         for (let i = 0; i < veces; i++) {
             setTimeout(() => {
-                const oscilador = this.contexto.createOscillator();
-                const ganancia = this.contexto.createGain();
-                
-                oscilador.connect(ganancia);
-                ganancia.connect(this.contexto.destination);
-                
-                oscilador.frequency.value = 880;
-                oscilador.type = 'sine';
-                
-                ganancia.gain.setValueAtTime(0.5, this.contexto.currentTime);
-                ganancia.gain.exponentialRampToValueAtTime(0.01, this.contexto.currentTime + 0.5);
-                
-                oscilador.start(this.contexto.currentTime);
-                oscilador.stop(this.contexto.currentTime + 0.5);
+                try {
+                    if (!this.contexto || this.contexto.state === 'closed') return;
+                    const oscilador = this.contexto.createOscillator();
+                    const ganancia = this.contexto.createGain();
+                    
+                    oscilador.connect(ganancia);
+                    ganancia.connect(this.contexto.destination);
+                    
+                    oscilador.frequency.value = 880;
+                    oscilador.type = 'sine';
+                    
+                    ganancia.gain.setValueAtTime(0.5, this.contexto.currentTime);
+                    ganancia.gain.exponentialRampToValueAtTime(0.01, this.contexto.currentTime + 0.5);
+                    
+                    oscilador.start(this.contexto.currentTime);
+                    oscilador.stop(this.contexto.currentTime + 0.5);
+                } catch(e) {}
             }, i * 600);
         }
     }
 };
+
+window.addEventListener('visibilitychange', () => {
+    if (!document.hidden && SonidoAlerta.contexto && SonidoAlerta.contexto.state === 'suspended') {
+        SonidoAlerta.contexto.resume().catch(() => {});
+    }
+});
 
 // ============================================
 // UTILIDADES
@@ -1015,7 +1036,9 @@ const SupabaseDB = {
             
             Object.assign(updateData, turnoActualizado);
             
-            // Push notification - Turno llamado
+            // Push notification - Turno llamado (con sonido garantizado)
+            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_llamado' } }));
+            if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
             if (window.PushManager) {
                 window.PushManager.notifyTurnoLlamado(turnoActualizado);
             }
@@ -1093,7 +1116,9 @@ const SupabaseDB = {
                 });
             }
             
-            // Push notification - Turno completado
+            // Push notification - Turno completado (con sonido garantizado)
+            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_completado' } }));
+            if (window.SonidoAlerta) SonidoAlerta.reproducir(2);
             this._notificarTurnoCompletado(turnoMapeado);
             
             return true;
@@ -1886,7 +1911,8 @@ const NotificacionesPolling = {
                     for (const notif of data) {
                         if (this._ultimoTimestamp !== notif.created_at) {
                             this._ultimoTimestamp = notif.created_at;
-                            if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
+if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
+                            if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
                             
                             const isFromAdmin = notif.remitente === 'admin';
                             const isSalidaPendiente = notif.tipo === 'salida_pendiente';
@@ -1972,6 +1998,7 @@ const Conectividad = {
                     console.log('🔄 Cambio en turnos:', payload);
                     if (callback) callback(payload);
                     if (window.SonidoAlerta && payload.eventType === 'INSERT') {
+                        if (window.SonidoSI3) window.SonidoSI3.inicializar();
                         SonidoAlerta.reproducir(1);
                     }
                 }
@@ -2008,6 +2035,7 @@ const Conectividad = {
                     const notificacion = payload.new;
                     
                     if (window.SonidoAlerta) {
+                        if (window.SonidoSI3) window.SonidoSI3.inicializar();
                         SonidoAlerta.reproducir(3);
                     }
                     
@@ -4076,6 +4104,7 @@ const AdminHandlers = {
             }
             
             if (typeof SonidoAlerta !== 'undefined' && SonidoAlerta.reproducir) {
+                if (window.SonidoSI3) window.SonidoSI3.inicializar();
                 SonidoAlerta.reproducir(3);
             }
             
@@ -4323,23 +4352,25 @@ const proveedorData = {
         const proveedorInput = document.getElementById('sinTurnoProveedor');
         if (proveedorInput) proveedorInput.focus();
         
-        // Toggle factura fields based on destino
-        const destinoSelect = document.getElementById('sinTurnoDestino');
-        if (destinoSelect) {
-            destinoSelect.addEventListener('change', () => {
-                const facturaGroup = document.getElementById('sinTurnoFacturaGroup');
-                const facturaAmbosGroup = document.getElementById('sinTurnoFacturaAmbosGroup');
-                if (destinoSelect.value === 'ambos') {
-                    facturaGroup.style.display = 'none';
-                    facturaAmbosGroup.style.display = 'grid';
-                } else {
-                    facturaGroup.style.display = 'block';
-                    facturaAmbosGroup.style.display = 'none';
-                }
-            });
+        // Toggle factura fields based on destino (one-time listener)
+        if (!window._sinTurnoDestinoListener) {
+            window._sinTurnoDestinoListener = true;
+            const destinoSelect = document.getElementById('sinTurnoDestino');
+            if (destinoSelect) {
+                destinoSelect.addEventListener('change', () => {
+                    const facturaGroup = document.getElementById('sinTurnoFacturaGroup');
+                    const facturaAmbosGroup = document.getElementById('sinTurnoFacturaAmbosGroup');
+                    if (destinoSelect.value === 'ambos') {
+                        facturaGroup.style.display = 'none';
+                        facturaAmbosGroup.style.display = 'grid';
+                    } else {
+                        facturaGroup.style.display = 'block';
+                        facturaAmbosGroup.style.display = 'none';
+                    }
+                });
+            }
         }
     },
-
     cerrarModalProveedorSinTurno() {
         const modal = document.getElementById('proveedorSinTurnoModal');
         if (modal) modal.style.display = 'none';
@@ -5159,6 +5190,7 @@ const ModoEspera = {
         this.notificacionMostrada = true;
         
         SonidoAlerta.reproducir(3);
+        if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
         
         const notificacionAnterior = document.querySelector('.turn-called-notification');
         if (notificacionAnterior) {
@@ -5304,6 +5336,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (siendoAtendido) {
                         ModoEspera.mostrarNotificacionLlamado();
                         SonidoAlerta.reproducir(3);
+                        if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
                     }
                 } else {
                     console.log('Turno guardado ya no existe en el sistema, limpiando...');
@@ -5455,6 +5488,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 notificaciones: (payload) => {
                     console.log('Notificación recibida en admin:', payload);
                     if (window.SonidoAlerta) {
+                        if (window.SonidoSI3) window.SonidoSI3.inicializar();
                         SonidoAlerta.reproducir(3);
                     }
                     Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
@@ -5561,7 +5595,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     },
                     notificaciones: (payload) => {
                         console.log('Notificación recibida en despachador:', payload);
-                        if (window.SonidoAlerta) {
+if (window.SonidoAlerta) {
+                            if (window.SonidoSI3) window.SonidoSI3.inicializar();
                             SonidoAlerta.reproducir(3);
                         }
                         Utils.mostrarNotificacion(payload.new.mensaje, 'warning');
@@ -6229,55 +6264,72 @@ const GenerarCertificado = {
              const nombreMes = new Date(anio, mes - 1).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
              const nombreMesMayus = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
 
-             // Totales
-             const totalVehiculos = historial.length;
-             const totalPeso = historial.reduce((sum, h) => sum + (parseFloat(h.peso) || 0), 0);
-             const totalBultos = historial.reduce((sum, h) => sum + (parseInt(h.bultos) || 0), 0);
-             const vehiculosConFactura = historial.filter(h => h.num_factura).length;
-             const vehiculosConSalida = historial.filter(h => h.autorizado_salida).length;
+// Totales
+              const totalVehiculos = historial.length;
+              const totalPeso = historial.reduce((sum, h) => sum + (parseFloat(h.peso) || 0), 0);
+              const totalBultos = historial.reduce((sum, h) => sum + (parseInt(h.bultos) || 0), 0);
+              const vehiculosConFactura = historial.filter(h => h.num_factura).length;
+              const vehiculosConSalida = historial.filter(h => h.autorizado_salida).length;
 
-             // Conteo por tipo de vehiculo
-             const tipoVehiculoCount = {};
-             // Conteo por destino
-             const destinoCount = {};
-             // Empresas unicas
-             const empresaSet = new Set();
-             // Servicios
-             const servicioCount = {};
-             // Dias operativos
-             const diasOperativos = new Set();
+              // Nuevos contadores
+              const proveedoresIndiv = historial.filter(h => h.nombre_proveedor && h.es_transporte).map(h => h.nombre_proveedor);
+               const proveedorIndSet = new Set(proveedoresIndiv);
+               const transportistas = historial.filter(h => h.es_transporte);
+               const inspeccionesRequeridas = historial.filter(h => h.inspeccion_fisica).length;
+               const turnosConConsecutivo = historial.filter(h => h.consecutivo_ingreso).length;
+               const proveedoresSinTurno = historial.filter(h => h.estado === 'llegado' || h.estado === 'espera').length;
+               const turnosConHoraInicio = historial.filter(h => h.hora_solicitud).length;
+               const turnosConHoraFin = historial.filter(h => h.hora_finalizacion).length;
 
-             historial.forEach(h => {
-                 if (h.tipo_vehiculo) {
-                     tipoVehiculoCount[h.tipo_vehiculo] = (tipoVehiculoCount[h.tipo_vehiculo] || 0) + 1;
-                 }
-                 if (h.destino) {
-                     destinoCount[h.destino] = (destinoCount[h.destino] || 0) + 1;
-                 }
-                 if (h.nombre_empresa) {
-                     empresaSet.add(h.nombre_empresa);
-                 }
-                 if (h.servicio) {
-                     servicioCount[h.servicio] = (servicioCount[h.servicio] || 0) + 1;
-                 }
-                 if (h.fecha) {
-                     diasOperativos.add(h.fecha.split('T')[0]);
-                 }
-             });
+              // Conteo por tipo de vehiculo
+              const tipoVehiculoCount = {};
+              // Conteo por destino
+              const destinoCount = {};
+              // Empresas unicas
+              const empresaSet = new Set();
+              // Servicios
+              const servicioCount = {};
+              // Dias operativos
+              const diasOperativos = new Set();
+              // Notificaciones sonidas
+              const notifSonidoCount = { turno_llamado: 0, proveedor_listo: 0, turno_completado: 0, inspeccion: 0, nuevo_turno: 0 };
+              // Eventos de sonido (de sonido.js via CustomEvent tracking)
+              const eventosSonido = [];
 
-             // Agrupar por dia
-             const diasAgrupados = {};
-             historial.forEach(h => {
-                 const fecha = new Date(h.fecha).toLocaleDateString('es-CO');
-                 if (!diasAgrupados[fecha]) {
-                     diasAgrupados[fecha] = { turnos: 0, peso: 0, bultos: 0, facturas: 0, salidas: 0 };
-                 }
-                 diasAgrupados[fecha].turnos++;
-                 diasAgrupados[fecha].peso += parseFloat(h.peso) || 0;
-                 diasAgrupados[fecha].bultos += parseInt(h.bultos) || 0;
-                 if (h.num_factura) diasAgrupados[fecha].facturas++;
-                 if (h.autorizado_salida) diasAgrupados[fecha].salidas++;
-             });
+              historial.forEach(h => {
+                  if (h.tipo_vehiculo) {
+                      tipoVehiculoCount[h.tipo_vehiculo] = (tipoVehiculoCount[h.tipo_vehiculo] || 0) + 1;
+                  }
+                  if (h.destino) {
+                      destinoCount[h.destino] = (destinoCount[h.destino] || 0) + 1;
+                  }
+                  if (h.nombre_empresa) {
+                      empresaSet.add(h.nombre_empresa);
+                  }
+                  if (h.servicio) {
+                      servicioCount[h.servicio] = (servicioCount[h.servicio] || 0) + 1;
+                  }
+                  if (h.fecha) {
+                      diasOperativos.add(h.fecha.split('T')[0]);
+                  }
+                  if (h.nombre_proveedor && h.es_transporte) {
+                      notifSonidoCount[h.tipo_evento || 'default'] = (notifSonidoCount[h.tipo_evento || 'default'] || 0) + 1;
+                  }
+              });
+
+              // Agrupar por dia
+              const diasAgrupados = {};
+              historial.forEach(h => {
+                  const fecha = new Date(h.fecha).toLocaleDateString('es-CO');
+                  if (!diasAgrupados[fecha]) {
+                      diasAgrupados[fecha] = { turnos: 0, peso: 0, bultos: 0, facturas: 0, salidas: 0 };
+                  }
+                  diasAgrupados[fecha].turnos++;
+                  diasAgrupados[fecha].peso += parseFloat(h.peso) || 0;
+                  diasAgrupados[fecha].bultos += parseInt(h.bultos) || 0;
+                  if (h.num_factura) diasAgrupados[fecha].facturas++;
+                  if (h.autorizado_salida) diasAgrupados[fecha].salidas++;
+              });
 
              // Promedio diario
              const numDias = Object.keys(diasAgrupados).length;
@@ -6292,27 +6344,35 @@ const GenerarCertificado = {
 
              console.log('Generando certificado y exportando a Excel...');
 
-             // Guardar datos para exportación posterior
-             this._datosExportacion = {
-                 historial,
-                 diasAgrupados,
-                 totalVehiculos,
-                 totalPeso,
-                 totalBultos,
-                 vehiculosConFactura,
-                 vehiculosConSalida,
-                 tipoVehiculoCount,
-                 destinoCount,
-                 servicioCount,
-                 totalEmpresas: empresaSet.size,
-                 numDias,
-                 primerDia,
-                 ultimoDia,
-                 promedioTurnosDia,
-                 promedioPesoDia,
-                 promedioBultosDia,
-                 nombreMesMayus
-             };
+// Guardar datos para exportación posterior
+              this._datosExportacion = {
+                  historial,
+                  diasAgrupados,
+                  totalVehiculos,
+                  totalPeso,
+                  totalBultos,
+                  vehiculosConFactura,
+                  vehiculosConSalida,
+                  tipoVehiculoCount,
+                  destinoCount,
+                  servicioCount,
+                  totalEmpresas: empresaSet.size,
+                  numDias,
+                  primerDia,
+                  ultimoDia,
+                  promedioTurnosDia,
+                  promedioPesoDia,
+                  promedioBultosDia,
+                  nombreMesMayus,
+                  proveedorIndSet: Array.from(proveedorIndSet),
+                  totalProveedoresInd: proveedorIndSet.size,
+                  totalTransportistas: transportistas.length,
+                  inspeccionesRequeridas,
+                   turnosConConsecutivo,
+                   proveedoresSinTurno,
+                   turnosConHoraInicio,
+                   turnosConHoraFin
+               };
 
              // Mostrar vista previa en el modal
              this._mostrarVistaPrevia();
@@ -6351,23 +6411,37 @@ const GenerarCertificado = {
                      <div style="font-size: 11px; color: #64748b;">Días Operativos</div>
                  </div>
              </div>
-             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
-                 <div style="background: #fafafa; padding: 12px; border-radius: 8px; text-align: center;">
-                     <div style="font-size: 18px; font-weight: 600; color: #334155;">${d.totalPeso.toLocaleString('es-CO')} kg</div>
-                     <div style="font-size: 11px; color: #64748b;">Peso Total</div>
-                 </div>
-                 <div style="background: #fafafa; padding: 12px; border-radius: 8px; text-align: center;">
-                     <div style="font-size: 18px; font-weight: 600; color: #334155;">${d.totalBultos}</div>
-                     <div style="font-size: 11px; color: #64748b;">Bultos Totales</div>
-                 </div>
-                 <div style="background: #fafafa; padding: 12px; border-radius: 8px; text-align: center;">
-                     <div style="font-size: 18px; font-weight: 600; color: #334155;">${d.totalEmpresas}</div>
-                     <div style="font-size: 11px; color: #64748b;">Proveedores Únicos</div>
-                 </div>
-             </div>
-             <div style="background: #f0fdf4; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
-                 <strong style="color: #16a34a;">✓ ${d.vehiculosConSalida}</strong> salidas autorizadas / <strong>${d.vehiculosConFactura}</strong> con factura
-             </div>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
+                  <div style="background: #fafafa; padding: 12px; border-radius: 8px; text-align: center;">
+                      <div style="font-size: 18px; font-weight: 600; color: #334155;">${d.totalPeso.toLocaleString('es-CO')} kg</div>
+                      <div style="font-size: 11px; color: #64748b;">Peso Total</div>
+                  </div>
+                  <div style="background: #fafafa; padding: 12px; border-radius: 8px; text-align: center;">
+                      <div style="font-size: 18px; font-weight: 600; color: #334155;">${d.totalBultos}</div>
+                      <div style="font-size: 11px; color: #64748b;">Bultos Totales</div>
+                  </div>
+                  <div style="background: #fafafa; padding: 12px; border-radius: 8px; text-align: center;">
+                      <div style="font-size: 18px; font-weight: 600; color: #334155;">${d.totalEmpresas}</div>
+                      <div style="font-size: 11px; color: #64748b;">Proveedores Únicos</div>
+                  </div>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
+                  <div style="background: #eff6ff; padding: 12px; border-radius: 8px; text-align: center;">
+                      <div style="font-size: 18px; font-weight: 600; color: #2563eb;">${d.turnosConHoraInicio}</div>
+                      <div style="font-size: 11px; color: #64748b;">Con Hora Inicio</div>
+                  </div>
+                  <div style="background: #eff6ff; padding: 12px; border-radius: 8px; text-align: center;">
+                      <div style="font-size: 18px; font-weight: 600; color: #2563eb;">${d.turnosConHoraFin}</div>
+                      <div style="font-size: 11px; color: #64748b;">Con Hora Fin</div>
+                  </div>
+                  <div style="background: #eff6ff; padding: 12px; border-radius: 8px; text-align: center;">
+                      <div style="font-size: 18px; font-weight: 600; color: #2563eb;">${d.turnosConConsecutivo}</div>
+                      <div style="font-size: 11px; color: #64748b;">Con Consecutivo</div>
+                  </div>
+              </div>
+              <div style="background: #f0fdf4; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+                  <strong style="color: #16a34a;">✓ ${d.vehiculosConSalida}</strong> salidas autorizadas / <strong>${d.vehiculosConFactura}</strong> con factura
+              </div>
              <p style="text-align: center; color: #64748b; font-size: 12px; margin-bottom: 16px;">
                  ${d.primerDia} — ${d.ultimoDia}
              </p>
@@ -6734,7 +6808,7 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
         // HELPER: crear hoja de detalle (historial filtrado)
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
         const crearHojaDetalle = (filtroFn, colorHeader, nombreHoja) => {
-            const data = [['#', 'Fecha', 'Turno', 'Empresa', 'Tipo Vehículo', 'Peso (kg)', 'Bultos', 'Factura', 'Salida OK']];
+            const data = [['#', 'Fecha', 'Turno', 'Empresa', 'Tipo Vehículo', 'Peso (kg)', 'Bultos', 'Factura', 'Salida OK', 'Hora Inicio', 'Hora Fin', 'Consecutivo', 'Proveedor', 'Empresa Transporte']];
             let idx = 0;
             historial.forEach((h) => {
                 if (filtroFn(h)) {
@@ -6748,21 +6822,24 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
                         parseFloat(h.peso)  || 0,
                         parseInt(h.bultos)  || 0,
                         h.num_factura       || '',
-                        h.autorizado_salida ? 'Sí' : 'No'
+                        h.autorizado_salida ? 'Sí' : 'No',
+                        h.horaSolicitud     || '',
+                        h.horaFinalizacion  || '',
+                        h.consecutivoIngreso || '',
+                        h.nombreProveedor   || '',
+                        h.esTransporte ? (h.nombreEmpresa || '') : ''
                     ]);
                 }
             });
-            // Totales
             if (data.length > 1) {
                 const rows = data.slice(1);
                 data.push([
-                    'TOTAL', '', '',
-                    idx + ' registros',
-                    '',
+                    'TOTAL', '', '', '', '',
                     rows.reduce((s, r) => s + (parseFloat(r[5]) || 0), 0).toLocaleString('es-CO'),
                     rows.reduce((s, r) => s + (parseInt(r[6]) || 0), 0),
                     '',
-                    rows.filter(r => r[8] === 'Sí').length + ' ✓'
+                    rows.filter(r => r[8] === 'Sí').length + ' ✓',
+                    '', '', '', '', ''
                 ]);
             }
 
@@ -6770,23 +6847,24 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
             const rng = XLSX.utils.decode_range(ws['!ref']);
             const lastR = rng.e.r;
             for (let R = 0; R <= lastR; ++R) {
-                for (let C = 0; C <= 8; ++C) {
+                for (let C = 0; C <= 13; ++C) {
                     const ref = XLSX.utils.encode_cell({ r: R, c: C });
                     if (!ws[ref]) { ws[ref] = { v: "", t: "s" }; }
                     if (R === 0) {
                         ws[ref].s = estiloEncabezado(colorHeader);
-} else if (R === lastR && data.length > 1) {
-                         ws[ref].s = estiloTotal();
-                     } else {
-                         const alin = C === 0 ? "center" : C === 3 || C === 4 ? "left" : "right";
-                         const numFmt = (C === 5 || C === 6) ? '#,##0' : undefined;
-                         ws[ref].s = estiloFila(R % 2 === 1, alin, numFmt);
-                     }
+                    } else if (R === lastR && data.length > 1) {
+                        ws[ref].s = estiloTotal();
+                    } else {
+                        let alin = C === 0 ? "center" : C === 3 || C === 4 ? "left" : "right";
+                        if (C >= 9 && C <= 13) alin = "center";
+                        const numFmt = (C === 5 || C === 6) ? '#,##0' : undefined;
+                        ws[ref].s = estiloFila(R % 2 === 1, alin, numFmt);
+                    }
                 }
             }
-            ws['!cols'] = [{ wch: 5 }, { wch: 13 }, { wch: 10 }, { wch: 26 }, { wch: 16 }, { wch: 13 }, { wch: 10 }, { wch: 14 }, { wch: 12 }];
-            ws['!rows'] = Array.from({ length: data.length }, (_, i) => ({ hpt: i === 0 ? 24 : 18 }));
-            ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }) };
+            ws['!cols'] = [{ wch: 5 }, { wch: 13 }, { wch: 10 }, { wch: 26 }, { wch: 16 }, { wch: 13 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 22 }, { wch: 20 }];
+            ws['!rows'] = Array.from({ length: data.length }, (_, i) => ({ hpt: i === 0 ? 28 : 18 }));
+            ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 0, c: 13 } }) };
             XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
         };
 

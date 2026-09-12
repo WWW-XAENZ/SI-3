@@ -1,10 +1,45 @@
-// Push Notification Manager - SI-3
+// Push Notification Manager - SI-3 v2
+// Mejoras: sonido automático, BroadcastChannel, fiabilidad
 class PushNotificationManager {
     constructor() {
         this.swRegistration = null;
         this.subscription = null;
         this.isSupported = 'serviceWorker' in navigator && 'PushManager' in window;
         this.serverUrl = window.location.origin;
+        this._canalesBC = [];
+        this._initBroadcastChannel();
+    }
+
+    _initBroadcastChannel() {
+        try {
+            const bc = new BroadcastChannel('si3-notificaciones');
+            bc.onmessage = (event) => {
+                const msg = event.data;
+                if (msg.type === 'notificacion-click') {
+                    this._manejarClickNotificacion(msg);
+                }
+                if (msg.type === 'reproducir-sonido') {
+                    this._reproducirSonido(msg.tipo);
+                }
+            };
+            this._canalesBC.push(bc);
+        } catch (e) {}
+    }
+
+    _broadcast(msg) {
+        this._canalesBC.forEach(bc => {
+            try { bc.postMessage(msg); } catch(e) {}
+        });
+    }
+
+    _reproducirSonido(tipo) {
+        try {
+            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: tipo || 'default' } }));
+        } catch(e) {}
+    }
+
+    _manejarClickNotificacion(msg) {
+        // Puede ser expandido para manejar clicks entre pestañas
     }
 
     async init() {
@@ -13,36 +48,54 @@ class PushNotificationManager {
             return false;
         }
 
-        try {
-            this.swRegistration = await navigator.serviceWorker.register('/sw.js');
-            console.log('Service Worker registrado:', this.swRegistration.scope);
+        for (let intento = 0; intento < 3; intento++) {
+            try {
+                this.swRegistration = await navigator.serviceWorker.register('/sw.js');
+                console.log('Service Worker registrado:', this.swRegistration.scope);
 
-            // Escuchar actualizaciones
-            this.swRegistration.addEventListener('updatefound', () => {
-                const newWorker = this.swRegistration.installing;
-                newWorker.addEventListener('statechange', () => {
-                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        console.log('Nueva versión disponible');
-                    }
+                this.swRegistration.addEventListener('updatefound', () => {
+                    const newWorker = this.swRegistration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            console.log('Nueva versión disponible');
+                            newWorker.postMessage('skipWaiting');
+                        }
+                    });
                 });
-            });
 
-            // Solicitar permiso
-            const permission = await this.requestPermission();
-            if (permission === 'granted') {
-                await this.subscribe();
+                const permission = await this.requestPermission();
+                if (permission === 'granted') {
+                    await this.subscribe();
+                }
+
+                this._escucharMensajesSW();
+                return true;
+            } catch (error) {
+                console.error(`Error inicializando push (intento ${intento + 1}):`, error);
+                if (intento < 2) {
+                    await new Promise(r => setTimeout(r, 1000));
+                }
             }
-
-            return true;
-        } catch (error) {
-            console.error('Error inicializando push:', error);
-            return false;
         }
+        return false;
+    }
+
+    _escucharMensajesSW() {
+        if (!this.swRegistration) return;
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            const data = event.data || {};
+            if (data.type === 'notificacion-click') {
+                this._reproducirSonido(data.tipo);
+                this._manejarClickNotificacion(data);
+            }
+            if (data.type === 'reproducir-sonido') {
+                this._reproducirSonido(data.tipo);
+            }
+        });
     }
 
     async requestPermission() {
         if (!this.isSupported) return 'denied';
-
         const permission = await Notification.requestPermission();
         console.log('Permiso notificaciones:', permission);
         return permission;
@@ -59,7 +112,7 @@ class PushNotificationManager {
                 applicationServerKey
             });
 
-            console.log('Suscrito a push:', this.subscription);
+            console.log('Suscrito a push:', this.subscription.endpoint ? '✓' : '?');
             await this.sendSubscriptionToServer(this.subscription);
             return this.subscription;
         } catch (error) {
@@ -91,9 +144,9 @@ class PushNotificationManager {
         return outputArray;
     }
 
-    // Mostrar notificación local (fallback)
+    // Mostrar notificación local CON SONIDO
     showLocalNotification(title, options = {}) {
-        if (!this.swRegistration) return;
+        this._reproducirSonido(options.tipo || 'default');
 
         const defaultOptions = {
             body: options.body || '',
@@ -107,20 +160,30 @@ class PushNotificationManager {
             ],
             requireInteraction: options.requireInteraction !== false,
             tag: options.tag || 'si3-' + Date.now(),
-            renotify: true
+            renotify: true,
+            silent: false
         };
 
-        this.swRegistration.showNotification(title, defaultOptions);
+        if (this.swRegistration) {
+            this.swRegistration.showNotification(title, defaultOptions);
+        }
+
+        this._broadcast({
+            type: 'notificacion-recibida',
+            titulo: title,
+            tipo: options.tipo || 'default'
+        });
     }
 
-    // Notificaciones específicas del sistema
+    // Notificaciones específicas del sistema - CON SONIDO
     notifyTurnoLlamado(turno) {
         this.showLocalNotification('🔔 Turno Llamado', {
             body: `Turno ${turno.numero} - ${turno.nombreEmpresa}`,
             data: { url: '/despachador.html', tipo: 'turno_llamado', turno },
             tag: 'turno-llamado-' + turno.numero,
             requireInteraction: true,
-            vibrate: [300, 100, 300, 100, 300]
+            vibrate: [300, 100, 300, 100, 300],
+            tipo: 'turno_llamado'
         });
     }
 
@@ -130,7 +193,8 @@ class PushNotificationManager {
             data: { url: '/despachador.html', tipo: 'proveedor_listo', proveedor },
             tag: 'proveedor-listo-' + proveedor.numero,
             requireInteraction: true,
-            vibrate: [200, 100, 200]
+            vibrate: [200, 100, 200],
+            tipo: 'proveedor_listo'
         });
     }
 
@@ -140,7 +204,8 @@ class PushNotificationManager {
             data: { url: '/despachador.html', tipo: 'inspeccion', turno },
             tag: 'inspeccion-' + turno.numero,
             requireInteraction: true,
-            vibrate: [500, 200, 500]
+            vibrate: [500, 200, 500],
+            tipo: 'inspeccion'
         });
     }
 
@@ -149,7 +214,8 @@ class PushNotificationManager {
             body: `Turno ${turno.numero} - ${turno.nombreEmpresa} - ${turno.destino}`,
             data: { url: '/admin.html', tipo: 'nuevo_turno', turno },
             tag: 'nuevo-turno-' + turno.numero,
-            requireInteraction: false
+            requireInteraction: false,
+            tipo: 'nuevo_turno'
         });
     }
 
@@ -158,22 +224,20 @@ class PushNotificationManager {
             body: `Turno ${turno.numero} - ${turno.nombreEmpresa} completado`,
             data: { url: '/admin.html', tipo: 'turno_completado', turno },
             tag: 'turno-completado-' + turno.numero,
-            requireInteraction: false
+            requireInteraction: false,
+            tipo: 'turno_completado'
         });
     }
 }
 
-// Instancia global
 window.PushManager = new PushNotificationManager();
 
-// Auto-inicializar si está en despachador o admin
 document.addEventListener('DOMContentLoaded', () => {
     const isDespachador = window.location.pathname.includes('despachador');
     const isAdmin = window.location.pathname.includes('admin');
     const isRecepcion = window.location.pathname.includes('index') || window.location.pathname === '/' || window.location.pathname.endsWith('/');
 
     if (isDespachador || isAdmin || isRecepcion) {
-        // Pequeño delay para no bloquear carga inicial
         setTimeout(() => {
             window.PushManager.init().then(success => {
                 if (success) {
@@ -184,7 +248,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Escuchar eventos de storage para notificaciones cruzadas
 window.addEventListener('storage', (e) => {
     if (!window.PushManager) return;
 
@@ -222,7 +285,6 @@ window.addEventListener('storage', (e) => {
     }
 });
 
-// Función helper para disparar notificaciones desde otras pestañas
 window.dispararNotificacion = (tipo, datos) => {
     if (!window.PushManager) return;
 

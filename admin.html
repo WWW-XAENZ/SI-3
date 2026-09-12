@@ -1065,8 +1065,8 @@
 
 <!-- Modal Proveedor Sin Turno -->
         <div id="proveedorSinTurnoModal" class="modal" style="display: none;">
-            <div class="modal-content" style="max-width: 600px;">
-                <button class="close-modal">&times;</button>
+            <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+                <button class="close-modal" onclick="AdminHandlers.cerrarModalProveedorSinTurno()">&times;</button>
                 <h2>Proveedor Sin Turno</h2>
                 <p style="font-size: 13px; color: #64748b; margin-top: 0;">Registre un proveedor que llega sin turno previo. Se generará un turno de espera automáticamente.</p>
                 <form id="formProveedorSinTurno" onsubmit="AdminHandlers.registrarProveedorSinTurno(event)">
@@ -1078,7 +1078,7 @@
                         <label>Placa:</label>
                         <input type="text" id="sinTurnoPlaca" placeholder="ABC123 (6 caracteres)" maxlength="6" autocomplete="off">
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;" id="sinTurnoGrid1">
                         <div class="form-group">
                             <label>Destino:</label>
                             <select id="sinTurnoDestino">
@@ -1103,7 +1103,7 @@
                             <input type="text" id="sinTurnoFacturaSI3" placeholder="Factura para SI3 ZF SAS">
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;" id="sinTurnoGrid2">
                         <div class="form-group">
                             <label>Tipo:</label>
                             <select id="sinTurnoTipo">
@@ -1122,7 +1122,7 @@
                             <input type="number" id="sinTurnoBultos" placeholder="Cantidad" min="0">
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;" id="sinTurnoGrid3">
                         <div class="form-group">
                             <label>Peso (kg):</label>
                             <input type="text" id="sinTurnoPeso" placeholder="Peso en kg">
@@ -1136,13 +1136,13 @@
                         <label>Consecutivo de Ingreso <span style="color: #94a3b8; font-weight: 400; font-size: 12px;">(FMM)</span>:</label>
                         <input type="text" id="sinTurnoConsecutivo" placeholder="FMM">
                     </div>
-                    <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                    <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
                        <button type="button" class="btn btn-secondary" onclick="AdminHandlers.cerrarModalProveedorSinTurno()">Cancelar</button>
                        <button type="submit" class="btn btn-success">Registrar Proveedor</button>
                    </div>
-               </form>
-           </div>
-       </div>
+                </form>
+            </div>
+        </div>
 
 
       <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1415,9 +1415,9 @@
                     async (payload) => {
                         console.log('🔔 Notificación realtime admin:', payload);
                         if (payload.new.remitente === 'despachador') {
-                            if (window.SonidoAlerta) {
-                                SonidoAlerta.reproducir(3);
-                            }
+                            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
+                            if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
+                            if (window.SonidoAlerta) { window.SonidoAlerta.inicializar(); window.SonidoAlerta.reproducir(3); }
                             
                             const notif = payload.new;
                             const datos = notif.datos || null;
@@ -1466,6 +1466,8 @@
                         for (const notif of data) {
                             if (ultimaNotifAdminTs !== notif.created_at) {
                                 ultimaNotifAdminTs = notif.created_at;
+                                window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
+                                if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
                                 if (window.SonidoAlerta) window.SonidoAlerta.reproducir(3);
                                 
                                 const datos = notif.datos || null;
@@ -1497,7 +1499,8 @@
             }, 5000);
         }
         
-if (window.SonidoAlerta) window.SonidoAlerta.inicializar();
+if (window.SonidoSI3) window.SonidoSI3.inicializar();
+        if (window.SonidoAlerta) window.SonidoAlerta.inicializar();
         
         if (window.supabaseClient && window.SupabaseDB && typeof window.SupabaseDB.suscribirCambiosProveedoresTransporte === 'function') {
             window.SupabaseDB.suscribirCambiosProveedoresTransporte(async () => {
@@ -1513,6 +1516,7 @@ if (window.SonidoAlerta) window.SonidoAlerta.inicializar();
             window.PushManager.init();
         }
     </script>
+    <script src="sonido.js"></script>
     <script src="push-notifications.js"></script>
 
     <!-- Modal Certificado -->
@@ -1530,6 +1534,20 @@ if (window.SonidoAlerta) window.SonidoAlerta.inicializar();
             if (!claveOk) {
                 window.location.href = 'index.html';
             }
+        })();
+    </script>
+    <script>
+        // Responsive grids for Proveedor Sin Turno modal
+        (function() {
+            function handleProveedorSinTurnoResize() {
+                const modal = document.getElementById('proveedorSinTurnoModal');
+                if (!modal) return;
+                if (window.innerWidth <= 768) {
+                    modal.style.setProperty('--modal-padding', '12px');
+                }
+            }
+            window.addEventListener('resize', handleProveedorSinTurnoResize);
+            handleProveedorSinTurnoResize();
         })();
     </script>
 </body>

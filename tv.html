@@ -424,36 +424,49 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
+    <script src="sonido.js"></script>
     <script src="push-notifications.js"></script>
     <script>
         const SonidoAlerta = {
             contexto: null,
             
             inicializar() {
+                if (window.SonidoSI3) window.SonidoSI3.inicializar();
                 if (!this.contexto) {
                     this.contexto = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.contexto && this.contexto.state === 'suspended') {
+                    this.contexto.resume().catch(() => {});
                 }
             },
             
             reproducir(veces = 3) {
+                if (window.SonidoSI3) window.SonidoSI3.tocarAlerta();
                 this.inicializar();
+                if (this.contexto && this.contexto.state === 'suspended') {
+                    this.contexto.resume().catch(() => {});
+                }
+                if (!this.contexto || this.contexto.state === 'closed') return;
                 
                 for (let i = 0; i < veces; i++) {
                     setTimeout(() => {
-                        const oscilador = this.contexto.createOscillator();
-                        const ganancia = this.contexto.createGain();
-                        
-                        oscilador.connect(ganancia);
-                        ganancia.connect(this.contexto.destination);
-                        
-                        oscilador.frequency.value = 880;
-                        oscilador.type = 'sine';
-                        
-                        ganancia.gain.setValueAtTime(0.5, this.contexto.currentTime);
-                        ganancia.gain.exponentialRampToValueAtTime(0.01, this.contexto.currentTime + 0.5);
-                        
-                        oscilador.start(this.contexto.currentTime);
-                        oscilador.stop(this.contexto.currentTime + 0.5);
+                        try {
+                            if (!this.contexto || this.contexto.state === 'closed') return;
+                            const oscilador = this.contexto.createOscillator();
+                            const ganancia = this.contexto.createGain();
+                            
+                            oscilador.connect(ganancia);
+                            ganancia.connect(this.contexto.destination);
+                            
+                            oscilador.frequency.value = 880;
+                            oscilador.type = 'sine';
+                            
+                            ganancia.gain.setValueAtTime(0.5, this.contexto.currentTime);
+                            ganancia.gain.exponentialRampToValueAtTime(0.01, this.contexto.currentTime + 0.5);
+                            
+                            oscilador.start(this.contexto.currentTime);
+                            oscilador.stop(this.contexto.currentTime + 0.5);
+                        } catch(e) {}
                     }, i * 600);
                 }
             }
