@@ -1408,11 +1408,15 @@
 
         async function initNotificacionesRealtime() {
             if (!window.supabaseClient) return;
-            window.supabaseClient
+            if (window._adminNotifChannel) {
+                window.supabaseClient.removeChannel(window._adminNotifChannel);
+            }
+            window._adminNotifChannel = window.supabaseClient
                 .channel('notificaciones-admin')
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
                     async (payload) => {
+                        if (window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(payload.new)) return;
                         console.log('🔔 Notificación realtime admin:', payload);
                         if (payload.new.remitente === 'despachador') {
                             window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
@@ -1444,7 +1448,15 @@
                         }
                     }
                 )
-                .subscribe();
+                .subscribe((status) => {
+                    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                        clearTimeout(window._adminNotifReconnectTimer);
+                        window._adminNotifReconnectTimer = setTimeout(() => {
+                            window._adminNotifReconnectTimer = null;
+                            initNotificacionesRealtime();
+                        }, 3000);
+                    }
+                });
         }
 
          initNotificacionesRealtime();
@@ -1464,6 +1476,7 @@
                     
                     if (data && data.length > 0) {
                         for (const notif of data) {
+                            if (window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(notif)) continue;
                             if (ultimaNotifAdminTs !== notif.created_at) {
                                 ultimaNotifAdminTs = notif.created_at;
                                 window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));

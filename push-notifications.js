@@ -7,6 +7,7 @@ class PushNotificationManager {
         this.isSupported = 'serviceWorker' in navigator && 'PushManager' in window;
         this.serverUrl = window.location.origin;
         this._canalesBC = [];
+        this._useServiceWorker = this.isSupported && window.location.protocol !== 'file:';
         this._initBroadcastChannel();
     }
 
@@ -46,6 +47,12 @@ class PushNotificationManager {
         if (!this.isSupported) {
             console.warn('Push notifications no soportadas');
             return false;
+        }
+
+        // Skip Service Worker on file:// protocol
+        if (!this._useServiceWorker) {
+            console.log('Service Worker deshabilitado en file://, usando notificaciones locales');
+            return true;
         }
 
         for (let intento = 0; intento < 3; intento++) {
@@ -166,6 +173,9 @@ class PushNotificationManager {
 
         if (this.swRegistration) {
             this.swRegistration.showNotification(title, defaultOptions);
+        } else if (Notification.permission === 'granted') {
+            // Fallback: usar Notification API directa sin Service Worker
+            new Notification(title, defaultOptions);
         }
 
         this._broadcast({

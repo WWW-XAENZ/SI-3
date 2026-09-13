@@ -27,6 +27,8 @@ CREATE TABLE proveedores_transporte (
     servicio VARCHAR(50),
     destino VARCHAR(50),
     nombre_proveedor VARCHAR(255),
+    consecutivo_ingreso VARCHAR(100),
+    num_facturas INTEGER,
     estado VARCHAR(20) DEFAULT 'pendiente' 
         CHECK (estado IN ('pendiente', 'inspeccion', 'autorizado_salida', 'completado')),
     autorizado_salida BOOLEAN DEFAULT false,

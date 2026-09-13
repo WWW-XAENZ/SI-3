@@ -523,7 +523,7 @@ const SupabaseDB = {
                 telefono: proveedor.telefono || null,
                 servicio: proveedor.servicio || null,
                 consecutivo_ingreso: proveedor.consecutivoIngreso || null,
-                num_facturas: proveedor.numFacturas || null,
+                num_facturas: proveedor.numFacturas ?? null,
                 activo: true,
                 updated_at: new Date().toISOString()
             };
@@ -551,7 +551,7 @@ const SupabaseDB = {
                 console.log('🔹 Verificando duplicado por NIT:', proveedor.nit);
                 const selectPromise = window.supabaseClient
                     .from('proveedores')
-                    .select('id, nombre_empresa, nit, contacto, telefono, servicio')
+                    .select('id, nombre_empresa, nit, contacto, telefono, servicio, consecutivo_ingreso, num_facturas, num_factura')
                     .eq('nit', proveedor.nit)
                     .maybeSingle()
                     .abortSignal(signal);
@@ -567,8 +567,22 @@ const SupabaseDB = {
                     const mismaPlaca = existente.nit === proveedor.nit;
                     
                     if (mismoNombre && mismaPlaca) {
-                        console.log('🔹 Proveedor ya existe con los mismos datos, no se guarda duplicado');
-                        return this._mapearProveedor(existente);
+                        console.log('🔹 Proveedor ya existe; actualizando también consecutivo y facturas');
+                        const updatePromiseExistente = window.supabaseClient
+                            .from('proveedores')
+                            .update(proveedorData)
+                            .eq('id', existente.id)
+                            .select()
+                            .single()
+                            .abortSignal(signal);
+
+                        const { data: proveedorActualizado, error: errorActualizacion } = await Promise.race([
+                            updatePromiseExistente,
+                            timeoutPromise
+                        ]);
+
+                        if (errorActualizacion) throw errorActualizacion;
+                        return this._mapearProveedor(proveedorActualizado);
                     } else {
                         console.log('🔹 Proveedor existe pero cambió datos, actualizando...');
                         const updatePromise2 = window.supabaseClient
@@ -761,7 +775,7 @@ const SupabaseDB = {
                 telefono: turno.telefono || null,
                 servicio: turno.servicio || null,
                 consecutivo_ingreso: turno.consecutivoIngreso || null,
-                num_facturas: turno.numFacturas || null,
+                num_facturas: turno.numFacturas ?? null,
                 autorizado_salida: turno.autorizadoSalida || false
             };
             
@@ -1072,7 +1086,10 @@ const SupabaseDB = {
             console.log('completarTurno - turno mapeado:', turnoMapeado);
             console.log('completarTurno - tipoVehiculo mapeado:', turnoMapeado?.tipoVehiculo);
             
-            await this.guardarEnHistorial(turnoMapeado);
+            const historialGuardado = await this.guardarEnHistorial(turnoMapeado);
+            if (!historialGuardado) {
+                throw new Error('No se pudo guardar el turno en el historial');
+            }
             
             const { error } = await window.supabaseClient
                 .from('turnos')
@@ -1192,9 +1209,9 @@ const SupabaseDB = {
             console.error('Supabase no está disponible');
             return false;
         }
-        
+        let historialData;
         try {
-            const historialData = {
+            historialData = {
                 numero: turno.numero,
                 nombre_empresa: turno.nombreEmpresa,
                 nit: turno.nit,
@@ -1214,7 +1231,7 @@ const SupabaseDB = {
                 telefono: turno.telefono || null,
                 servicio: turno.servicio || null,
                 consecutivo_ingreso: turno.consecutivoIngreso || null,
-                num_facturas: turno.numFacturas || null,
+                num_facturas: turno.numFacturas ?? null,
                 autorizado_salida: false,
                 inspeccion_fisica: false,
                 es_transporte: turno.esTransporte === true || false,
@@ -1584,6 +1601,7 @@ const SupabaseDB = {
                 autorizado_salida: false,
                 inspeccion_fisica: false,
                 consecutivo_ingreso: proveedor.consecutivoIngreso || null,
+                num_facturas: proveedor.numFacturas ?? null,
                 hora_solicitud: proveedor.horaSolicitud || null,
                 updated_at: new Date().toISOString()
             };
@@ -1605,10 +1623,11 @@ const SupabaseDB = {
             return this._mapearProveedorTransporte(data);
         } catch (error) {
             console.error('Error al guardar proveedor transporte:', error);
-            // Reintentar sin consecutivo_ingreso si la columna no existe
-            if (error.message?.includes('consecutivo_ingreso')) {
-                console.warn('⚠️ Columna consecutivo_ingreso no existe en proveedores_transporte, reintentando...');
-                delete proveedorData.consecutivo_ingreso;
+            // Reintentar sin consecutivo_ingreso / num_facturas si las columnas no existen
+            if (error.message?.includes('consecutivo_ingreso') || error.message?.includes('num_facturas')) {
+                console.warn('⚠️ Columnas consecutivo_ingreso/num_facturas no existen en proveedores_transporte, reintentando...');
+                if (error.message?.includes('consecutivo_ingreso')) delete proveedorData.consecutivo_ingreso;
+                if (error.message?.includes('num_facturas')) delete proveedorData.num_facturas;
                 try {
                     const retryTimeout = new Promise((_, reject) => 
                         setTimeout(() => reject(new Error('Timeout Supabase (proveedor transporte retry)')), 5000)
@@ -1791,6 +1810,8 @@ const SupabaseDB = {
                 contacto: proveedor.contacto || null,
                 telefono: proveedor.telefono || null,
                 servicio: proveedor.servicio || null,
+                consecutivo_ingreso: proveedor.consecutivoIngreso || null,
+                num_facturas: proveedor.numFacturas ?? null,
                 autorizado_salida: false,
                 inspeccion_fisica: false,
                 fecha: getLocalISOString(),
@@ -1832,7 +1853,8 @@ const SupabaseDB = {
             estado: p.estado,
             autorizadoSalida: p.autorizado_salida,
             inspeccionFisica: p.inspeccion_fisica,
-            consecutivoIngreso: p.consecutivo_ingreso,
+            consecutivoIngreso: p.consecutivo_ingreso || null,
+            numFacturas: p.num_facturas || null,
             horaSolicitud: p.hora_solicitud,
             horaLlamada: p.hora_llamada,
             horaFinalizacion: p.hora_finalizacion,
@@ -1893,6 +1915,39 @@ const SupabaseDB = {
 // NOTIFICACIONES DE SALIDA (POLLING FALLBACK)
 // ============================================
 
+const SI3Realtime = {
+    _notificaciones: new Map(),
+    _eventos: new Map(),
+
+    reclamarNotificacion(notificacion) {
+        const id = notificacion?.id;
+        if (id === undefined || id === null) return true;
+        if (this._notificaciones.has(id)) return false;
+        this._notificaciones.set(id, Date.now());
+        this._limpiar(this._notificaciones);
+        return true;
+    },
+
+    reclamarEvento(tabla, payload) {
+        const registro = payload?.new || payload?.old || {};
+        const id = registro.id ?? `${payload?.eventType || 'evento'}:${registro.numero || ''}:${registro.updated_at || registro.created_at || ''}`;
+        const clave = `${tabla}:${payload?.eventType || 'evento'}:${id}`;
+        if (this._eventos.has(clave)) return false;
+        this._eventos.set(clave, Date.now());
+        this._limpiar(this._eventos);
+        return true;
+    },
+
+    _limpiar(mapa) {
+        const limite = Date.now() - 10 * 60 * 1000;
+        for (const [clave, timestamp] of mapa) {
+            if (timestamp < limite) mapa.delete(clave);
+        }
+    }
+};
+
+window.SI3Realtime = SI3Realtime;
+
 const NotificacionesPolling = {
     _ultimoTimestamp: null,
     
@@ -1909,7 +1964,7 @@ const NotificacionesPolling = {
                 
                 if (data && data.length > 0) {
                     for (const notif of data) {
-                        if (this._ultimoTimestamp !== notif.created_at) {
+                        if (SI3Realtime.reclamarNotificacion(notif)) {
                             this._ultimoTimestamp = notif.created_at;
 if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
                             if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
@@ -1995,6 +2050,7 @@ const Conectividad = {
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'turnos' },
                 (payload) => {
+                    if (!SI3Realtime.reclamarEvento('turnos', payload)) return;
                     console.log('🔄 Cambio en turnos:', payload);
                     if (callback) callback(payload);
                     if (window.SonidoAlerta && payload.eventType === 'INSERT') {
@@ -2015,6 +2071,7 @@ const Conectividad = {
             .on('postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'historial_turnos' },
                 (payload) => {
+                    if (!SI3Realtime.reclamarEvento('historial_turnos', payload)) return;
                     console.log('📝 Nuevo en historial:', payload);
                     if (callback) callback(payload);
                 }
@@ -2031,6 +2088,7 @@ const Conectividad = {
             .on('postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
                 async (payload) => {
+                    if (!SI3Realtime.reclamarNotificacion(payload.new)) return;
                     console.log('🔔 Nueva notificación:', payload);
                     const notificacion = payload.new;
                     
@@ -3097,6 +3155,21 @@ const RenderAdmin = {
         const historialDiv = document.getElementById('historialTurnos');
         if (!historialDiv) return;
 
+        const tablaHistorialActual = historialDiv.querySelector('.history-table');
+        const scrollTop = historialDiv.scrollTop;
+        const scrollLeft = tablaHistorialActual ? tablaHistorialActual.scrollLeft : 0;
+
+        const restaurarScrollHistorial = () => {
+            historialDiv.scrollTop = scrollTop;
+            const tablaHistorial = historialDiv.querySelector('.history-table');
+            if (tablaHistorial) tablaHistorial.scrollLeft = scrollLeft;
+            requestAnimationFrame(() => {
+                historialDiv.scrollTop = scrollTop;
+                const tablaRenderizada = historialDiv.querySelector('.history-table');
+                if (tablaRenderizada) tablaRenderizada.scrollLeft = scrollLeft;
+            });
+        };
+
         // Evitar recargas bruscas del historial mientras se edita un registro:
         // el polling/realtime no debe reconstruir la tabla durante la edición.
         const modalEditar = document.getElementById('modalEditarHistorial');
@@ -3182,9 +3255,11 @@ const RenderAdmin = {
                     </table>
                 `;
             }
+            restaurarScrollHistorial();
         } catch (error) {
             console.error('Error al cargar historial:', error);
             historialDiv.innerHTML = '<p class="empty-message">Error al cargar historial</p>';
+            restaurarScrollHistorial();
         }
     },
 
@@ -3857,7 +3932,8 @@ const AdminHandlers = {
                     bultos: proveedor.bultos,
                     peso: proveedor.peso,
                     responsable: proveedor.responsable,
-                    destino: proveedor.destino
+                    destino: proveedor.destino,
+                    consecutivo_ingreso: proveedor.consecutivoIngreso || null
                 });
             }
             AppState.proveedoresTransporte[idx] = proveedor;
@@ -4144,7 +4220,7 @@ const AdminHandlers = {
                     motivo: proveedor.motivo || '',
                     hora_solicitud: proveedor.horaSolicitud || null,
                     hora_llamada: proveedor.horaLlamada || null,
-                    hora_finalizacion: null,
+                    hora_finalizacion: horaFin || null,
                     estado: 'completado',
                     destino: proveedor.destino || null,
                     nombre_proveedor: proveedor.nombreProveedor || null,
@@ -4157,6 +4233,7 @@ const AdminHandlers = {
                     telefono: proveedor.telefono || null,
                     servicio: proveedor.servicio || null,
                     consecutivo_ingreso: proveedor.consecutivoIngreso || null,
+                    num_facturas: proveedor.numFacturas ?? null,
                     autorizado_salida: false,
                     inspeccion_fisica: false,
                     es_transporte: true,
@@ -4164,11 +4241,33 @@ const AdminHandlers = {
                     fecha: getLocalISOString()
                 };
 
-                await window.supabaseClient
-                    .from('historial_turnos')
-                    .insert([historialData])
-                    .select()
-                    .single();
+                try {
+                    const { error: historialError } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .insert([historialData])
+                        .single();
+                    if (historialError) throw historialError;
+                } catch (error) {
+                    const msg = error.message || '';
+                    if (msg.includes('consecutivo_ingreso') || msg.includes('num_facturas') || msg.includes('es_transporte') || msg.includes('proveedor_transporte_id') || msg.includes('nombre_proveedor')) {
+                        const retryData = { ...historialData };
+                        if (msg.includes('consecutivo_ingreso')) delete retryData.consecutivo_ingreso;
+                        if (msg.includes('num_facturas')) delete retryData.num_facturas;
+                        if (msg.includes('es_transporte')) delete retryData.es_transporte;
+                        if (msg.includes('proveedor_transporte_id')) delete retryData.proveedor_transporte_id;
+                        if (msg.includes('nombre_proveedor')) delete retryData.nombre_proveedor;
+                        try {
+                            await window.supabaseClient
+                                .from('historial_turnos')
+                                .insert([retryData])
+                                .single();
+                        } catch (retryError) {
+                            console.error('Error al crear historial (reintento):', retryError);
+                        }
+                    } else {
+                        console.error('Error al crear historial:', error);
+                    }
+                }
             }
         } catch (error) {
             console.error('Error al crear historial de proveedores transporte:', error);
@@ -5745,7 +5844,9 @@ const DespachadorHandlers = {
                     .from('historial_turnos')
                     .update({ 
                         autorizado_salida: true,
-                        hora_finalizacion: horaFin
+                        hora_finalizacion: horaFin,
+                        consecutivo_ingreso: turno.consecutivoIngreso || null,
+                        num_facturas: turno.numFacturas ?? null
                     })
                     .eq('id', historialActual.id);
                 
@@ -5772,6 +5873,8 @@ const DespachadorHandlers = {
                         contacto: turno.contacto || null,
                         telefono: turno.telefono || null,
                         servicio: turno.servicio || null,
+                        consecutivo_ingreso: turno.consecutivoIngreso || null,
+                        num_facturas: turno.numFacturas ?? null,
                         autorizado_salida: true,
                         inspeccion_fisica: false,
                         es_transporte: turno.esTransporte === true || false,
