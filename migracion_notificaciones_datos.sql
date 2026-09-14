@@ -1,9 +1,10 @@
 -- ============================================
--- MIGRACIÓN: Agregar columna datos JSONB a notificaciones_salida
+-- MIGRACIÓN: Agregar columnas a notificaciones_salida
 -- ============================================
 -- Ejecutar en el SQL Editor de Supabase para bases de datos existentes.
--- Agrega la columna 'datos' para transmitir datos completos entre admin y despachador.
---   - datos: JSONB con datos completos del proveedor/turno para comunicacion realtime
+
+ALTER TABLE notificaciones_salida
+    ADD COLUMN IF NOT EXISTS remitente VARCHAR(20);
 
 ALTER TABLE notificaciones_salida
     ADD COLUMN IF NOT EXISTS datos JSONB;
@@ -20,8 +21,8 @@ ALTER TABLE notificaciones_salida
 ALTER TABLE notificaciones_salida
     ADD COLUMN IF NOT EXISTS tipo TEXT CHECK (tipo IN ('salida_pendiente', 'salida_autorizada'));
 
-CREATE INDEX IF NOT EXISTS idx_notificaciones_datos ON notificaciones_salida USING GIN (datos jsonb_path_ops);
-CREATE INDEX IF NOT EXISTS idx_notificaciones_tipo ON notificaciones_salida(tipo);
-CREATE INDEX IF NOT EXISTS idx_notificaciones_no_leidas ON notificaciones_salida(leido) WHERE leido = false;
+CREATE INDEX IF NOT EXISTS idx_notifications_datos ON notificaciones_salida USING GIN (datos jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS idx_notifications_tipo ON notificaciones_salida(tipo);
+CREATE INDEX IF NOT EXISTS idx_notifications_no_leidas ON notificaciones_salida(leido) WHERE leido = false;
 
-SELECT 'Migración completada: columna datos agregada a notificaciones_salida.' AS mensaje;
+SELECT 'Migración completada: columnas agregadas a notificaciones_salida.' AS mensaje;

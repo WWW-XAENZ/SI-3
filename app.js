@@ -1099,38 +1099,42 @@ const SupabaseDB = {
             if (error) throw error;
             
             if (window.supabaseClient) {
-                const datosNotificacion = {
-                    numero: turnoMapeado.numero,
-                    nombreEmpresa: turnoMapeado.nombreEmpresa,
-                    nombre: turnoMapeado.nombreEmpresa,
-                    nit: turnoMapeado.nit || '',
-                    contacto: turnoMapeado.contacto || '',
-                    telefono: turnoMapeado.telefono || '',
-                    servicio: turnoMapeado.servicio || '',
-                    destino: turnoMapeado.destino || '',
-                    fechaCita: turnoMapeado.fechaCita || '',
-                    numFactura: turnoMapeado.numFactura || '',
-                    numFacturas: turnoMapeado.numFacturas || null,
-                    tipoVehiculo: turnoMapeado.tipoVehiculo || '',
-                    bultos: turnoMapeado.bultos || null,
-                    peso: turnoMapeado.peso || '',
-                    responsable: turnoMapeado.responsable || '',
-                    consecutivoIngreso: turnoMapeado.consecutivoIngreso || '',
-                    inspeccionFisica: turnoMapeado.inspeccionFisica || false,
-                    autorizadoSalida: turnoMapeado.autorizadoSalida || false,
-                    horaSolicitud: turnoMapeado.horaSolicitud || '',
-                    horaLlamada: turnoMapeado.horaLlamada || '',
-                    timestamp: Date.now()
-                };
-                await window.supabaseClient.from('notificaciones_salida').insert({
-                    mensaje: `Turno ${turnoMapeado.numero} completado por recepción`,
-                    remitente: 'admin',
-                    leido: false,
-                    tipo: 'salida_pendiente',
-                    proveedor_nit: turnoMapeado.nit || null,
-                    nombre_empresa: turnoMapeado.nombreEmpresa || null,
-                    datos: datosNotificacion
-                });
+                try {
+                    const datosNotificacion = {
+                        numero: turnoMapeado.numero,
+                        nombreEmpresa: turnoMapeado.nombreEmpresa,
+                        nombre: turnoMapeado.nombreEmpresa,
+                        nit: turnoMapeado.nit || '',
+                        contacto: turnoMapeado.contacto || '',
+                        telefono: turnoMapeado.telefono || '',
+                        servicio: turnoMapeado.servicio || '',
+                        destino: turnoMapeado.destino || '',
+                        fechaCita: turnoMapeado.fechaCita || '',
+                        numFactura: turnoMapeado.numFactura || '',
+                        numFacturas: turnoMapeado.numFacturas || null,
+                        tipoVehiculo: turnoMapeado.tipoVehiculo || '',
+                        bultos: turnoMapeado.bultos || null,
+                        peso: turnoMapeado.peso || '',
+                        responsable: turnoMapeado.responsable || '',
+                        consecutivoIngreso: turnoMapeado.consecutivoIngreso || '',
+                        inspeccionFisica: turnoMapeado.inspeccionFisica || false,
+                        autorizadoSalida: turnoMapeado.autorizadoSalida || false,
+                        horaSolicitud: turnoMapeado.horaSolicitud || '',
+                        horaLlamada: turnoMapeado.horaLlamada || '',
+                        timestamp: Date.now()
+                    };
+                    await window.supabaseClient.from('notificaciones_salida').insert({
+                        mensaje: `Turno ${turnoMapeado.numero} completado por recepción`,
+                        remitente: 'admin',
+                        leido: false,
+                        tipo: 'salida_pendiente',
+                        proveedor_nit: turnoMapeado.nit || null,
+                        nombre_empresa: turnoMapeado.nombreEmpresa || null,
+                        datos: datosNotificacion
+                    });
+                } catch (notifError) {
+                    console.warn('⚠️ No se pudo insertar notificación de salida (no bloqueante):', notifError.message);
+                }
             }
             
             // Push notification - Turno completado (con sonido garantizado)
@@ -1219,7 +1223,7 @@ const SupabaseDB = {
                 hora_solicitud: turno.horaSolicitud,
                 hora_llamada: turno.horaLlamada || null,
                 hora_finalizacion: null,
-                estado: turno.estado,
+                estado: 'completado',
                 destino: turno.destino || null,
                 fecha_cita: turno.fechaCita || null,
                 num_factura: turno.numFactura || null,
@@ -1252,15 +1256,21 @@ const SupabaseDB = {
             return true;
         } catch (error) {
             console.error('Error al guardar en historial:', error);
-            // Reintentar sin los campos nuevos si las columnas no existen
-            if (error.message?.includes('consecutivo_ingreso') || error.message?.includes('num_facturas')) {
-                console.warn('⚠️ Columnas nuevas no existen en historial_turnos, reintentando...');
-                if (historialData.consecutivo_ingreso !== undefined) delete historialData.consecutivo_ingreso;
-                if (historialData.num_facturas !== undefined) delete historialData.num_facturas;
+            const columnsToStrip = ['consecutivo_ingreso', 'num_facturas', 'es_transporte', 'nombre_proveedor', 'proveedor_transporte_id'];
+            const strippedData = { ...historialData };
+            let anyStripped = false;
+            for (const col of columnsToStrip) {
+                if (error.message?.includes(col) && strippedData[col] !== undefined) {
+                    delete strippedData[col];
+                    anyStripped = true;
+                }
+            }
+            if (anyStripped) {
+                console.warn('⚠️ Columnas no existen en historial_turnos, reintentando sin ellas...');
                 try {
                     const { data: retryData, error: retryError } = await window.supabaseClient
                         .from('historial_turnos')
-                        .insert([historialData])
+                        .insert([strippedData])
                         .select()
                         .single();
                     if (retryError) throw retryError;

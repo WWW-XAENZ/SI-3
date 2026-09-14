@@ -133,6 +133,7 @@ CREATE TABLE mensajes (
 CREATE TABLE notificaciones_salida (
     id BIGSERIAL PRIMARY KEY,
     turno_id BIGINT REFERENCES turnos(id) ON DELETE CASCADE,
+    remitente VARCHAR(20),
     proveedor_nit TEXT,
     nombre_empresa TEXT,
     fecha_cita TIMESTAMP WITH TIME ZONE,
