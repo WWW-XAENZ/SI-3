@@ -3213,7 +3213,7 @@ const RenderAdmin = {
                             <input type="checkbox" id="historialFiltroTransporte" onchange="RenderAdmin.historial()">
                             Solo transportistas
                         </label>
-                        <span style="font-size: 13px; color: #8b5cf6;">${turnosTransporte.length} turno(s) transporte | ${soloTransporte.length} proveedor(es)</span>
+                        <span style="font-size: 13px; color: #20538f;">${turnosTransporte.length} turno(s) transporte | ${soloTransporte.length} proveedor(es)</span>
                     </div>
 <table class="history-table">
                         <thead>
@@ -4025,8 +4025,8 @@ const AdminHandlers = {
                 else if (pesoDisplay !== 'N/A') pesoDisplay += ' kg';
                 const destinoDisplay = destinoLabel[p.destino] || p.destino || 'N/A';
                 return `
-                <div class="turn-item" style="border-left: 3px solid #8b5cf6;">
-                    <span class="turn-item-number" style="color: #8b5cf6;">${index + 1}</span>
+                <div class="turn-item" style="border-left: 3px solid #20538f;">
+                    <span class="turn-item-number" style="color: #20538f;">${index + 1}</span>
                     <div class="turn-item-info">
                         <div class="turn-item-company">${p.nombreProveedor || 'N/A'}</div>
                     <div class="turn-item-details">

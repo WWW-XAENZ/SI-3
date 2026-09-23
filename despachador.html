@@ -6,7 +6,7 @@
     <title>Panel Despachador - Sistema de Turnos SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <style>
         .admin-grid { 
@@ -27,8 +27,8 @@
         .turnos-confirmados .turn-item-number { background: #22c55e; }
         .turnos-confirmados .turn-item-time { color: #16a34a; }
         
-        .pending-exit .turn-item { border-left: 4px solid #8b5cf6; background: #f5f3ff; }
-        .pending-exit .turn-item:hover { border-color: #7c3aed; }
+        .pending-exit .turn-item { border-left: 4px solid #20538f; background: #eef6ff; }
+        .pending-exit .turn-item:hover { border-color: #173f70; }
         
         .admin-section {
             background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
@@ -589,18 +589,22 @@
                 <section class="admin-section statistics">
                     <h2>Estadisticas del Dia</h2>
                     <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-number" id="totalTurnosDia">0</div>
-                            <div class="stat-label">Vehiculos</div>
-                        </div>
-                        <div class="stat-card">
+                        <div class="stat-card stat-card-action" data-stat="autorizados" tabindex="0" role="button" aria-label="Ver salidas autorizadas">
                             <div class="stat-number" id="totalAutorizados">0</div>
                             <div class="stat-label">Salidas OK</div>
                         </div>
-                        <div class="stat-card">
+                        <div class="stat-card stat-card-action" data-stat="pendientes" tabindex="0" role="button" aria-label="Ver turnos pendientes">
                             <div class="stat-number" id="totalPendientes">0</div>
                             <div class="stat-label">Pendientes</div>
                         </div>
+                        <div class="stat-card stat-card-action" data-stat="reservadas" tabindex="0" role="button" aria-label="Ver citas reservadas">
+                            <div class="stat-number" id="totalReservadas">0</div>
+                            <div class="stat-label">Reservadas</div>
+                        </div>
+                    </div>
+                    <div id="statsDetailDespachador" class="stats-detail" aria-live="polite">
+                        <span class="stats-detail-icon">i</span>
+                        <span>Seleccione una estadística para ver su información.</span>
                     </div>
                 </section>
 
@@ -656,6 +660,17 @@
         <footer>
             <p>2026 Sistema de Turnos SI-3 - Panel Despachador</p>
         </footer>
+    </div>
+
+    <div id="statsInfoModal" class="stats-info-modal" role="dialog" aria-modal="true" aria-labelledby="statsInfoTitle" hidden>
+        <div class="stats-info-card">
+            <button type="button" class="stats-info-close" id="statsInfoClose" aria-label="Cerrar información">&times;</button>
+            <span class="stats-info-eyebrow">RESUMEN OPERATIVO</span>
+            <div class="stats-info-number" id="statsInfoNumber">0</div>
+            <h2 id="statsInfoTitle">Información</h2>
+            <p id="statsInfoText">Detalle de la estadística seleccionada.</p>
+            <div id="statsInfoContent" class="stats-info-list"></div>
+        </div>
     </div>
 
 
@@ -835,13 +850,15 @@
                 const hoy = fechaDespSeleccionada();
                 const { data, error } = await window.supabaseClient
                     .from('historial_turnos')
-                    .select('autorizado_salida')
-                    .gte('fecha', `${hoy}T00:00:00`);
+                    .select('autorizado_salida, es_transporte, proveedor_transporte_id')
+                    .gte('fecha', `${hoy}T00:00:00`)
+                    .lte('fecha', `${hoy}T23:59:59`);
                 
                 if (error) throw error;
                 
-                const total = data?.length || 0;
-                const autorizados = data?.filter(h => h.autorizado_salida === true).length || 0;
+                const registrosValidos = (data || []).filter(h => !(h.es_transporte === true && !h.proveedor_transporte_id));
+                const total = registrosValidos.length;
+                const autorizados = registrosValidos.filter(h => h.autorizado_salida === true).length;
                 const pendientes = total - autorizados;
                 
                 if (totalDiaEl) totalDiaEl.textContent = total;
@@ -1015,14 +1032,15 @@
                 try {
                     const { data, error } = await window.supabaseClient
                         .from('historial_turnos')
-                        .select('autorizado_salida')
+                        .select('autorizado_salida, es_transporte, proveedor_transporte_id')
                         .gte('fecha', `${hoy}T00:00:00`)
                         .lte('fecha', `${hoy}T23:59:59`);
                     
                     if (error) throw error;
                     
-                    const total = data?.length || 0;
-                    const autorizados = data?.filter(h => h.autorizado_salida === true).length || 0;
+                    const registrosValidos = (data || []).filter(h => !(h.es_transporte === true && !h.proveedor_transporte_id));
+                    const total = registrosValidos.length;
+                    const autorizados = registrosValidos.filter(h => h.autorizado_salida === true).length;
                     const pendientes = total - autorizados;
                     
                     const totalDiaEl = document.getElementById('totalTurnosDia');
@@ -1491,7 +1509,7 @@ return `
                             ? '<span class="autorizado-badge" style="margin-left:8px;">Inspección: NO</span>'
                             : `<button class="btn btn-secondary btn-small" onclick="DespachadorHandlers.solicitarInspeccionProveedorTransporteIndividual(${p.id}, '${p.nombreProveedor || ''}'); setTimeout(() => { cargarTurnosPendientesSalida(); }, 800);">Inspección</button>`;
                         return `
-                            <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${autorizado ? '#22c55e' : '#8b5cf6'};">
+                            <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${autorizado ? '#22c55e' : '#20538f'};">
                                 <div style="font-weight: 600; color: #3741a5;">${p.nombreProveedor || p.nit || 'N/A'}${estadoBadge}</div>
                                 <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
                                     Consecutivo: ${p.consecutivoIngreso || 'N/A'} | Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
@@ -1554,7 +1572,7 @@ return `
                         const proveedoresHtml = proveedor.proveedores.map(p => {
                             const autorizado = p.autorizadoSalida === true;
                             return `
-                                <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${autorizado ? '#22c55e' : '#8b5cf6'};">
+                                <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${autorizado ? '#22c55e' : '#20538f'};">
                                     <div style="font-weight: 600; color: #3741a5;">${p.nombreProveedor || p.nit || 'N/A'} ${autorizado ? '<span style="color:#16a34a;font-weight:700;">✓ AUTORIZADO</span>' : '<span style="color:#d97706;font-weight:700;">PENDIENTE</span>'}</div>
                                     <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
                                         Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
@@ -1568,12 +1586,12 @@ return `
                         modal.className = 'modal-overlay';
                         modal.innerHTML = `
                             <div class="modal-content modal-proveedor-content" style="max-width: 560px;">
-                                <div class="modal-proveedor-header" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">
+                                <div class="modal-proveedor-header" style="background: linear-gradient(135deg, #3478c5 0%, #173f70 100%);">
                                     <h2>TRANSPORTADORA - TURNO ${proveedor.numero}</h2>
                                     <p>${total} proveedor(es) recibidos de recepción - ${pendientes} pendientes</p>
                                 </div>
                                 <div class="modal-proveedor-body">
-                                    <div class="modal-proveedor-numero" style="color: #7c3aed;">${proveedor.numero}</div>
+                                    <div class="modal-proveedor-numero" style="color: #2866ad;">${proveedor.numero}</div>
                                     <div class="modal-proveedor-nombre">Listo para autorización de salida</div>
                                 </div>
                                 <div class="modal-proveedor-detalles" style="max-height: 320px; overflow-y: auto;">
@@ -2103,6 +2121,103 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                         }, 3000);
                     }
                 });
+        }
+
+        const detalleEstadisticas = {
+            autorizados: {
+                titulo: 'Salidas autorizadas',
+                texto: 'Vehículos que completaron correctamente el proceso de salida.',
+                selector: '.despachador-historial .history-table-desp tbody tr',
+                filter: registro => (registro.querySelectorAll('td')[13]?.textContent || '').includes('OK')
+            },
+            pendientes: {
+                titulo: 'Salidas pendientes',
+                texto: 'Vehículos que todavía requieren autorización o inspección.',
+                selector: '.cited-list .pending-exit-item',
+                filter: registro => registro.dataset.estado !== 'autorizado'
+            },
+            reservadas: {
+                titulo: 'Citas reservadas',
+                texto: 'Turnos programados que esperan atención del equipo despachador.',
+                selector: '.pending-exit .turn-item',
+                filter: () => true
+            }
+        };
+
+        function mostrarDetalleEstadistica(card) {
+            const detalle = detalleEstadisticas[card.dataset.stat];
+            const panel = document.getElementById('statsDetailDespachador');
+            const modal = document.getElementById('statsInfoModal');
+            const modalNumber = document.getElementById('statsInfoNumber');
+            const modalTitle = document.getElementById('statsInfoTitle');
+            const modalText = document.getElementById('statsInfoText');
+            const modalContent = document.getElementById('statsInfoContent');
+            if (!detalle || !panel || !modal) return;
+
+            document.querySelectorAll('.stat-card-action').forEach(item => item.classList.remove('is-selected'));
+            card.classList.add('is-selected');
+            if (modalNumber) modalNumber.textContent = card.querySelector('.stat-number')?.textContent || '0';
+            if (modalTitle) modalTitle.textContent = detalle.titulo;
+            if (modalText) modalText.textContent = detalle.texto;
+            if (modalContent) {
+                const registros = Array.from(document.querySelectorAll(detalle.selector)).filter(detalle.filter).slice(0, 8);
+                modalContent.innerHTML = registros.length ? registros.map(registro => {
+                    if (registro.matches('tr')) {
+                        const cells = Array.from(registro.querySelectorAll('td')).map(cell => cell.textContent.trim().replace(/\s+/g, ' '));
+                        return `<div class="stats-info-row stats-history-record">
+                            <div class="stats-record-head"><strong>${cells[0] || 'Turno'}</strong><span>${cells[1] || cells[2] || 'Proveedor'}</span><em>${cells[13] || cells[14] || 'Registro'}</em></div>
+                            <div class="stats-record-grid">
+                                <span><small>Placa</small>${cells[3] || '-'}</span>
+                                <span><small>Factura</small>${cells[4] || '-'}</span>
+                                <span><small>Tipo</small>${cells[5] || '-'}</span>
+                                <span><small>Horario</small>${cells[9] || '-'} - ${cells[10] || '-'}</span>
+                            </div>
+                        </div>`;
+                    }
+
+                    const numero = registro.querySelector('.turn-item-number, .pending-exit-number')?.textContent.trim() || 'Turno';
+                    const empresa = registro.querySelector('.turn-item-company, .pending-exit-company')?.textContent.trim() || 'Proveedor';
+                    const detalles = Array.from(registro.querySelectorAll('.turn-item-detail, .pending-exit-detail, .pending-exit-details span')).slice(0, 4).map(item => item.textContent.trim().replace(/\s+/g, ' '));
+                    return `<div class="stats-info-row stats-queue-record">
+                        <div class="stats-record-head"><strong>${numero}</strong><span>${empresa}</span></div>
+                        <div class="stats-record-grid">${detalles.map((detalle, index) => `<span><small>${index === 0 ? 'Información' : 'Detalle'}</small>${detalle}</span>`).join('')}</div>
+                    </div>`;
+                }).join('') : '<div class="stats-info-empty">No hay información disponible en este momento.</div>';
+            }
+            modal.hidden = false;
+            document.getElementById('statsInfoClose')?.focus();
+        }
+
+        document.querySelectorAll('.stat-card-action').forEach(card => {
+            card.addEventListener('click', () => mostrarDetalleEstadistica(card));
+            card.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    mostrarDetalleEstadistica(card);
+                }
+            });
+        });
+
+        const statsInfoModal = document.getElementById('statsInfoModal');
+        const statsInfoClose = document.getElementById('statsInfoClose');
+        const cerrarStatsInfo = () => {
+            if (statsInfoModal) statsInfoModal.hidden = true;
+            document.querySelector('.stat-card-action.is-selected')?.focus();
+        };
+        statsInfoClose?.addEventListener('click', cerrarStatsInfo);
+        statsInfoModal?.addEventListener('click', event => {
+            if (event.target === statsInfoModal) cerrarStatsInfo();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && statsInfoModal && !statsInfoModal.hidden) cerrarStatsInfo();
+        });
+
+        const reservadasEl = document.getElementById('totalReservadas');
+        const contadorReservadasEl = document.getElementById('contadorTurnosCitadosDespachador');
+        if (reservadasEl && contadorReservadasEl) {
+            const sincronizarReservadas = () => { reservadasEl.textContent = contadorReservadasEl.textContent || '0'; };
+            sincronizarReservadas();
+            new MutationObserver(sincronizarReservadas).observe(contadorReservadasEl, { childList: true, characterData: true, subtree: true });
         }
 
         initNotificacionesRealtimeDespachador();

@@ -7,7 +7,7 @@
     <title>Sistema de Turnos - SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <style>
         .welcome-banner {
@@ -79,7 +79,7 @@
         
         .option-card.blue:hover { border-color: #3b82f6; }
         .option-card.red:hover { border-color: #ef4444; }
-        .option-card.purple:hover { border-color: #8b5cf6; }
+        .option-card.purple:hover { border-color: #3478c5; }
         
         .option-card .icon-wrap {
             width: 80px;
@@ -98,7 +98,7 @@
         .option-card.red .icon-wrap svg { stroke: #ef4444; }
         
         .option-card.purple .icon-wrap { background: #f5f3ff; }
-        .option-card.purple .icon-wrap svg { stroke: #8b5cf6; }
+        .option-card.purple .icon-wrap svg { stroke: #2866ad; }
         
         .option-card h3 {
             font-size: 20px;
@@ -283,7 +283,10 @@
     <div class="container">
         <header>
             <img src="Logo-Web-SI3.png" alt="SI-3" class="logo" id="logoClick">
-            <h1>Sistema de Turnos SI-3</h1>
+            <div class="brand-lockup">
+                <h1>Sistema de Turnos SI-3</h1>
+                <span>GESTIÓN OPERATIVA Y ATENCIÓN INTELIGENTE</span>
+            </div>
         </header>
         
         <nav class="main-nav">
@@ -295,8 +298,18 @@
 
         <main class="home-content">
             <div class="welcome-banner">
-                <h2>Bienvenido</h2>
-                <p>Sistema de gestión de turnos para proveedores. Obtenga su turno de forma rápida y sencilla.</p>
+                <div class="welcome-copy">
+                    <span class="welcome-kicker">PLATAFORMA OPERATIVA SI-3</span>
+                    <h2>Gestiona tu turno con claridad.</h2>
+                    <p>Sistema de gestión de turnos para proveedores. Obtenga su turno de forma rápida y sencilla.</p>
+                </div>
+                <div class="welcome-status">
+                    <span class="status-pulse"></span>
+                    <div>
+                        <strong>Operación activa</strong>
+                        <small>Atención en tiempo real</small>
+                    </div>
+                </div>
             </div>
 
             <div class="cards-grid">

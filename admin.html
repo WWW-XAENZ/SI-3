@@ -7,7 +7,7 @@
     <title>Panel de Recepción - Sistema de Turnos SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <style>
     .admin-grid { 
@@ -316,12 +316,12 @@
         }
         
         .turn-item-citado { 
-            border-left: 5px solid #8b5cf6; 
+            border-left: 5px solid #20538f;
             background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); 
             flex-wrap: wrap; 
         }
         .turn-item-citado:hover { 
-            border-color: #7c3aed;
+            border-color: #173f70;
             background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
         }
         .turn-item-citado .turn-item-info { 
@@ -695,15 +695,15 @@
                 <section class="admin-section statistics">
                     <h2>Hoy</h2>
                     <div class="stats-grid">
-                        <div class="stat-card">
+                        <div class="stat-card stat-card-action" data-admin-stat="atendidos" tabindex="0" role="button" aria-label="Ver turnos atendidos">
                             <div class="stat-number" id="totalTurnos">0</div>
                             <div class="stat-label">Atendidos</div>
                         </div>
-                        <div class="stat-card">
+                        <div class="stat-card stat-card-action" data-admin-stat="espera" tabindex="0" role="button" aria-label="Ver turnos en espera">
                             <div class="stat-number" id="turnosEspera">0</div>
                             <div class="stat-label">En Espera</div>
                         </div>
-                        <div class="stat-card">
+                        <div class="stat-card stat-card-action" data-admin-stat="proveedores" tabindex="0" role="button" aria-label="Ver proveedores">
                             <div class="stat-number" id="totalProveedores">0</div>
                             <div class="stat-label">Proveedores</div>
                         </div>
@@ -747,21 +747,6 @@
                     </div>
                     <div id="listaTurnosCitados" class="turn-list">
                         <p class="empty-message">Sin citas reservadas</p>
-                    </div>
-                </section>
-
-                <!-- Proveedores -->
-                <section class="admin-section providers-list">
-                    <h2>Proveedores (<span id="contadorProveedores">0</span>)
-                        <button id="btnToggleProveedores" class="btn btn-secondary btn-small btn-toggle">Mostrar</button>
-                    </h2>
-                    <div class="admin-filters" style="margin-bottom: 16px;">
-                        <input type="text" id="busquedaProveedores" placeholder="Buscar por empresa, placa, contacto, teléfono, consecutivo..." class="filter-input-small" style="flex: 1;">
-                    </div>
-                    <div id="proveedoresContainer" class="proveedores-container" style="display: none;">
-                        <div id="proveedoresBody" class="proveedores-cards">
-                            <p class="empty-message">Cargando...</p>
-                        </div>
                     </div>
                 </section>
 
@@ -1561,6 +1546,216 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
             }
             window.addEventListener('resize', handleProveedorSinTurnoResize);
             handleProveedorSinTurnoResize();
+        })();
+    </script>
+    <script>
+        (function() {
+            const modal = document.createElement('div');
+            modal.className = 'stats-info-modal';
+            modal.id = 'adminStatsInfoModal';
+            modal.hidden = true;
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            modal.innerHTML = `<div class="stats-info-card">
+                <button type="button" class="stats-info-close" aria-label="Cerrar información">&times;</button>
+                <span class="stats-info-eyebrow">RESUMEN DE RECEPCIÓN</span>
+                <div class="stats-info-number" data-number>0</div>
+                <h2 data-title>Información</h2>
+                <p data-text>Detalle de la estadística seleccionada.</p>
+                <div class="admin-provider-search" data-provider-search hidden>
+                    <span aria-hidden="true">⌕</span>
+                    <input type="search" data-provider-input placeholder="Buscar empresa, contacto o placa..." aria-label="Buscar proveedores">
+                </div>
+                <div class="admin-provider-actions" data-provider-actions hidden>
+                    <button type="button" data-provider-expand>Mostrar todos</button>
+                    <button type="button" data-provider-collapse>Cerrar todos</button>
+                </div>
+                <div class="stats-info-list" data-content></div>
+            </div>`;
+            document.body.appendChild(modal);
+
+            const configuracion = {
+                atendidos: {
+                    title: 'Turnos atendidos',
+                    text: 'Proveedores que ya fueron atendidos durante la jornada.',
+                    value: 'totalTurnos',
+                    selector: '#listaTurnosLlegados .turn-item, #historialTurnos .history-item'
+                },
+                espera: {
+                    title: 'Turnos en espera',
+                    text: 'Proveedores que continúan esperando atención.',
+                    value: 'turnosEspera',
+                    selector: '#listaTurnosEspera .turn-item'
+                },
+                proveedores: {
+                    title: 'Proveedores registrados',
+                    text: 'Proveedores disponibles en el registro operativo.',
+                    value: 'totalProveedores'
+                }
+            };
+
+            let proveedoresRegistrados = [];
+
+            function renderProveedores(busqueda = '') {
+                const contenido = modal.querySelector('[data-content]');
+                const termino = busqueda.trim().toLowerCase();
+                const filtrados = proveedoresRegistrados.filter(proveedor => {
+                    const texto = [proveedor.nombreEmpresa, proveedor.contacto, proveedor.nit, proveedor.telefono, proveedor.servicio, proveedor.consecutivoIngreso]
+                        .filter(Boolean).join(' ').toLowerCase();
+                    return !termino || texto.includes(termino);
+                });
+
+                const unicos = [];
+                const claves = new Set();
+                filtrados.forEach(proveedor => {
+                    const clave = [proveedor.nombreEmpresa, proveedor.nit, proveedor.contacto, proveedor.telefono, proveedor.consecutivoIngreso]
+                        .map(valor => String(valor || '').trim().toLowerCase()).join('|');
+                    if (!claves.has(clave)) {
+                        claves.add(clave);
+                        unicos.push(proveedor);
+                    }
+                });
+
+                const grupos = {};
+                unicos.forEach(proveedor => {
+                    const empresa = proveedor.nombreEmpresa || 'Empresa sin nombre';
+                    if (!grupos[empresa]) grupos[empresa] = [];
+                    grupos[empresa].push(proveedor);
+                });
+
+                const empresas = Object.entries(grupos);
+                contenido.innerHTML = empresas.length ? empresas.map(([empresa, lista], index) => {
+                    const grupoId = `admin-prov-group-${index}`;
+                    const varios = lista.length > 1;
+                    const servicio = lista[0].servicio ? String(lista[0].servicio).toUpperCase() : 'Proveedor';
+                    const personas = lista.map(proveedor => {
+                        const contacto = proveedor.contacto || '—';
+                        const placa = proveedor.nit || '—';
+                        const telefono = proveedor.telefono || '—';
+                        const consecutivo = proveedor.consecutivoIngreso || '—';
+                        return `<div class="admin-provider-person">
+                            <strong>${contacto}</strong>
+                            <span><b>Placa</b> ${placa} <b>Tel.</b> ${telefono} <b>Cons.</b> ${consecutivo}</span>
+                        </div>`;
+                    }).join('');
+                    return `<div class="stats-info-row admin-provider-record ${varios ? 'admin-provider-group' : ''}">
+                        <button type="button" class="admin-provider-head" data-provider-toggle="${grupoId}" aria-expanded="${!varios}">
+                            <span class="admin-provider-mark">${empresa.slice(0, 2).toUpperCase()}</span>
+                            <span class="admin-provider-title"><strong>${empresa}</strong><small>${varios ? `${lista.length} conductores` : servicio}</small></span>
+                            ${varios ? `<span class="admin-provider-chevron" data-provider-chevron="${grupoId}">⌄</span>` : ''}
+                        </button>
+                        <div class="admin-provider-people" id="${grupoId}" ${varios ? 'hidden' : ''}>${personas}</div>
+                    </div>`;
+                }).join('') : '<div class="stats-info-empty">No se encontraron proveedores con esa búsqueda.</div>';
+
+                contenido.querySelectorAll('[data-provider-toggle]').forEach(toggle => {
+                    toggle.addEventListener('click', () => {
+                        const grupo = document.getElementById(toggle.dataset.providerToggle);
+                        const chevron = contenido.querySelector(`[data-provider-chevron="${toggle.dataset.providerToggle}"]`);
+                        if (!grupo) return;
+                        grupo.hidden = !grupo.hidden;
+                        toggle.setAttribute('aria-expanded', String(!grupo.hidden));
+                        if (chevron) chevron.classList.toggle('open', !grupo.hidden);
+                    });
+                });
+            }
+
+            async function abrir(card) {
+                const config = configuracion[card.dataset.adminStat];
+                if (!config) return;
+                modal.hidden = false;
+                modal.querySelector('.stats-info-close').focus();
+                modal.querySelector('[data-number]').textContent = document.getElementById(config.value)?.textContent || '0';
+                modal.querySelector('[data-title]').textContent = config.title;
+                modal.querySelector('[data-text]').textContent = config.text;
+                const buscador = modal.querySelector('[data-provider-search]');
+                if (card.dataset.adminStat === 'proveedores') {
+                    buscador.hidden = false;
+                    modal.querySelector('[data-provider-actions]').hidden = false;
+                    const input = modal.querySelector('[data-provider-input]');
+                    input.value = '';
+                    modal.querySelector('[data-content]').innerHTML = '<div class="stats-info-empty">Cargando proveedores...</div>';
+                    try {
+                        if (!proveedoresRegistrados.length && typeof SupabaseDB !== 'undefined' && SupabaseDB.cargarProveedores) {
+                            proveedoresRegistrados = await SupabaseDB.cargarProveedores() || [];
+                        }
+                        renderProveedores();
+                    } catch (error) {
+                        console.error('Error cargando proveedores del modal:', error);
+                        modal.querySelector('[data-content]').innerHTML = '<div class="stats-info-empty">No se pudo cargar la información de proveedores.</div>';
+                    }
+                } else {
+                    buscador.hidden = true;
+                    modal.querySelector('[data-provider-actions]').hidden = true;
+                    const registrosDisponibles = Array.from(document.querySelectorAll(config.selector));
+                    const registros = registrosDisponibles.slice(0, 8);
+                    modal.querySelector('[data-content]').innerHTML = registros.length
+                    ? registros.map(registro => {
+                        if (registro.matches('.prov-empresa-card')) {
+                            const empresa = registro.querySelector('.prov-empresa-nombre')?.textContent.trim() || 'Sin empresa';
+                            const resumen = registro.querySelector('.prov-empresa-sub')?.textContent.trim() || 'Proveedor';
+                            const conductores = Array.from(registro.querySelectorAll('.prov-proveedor')).map(proveedor => {
+                                const nombre = proveedor.querySelector('.prov-proveedor-nombre')?.textContent.trim() || 'Proveedor';
+                                const meta = proveedor.querySelector('.prov-proveedor-meta')?.textContent.trim() || 'Sin detalles';
+                                return `<div class="admin-provider-person"><strong>${nombre}</strong><span>${meta}</span></div>`;
+                            }).join('');
+                            return `<div class="stats-info-row admin-provider-record">
+                                <div class="admin-provider-head"><span class="admin-provider-mark">${empresa.slice(0, 2).toUpperCase()}</span><div><strong>${empresa}</strong><small>${resumen}</small></div></div>
+                                <div class="admin-provider-people">${conductores || '<div class="stats-info-empty">Sin contactos registrados</div>'}</div>
+                            </div>`;
+                        }
+
+                        const identificador = registro.querySelector('.turn-item-number, .history-item-number, strong')?.textContent.trim() || 'Registro';
+                        const nombre = registro.querySelector('.turn-item-company, .history-item-company, .provider-name')?.textContent.trim() || 'Proveedor';
+                        const detalles = Array.from(registro.querySelectorAll('.turn-item-detail, .turn-item-details span, .turn-item-details div, .history-item-detail, .provider-detail')).slice(0, 6).map(item => item.textContent.trim().replace(/\s+/g, ' '));
+                        if (!detalles.length) {
+                            const texto = registro.textContent.trim().replace(/\s+/g, ' ');
+                            detalles.push(texto.replace(identificador, '').replace(nombre, '').trim());
+                        }
+                        return `<div class="stats-info-row stats-queue-record">
+                            <div class="stats-record-head"><strong>${identificador}</strong><span>${nombre}</span></div>
+                            <div class="stats-record-grid">${detalles.map((detalle, index) => `<span><small>${index === 0 ? 'Información' : 'Detalle'}</small>${detalle || '-'}</span>`).join('')}</div>
+                        </div>`;
+                    }).join('')
+                    : '<div class="stats-info-empty">No hay información disponible en este momento.</div>';
+                }
+            }
+
+            function cerrar() {
+                modal.hidden = true;
+            }
+
+            document.querySelectorAll('.stat-card-action[data-admin-stat]').forEach(card => {
+                card.addEventListener('click', () => abrir(card));
+                card.addEventListener('keydown', event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        abrir(card);
+                    }
+                });
+            });
+            modal.querySelector('.stats-info-close').addEventListener('click', cerrar);
+            modal.querySelector('[data-provider-input]').addEventListener('input', event => renderProveedores(event.target.value));
+            modal.querySelector('[data-provider-expand]').addEventListener('click', () => {
+                modal.querySelectorAll('[data-provider-toggle]').forEach(toggle => {
+                    const grupo = document.getElementById(toggle.dataset.providerToggle);
+                    const chevron = modal.querySelector(`[data-provider-chevron="${toggle.dataset.providerToggle}"]`);
+                    if (grupo) grupo.hidden = false;
+                    toggle.setAttribute('aria-expanded', 'true');
+                    chevron?.classList.add('open');
+                });
+            });
+            modal.querySelector('[data-provider-collapse]').addEventListener('click', () => {
+                modal.querySelectorAll('[data-provider-toggle]').forEach(toggle => {
+                    const grupo = document.getElementById(toggle.dataset.providerToggle);
+                    const chevron = modal.querySelector(`[data-provider-chevron="${toggle.dataset.providerToggle}"]`);
+                    if (grupo && toggle.querySelector('.admin-provider-chevron')) grupo.hidden = true;
+                    if (toggle.querySelector('.admin-provider-chevron')) toggle.setAttribute('aria-expanded', 'false');
+                    chevron?.classList.remove('open');
+                });
+            });
+            modal.addEventListener('click', event => { if (event.target === modal) cerrar(); });
+            document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) cerrar(); });
         })();
     </script>
 </body>
