@@ -2844,8 +2844,17 @@ const RenderAdmin = {
                 if (AppState.turnoActual.responsable) lines.push(`Responsable: ${AppState.turnoActual.responsable}`);
                 if (AppState.turnoActual.destino) lines.push(`Destino: ${AppState.turnoActual.destino}`);
                 if (AppState.turnoActual.autorizadoSalida) lines.push(`✓ SALIDA AUTORIZADA`);
-                
-                despachoDetail.innerHTML = lines.map(line => `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed #e2e8f0;">${line}</div>`).join('');
+
+                const destinoIndex = lines.findIndex(line => line.startsWith('Destino:'));
+                despachoDetail.innerHTML = lines.map((line, index) => {
+                    const isDestino = index === destinoIndex;
+                    const lineHtml = `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed #e2e8f0;">${line}</div>`;
+                    if (!isDestino) return lineHtml;
+
+                    return `${lineHtml}<div style="margin: 4px 0 10px;">
+                        <button type="button" class="btn btn-secondary" style="width:100%; min-height: 40px;" onclick="AdminHandlers.revisarFormularioDespacho()">Volver al formulario</button>
+                    </div>`;
+                }).join('');
             } else {
                 despachoDetail.innerHTML = '';
             }

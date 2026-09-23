@@ -3730,6 +3730,16 @@ footer {
     font-size: 0.82rem !important;
 }
 
+#btnVolverFormulario {
+    background: linear-gradient(135deg, #ffffff, #eef6fc) !important;
+    border: 1px solid #bfd3e5 !important;
+    color: #20538f !important;
+}
+
+#btnVolverFormulario:hover:not(:disabled) {
+    background: linear-gradient(135deg, #eef6ff, #dcecff) !important;
+}
+
 .stats-grid {
     gap: 12px !important;
 }

@@ -98,12 +98,25 @@
                 <h2 style="color: var(--success-600); font-size: 22px; font-weight: 700;">✓ LLEGADA CONFIRMADA</h2>
                 <div class="llegada-badge" id="turnoDisplay">--</div>
                 <p style="color: var(--text-secondary);">Aguarde su turno</p>
+                <button type="button" id="volverFormularioBtn" class="btn btn-secondary" style="width: 100%; margin-top: 16px;">Volver al formulario</button>
             </div>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script>
+        const formSection = document.getElementById('formSection');
+        const successSection = document.getElementById('successSection');
+        const volverFormularioBtn = document.getElementById('volverFormularioBtn');
+
+        volverFormularioBtn.addEventListener('click', () => {
+            successSection.style.display = 'none';
+            formSection.style.display = 'block';
+            document.getElementById('turnoInput').value = '';
+            document.getElementById('placaInput').value = '';
+            document.getElementById('status').textContent = '';
+        });
+
         document.getElementById('llegadaForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const status = document.getElementById('status');
