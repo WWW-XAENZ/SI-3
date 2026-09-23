@@ -1409,10 +1409,24 @@ return `
                         console.log('ℹ️ No hay datos en proveedorListoSalir');
                     }
                 }
+
+                // Repinta el detalle aunque la notificación realtime haya llegado antes
+                // de que el resto del panel terminara de inicializarse.
+                window.sincronizarProveedorListo = verificarProveedorListo;
                 
                 let proveedorListoAnterior = null;
                 
+                function normalizarDatosNotificacion(datos) {
+                    if (!datos) return null;
+                    if (typeof datos === 'string') {
+                        try { return JSON.parse(datos); } catch (error) { return null; }
+                    }
+                    return datos;
+                }
+
                 function mostrarProveedorListo(proveedor) {
+                    proveedor = normalizarDatosNotificacion(proveedor);
+                    if (!proveedor) return;
                     const turnoListoDiv = document.getElementById('turnoListoSalir');
                     const infoDespachoDiv = document.getElementById('infoDespachoActual');
                     const btnAutorizar = document.getElementById('btnAutorizarSalida');
@@ -2093,10 +2107,14 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                             window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
                             if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
                             if (window.SonidoAlerta) { window.SonidoAlerta.inicializar(); window.SonidoAlerta.reproducir(3); }
-                            if (notif.tipo === 'salida_pendiente' && notif.datos) {
+                            const datosNotificacion = normalizarDatosNotificacion(notif.datos);
+                            if (notif.tipo === 'salida_pendiente' && datosNotificacion) {
                                 if (typeof window.mostrarProveedorListo === 'function') {
                                     try {
-                                        window.mostrarProveedorListo(notif.datos);
+                                        window.mostrarProveedorListo(datosNotificacion);
+                                        window.sincronizarProveedorListo?.();
+                                        cargarTurnosPendientesSalida();
+                                        cargarEstadisticasDespachador();
                                     } catch (e) {
                                         console.warn('Error al mostrar proveedor:', e);
                                         Utils.mostrarNotificacion(notif.mensaje, 'warning');

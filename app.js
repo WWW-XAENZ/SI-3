@@ -125,7 +125,7 @@ const Utils = {
 
     mostrarNotificacion(mensaje, tipo = 'info', requireAccept = false) {
         const notificacion = document.createElement('div');
-        notificacion.className = 'notificacion';
+        notificacion.className = `notificacion notificacion-${tipo}`;
 
         const iconos = {
             'success': '✅',
@@ -1145,6 +1145,20 @@ const SupabaseDB = {
             return true;
         } catch (error) {
             console.error('Error al completar turno:', error);
+            // Evita mostrar un error falso si la eliminación ya se confirmó en Supabase
+            // pero falló una tarea secundaria posterior.
+            try {
+                const { data: turnoExistente, error: verificacionError } = await window.supabaseClient
+                    .from('turnos')
+                    .select('id')
+                    .eq('id', turnoId)
+                    .maybeSingle();
+                if (!verificacionError && !turnoExistente) {
+                    return true;
+                }
+            } catch (verificacionError) {
+                console.warn('No se pudo verificar el estado del turno:', verificacionError);
+            }
             return false;
         }
     },
@@ -1960,6 +1974,14 @@ window.SI3Realtime = SI3Realtime;
 
 const NotificacionesPolling = {
     _ultimoTimestamp: null,
+
+    _normalizarDatos(datos) {
+        if (!datos) return null;
+        if (typeof datos === 'string') {
+            try { return JSON.parse(datos); } catch (error) { return null; }
+        }
+        return datos;
+    },
     
     async iniciar() {
         this._intervalo = setInterval(async () => {
@@ -1983,10 +2005,12 @@ if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
                             const isSalidaPendiente = notif.tipo === 'salida_pendiente';
                             const isSalidaAutorizada = notif.tipo === 'salida_autorizada';
                             
-                            if (isFromAdmin && isSalidaPendiente && notif.datos) {
+                            const datosNotificacion = this._normalizarDatos(notif.datos);
+
+                            if (isFromAdmin && isSalidaPendiente && datosNotificacion) {
                                 if (typeof window.mostrarProveedorListo === 'function') {
                                     try {
-                                        window.mostrarProveedorListo(notif.datos);
+                                        window.mostrarProveedorListo(datosNotificacion);
                                     } catch (e) {
                                         console.warn('Error al mostrar proveedor:', e);
                                         Utils.mostrarNotificacion(`Notificación: ${notif.mensaje}`, 'warning');
@@ -1994,13 +2018,13 @@ if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
                                 } else {
                                     Utils.mostrarNotificacion(`Notificación: ${notif.mensaje}`, 'warning');
                                 }
-                            } else if (isFromAdmin && isSalidaAutorizada && notif.datos) {
+                            } else if (isFromAdmin && isSalidaAutorizada && datosNotificacion) {
                                 if (window.mostrarAlertaSalidaDespachador) {
                                     window.mostrarAlertaSalidaDespachador({
-                                        numero: notif.datos.numero || '---',
+                                        numero: datosNotificacion.numero || '---',
                                         nombre: notif.mensaje,
                                         timestamp: Date.now(),
-                                        datos: notif.datos
+                                        datos: datosNotificacion
                                     });
                                 } else {
                                     Utils.mostrarNotificacion(`Notificación: ${notif.mensaje}`, 'warning');
@@ -3739,6 +3763,16 @@ const AdminHandlers = {
 
         Utils.mostrarNotificacion(`TURNO ${AppState.turnoActual?.numero} LLAMADO`, 'success');
         await RenderAdmin.todo();
+    },
+
+    revisarFormularioDespacho() {
+        const confirmModal = document.getElementById('turnoModal');
+        if (confirmModal) confirmModal.style.display = 'none';
+        if (AppState.turnoActual) {
+            this.mostrarModalDespacho(AppState.turnoActual, 'actual', AppState.turnoActual.id);
+        } else {
+            Utils.mostrarNotificacion('No hay un turno disponible para revisar', 'warning');
+        }
     },
 
     async _guardarDespachoBase() {
