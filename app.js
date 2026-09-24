@@ -855,8 +855,8 @@ const SupabaseDB = {
             const turnoGuardado = this._mapearTurno(data);
             
             // Push notification - Nuevo turno
-            if (window.PushManager) {
-                window.PushManager.notifyNuevoTurno(turnoGuardado);
+            if (window.SI3PushManager) {
+                window.SI3PushManager.notifyNuevoTurno(turnoGuardado);
             }
             
             return turnoGuardado;
@@ -1053,8 +1053,8 @@ const SupabaseDB = {
             // Push notification - Turno llamado (con sonido garantizado)
             window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_llamado' } }));
             if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
-            if (window.PushManager) {
-                window.PushManager.notifyTurnoLlamado(turnoActualizado);
+            if (window.SI3PushManager) {
+                window.SI3PushManager.notifyTurnoLlamado(turnoActualizado);
             }
             
             return updateData;
@@ -1127,7 +1127,7 @@ const SupabaseDB = {
                         mensaje: `Turno ${turnoMapeado.numero} completado por recepción`,
                         remitente: 'admin',
                         leido: false,
-                        tipo: 'salida_pendiente',
+                        tipo: 'turno_completado',
                         proveedor_nit: turnoMapeado.nit || null,
                         nombre_empresa: turnoMapeado.nombreEmpresa || null,
                         datos: datosNotificacion
@@ -1165,8 +1165,8 @@ const SupabaseDB = {
 
     // Push notification - Turno completado
     _notificarTurnoCompletado(turnoMapeado) {
-        if (window.PushManager) {
-            window.PushManager.notifyTurnoCompletado(turnoMapeado);
+        if (window.SI3PushManager) {
+            window.SI3PushManager.notifyTurnoCompletado(turnoMapeado);
         }
     },
 
@@ -1380,22 +1380,22 @@ const SupabaseDB = {
             ] = await Promise.all([
                 window.supabaseClient
                     .from('historial_turnos')
-                    .select('*', { count: 'exact', head: true })
+                    .select('*', { count: 'exact' })
                     .gte('fecha', `${hoy}T00:00:00`),
                 
                 window.supabaseClient
                     .from('turnos')
-                    .select('*', { count: 'exact', head: true })
+                    .select('*', { count: 'exact' })
                     .eq('estado', 'espera'),
                 
                 window.supabaseClient
                     .from('turnos')
-                    .select('*', { count: 'exact', head: true })
+                    .select('*', { count: 'exact' })
                     .eq('estado', 'atendiendo'),
                 
                 window.supabaseClient
                     .from('proveedores')
-                    .select('*', { count: 'exact', head: true })
+                    .select('*', { count: 'exact' })
                     .eq('activo', true)
             ]);
 
@@ -2004,10 +2004,15 @@ if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
                             const isFromAdmin = notif.remitente === 'admin';
                             const isSalidaPendiente = notif.tipo === 'salida_pendiente';
                             const isSalidaAutorizada = notif.tipo === 'salida_autorizada';
+                            const isTurnoCompletado = notif.tipo === 'turno_completado';
                             
                             const datosNotificacion = this._normalizarDatos(notif.datos);
 
-                            if (isFromAdmin && isSalidaPendiente && datosNotificacion) {
+                            if (isFromAdmin && isTurnoCompletado) {
+                                Utils.mostrarNotificacion(`Turno completado: ${datosNotificacion?.numero || notif.mensaje || '---'}`, 'success');
+                                if (window.SonidoAlerta) { window.SonidoAlerta.reproducir(2); }
+                                if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
+                            } else if (isFromAdmin && isSalidaPendiente && datosNotificacion) {
                                 if (typeof window.mostrarProveedorListo === 'function') {
                                     try {
                                         window.mostrarProveedorListo(datosNotificacion);
@@ -6213,8 +6218,8 @@ const DespachadorHandlers = {
             }
             
             // Push notification - Inspección requerida
-            if (window.PushManager) {
-                window.PushManager.notifyInspeccionRequerida(turno);
+            if (window.SI3PushManager) {
+                window.SI3PushManager.notifyInspeccionRequerida(turno);
             }
             
             const btnInspeccion = document.getElementById('btnSolicitarInspeccion');

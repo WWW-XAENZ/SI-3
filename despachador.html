@@ -1266,6 +1266,59 @@ return `
                             cargarTurnosPendientesSalida();
                             cargarEstadisticasDespachador();
                         })
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'notificaciones_salida' }, (payload) => {
+                            if (window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(payload.new)) return;
+                            console.log('🔔 Notificación salida detectada desde Supabase, actualizando proveedor...');
+                            const notif = payload.new;
+                            const datos = notif && notif.datos ? normalizarDatosNotificacion(notif.datos) : null;
+
+                            if (notif && notif.tipo === 'turno_completado') {
+                                Utils.mostrarNotificacion(`Turno completado: ${datos?.numero || notif.mensaje || '---'}`, 'success');
+                                if (window.SonidoAlerta) window.SonidoAlerta.reproducir(2);
+                            }
+
+                            if (notif && notif.tipo === 'salida_pendiente' && datos) {
+                                if ((notif.mensaje || '').toLowerCase().includes('inspeccion')) {
+                                    localStorage.setItem('inspeccionSolicitada', JSON.stringify({
+                                        numero: datos.numero || '---',
+                                        nombre: datos.nombre || datos.nombreEmpresa || notif.mensaje || 'Proveedor',
+                                        timestamp: Date.now(),
+                                        datos: datos
+                                    }));
+                                } else {
+                                    mostrarProveedorListo(datos);
+                                }
+                            }
+
+                            if (notif && notif.tipo === 'salida_autorizada') {
+                                const numero = datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---';
+                                const nombre = datos?.nombre || datos?.nombreEmpresa || notif.mensaje || 'Proveedor';
+                                localStorage.setItem('salidaAutorizada', JSON.stringify({
+                                    numero,
+                                    nombre,
+                                    timestamp: Date.now(),
+                                    datos: datos
+                                }));
+                                setTimeout(() => {
+                                    cargarTurnosPendientesSalida();
+                                    cargarEstadisticasDespachador();
+                                    cargarHistorialDespachador();
+                                }, 300);
+                            }
+
+                            if (notif && notif.tipo === 'salida_pendiente' && (notif.mensaje || '').toLowerCase().includes('inspeccion')) {
+                                const numero = datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---';
+                                const nombre = datos?.nombre || datos?.nombreEmpresa || notif.mensaje || 'Proveedor';
+                                localStorage.setItem('inspeccionSolicitada', JSON.stringify({
+                                    numero,
+                                    nombre,
+                                    timestamp: Date.now(),
+                                    datos: datos
+                                }));
+                            }
+
+                            cargarTodoDespachador();
+                        })
                         .subscribe(status => {
                             console.log('📡 Estado suscripción:', status);
                             if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -1385,28 +1438,85 @@ return `
                     }
                 }, 5000);
                 
+                async function cargarProveedorListoDesdeSupabase() {
+                    if (!window.supabaseClient) return null;
+                    try {
+                        const { data, error } = await window.supabaseClient
+                            .from('notificaciones_salida')
+                            .select('*')
+                            .in('tipo', ['salida_pendiente'])
+                            .order('created_at', { ascending: false })
+                            .limit(10);
+
+                        if (error) throw error;
+
+                        const notificacion = (data || []).find(item => item && item.datos && (item.leido === false || item.leido === null));
+                        if (!notificacion) {
+                            return null;
+                        }
+
+                        const datos = normalizarDatosNotificacion(notificacion.datos);
+                        if (!datos) {
+                            return null;
+                        }
+
+                        const ahora = Date.now();
+                        const timestamp = datos.timestamp || Date.parse(notificacion.created_at || Date.now());
+                        if (ahora - timestamp > 600000) {
+                            console.log('⏰ Notificación de salida pendiente expirada');
+                            return null;
+                        }
+
+                        console.log('📡 Proveedor listo cargado desde Supabase:', datos);
+                        mostrarProveedorListo(datos);
+                        return datos;
+                    } catch (e) {
+                        console.warn('No se pudo cargar proveedor listo desde Supabase:', e);
+                        return null;
+                    }
+                }
+
                 function verificarProveedorListo() {
                     console.log('🔍 Verificando proveedorListoSalir...');
+                    if (window.supabaseClient) {
+                        cargarProveedorListoDesdeSupabase().then((datosDesdeSupabase) => {
+                            if (datosDesdeSupabase) return;
+                            const datos = localStorage.getItem('proveedorListoSalir');
+                            if (datos) {
+                                try {
+                                    const proveedor = JSON.parse(datos);
+                                    const ahora = Date.now();
+                                    const tiempoTranscurrido = Math.round((ahora - proveedor.timestamp) / 1000);
+                                    console.log(`📋 Proveedor encontrado en localStorage (${tiempoTranscurrido}s):`, proveedor);
+                                    if (ahora - proveedor.timestamp < 600000) {
+                                        mostrarProveedorListo(proveedor);
+                                    } else {
+                                        console.log('⏰ Datos expirados (>10 min)');
+                                        limpiarProveedorListo();
+                                    }
+                                } catch (e) {
+                                    console.error('❌ Error al parsear:', e);
+                                }
+                            } else {
+                                console.log('ℹ️ No hay datos en proveedorListoSalir');
+                            }
+                        });
+                        return;
+                    }
+
                     const datos = localStorage.getItem('proveedorListoSalir');
                     if (datos) {
                         try {
                             const proveedor = JSON.parse(datos);
-                            console.log('📋 Proveedor encontrado:', proveedor);
                             const ahora = Date.now();
-                            const tiempoTranscurrido = Math.round((ahora - proveedor.timestamp) / 1000);
-                            console.log(`⏱️ Tiempo transcurrido: ${tiempoTranscurrido} segundos`);
-                            
                             if (ahora - proveedor.timestamp < 600000) {
                                 mostrarProveedorListo(proveedor);
                             } else {
-                                console.log('⏰ Datos expirados (>10 min)');
                                 limpiarProveedorListo();
                             }
                         } catch (e) {
                             console.error('❌ Error al parsear:', e);
                         }
-                    } else {
-                        console.log('ℹ️ No hay datos en proveedorListoSalir');
                     }
                 }
 
@@ -1501,8 +1611,8 @@ return `
                         proveedorListoAnterior = proveedor.timestamp;
                         reproducirAlertaSalida(proveedor);
                         // Push notification
-                        if (window.PushManager) {
-                            window.PushManager.notifyProveedorListo(proveedor);
+                        if (window.SI3PushManager) {
+                            window.SI3PushManager.notifyProveedorListo(proveedor);
                         }
                     }
                 }

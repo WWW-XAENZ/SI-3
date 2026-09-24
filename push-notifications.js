@@ -4,10 +4,12 @@ class PushNotificationManager {
     constructor() {
         this.swRegistration = null;
         this.subscription = null;
-        this.isSupported = 'serviceWorker' in navigator && 'PushManager' in window;
+        this.isSupported = !!(navigator && 'serviceWorker' in navigator && window && 'PushManager' in window);
         this.serverUrl = window.location.origin;
+        this.publicVapidKey = window.SI3_VAPID_PUBLIC_KEY || '';
         this._canalesBC = [];
         this._useServiceWorker = this.isSupported && window.location.protocol !== 'file:';
+        this._initInProgress = false;
         this._initBroadcastChannel();
     }
 
@@ -44,47 +46,60 @@ class PushNotificationManager {
     }
 
     async init() {
-        if (!this.isSupported) {
-            console.warn('Push notifications no soportadas');
+        if (this._initInProgress) {
             return false;
         }
 
-        // Skip Service Worker on file:// protocol
-        if (!this._useServiceWorker) {
-            console.log('Service Worker deshabilitado en file://, usando notificaciones locales');
-            return true;
-        }
+        this._initInProgress = true;
 
-        for (let intento = 0; intento < 3; intento++) {
-            try {
-                this.swRegistration = await navigator.serviceWorker.register('/sw.js');
-                console.log('Service Worker registrado:', this.swRegistration.scope);
+        try {
+            if (!this.isSupported) {
+                console.warn('Push notifications no soportadas');
+                return false;
+            }
 
-                this.swRegistration.addEventListener('updatefound', () => {
-                    const newWorker = this.swRegistration.installing;
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            console.log('Nueva versión disponible');
-                            newWorker.postMessage('skipWaiting');
-                        }
-                    });
-                });
-
-                const permission = await this.requestPermission();
-                if (permission === 'granted') {
-                    await this.subscribe();
-                }
-
-                this._escucharMensajesSW();
+            if (!this._useServiceWorker) {
+                console.log('Service Worker deshabilitado en file://, usando notificaciones locales');
                 return true;
-            } catch (error) {
-                console.error(`Error inicializando push (intento ${intento + 1}):`, error);
-                if (intento < 2) {
-                    await new Promise(r => setTimeout(r, 1000));
+            }
+
+            for (let intento = 0; intento < 3; intento++) {
+                try {
+                    this.swRegistration = await navigator.serviceWorker.register('/sw.js');
+                    console.log('Service Worker registrado:', this.swRegistration.scope);
+
+                    this.swRegistration.addEventListener('updatefound', () => {
+                        const newWorker = this.swRegistration.installing;
+                        if (!newWorker) return;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                console.log('Nueva versión disponible');
+                                newWorker.postMessage('skipWaiting');
+                            }
+                        });
+                    });
+
+                    const permission = await this.requestPermission();
+                    if (permission === 'granted') {
+                        const subscription = await this.subscribe();
+                        if (subscription) {
+                            console.log('Suscripcion push activa');
+                        }
+                    }
+
+                    this._escucharMensajesSW();
+                    return true;
+                } catch (error) {
+                    console.error(`Error inicializando push (intento ${intento + 1}):`, error);
+                    if (intento < 2) {
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
                 }
             }
+            return false;
+        } finally {
+            this._initInProgress = false;
         }
-        return false;
     }
 
     _escucharMensajesSW() {
@@ -109,10 +124,17 @@ class PushNotificationManager {
     }
 
     async subscribe() {
+        if (!this.publicVapidKey || this.publicVapidKey.length < 20) {
+            console.info('Push deshabilitado: no hay clave VAPID válida configurada. Usando avisos locales.');
+            return null;
+        }
+
         try {
-            const applicationServerKey = this.urlB64ToUint8Array(
-                'BJw2L9Jm3K8vX7zQ6Y5R4T3W2E1N0M9L8K7J6H5G4F3D2S1A0Z9Y8X7W6V5U4T3S2R1Q0P9O8I7U6Y5T4R3E2W1Q0'
-            );
+            const applicationServerKey = this.urlB64ToUint8Array(this.publicVapidKey);
+            if (!applicationServerKey || applicationServerKey.length === 0) {
+                console.warn('Clave VAPID inválida; no se suscribe a push.');
+                return null;
+            }
 
             this.subscription = await this.swRegistration.pushManager.subscribe({
                 userVisibleOnly: true,
@@ -123,7 +145,7 @@ class PushNotificationManager {
             await this.sendSubscriptionToServer(this.subscription);
             return this.subscription;
         } catch (error) {
-            console.error('Error suscribiendo:', error);
+            console.warn('Push no disponible o no configurado; usando avisos locales:', error.message || error);
             return null;
         }
     }
@@ -141,14 +163,23 @@ class PushNotificationManager {
     }
 
     urlB64ToUint8Array(base64String) {
-        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-        const rawData = window.atob(base64);
-        const outputArray = new Uint8Array(rawData.length);
-        for (let i = 0; i < rawData.length; ++i) {
-            outputArray[i] = rawData.charCodeAt(i);
+        if (!base64String || typeof base64String !== 'string' || base64String.length < 20) {
+            return new Uint8Array();
         }
-        return outputArray;
+
+        try {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        } catch (error) {
+            console.warn('Clave VAPID no válida:', error.message || error);
+            return new Uint8Array();
+        }
     }
 
     // Mostrar notificación local CON SONIDO
@@ -240,33 +271,32 @@ class PushNotificationManager {
     }
 }
 
-window.PushManager = new PushNotificationManager();
+window.SI3PushManager = new PushNotificationManager();
 
 document.addEventListener('DOMContentLoaded', () => {
     const isDespachador = window.location.pathname.includes('despachador');
     const isAdmin = window.location.pathname.includes('admin');
-    const isRecepcion = window.location.pathname.includes('index') || window.location.pathname === '/' || window.location.pathname.endsWith('/');
 
-    if (isDespachador || isAdmin || isRecepcion) {
+    if ((isDespachador || isAdmin) && window.SI3PushManager && typeof window.SI3PushManager.init === 'function') {
         setTimeout(() => {
-            window.PushManager.init().then(success => {
+            Promise.resolve(window.SI3PushManager.init()).then(success => {
                 if (success) {
                     console.log('Push Manager inicializado correctamente');
                 }
-            });
+            }).catch(err => console.warn('No se pudo inicializar SI3PushManager:', err));
         }, 1000);
     }
 });
 
 window.addEventListener('storage', (e) => {
-    if (!window.PushManager) return;
+    if (!window.SI3PushManager) return;
 
     switch (e.key) {
         case 'proveedorListoSalir':
             if (e.newValue) {
                 try {
                     const proveedor = JSON.parse(e.newValue);
-                    window.PushManager.notifyProveedorListo(proveedor);
+                    window.SI3PushManager.notifyProveedorListo(proveedor);
                 } catch (err) {
                     console.error('Error parseando proveedorListoSalir:', err);
                 }
@@ -276,7 +306,7 @@ window.addEventListener('storage', (e) => {
             if (e.newValue) {
                 try {
                     const turno = JSON.parse(e.newValue);
-                    window.PushManager.notifyNuevoTurno(turno);
+                    window.SI3PushManager.notifyNuevoTurno(turno);
                 } catch (err) {
                     console.error('Error parseando nuevoTurno:', err);
                 }
@@ -286,7 +316,7 @@ window.addEventListener('storage', (e) => {
             if (e.newValue) {
                 try {
                     const turno = JSON.parse(e.newValue);
-                    window.PushManager.notifyTurnoCompletado(turno);
+                    window.SI3PushManager.notifyTurnoCompletado(turno);
                 } catch (err) {
                     console.error('Error parseando turnoCompletado:', err);
                 }
@@ -296,23 +326,23 @@ window.addEventListener('storage', (e) => {
 });
 
 window.dispararNotificacion = (tipo, datos) => {
-    if (!window.PushManager) return;
+    if (!window.SI3PushManager) return;
 
     switch (tipo) {
         case 'turno_llamado':
-            window.PushManager.notifyTurnoLlamado(datos);
+            window.SI3PushManager.notifyTurnoLlamado(datos);
             break;
         case 'proveedor_listo':
-            window.PushManager.notifyProveedorListo(datos);
+            window.SI3PushManager.notifyProveedorListo(datos);
             break;
         case 'inspeccion':
-            window.PushManager.notifyInspeccionRequerida(datos);
+            window.SI3PushManager.notifyInspeccionRequerida(datos);
             break;
         case 'nuevo_turno':
-            window.PushManager.notifyNuevoTurno(datos);
+            window.SI3PushManager.notifyNuevoTurno(datos);
             break;
         case 'turno_completado':
-            window.PushManager.notifyTurnoCompletado(datos);
+            window.SI3PushManager.notifyTurnoCompletado(datos);
             break;
     }
 };

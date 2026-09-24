@@ -1412,18 +1412,21 @@
                             const notif = payload.new;
                             const datos = notif.datos || null;
                             
-                            if (notif.tipo === 'salida_autorizada') {
+                            if (notif.tipo === 'turno_completado') {
+                                Utils.mostrarNotificacion(`Turno completado: ${datos?.numero || notif.mensaje || '---'}`, 'success');
+                                if (window.SonidoAlerta) window.SonidoAlerta.reproducir(2);
+                            } else if (notif.tipo === 'salida_autorizada') {
                                 const alertaData = {
-                                    numero: datos?.numero || notif.mensaje.match(/Turno\s+([\w]+)/)?.[1] || '---',
-                                    nombre: datos?.nombreEmpresa || notif.mensaje,
+                                    numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                    nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
                                     timestamp: Date.now(),
                                     datos: datos
                                 };
                                 mostrarAlertaSalidaDespachador(alertaData);
-                            } else if (notif.tipo === 'salida_pendiente' && notif.mensaje?.toLowerCase().includes('inspeccion')) {
+                            } else if (notif.tipo === 'salida_pendiente' && (notif.mensaje || '').toLowerCase().includes('inspeccion')) {
                                 const alertaData = {
-                                    numero: datos?.numero || notif.mensaje.match(/Turno\s+([\w]+)/)?.[1] || '---',
-                                    nombre: datos?.nombreEmpresa || notif.mensaje,
+                                    numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                    nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
                                     timestamp: Date.now(),
                                     datos: datos
                                 };
@@ -1470,17 +1473,20 @@
                                 if (window.SonidoAlerta) window.SonidoAlerta.reproducir(3);
                                 
                                 const datos = notif.datos || null;
-                                if (notif.tipo === 'salida_autorizada') {
+                                if (notif.tipo === 'turno_completado') {
+                                    Utils.mostrarNotificacion(`Turno completado: ${datos?.numero || notif.mensaje || '---'}`, 'success');
+                                    if (window.SonidoAlerta) window.SonidoAlerta.reproducir(2);
+                                } else if (notif.tipo === 'salida_autorizada') {
                                     mostrarAlertaSalidaDespachador({
-                                        numero: datos?.numero || notif.mensaje.match(/Turno\s+([\w]+)/)?.[1] || '---',
-                                        nombre: datos?.nombreEmpresa || notif.mensaje,
+                                        numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                        nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
                                         timestamp: Date.now(),
                                         datos: datos
                                     });
-                                } else if (notif.mensaje?.toLowerCase().includes('inspeccion')) {
+                                } else if ((notif.mensaje || '').toLowerCase().includes('inspeccion')) {
                                     mostrarAlertaInspeccion({
-                                        numero: datos?.numero || notif.mensaje.match(/Turno\s+([\w]+)/)?.[1] || '---',
-                                        nombre: datos?.nombreEmpresa || notif.mensaje,
+                                        numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                        nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
                                         timestamp: Date.now(),
                                         datos: datos
                                     });
@@ -1510,9 +1516,11 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
             });
         }
         
-        // Inicializar Push Notifications
-        if (window.PushManager) {
-            window.PushManager.init();
+        // Inicializar Push Notifications solo si el manager está disponible
+        if (window.SI3PushManager && typeof window.SI3PushManager.init === 'function') {
+            window.SI3PushManager.init().catch(err => console.warn('No se pudo inicializar push:', err));
+        } else {
+            console.info('Push notifications no disponibles en esta sesión; usando avisos locales.');
         }
     </script>
     <script src="sonido.js"></script>
