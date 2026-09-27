@@ -1216,6 +1216,7 @@ const SupabaseDB = {
             numFacturas: t.num_facturas,
             autorizadoSalida: t.autorizado_salida,
             inspeccionFisica: t.inspeccion_fisica,
+            proveedorTransporteId: t.proveedor_transporte_id,
             createdAt: t.created_at,
             updatedAt: t.updated_at,
             esTransporte: t.es_transporte === true
@@ -1227,6 +1228,7 @@ const SupabaseDB = {
             console.error('Supabase no está disponible');
             return false;
         }
+        const esProveedorTransporte = turno.esTransporte === true && Boolean(turno.proveedorTransporteId);
         let historialData;
         try {
             historialData = {
@@ -1252,8 +1254,8 @@ const SupabaseDB = {
                 num_facturas: turno.numFacturas ?? null,
                 autorizado_salida: false,
                 inspeccion_fisica: false,
-                es_transporte: turno.esTransporte === true || false,
-                nombre_proveedor: turno.esTransporte ? (turno.nombreProveedor || null) : null,
+                es_transporte: esProveedorTransporte,
+                nombre_proveedor: esProveedorTransporte ? (turno.nombreProveedor || null) : null,
                 proveedor_transporte_id: turno.proveedorTransporteId || null,
                 fecha: getLocalISOString()
             };
@@ -1348,7 +1350,7 @@ const SupabaseDB = {
                 numFacturas: h.num_facturas,
                 autorizadoSalida: h.autorizado_salida,
                 inspeccionFisica: h.inspeccion_fisica,
-                esTransporte: h.es_transporte === true,
+                esTransporte: h.es_transporte === true && Boolean(h.proveedor_transporte_id),
                 proveedorTransporteId: h.proveedor_transporte_id,
                 nombreProveedor: h.nombre_proveedor,
                 fecha: h.fecha
@@ -1962,6 +1964,14 @@ const SI3Realtime = {
         return true;
     },
 
+    destinatarioActual() {
+        return document.getElementById('listaTurnosPendientesSalida') ? 'despachador' : 'admin';
+    },
+
+    esParaPagina(notificacion) {
+        return !notificacion?.destinatario || notificacion.destinatario === this.destinatarioActual();
+    },
+
     _limpiar(mapa) {
         const limite = Date.now() - 10 * 60 * 1000;
         for (const [clave, timestamp] of mapa) {
@@ -1996,6 +2006,7 @@ const NotificacionesPolling = {
                 
                 if (data && data.length > 0) {
                     for (const notif of data) {
+                        if (!SI3Realtime.esParaPagina(notif)) continue;
                         if (SI3Realtime.reclamarNotificacion(notif)) {
                             this._ultimoTimestamp = notif.created_at;
 if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
@@ -2005,10 +2016,20 @@ if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
                             const isSalidaPendiente = notif.tipo === 'salida_pendiente';
                             const isSalidaAutorizada = notif.tipo === 'salida_autorizada';
                             const isTurnoCompletado = notif.tipo === 'turno_completado';
+                            const isTurnoConfirmado = notif.tipo === 'turno_confirmado';
                             
                             const datosNotificacion = this._normalizarDatos(notif.datos);
 
-                            if (isFromAdmin && isTurnoCompletado) {
+                            if (isTurnoConfirmado && datosNotificacion) {
+                                Utils.mostrarNotificacion(notif.mensaje || `Llegada confirmada: ${datosNotificacion.numero || ''}`, 'success');
+                                if (this.destinatarioActual() === 'despachador') {
+                                    window.mostrarDetallesTurnoConfirmado?.(datosNotificacion);
+                                    await window.actualizarTurnosDiaDespachador?.();
+                                } else {
+                                    await Turnos.cargarTurnos();
+                                    await RenderAdmin.todo();
+                                }
+                            } else if (isFromAdmin && isTurnoCompletado) {
                                 Utils.mostrarNotificacion(`Turno completado: ${datosNotificacion?.numero || notif.mensaje || '---'}`, 'success');
                                 if (window.SonidoAlerta) { window.SonidoAlerta.reproducir(2); }
                                 if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
@@ -2127,6 +2148,7 @@ const Conectividad = {
             .on('postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
                 async (payload) => {
+                    if (!SI3Realtime.esParaPagina(payload.new)) return;
                     if (!SI3Realtime.reclamarNotificacion(payload.new)) return;
                     console.log('🔔 Nueva notificación:', payload);
                     const notificacion = payload.new;
@@ -5644,6 +5666,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 },
                 notificaciones: (payload) => {
                     console.log('Notificación recibida en admin:', payload);
+                    if (payload.new?.tipo === 'turno_confirmado') {
+                        Utils.mostrarNotificacion(payload.new.mensaje || 'Llegada de turno confirmada', 'success');
+                        return;
+                    }
                     if (window.SonidoAlerta) {
                         if (window.SonidoSI3) window.SonidoSI3.inicializar();
                         SonidoAlerta.reproducir(3);
@@ -5752,6 +5778,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     },
                     notificaciones: (payload) => {
                         console.log('Notificación recibida en despachador:', payload);
+                        if (payload.new?.tipo === 'turno_confirmado') {
+                            Utils.mostrarNotificacion(payload.new.mensaje || 'Llegada de turno confirmada', 'success');
+                            return;
+                        }
 if (window.SonidoAlerta) {
                             if (window.SonidoSI3) window.SonidoSI3.inicializar();
                             SonidoAlerta.reproducir(3);

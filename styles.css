@@ -5201,6 +5201,7 @@ header > h1 + span {
     padding: 9px 5px;
     border-bottom: 1px solid #e4ebf1;
     overflow-wrap: anywhere;
+    white-space: normal;
     text-align: center;
     vertical-align: middle;
     line-height: 1.25;
@@ -6232,6 +6233,20 @@ body:has(.facturas-table) #btnMostrarTodas {
 }
 
 @media (max-width: 600px) {
+    .cited-list .pending-exit-header {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .cited-list .pending-exit-number,
+    .cited-list .pending-exit-company,
+    .cited-list .pending-exit-status {
+        grid-column: 1;
+    }
+
+    .cited-list .pending-exit-status {
+        justify-self: start;
+    }
+
     .despachador-historial .history-table-desp {
         min-width: 800px !important;
     }

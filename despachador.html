@@ -410,6 +410,8 @@
         .history-table-desp td { 
             padding: 10px; 
             border-bottom: 1px solid #e2e8f0;
+            white-space: normal;
+            overflow-wrap: anywhere;
         }
         .history-table-desp tr {
             transition: all 0.3s ease;
@@ -720,7 +722,7 @@
             try {
                 const today = fechaDespSeleccionada();
                 
-                const [historialRes, proveedoresRes] = await Promise.all([
+                const [historialRes, proveedoresRes, turnosConfirmadosRes] = await Promise.all([
                     window.supabaseClient
                         .from('historial_turnos')
                         .select('*')
@@ -730,13 +732,36 @@
                     
                             window.supabaseClient
                                 .from('proveedores_transporte')
+                                .select('*'),
+
+                            window.supabaseClient
+                                .from('turnos')
                                 .select('*')
-                            ]);
+                                .not('fecha_llegada', 'is', null)
+                                .gte('fecha_llegada', `${today}T00:00:00`)
+                                .lte('fecha_llegada', `${today}T23:59:59`)
+                                .in('estado', ['llegado', 'atendiendo'])
+                                .order('fecha_llegada', { ascending: false })
+                        ]);
+
+                        if (historialRes.error) throw historialRes.error;
+                        if (proveedoresRes.error) throw proveedoresRes.error;
+                        if (turnosConfirmadosRes.error) throw turnosConfirmadosRes.error;
                 
                 const historial = historialRes.data || [];
                 const proveedoresTransporte = proveedoresRes.data || [];
-                
-                turnosDelDia = historial.map(h => {
+                        const numerosEnHistorial = new Set(historial.map(h => String(h.numero)));
+                        const turnosConfirmados = (turnosConfirmadosRes.data || [])
+                            .filter(turno => !numerosEnHistorial.has(String(turno.numero)))
+                            .map(turno => ({
+                                ...turno,
+                                fecha: turno.fecha_llegada || turno.fecha_solicitud,
+                                esProveedorTransporte: turno.es_transporte === true || (turno.servicio || '').toLowerCase() === 'transporte',
+                                turnoActivo: true,
+                                autorizado_salida: false
+                            }));
+
+                        const historialDelDia = historial.map(h => {
                     if (h.proveedor_transporte_id) {
                         const pt = proveedoresTransporte.find(p => p.id === h.proveedor_transporte_id);
                         if (pt) {
@@ -761,8 +786,16 @@
                             };
                         }
                     }
-                    return { ...h, esProveedorTransporte: false };
+                    return {
+                        ...h,
+                        esProveedorTransporte: (h.servicio || '').toLowerCase() === 'transporte'
+                    };
                 });
+
+                turnosDelDia = [...turnosConfirmados, ...historialDelDia];
+                if (turnosConfirmados.length && !document.getElementById('turnoListoSalir')?.querySelector('.turn-number-large')) {
+                    window.mostrarDetallesTurnoConfirmado(turnosConfirmados[0]);
+                }
                 
                 filtrarYMostrarTurnos();
             } catch (e) {
@@ -771,16 +804,48 @@
             }
         }
 
+        window.actualizarTurnosDiaDespachador = cargarTurnosPendientesSalida;
+
+        window.mostrarDetallesTurnoConfirmado = function(turno) {
+            const panel = document.getElementById('infoDespachoActual');
+            if (!panel || !turno) return;
+
+            const destinoLabels = { ensambles: 'SIE', plasticos: 'SI3 ZF SAS', ambos: 'AMBOS' };
+            const destino = turno.destino || '-';
+            const horaInicio = turno.horaLlamada || turno.hora_llamada || turno.horaSolicitud || turno.hora_solicitud;
+            const horaLlegada = turno.horaLlegada || turno.hora_llegada;
+            const peso = turno.peso ? (String(turno.peso).toUpperCase().includes('KG') ? turno.peso : `${turno.peso} kg`) : '-';
+            const campos = [
+                ['Turno', turno.numero],
+                ['Proveedor', turno.nombreProveedor || turno.nombre_proveedor || turno.nombre || turno.nombreEmpresa || turno.nombre_empresa],
+                ['Placa', turno.nit],
+                ['Factura', turno.numFactura || turno.num_factura],
+                ['FMM', turno.consecutivoIngreso || turno.consecutivo_ingreso],
+                ['Destino', destinoLabels[destino] || destino],
+                ['Peso', peso],
+                ['Bultos', turno.bultos],
+                ['Vehículo', turno.tipoVehiculo || turno.tipo_vehiculo],
+                ['Responsable', turno.responsable],
+                ['Hora inicio', horaInicio ? Utils.formatearHora(horaInicio) : '-'],
+                ['Hora llegada', horaLlegada ? Utils.formatearHora(horaLlegada) : '-']
+            ];
+
+            panel.replaceChildren();
+            campos.forEach(([label, value]) => {
+                const row = document.createElement('p');
+                const title = document.createElement('strong');
+                title.textContent = `${label}:`;
+                row.append(title, ` ${value || '-'}`);
+                panel.appendChild(row);
+            });
+        };
+
         function filtrarYMostrarTurnos() {
             const listaDiv = document.getElementById('listaTurnosPendientesSalida');
             const busqueda = document.getElementById('busquedaTurnos')?.value?.toLowerCase() || '';
             const filtroEstado = document.getElementById('filtroEstado')?.value || 'todos';
             
             let filtrados = turnosDelDia.filter(h => {
-                if (h.es_transporte === true && !h.proveedor_transporte_id) {
-                    return false;
-                }
-                
                 const coincideBusqueda = !busqueda || 
                     (h.nit && h.nit.toLowerCase().includes(busqueda)) ||
                     (h.nombre_empresa && h.nombre_empresa.toLowerCase().includes(busqueda)) ||
@@ -807,13 +872,15 @@
                         const bultos = h.bultos || '-';
                         const vehiculo = h.tipo_vehiculo || '-';
                         const responsable = h.responsable || '-';
+                        const horaInicio = Utils.formatearHora(h.hora_llamada);
+                        const horaFin = Utils.formatearHora(h.hora_finalizacion);
                         
                         return `
-                    <div class="pending-exit-item ${h.autorizado_salida === true ? 'autorizado' : ''}" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-consecutivo="${h.consecutivo_ingreso || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos || ''}" data-peso="${h.peso || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}" data-proveedortransporteid="${h.esProveedorTransporte ? h.proveedorTransporte?.id || '' : ''}" data-estransporte="${h.esProveedorTransporte ? 'true' : 'false'}" data-nombreproveedor="${h.nombre_proveedor || ''}" data-inspeccion="${h.inspeccion_fisica ? 'true' : 'false'}" data-estado="${h.autorizado_salida ? 'autorizado' : 'pendiente'}">
+                    <div class="pending-exit-item ${h.autorizado_salida === true ? 'autorizado' : ''}" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-consecutivo="${h.consecutivo_ingreso || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos || ''}" data-peso="${h.peso || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}" data-proveedortransporteid="${h.esProveedorTransporte ? h.proveedorTransporte?.id || '' : ''}" data-estransporte="${h.esProveedorTransporte ? 'true' : 'false'}" data-nombreproveedor="${h.nombre_proveedor || ''}" data-inspeccion="${h.inspeccion_fisica ? 'true' : 'false'}" data-turnoactivo="${h.turnoActivo ? 'true' : 'false'}" data-estado="${h.autorizado_salida ? 'autorizado' : 'pendiente'}">
                         <div class="pending-exit-header">
                             <span class="pending-exit-number">${h.numero}</span>
                             <span class="pending-exit-company">${h.nombre_empresa}${h.esProveedorTransporte ? ' (' + (h.nombre_proveedor || 'Proveedor') + ')' : ''}</span>
-                            <span class="pending-exit-status">${h.autorizado_salida === true ? 'AUTORIZADO' : (h.inspeccion_fisica ? 'INSPEC. OK' : 'PENDIENTE')}${h.esProveedorTransporte ? ' (Transporte)' : ''}</span>
+                            <span class="pending-exit-status">${h.turnoActivo ? 'LLEGADA CONFIRMADA' : (h.autorizado_salida === true ? 'AUTORIZADO' : (h.inspeccion_fisica ? 'INSPEC. OK' : 'PENDIENTE'))}${h.esProveedorTransporte ? ' (Transporte)' : ''}</span>
                         </div>
                         <div class="pending-exit-details">
                             <span><strong>Placa:</strong> ${nit}</span>
@@ -825,10 +892,12 @@
                             <span><strong>Bultos:</strong> ${bultos}</span>
                             <span><strong>Vehículo:</strong> ${vehiculo}</span>
                             <span><strong>Responsable:</strong> ${responsable}</span>
+                            <span><strong>Hora inicio:</strong> ${horaInicio}</span>
+                            <span><strong>Hora fin:</strong> ${horaFin}</span>
                         </div>
                          <div class="pending-exit-actions">
-                            ${h.autorizado_salida !== true ? '<button class="btn btn-success btn-authorize btn-large" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button>' : '<span class="autorizado-badge" style="margin-right: 8px;">✓ Autorizado</span>'}
-                            ${h.inspeccion_fisica ? '<span class="autorizado-badge" style="margin-left: 8px;">Inspección: SI</span>' : (h.autorizado_salida !== true ? '<button class="btn btn-warning btn-authorize btn-large" onclick="solicitarInspeccionDesdeLista(this)">Solicitar Inspección</button>' : '<span class="autorizado-badge" style="margin-left: 8px;">Inspección: NO</span>')}
+                            ${h.turnoActivo ? '<span class="autorizado-badge">En recepción</span>' : (h.autorizado_salida !== true ? '<button class="btn btn-success btn-authorize btn-large" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button>' : '<span class="autorizado-badge" style="margin-right: 8px;">✓ Autorizado</span>')}
+                            ${!h.turnoActivo ? (h.inspeccion_fisica ? '<span class="autorizado-badge" style="margin-left: 8px;">Inspección: SI</span>' : (h.autorizado_salida !== true ? '<button class="btn btn-warning btn-authorize btn-large" onclick="solicitarInspeccionDesdeLista(this)">Solicitar Inspección</button>' : '<span class="autorizado-badge" style="margin-left: 8px;">Inspección: NO</span>')) : ''}
                         </div>
                     </div>
                         `;
@@ -856,7 +925,7 @@
                 
                 if (error) throw error;
                 
-                const registrosValidos = (data || []).filter(h => !(h.es_transporte === true && !h.proveedor_transporte_id));
+                const registrosValidos = data || [];
                 const total = registrosValidos.length;
                 const autorizados = registrosValidos.filter(h => h.autorizado_salida === true).length;
                 const pendientes = total - autorizados;
@@ -954,7 +1023,6 @@
                     ]);
                     
                     console.log('✅ Resultado pendientes:', resultadoPendientes ? resultadoPendientes.length : 0, 'registros');
-                    console.log('✅ Resultado historial:', resultadoHistorial ? resultadoHistorial.length : 0, 'registros');
                     console.log('✅ Resultado citas:', resultadoCitas ? resultadoCitas.length : 0, 'registros');
                     
                     console.log('✅ Datos cargados correctamente');
@@ -1038,7 +1106,7 @@
                     
                     if (error) throw error;
                     
-                    const registrosValidos = (data || []).filter(h => !(h.es_transporte === true && !h.proveedor_transporte_id));
+                    const registrosValidos = data || [];
                     const total = registrosValidos.length;
                     const autorizados = registrosValidos.filter(h => h.autorizado_salida === true).length;
                     const pendientes = total - autorizados;
@@ -1081,18 +1149,19 @@
                     const data = historialRes.data || [];
                     const proveedoresTransporte = proveedoresRes.data || [];
                     
-                    const historialConProveedores = data.filter(h => !(h.es_transporte === true && !h.proveedor_transporte_id)).map(h => {
-                        if (h.es_transporte && h.proveedor_transporte_id) {
+                    const historialConProveedores = data.map(h => {
+                        if (h.proveedor_transporte_id) {
                             const pt = proveedoresTransporte.find(p => p.id === h.proveedor_transporte_id);
                             if (pt) {
                                 return {
                                     ...h,
+                                    es_transporte: true,
                                     nombre_proveedor: pt.nombre_proveedor || h.nombre_proveedor,
                                     proveedor_destino: pt.destino || h.destino
                                 };
                             }
                         }
-                        return { ...h, nombre_proveedor: h.nombre_proveedor || null };
+                        return { ...h, es_transporte: false, nombre_proveedor: h.nombre_proveedor || null };
                     });
                     
                     if (!historialConProveedores || historialConProveedores.length === 0) {
@@ -1247,24 +1316,24 @@ return `
                     }
                     const ch = window.supabaseClient.channel('desp-realtime-' + Date.now())
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'historial_turnos' }, (payload) => {
-                            if (window.SI3Realtime && !window.SI3Realtime.reclamarEvento('historial_turnos', payload)) return;
                             console.log('📊 Cambio en historial detectado, recargando...');
                             cargarTodoDespachador();
+                            cargarHistorialDespachador();
                             if (window.SonidoSI3) window.SonidoSI3.inicializar();
                             window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_completado' } }));
                         })
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos' }, (payload) => {
-                            if (window.SI3Realtime && !window.SI3Realtime.reclamarEvento('turnos', payload)) return;
                             console.log('📋 Cambio en turnos detectado, recargando...');
                             cargarTodoDespachador();
+                            cargarHistorialDespachador();
                             if (window.SonidoSI3) window.SonidoSI3.inicializar();
                             window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_llamado' } }));
                         })
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'proveedores_transporte' }, (payload) => {
-                            if (window.SI3Realtime && !window.SI3Realtime.reclamarEvento('proveedores_transporte', payload)) return;
                             console.log('🚛 Cambio en proveedores_transporte detectado, recargando...');
                             cargarTurnosPendientesSalida();
                             cargarEstadisticasDespachador();
+                            cargarHistorialDespachador();
                         })
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'notificaciones_salida' }, (payload) => {
                             if (window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(payload.new)) return;
@@ -1444,7 +1513,7 @@ return `
                         const { data, error } = await window.supabaseClient
                             .from('notificaciones_salida')
                             .select('*')
-                            .in('tipo', ['salida_pendiente'])
+                            .in('tipo', ['salida_pendiente', 'turno_completado'])
                             .order('created_at', { ascending: false })
                             .limit(10);
 
@@ -1584,7 +1653,12 @@ return `
                         if (infoDespachoDiv) {
                             infoDespachoDiv.innerHTML = `
                                 <p><strong>Placa:</strong> ${proveedor.nit || 'N/A'}</p>
+                                <p><strong>Empresa:</strong> ${proveedor.nombreEmpresa || 'N/A'}</p>
                                 <p><strong>Proveedor:</strong> ${proveedor.nombre || 'N/A'}</p>
+                                <p><strong>Motivo:</strong> ${proveedor.motivo || 'N/A'}</p>
+                                <p><strong>Contacto:</strong> ${proveedor.contacto || 'N/A'}</p>
+                                <p><strong>Teléfono:</strong> ${proveedor.telefono || 'N/A'}</p>
+                                <p><strong>Servicio:</strong> ${proveedor.servicio || 'N/A'}</p>
                                 <p><strong>Factura:</strong> ${proveedor.numFactura || 'N/A'}</p>
                                 <p><strong>Consecutivo:</strong> ${proveedor.consecutivoIngreso || 'N/A'}</p>
                                 <p><strong>Tipo:</strong> ${proveedor.tipoVehiculo || 'N/A'}</p>
@@ -1592,6 +1666,8 @@ return `
                                 <p><strong>Peso:</strong> ${proveedor.peso || 'N/A'} kg</p>
                                 <p><strong>Responsable:</strong> ${proveedor.responsable || 'N/A'}</p>
                                 <p><strong>Destino:</strong> ${proveedor.destino || 'N/A'}</p>
+                                <p><strong>Hora solicitud:</strong> ${proveedor.horaSolicitud || 'N/A'}</p>
+                                <p><strong>Hora llamada:</strong> ${proveedor.horaLlamada || 'N/A'}</p>
                                 <p><strong>Inspección:</strong> ${proveedor.inspeccionFisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</p>
                             `;
                         }
@@ -1955,13 +2031,14 @@ return `
                             proveedorActivo = null;
                         }
                         
-                        const historialConProveedores = data.filter(h => !(h.es_transporte === true && !h.proveedor_transporte_id)).map(h => {
+                        const historialConProveedores = data.map(h => {
                             const esTurnoActivo = proveedorActivo && proveedorActivo.numero === h.numero && proveedorActivo.nit === h.nit;
-                            if (h.es_transporte && h.proveedor_transporte_id) {
+                            if (h.proveedor_transporte_id) {
                                 const pt = proveedoresTransporte.find(p => p.id === h.proveedor_transporte_id);
                                 if (pt) {
                                     return {
                                         ...h,
+                                        es_transporte: true,
                                         nombre_proveedor: pt.nombre_proveedor || h.nombre_proveedor,
                                         proveedor_destino: pt.destino || h.destino,
                                         consecutivo_ingreso: pt.consecutivo_ingreso || h.consecutivo_ingreso,
@@ -1971,6 +2048,7 @@ return `
                             }
                             return {
                                 ...h,
+                                es_transporte: false,
                                 nombre_proveedor: h.nombre_proveedor || null,
                                 consecutivo_ingreso: esTurnoActivo
                                     ? (proveedorActivo.consecutivoIngreso || h.consecutivo_ingreso || null)
@@ -2209,22 +2287,33 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
                     async (payload) => {
-                        if (window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(payload.new)) return;
                         console.log('🔔 Notificación realtime despachador:', payload);
                         const notif = payload.new;
+
+                        if (notif.tipo === 'turno_confirmado' && notif.destinatario === 'despachador') {
+                            const datos = normalizarDatosNotificacion(notif.datos);
+                            if (datos) {
+                                window.mostrarDetallesTurnoConfirmado(datos);
+                                Utils.mostrarNotificacion(notif.mensaje || `Llegada confirmada: ${datos.numero || ''}`, 'success');
+                                await window.actualizarTurnosDiaDespachador();
+                            }
+                            await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notif.id);
+                            return;
+                        }
                         
                         if (notif.remitente === 'admin') {
                             window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
                             if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
                             if (window.SonidoAlerta) { window.SonidoAlerta.inicializar(); window.SonidoAlerta.reproducir(3); }
                             const datosNotificacion = normalizarDatosNotificacion(notif.datos);
-                            if (notif.tipo === 'salida_pendiente' && datosNotificacion) {
+                            if (['salida_pendiente', 'turno_completado'].includes(notif.tipo) && datosNotificacion) {
                                 if (typeof window.mostrarProveedorListo === 'function') {
                                     try {
                                         window.mostrarProveedorListo(datosNotificacion);
                                         window.sincronizarProveedorListo?.();
                                         cargarTurnosPendientesSalida();
                                         cargarEstadisticasDespachador();
+                                        cargarHistorialDespachador();
                                     } catch (e) {
                                         console.warn('Error al mostrar proveedor:', e);
                                         Utils.mostrarNotificacion(notif.mensaje, 'warning');

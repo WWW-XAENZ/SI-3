@@ -1402,9 +1402,15 @@
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
                     async (payload) => {
-                        if (window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(payload.new)) return;
+                        const notif = payload.new;
+                        const esLlegadaRecepcion = notif.tipo === 'turno_confirmado' && notif.destinatario === 'admin';
+                        if (!esLlegadaRecepcion && window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(notif)) return;
                         console.log('🔔 Notificación realtime admin:', payload);
-                        if (payload.new.remitente === 'despachador') {
+                        if (esLlegadaRecepcion) {
+                            await Turnos.cargarTurnos();
+                            await RenderAdmin.todo();
+                            await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notif.id);
+                        } else if (notif.remitente === 'despachador') {
                             window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
                             if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
                             if (window.SonidoAlerta) { window.SonidoAlerta.inicializar(); window.SonidoAlerta.reproducir(3); }
