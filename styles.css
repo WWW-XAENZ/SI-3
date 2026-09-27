@@ -5318,11 +5318,13 @@ header > h1 + span {
 
 .despacho-actual .despacho-detail {
     min-height: 150px;
+    max-height: 340px;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     padding: 18px !important;
-    text-align: center;
+    text-align: left;
 }
 
 .despacho-actual .despacho-empty {

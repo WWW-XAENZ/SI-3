@@ -793,7 +793,8 @@
                 });
 
                 turnosDelDia = [...turnosConfirmados, ...historialDelDia];
-                if (turnosConfirmados.length && !document.getElementById('turnoListoSalir')?.querySelector('.turn-number-large')) {
+                const panelDetalles = document.getElementById('infoDespachoActual');
+                if (turnosConfirmados.length && panelDetalles?.querySelector('.despacho-empty')) {
                     window.mostrarDetallesTurnoConfirmado(turnosConfirmados[0]);
                 }
                 
@@ -831,6 +832,7 @@
             ];
 
             panel.replaceChildren();
+            panel.dataset.turnoConfirmadoId = String(turno.turnoId || turno.id || turno.numero || '');
             campos.forEach(([label, value]) => {
                 const row = document.createElement('p');
                 const title = document.createElement('strong');
@@ -839,6 +841,14 @@
                 panel.appendChild(row);
             });
         };
+
+        function normalizarDatosNotificacion(datos) {
+            if (!datos) return null;
+            if (typeof datos === 'string') {
+                try { return JSON.parse(datos); } catch (error) { return null; }
+            }
+            return datos;
+        }
 
         function filtrarYMostrarTurnos() {
             const listaDiv = document.getElementById('listaTurnosPendientesSalida');
@@ -1324,6 +1334,14 @@ return `
                         })
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos' }, (payload) => {
                             console.log('📋 Cambio en turnos detectado, recargando...');
+                            if (payload.new?.estado === 'llegado') {
+                                window.mostrarDetallesTurnoConfirmado(payload.new);
+                                if (window.SI3Realtime) {
+                                    window.SI3Realtime.notificarTurnoConfirmado(payload.new);
+                                } else {
+                                    Utils.mostrarNotificacion(`Llegada confirmada: turno ${payload.new.numero}`, 'success');
+                                }
+                            }
                             cargarTodoDespachador();
                             cargarHistorialDespachador();
                             if (window.SonidoSI3) window.SonidoSI3.inicializar();
@@ -1595,14 +1613,6 @@ return `
                 
                 let proveedorListoAnterior = null;
                 
-                function normalizarDatosNotificacion(datos) {
-                    if (!datos) return null;
-                    if (typeof datos === 'string') {
-                        try { return JSON.parse(datos); } catch (error) { return null; }
-                    }
-                    return datos;
-                }
-
                 function mostrarProveedorListo(proveedor) {
                     proveedor = normalizarDatosNotificacion(proveedor);
                     if (!proveedor) return;
@@ -2294,7 +2304,11 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                             const datos = normalizarDatosNotificacion(notif.datos);
                             if (datos) {
                                 window.mostrarDetallesTurnoConfirmado(datos);
-                                Utils.mostrarNotificacion(notif.mensaje || `Llegada confirmada: ${datos.numero || ''}`, 'success');
+                                if (window.SI3Realtime) {
+                                    window.SI3Realtime.notificarTurnoConfirmado(datos, notif.mensaje);
+                                } else {
+                                    Utils.mostrarNotificacion(notif.mensaje || `Llegada confirmada: ${datos.numero || ''}`, 'success');
+                                }
                                 await window.actualizarTurnosDiaDespachador();
                             }
                             await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notif.id);

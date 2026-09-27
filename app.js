@@ -1944,6 +1944,7 @@ const SupabaseDB = {
 const SI3Realtime = {
     _notificaciones: new Map(),
     _eventos: new Map(),
+    _turnosConfirmadosAvisados: new Map(),
 
     reclamarNotificacion(notificacion) {
         const id = notificacion?.id;
@@ -1970,6 +1971,16 @@ const SI3Realtime = {
 
     esParaPagina(notificacion) {
         return !notificacion?.destinatario || notificacion.destinatario === this.destinatarioActual();
+    },
+
+    notificarTurnoConfirmado(turno, mensaje = '') {
+        const id = turno?.turnoId || turno?.id || turno?.numero;
+        if (id && this._turnosConfirmadosAvisados.has(String(id))) return false;
+        if (id) this._turnosConfirmadosAvisados.set(String(id), Date.now());
+        this._limpiar(this._turnosConfirmadosAvisados);
+        Utils.mostrarNotificacion(mensaje || `Llegada confirmada: turno ${turno?.numero || ''}`, 'success');
+        if (window.SonidoAlerta) SonidoAlerta.reproducir(2);
+        return true;
     },
 
     _limpiar(mapa) {
@@ -2021,7 +2032,7 @@ if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
                             const datosNotificacion = this._normalizarDatos(notif.datos);
 
                             if (isTurnoConfirmado && datosNotificacion) {
-                                Utils.mostrarNotificacion(notif.mensaje || `Llegada confirmada: ${datosNotificacion.numero || ''}`, 'success');
+                                SI3Realtime.notificarTurnoConfirmado(datosNotificacion, notif.mensaje);
                                 if (this.destinatarioActual() === 'despachador') {
                                     window.mostrarDetallesTurnoConfirmado?.(datosNotificacion);
                                     await window.actualizarTurnosDiaDespachador?.();

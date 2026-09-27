@@ -1407,6 +1407,7 @@
                         if (!esLlegadaRecepcion && window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(notif)) return;
                         console.log('🔔 Notificación realtime admin:', payload);
                         if (esLlegadaRecepcion) {
+                            window.SI3Realtime?.notificarTurnoConfirmado(notif.datos, notif.mensaje);
                             await Turnos.cargarTurnos();
                             await RenderAdmin.todo();
                             await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notif.id);
