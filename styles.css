@@ -5286,11 +5286,18 @@ header > h1 + span {
 .admin-section.control-panel:has(.turno-listo) .turno-listo {
     width: 100%;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     min-height: 105px;
     color: #ffffff;
     text-align: center;
+}
+
+.admin-section.control-panel:has(.ready-turn-overview) .turno-listo {
+    align-items: stretch;
+    justify-content: flex-start;
+    text-align: left;
 }
 
 .admin-section.control-panel:has(.turno-listo) .esperando-mensaje {
@@ -5299,6 +5306,105 @@ header > h1 + span {
     font-size: 0.92rem;
     font-weight: 700;
     line-height: 1.5;
+}
+
+.ready-turn-overview {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    margin-bottom: 12px;
+    text-align: left;
+}
+
+.ready-turn-number {
+    flex: 0 0 auto;
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #ffffff;
+}
+
+.ready-turn-heading {
+    min-width: 0;
+}
+
+.ready-turn-name {
+    overflow-wrap: anywhere;
+    color: #ffffff;
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.3;
+}
+
+.ready-turn-status {
+    margin-top: 4px;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.ready-turn-details {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+}
+
+.ready-turn-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    padding: 5px 7px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.12);
+    font-size: 0.68rem;
+    line-height: 1.3;
+}
+
+.ready-turn-field span {
+    flex: 0 0 auto;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.ready-turn-field strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: #ffffff;
+    text-align: right;
+}
+
+.ready-turn-detail-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #dce6ef;
+    color: #173f70;
+}
+
+.ready-turn-detail-head span {
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
+.ready-turn-details-panel {
+    margin-top: 10px;
+}
+
+.ready-turn-details-panel .ready-turn-field {
+    background: #f2f7fb;
+}
+
+.ready-turn-details-panel .ready-turn-field span {
+    color: #60758a;
+}
+
+.ready-turn-details-panel .ready-turn-field strong {
+    color: #243b53;
 }
 
 .admin-section.control-panel:has(.turno-listo) .despacho-actions {

@@ -961,7 +961,7 @@
                     try {
                         const proveedor = JSON.parse(e.newValue);
                         console.log('📋 Proveedor recibido:', proveedor);
-                        mostrarProveedorListo(proveedor);
+                        window.mostrarProveedorListo?.(proveedor);
                     } catch (err) {
                         console.error('❌ Error al parsear:', err);
                     }
@@ -1448,7 +1448,7 @@ return `
                     if (e.newValue) {
                         try {
                             const proveedor = JSON.parse(e.newValue);
-                            mostrarProveedorListo(proveedor);
+                            window.mostrarProveedorListo?.(proveedor);
                         } catch (err) {}
                     } else {
                         cerrarModalProveedorListo();
@@ -1510,8 +1510,6 @@ return `
                     });
                 }
                 
-                verificarProveedorListo();
-                
                 let conteo = 0;
                 const intervaloVerificacion = setInterval(() => {
                     conteo++;
@@ -1531,14 +1529,14 @@ return `
                         const { data, error } = await window.supabaseClient
                             .from('notificaciones_salida')
                             .select('*')
-                            .in('tipo', ['salida_pendiente', 'turno_completado'])
+                            .in('tipo', ['salida_pendiente', 'turno_completado', 'salida_autorizada'])
                             .order('created_at', { ascending: false })
-                            .limit(10);
+                            .limit(20);
 
                         if (error) throw error;
 
-                        const notificacion = (data || []).find(item => item && item.datos && (item.leido === false || item.leido === null));
-                        if (!notificacion) {
+                        const notificacion = (data || []).find(item => item && item.datos);
+                        if (!notificacion || notificacion.tipo === 'salida_autorizada') {
                             return null;
                         }
 
@@ -1547,15 +1545,8 @@ return `
                             return null;
                         }
 
-                        const ahora = Date.now();
-                        const timestamp = datos.timestamp || Date.parse(notificacion.created_at || Date.now());
-                        if (ahora - timestamp > 600000) {
-                            console.log('⏰ Notificación de salida pendiente expirada');
-                            return null;
-                        }
-
                         console.log('📡 Proveedor listo cargado desde Supabase:', datos);
-                        mostrarProveedorListo(datos);
+                        window.mostrarProveedorListo?.(datos);
                         return datos;
                     } catch (e) {
                         console.warn('No se pudo cargar proveedor listo desde Supabase:', e);
@@ -1565,45 +1556,24 @@ return `
 
                 function verificarProveedorListo() {
                     console.log('🔍 Verificando proveedorListoSalir...');
+                    const datosLocales = localStorage.getItem('proveedorListoSalir');
+                    if (datosLocales) {
+                        try {
+                            const proveedor = normalizarDatosNotificacion(JSON.parse(datosLocales));
+                            if (proveedor) {
+                                window.mostrarProveedorListo?.(proveedor);
+                                return;
+                            }
+                        } catch (error) {
+                            console.error('No se pudo leer proveedorListoSalir:', error);
+                        }
+                    }
+
                     if (window.supabaseClient) {
                         cargarProveedorListoDesdeSupabase().then((datosDesdeSupabase) => {
                             if (datosDesdeSupabase) return;
-                            const datos = localStorage.getItem('proveedorListoSalir');
-                            if (datos) {
-                                try {
-                                    const proveedor = JSON.parse(datos);
-                                    const ahora = Date.now();
-                                    const tiempoTranscurrido = Math.round((ahora - proveedor.timestamp) / 1000);
-                                    console.log(`📋 Proveedor encontrado en localStorage (${tiempoTranscurrido}s):`, proveedor);
-                                    if (ahora - proveedor.timestamp < 600000) {
-                                        mostrarProveedorListo(proveedor);
-                                    } else {
-                                        console.log('⏰ Datos expirados (>10 min)');
-                                        limpiarProveedorListo();
-                                    }
-                                } catch (e) {
-                                    console.error('❌ Error al parsear:', e);
-                                }
-                            } else {
-                                console.log('ℹ️ No hay datos en proveedorListoSalir');
-                            }
                         });
                         return;
-                    }
-
-                    const datos = localStorage.getItem('proveedorListoSalir');
-                    if (datos) {
-                        try {
-                            const proveedor = JSON.parse(datos);
-                            const ahora = Date.now();
-                            if (ahora - proveedor.timestamp < 600000) {
-                                mostrarProveedorListo(proveedor);
-                            } else {
-                                limpiarProveedorListo();
-                            }
-                        } catch (e) {
-                            console.error('❌ Error al parsear:', e);
-                        }
                     }
                 }
 
@@ -1621,6 +1591,9 @@ return `
                     const btnAutorizar = document.getElementById('btnAutorizarSalida');
                     
                     if (!turnoListoDiv) return;
+                    const proveedorFirma = JSON.stringify(proveedor);
+                    if (turnoListoDiv.dataset.proveedorFirma === proveedorFirma) return;
+                    turnoListoDiv.dataset.proveedorFirma = proveedorFirma;
                     
                     if (proveedor.esTransporte && (!Array.isArray(proveedor.proveedores) || proveedor.proveedores.length === 0)) {
                         turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Todos los proveedores autorizados</div>';
@@ -1654,31 +1627,44 @@ return `
                         
                         renderizarProveedoresPendientes(proveedor.proveedores, proveedor.numero);
                     } else {
+                        const destinoLabels = { ensambles: 'SIE', plasticos: 'SI3 ZF SAS', ambos: 'AMBOS' };
+                        const peso = proveedor.peso
+                            ? (String(proveedor.peso).toUpperCase().includes('KG') ? proveedor.peso : `${proveedor.peso} kg`)
+                            : '-';
+                        const campos = [
+                            ['Placa', proveedor.nit],
+                            ['Factura', proveedor.numFactura],
+                            ['FMM', proveedor.consecutivoIngreso],
+                            ['Vehículo', proveedor.tipoVehiculo],
+                            ['Bultos', proveedor.bultos],
+                            ['Peso', peso],
+                            ['Responsable', proveedor.responsable],
+                            ['Destino', destinoLabels[proveedor.destino] || proveedor.destino],
+                            ['Hora inicio', proveedor.horaLlamada],
+                            ['Hora fin', proveedor.horaFinalizacion || proveedor.horaLlegada]
+                        ];
                         turnoListoDiv.innerHTML = `
-                            <div class="turn-number-large">${proveedor.numero}</div>
-                            <div class="turn-empresa">${proveedor.nombre || 'Proveedor'}</div>
-                            <div class="turn-badge">COMPLETADO - Esperando Salida</div>
+                            <div class="ready-turn-overview">
+                                <div class="ready-turn-number">${proveedor.numero || '-'}</div>
+                                <div class="ready-turn-heading">
+                                    <div class="ready-turn-name">${proveedor.nombre || proveedor.nombreEmpresa || 'Proveedor'}</div>
+                                    <div class="ready-turn-status">Listo para autorización de salida</div>
+                                </div>
+                            </div>
+                            <div class="ready-turn-details">
+                                ${campos.map(([label, value]) => `<div class="ready-turn-field"><span>${label}</span><strong>${value || '-'}</strong></div>`).join('')}
+                            </div>
                         `;
                         
                         if (infoDespachoDiv) {
                             infoDespachoDiv.innerHTML = `
-                                <p><strong>Placa:</strong> ${proveedor.nit || 'N/A'}</p>
-                                <p><strong>Empresa:</strong> ${proveedor.nombreEmpresa || 'N/A'}</p>
-                                <p><strong>Proveedor:</strong> ${proveedor.nombre || 'N/A'}</p>
-                                <p><strong>Motivo:</strong> ${proveedor.motivo || 'N/A'}</p>
-                                <p><strong>Contacto:</strong> ${proveedor.contacto || 'N/A'}</p>
-                                <p><strong>Teléfono:</strong> ${proveedor.telefono || 'N/A'}</p>
-                                <p><strong>Servicio:</strong> ${proveedor.servicio || 'N/A'}</p>
-                                <p><strong>Factura:</strong> ${proveedor.numFactura || 'N/A'}</p>
-                                <p><strong>Consecutivo:</strong> ${proveedor.consecutivoIngreso || 'N/A'}</p>
-                                <p><strong>Tipo:</strong> ${proveedor.tipoVehiculo || 'N/A'}</p>
-                                <p><strong>Bultos:</strong> ${proveedor.bultos || 'N/A'}</p>
-                                <p><strong>Peso:</strong> ${proveedor.peso || 'N/A'} kg</p>
-                                <p><strong>Responsable:</strong> ${proveedor.responsable || 'N/A'}</p>
-                                <p><strong>Destino:</strong> ${proveedor.destino || 'N/A'}</p>
-                                <p><strong>Hora solicitud:</strong> ${proveedor.horaSolicitud || 'N/A'}</p>
-                                <p><strong>Hora llamada:</strong> ${proveedor.horaLlamada || 'N/A'}</p>
-                                <p><strong>Inspección:</strong> ${proveedor.inspeccionFisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</p>
+                                <div class="ready-turn-detail-head">
+                                    <strong>${proveedor.numero || '-'}</strong>
+                                    <span>${proveedor.nombre || proveedor.nombreEmpresa || 'Proveedor'}</span>
+                                </div>
+                                <div class="ready-turn-details ready-turn-details-panel">
+                                    ${campos.map(([label, value]) => `<div class="ready-turn-field"><span>${label}</span><strong>${value || '-'}</strong></div>`).join('')}
+                                </div>
                             `;
                         }
                         
@@ -1893,6 +1879,7 @@ return `
 
                 window.mostrarProveedorListo = mostrarProveedorListo;
                 window.limpiarProveedorListo = limpiarProveedorListo;
+                verificarProveedorListo();
                 
                 function limpiarProveedorListo() {
                     const turnoListoDiv = document.getElementById('turnoListoSalir');
@@ -1901,6 +1888,7 @@ return `
                     
                     if (turnoListoDiv) {
                         turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Esperando que completen un turno...</div>';
+                        delete turnoListoDiv.dataset.proveedorFirma;
                     }
                     if (infoDespachoDiv) {
                         infoDespachoDiv.innerHTML = '<p class="despacho-empty">Sin proveedor esperando</p>';
