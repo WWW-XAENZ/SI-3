@@ -125,7 +125,7 @@ const Utils = {
 
     mostrarNotificacion(mensaje, tipo = 'info', requireAccept = false) {
         const notificacion = document.createElement('div');
-        notificacion.className = `notificacion notificacion-${tipo}`;
+        notificacion.className = 'notificacion';
 
         const iconos = {
             'success': '✅',
@@ -855,8 +855,8 @@ const SupabaseDB = {
             const turnoGuardado = this._mapearTurno(data);
             
             // Push notification - Nuevo turno
-            if (window.SI3PushManager) {
-                window.SI3PushManager.notifyNuevoTurno(turnoGuardado);
+            if (window.PushManager) {
+                window.PushManager.notifyNuevoTurno(turnoGuardado);
             }
             
             return turnoGuardado;
@@ -1053,8 +1053,8 @@ const SupabaseDB = {
             // Push notification - Turno llamado (con sonido garantizado)
             window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_llamado' } }));
             if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
-            if (window.SI3PushManager) {
-                window.SI3PushManager.notifyTurnoLlamado(turnoActualizado);
+            if (window.PushManager) {
+                window.PushManager.notifyTurnoLlamado(turnoActualizado);
             }
             
             return updateData;
@@ -1075,12 +1075,17 @@ const SupabaseDB = {
                 .from('turnos')
                 .select('*')
                 .eq('id', turnoId)
-                .single();
+                .maybeSingle();
             
             console.log('completarTurno - turno desde DB:', turno);
             console.log('completarTurno - tipo_vehiculo desde DB:', turno?.tipo_vehiculo);
             
             if (errorGet) throw errorGet;
+            
+            if (!turno) {
+                console.warn('Turno no encontrado en BD (ya fue eliminado o ID inválido):', turnoId);
+                return false;
+            }
             
             const turnoMapeado = this._mapearTurno(turno);
             console.log('completarTurno - turno mapeado:', turnoMapeado);
@@ -1127,7 +1132,7 @@ const SupabaseDB = {
                         mensaje: `Turno ${turnoMapeado.numero} completado por recepción`,
                         remitente: 'admin',
                         leido: false,
-                        tipo: 'turno_completado',
+                        tipo: 'salida_pendiente',
                         proveedor_nit: turnoMapeado.nit || null,
                         nombre_empresa: turnoMapeado.nombreEmpresa || null,
                         datos: datosNotificacion
@@ -1145,28 +1150,14 @@ const SupabaseDB = {
             return true;
         } catch (error) {
             console.error('Error al completar turno:', error);
-            // Evita mostrar un error falso si la eliminación ya se confirmó en Supabase
-            // pero falló una tarea secundaria posterior.
-            try {
-                const { data: turnoExistente, error: verificacionError } = await window.supabaseClient
-                    .from('turnos')
-                    .select('id')
-                    .eq('id', turnoId)
-                    .maybeSingle();
-                if (!verificacionError && !turnoExistente) {
-                    return true;
-                }
-            } catch (verificacionError) {
-                console.warn('No se pudo verificar el estado del turno:', verificacionError);
-            }
             return false;
         }
     },
 
     // Push notification - Turno completado
     _notificarTurnoCompletado(turnoMapeado) {
-        if (window.SI3PushManager) {
-            window.SI3PushManager.notifyTurnoCompletado(turnoMapeado);
+        if (window.PushManager) {
+            window.PushManager.notifyTurnoCompletado(turnoMapeado);
         }
     },
 
@@ -1216,7 +1207,6 @@ const SupabaseDB = {
             numFacturas: t.num_facturas,
             autorizadoSalida: t.autorizado_salida,
             inspeccionFisica: t.inspeccion_fisica,
-            proveedorTransporteId: t.proveedor_transporte_id,
             createdAt: t.created_at,
             updatedAt: t.updated_at,
             esTransporte: t.es_transporte === true
@@ -1228,7 +1218,6 @@ const SupabaseDB = {
             console.error('Supabase no está disponible');
             return false;
         }
-        const esProveedorTransporte = turno.esTransporte === true && Boolean(turno.proveedorTransporteId);
         let historialData;
         try {
             historialData = {
@@ -1254,8 +1243,8 @@ const SupabaseDB = {
                 num_facturas: turno.numFacturas ?? null,
                 autorizado_salida: false,
                 inspeccion_fisica: false,
-                es_transporte: esProveedorTransporte,
-                nombre_proveedor: esProveedorTransporte ? (turno.nombreProveedor || null) : null,
+                es_transporte: turno.esTransporte === true || false,
+                nombre_proveedor: turno.esTransporte ? (turno.nombreProveedor || null) : null,
                 proveedor_transporte_id: turno.proveedorTransporteId || null,
                 fecha: getLocalISOString()
             };
@@ -1350,7 +1339,7 @@ const SupabaseDB = {
                 numFacturas: h.num_facturas,
                 autorizadoSalida: h.autorizado_salida,
                 inspeccionFisica: h.inspeccion_fisica,
-                esTransporte: h.es_transporte === true && Boolean(h.proveedor_transporte_id),
+                esTransporte: h.es_transporte === true,
                 proveedorTransporteId: h.proveedor_transporte_id,
                 nombreProveedor: h.nombre_proveedor,
                 fecha: h.fecha
@@ -1382,22 +1371,22 @@ const SupabaseDB = {
             ] = await Promise.all([
                 window.supabaseClient
                     .from('historial_turnos')
-                    .select('*', { count: 'exact' })
+                    .select('*', { count: 'exact', head: true })
                     .gte('fecha', `${hoy}T00:00:00`),
                 
                 window.supabaseClient
                     .from('turnos')
-                    .select('*', { count: 'exact' })
+                    .select('*', { count: 'exact', head: true })
                     .eq('estado', 'espera'),
                 
                 window.supabaseClient
                     .from('turnos')
-                    .select('*', { count: 'exact' })
+                    .select('*', { count: 'exact', head: true })
                     .eq('estado', 'atendiendo'),
                 
                 window.supabaseClient
                     .from('proveedores')
-                    .select('*', { count: 'exact' })
+                    .select('*', { count: 'exact', head: true })
                     .eq('activo', true)
             ]);
 
@@ -1944,7 +1933,6 @@ const SupabaseDB = {
 const SI3Realtime = {
     _notificaciones: new Map(),
     _eventos: new Map(),
-    _turnosConfirmadosAvisados: new Map(),
 
     reclamarNotificacion(notificacion) {
         const id = notificacion?.id;
@@ -1965,24 +1953,6 @@ const SI3Realtime = {
         return true;
     },
 
-    destinatarioActual() {
-        return document.getElementById('listaTurnosPendientesSalida') ? 'despachador' : 'admin';
-    },
-
-    esParaPagina(notificacion) {
-        return !notificacion?.destinatario || notificacion.destinatario === this.destinatarioActual();
-    },
-
-    notificarTurnoConfirmado(turno, mensaje = '') {
-        const id = turno?.turnoId || turno?.id || turno?.numero;
-        if (id && this._turnosConfirmadosAvisados.has(String(id))) return false;
-        if (id) this._turnosConfirmadosAvisados.set(String(id), Date.now());
-        this._limpiar(this._turnosConfirmadosAvisados);
-        Utils.mostrarNotificacion(mensaje || `Llegada confirmada: turno ${turno?.numero || ''}`, 'success');
-        if (window.SonidoAlerta) SonidoAlerta.reproducir(2);
-        return true;
-    },
-
     _limpiar(mapa) {
         const limite = Date.now() - 10 * 60 * 1000;
         for (const [clave, timestamp] of mapa) {
@@ -1995,14 +1965,6 @@ window.SI3Realtime = SI3Realtime;
 
 const NotificacionesPolling = {
     _ultimoTimestamp: null,
-
-    _normalizarDatos(datos) {
-        if (!datos) return null;
-        if (typeof datos === 'string') {
-            try { return JSON.parse(datos); } catch (error) { return null; }
-        }
-        return datos;
-    },
     
     async iniciar() {
         this._intervalo = setInterval(async () => {
@@ -2017,7 +1979,6 @@ const NotificacionesPolling = {
                 
                 if (data && data.length > 0) {
                     for (const notif of data) {
-                        if (!SI3Realtime.esParaPagina(notif)) continue;
                         if (SI3Realtime.reclamarNotificacion(notif)) {
                             this._ultimoTimestamp = notif.created_at;
 if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
@@ -2026,28 +1987,11 @@ if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
                             const isFromAdmin = notif.remitente === 'admin';
                             const isSalidaPendiente = notif.tipo === 'salida_pendiente';
                             const isSalidaAutorizada = notif.tipo === 'salida_autorizada';
-                            const isTurnoCompletado = notif.tipo === 'turno_completado';
-                            const isTurnoConfirmado = notif.tipo === 'turno_confirmado';
                             
-                            const datosNotificacion = this._normalizarDatos(notif.datos);
-
-                            if (isTurnoConfirmado && datosNotificacion) {
-                                SI3Realtime.notificarTurnoConfirmado(datosNotificacion, notif.mensaje);
-                                if (this.destinatarioActual() === 'despachador') {
-                                    window.mostrarDetallesTurnoConfirmado?.(datosNotificacion);
-                                    await window.actualizarTurnosDiaDespachador?.();
-                                } else {
-                                    await Turnos.cargarTurnos();
-                                    await RenderAdmin.todo();
-                                }
-                            } else if (isFromAdmin && isTurnoCompletado) {
-                                Utils.mostrarNotificacion(`Turno completado: ${datosNotificacion?.numero || notif.mensaje || '---'}`, 'success');
-                                if (window.SonidoAlerta) { window.SonidoAlerta.reproducir(2); }
-                                if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
-                            } else if (isFromAdmin && isSalidaPendiente && datosNotificacion) {
+                            if (isFromAdmin && isSalidaPendiente && notif.datos) {
                                 if (typeof window.mostrarProveedorListo === 'function') {
                                     try {
-                                        window.mostrarProveedorListo(datosNotificacion);
+                                        window.mostrarProveedorListo(notif.datos);
                                     } catch (e) {
                                         console.warn('Error al mostrar proveedor:', e);
                                         Utils.mostrarNotificacion(`Notificación: ${notif.mensaje}`, 'warning');
@@ -2055,13 +1999,13 @@ if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
                                 } else {
                                     Utils.mostrarNotificacion(`Notificación: ${notif.mensaje}`, 'warning');
                                 }
-                            } else if (isFromAdmin && isSalidaAutorizada && datosNotificacion) {
+                            } else if (isFromAdmin && isSalidaAutorizada && notif.datos) {
                                 if (window.mostrarAlertaSalidaDespachador) {
                                     window.mostrarAlertaSalidaDespachador({
-                                        numero: datosNotificacion.numero || '---',
+                                        numero: notif.datos.numero || '---',
                                         nombre: notif.mensaje,
                                         timestamp: Date.now(),
-                                        datos: datosNotificacion
+                                        datos: notif.datos
                                     });
                                 } else {
                                     Utils.mostrarNotificacion(`Notificación: ${notif.mensaje}`, 'warning');
@@ -2159,7 +2103,6 @@ const Conectividad = {
             .on('postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
                 async (payload) => {
-                    if (!SI3Realtime.esParaPagina(payload.new)) return;
                     if (!SI3Realtime.reclamarNotificacion(payload.new)) return;
                     console.log('🔔 Nueva notificación:', payload);
                     const notificacion = payload.new;
@@ -2882,17 +2825,8 @@ const RenderAdmin = {
                 if (AppState.turnoActual.responsable) lines.push(`Responsable: ${AppState.turnoActual.responsable}`);
                 if (AppState.turnoActual.destino) lines.push(`Destino: ${AppState.turnoActual.destino}`);
                 if (AppState.turnoActual.autorizadoSalida) lines.push(`✓ SALIDA AUTORIZADA`);
-
-                const destinoIndex = lines.findIndex(line => line.startsWith('Destino:'));
-                despachoDetail.innerHTML = lines.map((line, index) => {
-                    const isDestino = index === destinoIndex;
-                    const lineHtml = `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed #e2e8f0;">${line}</div>`;
-                    if (!isDestino) return lineHtml;
-
-                    return `${lineHtml}<div style="margin: 4px 0 10px;">
-                        <button type="button" class="btn btn-secondary" style="width:100%; min-height: 40px;" onclick="AdminHandlers.revisarFormularioDespacho()">Volver al formulario</button>
-                    </div>`;
-                }).join('');
+                
+                despachoDetail.innerHTML = lines.map(line => `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed #e2e8f0;">${line}</div>`).join('');
             } else {
                 despachoDetail.innerHTML = '';
             }
@@ -3284,7 +3218,7 @@ const RenderAdmin = {
                             <input type="checkbox" id="historialFiltroTransporte" onchange="RenderAdmin.historial()">
                             Solo transportistas
                         </label>
-                        <span style="font-size: 13px; color: #20538f;">${turnosTransporte.length} turno(s) transporte | ${soloTransporte.length} proveedor(es)</span>
+                        <span style="font-size: 13px; color: #8b5cf6;">${turnosTransporte.length} turno(s) transporte | ${soloTransporte.length} proveedor(es)</span>
                     </div>
 <table class="history-table">
                         <thead>
@@ -3812,16 +3746,6 @@ const AdminHandlers = {
         await RenderAdmin.todo();
     },
 
-    revisarFormularioDespacho() {
-        const confirmModal = document.getElementById('turnoModal');
-        if (confirmModal) confirmModal.style.display = 'none';
-        if (AppState.turnoActual) {
-            this.mostrarModalDespacho(AppState.turnoActual, 'actual', AppState.turnoActual.id);
-        } else {
-            Utils.mostrarNotificacion('No hay un turno disponible para revisar', 'warning');
-        }
-    },
-
     async _guardarDespachoBase() {
         const modal = document.getElementById('despachoModal');
         if (!modal) return null;
@@ -4106,8 +4030,8 @@ const AdminHandlers = {
                 else if (pesoDisplay !== 'N/A') pesoDisplay += ' kg';
                 const destinoDisplay = destinoLabel[p.destino] || p.destino || 'N/A';
                 return `
-                <div class="turn-item" style="border-left: 3px solid #20538f;">
-                    <span class="turn-item-number" style="color: #20538f;">${index + 1}</span>
+                <div class="turn-item" style="border-left: 3px solid #8b5cf6;">
+                    <span class="turn-item-number" style="color: #8b5cf6;">${index + 1}</span>
                     <div class="turn-item-info">
                         <div class="turn-item-company">${p.nombreProveedor || 'N/A'}</div>
                     <div class="turn-item-details">
@@ -4677,7 +4601,7 @@ const proveedorData = {
                 .from('historial_turnos')
                 .select('*')
                 .eq('id', id)
-                .single();
+                .maybeSingle();
             if (error) throw error;
             if (!data) {
                 Utils.mostrarNotificacion('Registro no encontrado', 'error');
@@ -5677,10 +5601,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 },
                 notificaciones: (payload) => {
                     console.log('Notificación recibida en admin:', payload);
-                    if (payload.new?.tipo === 'turno_confirmado') {
-                        Utils.mostrarNotificacion(payload.new.mensaje || 'Llegada de turno confirmada', 'success');
-                        return;
-                    }
                     if (window.SonidoAlerta) {
                         if (window.SonidoSI3) window.SonidoSI3.inicializar();
                         SonidoAlerta.reproducir(3);
@@ -5789,10 +5709,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     },
                     notificaciones: (payload) => {
                         console.log('Notificación recibida en despachador:', payload);
-                        if (payload.new?.tipo === 'turno_confirmado') {
-                            Utils.mostrarNotificacion(payload.new.mensaje || 'Llegada de turno confirmada', 'success');
-                            return;
-                        }
 if (window.SonidoAlerta) {
                             if (window.SonidoSI3) window.SonidoSI3.inicializar();
                             SonidoAlerta.reproducir(3);
@@ -5936,7 +5852,7 @@ const DespachadorHandlers = {
                 .select('id')
                 .eq('numero', turno.numero)
                 .gte('fecha', getLocalDate() + 'T00:00:00')
-                .single();
+                .maybeSingle();
             
             if (historialActual && !errorGet) {
                 const { error: errorUpdate } = await window.supabaseClient
@@ -6259,8 +6175,8 @@ const DespachadorHandlers = {
             }
             
             // Push notification - Inspección requerida
-            if (window.SI3PushManager) {
-                window.SI3PushManager.notifyInspeccionRequerida(turno);
+            if (window.PushManager) {
+                window.PushManager.notifyInspeccionRequerida(turno);
             }
             
             const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
@@ -6282,7 +6198,7 @@ const DespachadorHandlers = {
                 .select('id')
                 .eq('numero', turno.numero)
                 .gte('fecha', getLocalDate() + 'T00:00:00')
-                .single();
+                .maybeSingle();
             
             if (historialActual && !errorGet) {
                 const { error: errorUpdate } = await window.supabaseClient
