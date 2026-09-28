@@ -2417,20 +2417,33 @@ const Turnos = {
 
     async reiniciarCola() {
         try {
+            const turnosBackup = AppState.turnos || [];
+            if (turnosBackup.length > 0) {
+                try {
+                    localStorage.setItem('backup_turnos_reinicio', JSON.stringify({
+                        timestamp: new Date().toISOString(),
+                        turnos: turnosBackup
+                    }));
+                    console.log('✅ Backup de turnos creado antes de reiniciar cola');
+                } catch (e) {
+                    console.warn('⚠️ No se pudo crear backup:', e);
+                }
+            }
+
             for (const turno of AppState.turnos) {
                 await SupabaseDB.cancelarTurno(turno.id);
             }
-            
+
             AppState.turnos = [];
             AppState.turnoActual = null;
             AppState.contadorTurnos = 0;
-            
+
             LocalStorage.guardarTurnos([]);
             LocalStorage.guardarTurnoActual(null);
             LocalStorage.guardarContadorPrefijo('T', 0);
             LocalStorage.guardarContadorPrefijo('C', 0);
             LocalStorage.eliminarMiTurno();
-            
+
             return true;
         } catch (error) {
             console.error('Error al reiniciar cola:', error);
@@ -4387,7 +4400,27 @@ const proveedorData = {
     },
 
     async reiniciarCola() {
-        if (confirm('¿Reiniciar cola? Se perderán todos los turnos en espera.')) {
+        const numTurnos = AppState.turnos ? AppState.turnos.length : 0;
+
+        if (numTurnos === 0) {
+            if (confirm('¿Reiniciar cola? No hay turnos en espera.')) {
+                await Turnos.reiniciarCola();
+                Utils.mostrarNotificacion('Cola reiniciada', 'success');
+                await RenderAdmin.todo();
+            }
+            return;
+        }
+
+        if (!confirm(`¿Reiniciar cola?\n\nSe perderán ${numTurnos} turno(s) en espera de forma PERMANENTE.\n\n¿Estás seguro?`)) {
+            return;
+        }
+
+        const confirmacion = prompt(
+            `¡ATENCIÓN! Se borrarán ${numTurnos} turno(s) definiamente.\n\n` +
+            'Escribe "REINICIAR" en el cuadro para confirmar:'
+        );
+
+        if (confirmacion && confirmacion.toUpperCase() === 'REINICIAR') {
             await Turnos.reiniciarCola();
             Utils.mostrarNotificacion('Cola reiniciada', 'success');
             await RenderAdmin.todo();
