@@ -23,6 +23,122 @@
         .cited-list { grid-column: 1 / 4; grid-row: 3; }
         .providers-list { grid-column: 1 / 24; grid-row: 4; }
         .turn-history { grid-column: 1 / 24; grid-row: 5; }
+
+        .admin-menu { position: relative; margin-left: auto; }
+        .admin-menu summary { list-style: none; }
+        .admin-menu summary::-webkit-details-marker { display: none; }
+        .admin-menu-trigger {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 42px;
+            padding: 8px 12px;
+            border: 1px solid #cbd8e5;
+            border-radius: 8px;
+            background: #fff;
+            color: #285b8e;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .admin-menu-trigger svg { width: 18px; height: 18px; }
+        .admin-menu-panel {
+            position: absolute;
+            z-index: 50;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 230px;
+            padding: 6px;
+            border: 1px solid #d9e3ed;
+            border-radius: 9px;
+            background: #fff;
+            box-shadow: 0 12px 28px rgba(31, 56, 85, 0.16);
+        }
+        .admin-menu-panel button {
+            width: 100%;
+            padding: 10px 12px;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            color: #243b53;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+        .admin-menu-panel button:hover { background: #eef6fc; }
+
+        .material-catalog-dialog {
+            width: min(760px, calc(100vw - 28px));
+            max-width: none;
+            max-height: calc(100dvh - 32px);
+            margin: auto;
+            padding: 0;
+            overflow: auto;
+            border: 0;
+            background: transparent;
+        }
+        .material-catalog-dialog::backdrop { background: rgba(15, 34, 54, 0.56); }
+        .material-edit-dialog { width: min(540px, calc(100vw - 28px)); }
+        .material-catalog-admin { margin: 0; }
+        .material-catalog-admin:hover { transform: none; }
+        .material-catalog-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .material-catalog-header h2 { margin: 0; }
+        .material-catalog-close {
+            width: 38px;
+            height: 38px;
+            flex: 0 0 auto;
+            border: 1px solid #cbd8e5;
+            border-radius: 8px;
+            background: #fff;
+            color: #38556f;
+            font-size: 1.4rem;
+            cursor: pointer;
+        }
+
+        .material-catalog-form {
+            display: grid;
+            grid-template-columns: minmax(160px, 0.8fr) minmax(180px, 0.8fr) minmax(260px, 1.4fr) auto;
+            align-items: end;
+            gap: 12px;
+        }
+
+        .material-catalog-form .form-group { margin-bottom: 0; }
+        .material-catalog-form .btn { min-height: 42px; }
+        .material-catalog-status { min-height: 1.4em; margin: 12px 0 0; color: #49647e; }
+        .material-catalog-status[data-state="error"] { color: #b42318; }
+        .material-catalog-status[data-state="success"] { color: #16794a; }
+        .material-catalog-viewer { margin-top: 24px; border-top: 1px solid #e1e9f1; padding-top: 18px; }
+        .material-catalog-toolbar { display: grid; grid-template-columns: minmax(170px, 0.7fr) minmax(220px, 1.3fr) auto; align-items: end; gap: 10px; }
+        .material-catalog-toolbar .form-group { margin-bottom: 0; }
+        .material-catalog-count { min-height: 40px; display: flex; align-items: center; color: #60758a; font-size: 0.82rem; }
+        .material-catalog-table-wrap { max-height: min(42vh, 420px); margin-top: 12px; overflow: auto; border: 1px solid #dce6ef; border-radius: 8px; background: #fff; }
+        .material-catalog-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .material-catalog-table th { position: sticky; top: 0; padding: 10px 12px; background: #eef4f8; color: #38556f; text-align: left; }
+        .material-catalog-table td { padding: 9px 12px; border-top: 1px solid #edf1f5; color: #334e68; overflow-wrap: anywhere; }
+        .material-catalog-table td:first-child { width: 150px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .material-catalog-table td:last-child { width: 110px; color: #60758a; }
+        .material-catalog-empty { padding: 20px !important; color: #718399 !important; text-align: center; }
+        .material-catalog-actions { display: flex; gap: 6px; white-space: nowrap; }
+        .material-catalog-row-action { padding: 5px 8px; border: 1px solid #cbd8e5; border-radius: 6px; background: #fff; color: #285b8e; font: inherit; font-size: 0.75rem; cursor: pointer; }
+        .material-catalog-row-action:hover { background: #eef6fc; }
+        .material-catalog-row-action.is-danger { border-color: #f1c7c4; color: #a52a22; }
+        .material-catalog-row-action.is-danger:hover { background: #fff1f0; }
+        .material-edit-form { display: grid; gap: 14px; margin-top: 18px; }
+        .material-edit-form .form-group { margin-bottom: 0; }
+        .material-edit-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 4px; }
+        @media (max-width: 600px) { .material-edit-actions { flex-direction: column-reverse; } .material-edit-actions .btn { width: 100%; } }
+
+        @media (max-width: 900px) {
+            .material-catalog-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
+        @media (max-width: 600px) {
+            .material-catalog-form { grid-template-columns: minmax(0, 1fr); }
+            .material-catalog-form .btn { width: 100%; }
+            .material-catalog-toolbar { grid-template-columns: minmax(0, 1fr); }
+            .material-catalog-count { min-height: 0; }
+        }
         
         .admin-section {
             background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
@@ -427,6 +543,31 @@
             overflow-x: auto; 
             white-space: nowrap;
         }
+
+        .history-table .history-sap-cell {
+            min-width: 180px;
+            white-space: normal;
+        }
+        .history-sap-codes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            max-width: 260px;
+        }
+        .history-sap-chip {
+            display: inline-flex;
+            max-width: 100%;
+            padding: 4px 7px;
+            border: 1px solid #d5e2ec;
+            border-radius: 6px;
+            background: #f4f8fb;
+            color: #285b8e;
+            font-size: 11px;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+            white-space: normal;
+        }
+        .history-sap-empty { color: #94a3b8; }
         
         @media (max-width: 1100px) {
             .admin-grid { grid-template-columns: 1fr 1fr; }
@@ -442,7 +583,7 @@
         
         @media (max-width: 768px) {
             .admin-grid { grid-template-columns: 1fr; gap: 18px; padding: 18px; }
-            .control-panel, .statistics, .arrived-list, .waiting-list, .cited-list, .providers-list, .turn-history { grid-column: 1; }
+            .control-panel, .statistics, .arrived-list, .waiting-list, .cited-list, .providers-list, .turn-history { grid-column: 1; grid-row: auto; }
             .stats-grid { grid-template-columns: 1fr; }
             .admin-section { padding: 20px; }
             .turn-number { font-size: 52px; }
@@ -659,6 +800,17 @@
         <nav class="main-nav">
             <a href="index.html" class="nav-link">Inicio</a>
             <a href="admin.html" class="nav-link active">Panel Recepción</a>
+            <details class="admin-menu">
+                <summary class="admin-menu-trigger" aria-label="Abrir menú de administración">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                        <path d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                    <span>Menú</span>
+                </summary>
+                <div class="admin-menu-panel">
+                    <button type="button" id="btnAbrirCatalogoMateriales">Catálogo de Materiales SAP</button>
+                </div>
+            </details>
         </nav>
 
         <main>
@@ -768,6 +920,85 @@
             </div>
         </main>
     </div>
+
+    <dialog id="materialCatalogDialog" class="material-catalog-dialog" aria-labelledby="materialCatalogTitle">
+        <section class="admin-section material-catalog-admin">
+            <div class="material-catalog-header">
+                <h2 id="materialCatalogTitle">Catálogo de Materiales SAP</h2>
+                <button type="button" id="btnCerrarCatalogoMateriales" class="material-catalog-close" aria-label="Cerrar catálogo">&times;</button>
+            </div>
+            <form id="formCatalogoMateriales" class="material-catalog-form">
+                <div class="form-group">
+                    <label for="materialCatalogDestino">Catálogo:</label>
+                    <select id="materialCatalogDestino" required>
+                        <option value="ensambles">SIE / SI ENSAMBLES</option>
+                        <option value="plasticos">SIP / SI3 ZF SAS</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="materialCatalogCodigo">Código SAP:</label>
+                    <input id="materialCatalogCodigo" type="text" required autocomplete="off" placeholder="Ej. 10001234">
+                </div>
+                <div class="form-group">
+                    <label for="materialCatalogDescripcion">Material:</label>
+                    <input id="materialCatalogDescripcion" type="text" required maxlength="500" placeholder="Nombre del material">
+                </div>
+                <button type="submit" class="btn btn-primary">Agregar material</button>
+            </form>
+            <p id="materialCatalogStatus" class="material-catalog-status" role="status" aria-live="polite"></p>
+            <div class="material-catalog-viewer">
+                <div class="material-catalog-toolbar">
+                    <div class="form-group">
+                        <label for="materialCatalogFilter">Catálogo:</label>
+                        <select id="materialCatalogFilter">
+                            <option value="todos">Todos</option>
+                            <option value="ensambles">SIE / SI ENSAMBLES</option>
+                            <option value="plasticos">SIP / SI3 ZF SAS</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="materialCatalogSearch">Buscar material:</label>
+                        <input id="materialCatalogSearch" type="search" placeholder="Código SAP o nombre">
+                    </div>
+                    <div id="materialCatalogCount" class="material-catalog-count" role="status" aria-live="polite">Abre el catálogo para cargar materiales</div>
+                </div>
+                <div class="material-catalog-table-wrap">
+                    <table class="material-catalog-table">
+                        <thead>
+                            <tr><th>Código SAP</th><th>Material</th><th>Catálogo</th><th>Acciones</th></tr>
+                        </thead>
+                        <tbody id="materialCatalogRows">
+                            <tr><td colspan="3" class="material-catalog-empty">Cargando materiales...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </dialog>
+
+    <dialog id="materialEditDialog" class="material-catalog-dialog material-edit-dialog" aria-labelledby="materialEditTitle">
+        <section class="admin-section material-catalog-admin">
+            <div class="material-catalog-header">
+                <h2 id="materialEditTitle">Editar material SAP</h2>
+                <button type="button" id="btnCerrarEdicionMaterial" class="material-catalog-close" aria-label="Cerrar edición">&times;</button>
+            </div>
+            <form id="formEditarMaterial" class="material-edit-form">
+                <div class="form-group">
+                    <label for="materialEditCodigo">Código SAP</label>
+                    <input id="materialEditCodigo" type="text" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="materialEditDescripcion">Material</label>
+                    <input id="materialEditDescripcion" type="text" required maxlength="500" autocomplete="off">
+                </div>
+                <p id="materialEditStatus" class="material-catalog-status" role="status" aria-live="polite"></p>
+                <div class="material-edit-actions">
+                    <button type="button" id="btnCancelarEdicionMaterial" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                </div>
+            </form>
+        </section>
+    </dialog>
 
 
 
@@ -1384,13 +1615,320 @@
                 localStorage.removeItem('salidaAutorizada');
                 localStorage.removeItem('inspeccionSolicitada');
             } catch (e) {}
-            
+
+            let materialesCatalogoAdmin = [];
+            let catalogoAdminCargado = false;
+            const formCatalogo = document.getElementById('formCatalogoMateriales');
+            const menuCatalogo = document.querySelector('.admin-menu');
+            const dialogCatalogo = document.getElementById('materialCatalogDialog');
+            const dialogEditarMaterial = document.getElementById('materialEditDialog');
+            const formEditarMaterial = document.getElementById('formEditarMaterial');
+            const tablaCatalogo = document.getElementById('materialCatalogRows');
+            const contadorCatalogo = document.getElementById('materialCatalogCount');
+
+            function renderCatalogoAdmin() {
+                if (!tablaCatalogo) return;
+                const filtro = document.getElementById('materialCatalogFilter')?.value || 'todos';
+                const busqueda = (document.getElementById('materialCatalogSearch')?.value || '').trim().toLowerCase();
+                const filtrados = materialesCatalogoAdmin.filter(material => {
+                    const coincideCatalogo = filtro === 'todos' || material.destino === filtro;
+                    const texto = `${material.codigoSap} ${material.descripcion}`.toLowerCase();
+                    return coincideCatalogo && (!busqueda || texto.includes(busqueda));
+                });
+
+                tablaCatalogo.replaceChildren();
+                if (!filtrados.length) {
+                    const filaVacia = document.createElement('tr');
+                    const celdaVacia = document.createElement('td');
+                    celdaVacia.colSpan = 4;
+                    celdaVacia.className = 'material-catalog-empty';
+                    celdaVacia.textContent = 'No hay materiales que coincidan con la búsqueda.';
+                    filaVacia.appendChild(celdaVacia);
+                    tablaCatalogo.appendChild(filaVacia);
+                } else {
+                    const fragmento = document.createDocumentFragment();
+                    filtrados.forEach(material => {
+                        const fila = document.createElement('tr');
+                        [material.codigoSap, material.descripcion, material.etiqueta].forEach(valor => {
+                            const celda = document.createElement('td');
+                            celda.textContent = valor;
+                            fila.appendChild(celda);
+                        });
+                        const celdaAcciones = document.createElement('td');
+                        celdaAcciones.className = 'material-catalog-actions';
+                        const botonEditar = document.createElement('button');
+                        botonEditar.type = 'button';
+                        botonEditar.className = 'material-catalog-row-action';
+                        botonEditar.dataset.catalogAction = 'editar';
+                        botonEditar.dataset.codigoSap = material.codigoSap;
+                        botonEditar.dataset.destino = material.destino;
+                        botonEditar.textContent = 'Editar';
+                        const botonBorrar = document.createElement('button');
+                        botonBorrar.type = 'button';
+                        botonBorrar.className = 'material-catalog-row-action is-danger';
+                        botonBorrar.dataset.catalogAction = 'borrar';
+                        botonBorrar.dataset.codigoSap = material.codigoSap;
+                        botonBorrar.dataset.destino = material.destino;
+                        botonBorrar.textContent = 'Borrar';
+                        celdaAcciones.append(botonEditar, botonBorrar);
+                        fila.appendChild(celdaAcciones);
+                        fragmento.appendChild(fila);
+                    });
+                    tablaCatalogo.appendChild(fragmento);
+                }
+
+                if (contadorCatalogo) {
+                    contadorCatalogo.textContent = busqueda || filtro !== 'todos'
+                        ? `${filtrados.length} de ${materialesCatalogoAdmin.length} materiales`
+                        : `${materialesCatalogoAdmin.length} materiales`;
+                }
+            }
+
+            tablaCatalogo?.addEventListener('click', async event => {
+                const boton = event.target.closest('[data-catalog-action]');
+                if (!boton || !window.supabaseClient) return;
+
+                const codigoSap = boton.dataset.codigoSap;
+                const destino = boton.dataset.destino;
+                const tabla = destino === 'plasticos' ? 'materiales_sip' : 'materiales_sie';
+                const material = materialesCatalogoAdmin.find(item => item.codigoSap === codigoSap && item.destino === destino);
+                if (!material) return;
+
+                if (boton.dataset.catalogAction === 'editar') {
+                    dialogEditarMaterial.dataset.codigoOriginal = codigoSap;
+                    dialogEditarMaterial.dataset.destino = destino;
+                    document.getElementById('materialEditCodigo').value = codigoSap;
+                    document.getElementById('materialEditDescripcion').value = material.descripcion;
+                    document.getElementById('materialEditStatus').textContent = '';
+                    document.getElementById('materialEditStatus').dataset.state = '';
+                    dialogEditarMaterial.showModal();
+                    document.getElementById('materialEditCodigo').focus();
+                    return;
+                }
+
+                if (boton.dataset.catalogAction === 'borrar' && confirm(`¿Borrar ${codigoSap} · ${material.descripcion} del catálogo ${material.etiqueta}?`)) {
+                    boton.disabled = true;
+                    try {
+                        const { error } = await window.supabaseClient
+                            .from(tabla)
+                            .delete()
+                            .eq('codigo_sap', codigoSap);
+                        if (error) throw error;
+                        (destino === 'plasticos' ? window.CatalogoMaterialesSIP : window.CatalogoMaterialesSIE)?.delete(codigoSap);
+                        catalogoAdminCargado = false;
+                        await cargarCatalogoAdmin();
+                        const status = document.getElementById('materialCatalogStatus');
+                        status.textContent = `Material ${codigoSap} borrado del catálogo ${material.etiqueta}.`;
+                        status.dataset.state = 'success';
+                    } catch (error) {
+                        const status = document.getElementById('materialCatalogStatus');
+                        status.textContent = `No se pudo borrar ${codigoSap}: ${error.message || 'error de Supabase'}`;
+                        status.dataset.state = 'error';
+                    } finally {
+                        boton.disabled = false;
+                    }
+                }
+            });
+
+            async function cargarCatalogoAdmin() {
+                if (!window.supabaseClient) {
+                    if (contadorCatalogo) contadorCatalogo.textContent = 'Sin conexión con Supabase';
+                    return;
+                }
+
+                if (contadorCatalogo) contadorCatalogo.textContent = 'Cargando materiales...';
+                try {
+                    async function leerCatalogo(tabla) {
+                        const pageSize = 1000;
+                        const registros = [];
+                        let desde = 0;
+                        while (true) {
+                            const { data, error } = await window.supabaseClient
+                                .from(tabla)
+                                .select('codigo_sap, descripcion')
+                                .order('codigo_sap')
+                                .range(desde, desde + pageSize - 1);
+                            if (error) throw error;
+                            registros.push(...(data || []));
+                            if (!data || data.length < pageSize) break;
+                            desde += pageSize;
+                        }
+                        return registros;
+                    }
+
+                    const [sie, sip] = await Promise.all([
+                        leerCatalogo('materiales_sie'),
+                        leerCatalogo('materiales_sip')
+                    ]);
+
+                    materialesCatalogoAdmin = [
+                        ...sie.map(item => ({ ...item, destino: 'ensambles', etiqueta: 'SIE' })),
+                        ...sip.map(item => ({ ...item, destino: 'plasticos', etiqueta: 'SIP / SI3 ZF' }))
+                    ].map(item => ({
+                        codigoSap: item.codigo_sap,
+                        descripcion: item.descripcion,
+                        destino: item.destino,
+                        etiqueta: item.etiqueta
+                    })).sort((a, b) => a.codigoSap.localeCompare(b.codigoSap, 'en', { numeric: true }));
+                    catalogoAdminCargado = true;
+                    renderCatalogoAdmin();
+                } catch (error) {
+                    console.error('Error cargando catálogos SAP:', error);
+                    if (contadorCatalogo) contadorCatalogo.textContent = 'No se pudo cargar el catálogo';
+                    tablaCatalogo.replaceChildren();
+                    const filaError = document.createElement('tr');
+                    const celdaError = document.createElement('td');
+                    celdaError.colSpan = 3;
+                    celdaError.className = 'material-catalog-empty';
+                    celdaError.textContent = 'Verifica la conexión y los permisos SELECT de los catálogos.';
+                    filaError.appendChild(celdaError);
+                    tablaCatalogo.appendChild(filaError);
+                }
+            }
+
+            document.getElementById('btnAbrirCatalogoMateriales')?.addEventListener('click', () => {
+                menuCatalogo.open = false;
+                dialogCatalogo.showModal();
+                document.getElementById('materialCatalogCodigo').focus();
+                if (!catalogoAdminCargado) cargarCatalogoAdmin();
+            });
+            document.getElementById('btnCerrarCatalogoMateriales')?.addEventListener('click', () => dialogCatalogo.close());
+            document.getElementById('btnCerrarEdicionMaterial')?.addEventListener('click', () => dialogEditarMaterial.close());
+            document.getElementById('btnCancelarEdicionMaterial')?.addEventListener('click', () => dialogEditarMaterial.close());
+            document.getElementById('materialCatalogFilter')?.addEventListener('change', renderCatalogoAdmin);
+            document.getElementById('materialCatalogSearch')?.addEventListener('input', renderCatalogoAdmin);
+
+            if (formCatalogo) {
+                formCatalogo.addEventListener('submit', async event => {
+                    event.preventDefault();
+                    const destino = document.getElementById('materialCatalogDestino').value;
+                    const codigoSap = document.getElementById('materialCatalogCodigo').value.trim();
+                    const descripcion = document.getElementById('materialCatalogDescripcion').value.trim();
+                    const status = document.getElementById('materialCatalogStatus');
+                    const boton = formCatalogo.querySelector('button[type="submit"]');
+                    const tabla = destino === 'plasticos' ? 'materiales_sip' : 'materiales_sie';
+
+                    if (!window.supabaseClient) {
+                        status.textContent = 'No hay conexión con el catálogo de Supabase.';
+                        status.dataset.state = 'error';
+                        return;
+                    }
+                    boton.disabled = true;
+                    status.textContent = 'Validando y guardando material...';
+                    status.dataset.state = '';
+                    try {
+                        const catalogos = [
+                            { tabla: 'materiales_sie', etiqueta: 'SIE' },
+                            { tabla: 'materiales_sip', etiqueta: 'SIP / SI3 ZF' }
+                        ];
+                        const existentes = await Promise.all(catalogos.map(async catalogo => {
+                            const { data, error } = await window.supabaseClient
+                                .from(catalogo.tabla)
+                                .select('descripcion')
+                                .eq('codigo_sap', codigoSap)
+                                .maybeSingle();
+                            if (error) throw error;
+                            return data ? { ...catalogo, ...data } : null;
+                        }));
+                        const existente = existentes.find(Boolean);
+                        if (existente) {
+                            status.textContent = `El código ${codigoSap} ya existe en ${existente.etiqueta}: ${existente.descripcion}.`;
+                            status.dataset.state = 'error';
+                            return;
+                        }
+
+                        const { error } = await window.supabaseClient
+                            .from(tabla)
+                            .insert({ codigo_sap: codigoSap, descripcion });
+                        if (error) throw error;
+
+                        if (destino === 'plasticos') window.CatalogoMaterialesSIP?.set(codigoSap, descripcion);
+                        else window.CatalogoMaterialesSIE?.set(codigoSap, descripcion);
+                        catalogoAdminCargado = false;
+                        await cargarCatalogoAdmin();
+                        status.textContent = `Material ${codigoSap} agregado al catálogo ${destino === 'plasticos' ? 'SIP / SI3 ZF' : 'SIE'}.`;
+                        status.dataset.state = 'success';
+                        formCatalogo.reset();
+                    } catch (error) {
+                        console.error('Error agregando material al catálogo:', error);
+                        status.textContent = error.code === '23505'
+                            ? `El código SAP ${codigoSap} ya existe en este catálogo.`
+                            : `No se pudo agregar el material: ${error.message || 'error de Supabase'}`;
+                        status.dataset.state = 'error';
+                    } finally {
+                        boton.disabled = false;
+                    }
+                });
+            }
+
+            formEditarMaterial?.addEventListener('submit', async event => {
+                event.preventDefault();
+                const codigoOriginal = dialogEditarMaterial.dataset.codigoOriginal;
+                const destino = dialogEditarMaterial.dataset.destino;
+                const tabla = destino === 'plasticos' ? 'materiales_sip' : 'materiales_sie';
+                const codigoSap = document.getElementById('materialEditCodigo').value.trim();
+                const descripcion = document.getElementById('materialEditDescripcion').value.trim();
+                const status = document.getElementById('materialEditStatus');
+                const boton = formEditarMaterial.querySelector('button[type="submit"]');
+                if (!codigoSap || !descripcion) return;
+
+                boton.disabled = true;
+                status.textContent = 'Validando y guardando cambios...';
+                status.dataset.state = '';
+                try {
+                    const catalogos = [
+                        { tabla: 'materiales_sie', etiqueta: 'SIE' },
+                        { tabla: 'materiales_sip', etiqueta: 'SIP / SI3 ZF' }
+                    ];
+                    const existentes = await Promise.all(catalogos.map(async catalogo => {
+                        const { data, error } = await window.supabaseClient
+                            .from(catalogo.tabla)
+                            .select('codigo_sap, descripcion')
+                            .eq('codigo_sap', codigoSap)
+                            .maybeSingle();
+                        if (error) throw error;
+                        return data ? { ...catalogo, ...data } : null;
+                    }));
+                    const duplicado = existentes.find(existente => existente && (
+                        existente.tabla !== tabla || existente.codigo_sap !== codigoOriginal
+                    ));
+                    if (duplicado) {
+                        status.textContent = `El código ${codigoSap} ya existe en ${duplicado.etiqueta}: ${duplicado.descripcion}.`;
+                        status.dataset.state = 'error';
+                        return;
+                    }
+
+                    const { error } = await window.supabaseClient
+                        .from(tabla)
+                        .update({ codigo_sap: codigoSap, descripcion })
+                        .eq('codigo_sap', codigoOriginal);
+                    if (error) throw error;
+
+                    const catalogoLocal = destino === 'plasticos' ? window.CatalogoMaterialesSIP : window.CatalogoMaterialesSIE;
+                    catalogoLocal?.delete(codigoOriginal);
+                    catalogoLocal?.set(codigoSap, descripcion);
+                    catalogoAdminCargado = false;
+                    await cargarCatalogoAdmin();
+                    dialogEditarMaterial.close();
+                    const statusCatalogo = document.getElementById('materialCatalogStatus');
+                    statusCatalogo.textContent = `Material ${codigoSap} actualizado.`;
+                    statusCatalogo.dataset.state = 'success';
+                } catch (error) {
+                    console.error('Error editando material SAP:', error);
+                    status.textContent = error.code === '23505'
+                        ? `El código ${codigoSap} ya existe en este catálogo.`
+                        : `No se pudo editar el material: ${error.message || 'error de Supabase'}`;
+                    status.dataset.state = 'error';
+                } finally {
+                    boton.disabled = false;
+                }
+            });
+
             setTimeout(() => {
                 initSalidaDespachadorListener();
                 console.log('Listener de salida despachador iniciado');
             }, 2000);
         });
-
 
         async function initNotificacionesRealtime() {
             if (!window.supabaseClient) return;

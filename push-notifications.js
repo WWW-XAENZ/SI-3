@@ -218,8 +218,9 @@ class PushNotificationManager {
 
     // Notificaciones específicas del sistema - CON SONIDO
     notifyTurnoLlamado(turno) {
+        const materialesSap = Array.isArray(turno.materialesSap) ? turno.materialesSap : [];
         this.showLocalNotification('🔔 Turno Llamado', {
-            body: `Turno ${turno.numero} - ${turno.nombreEmpresa}`,
+            body: `Turno ${turno.numero} - ${turno.nombreEmpresa}${materialesSap.length ? ` - SAP: ${materialesSap.join(', ')}` : ''}`,
             data: { url: '/despachador.html', tipo: 'turno_llamado', turno },
             tag: 'turno-llamado-' + turno.numero,
             requireInteraction: true,
@@ -251,8 +252,9 @@ class PushNotificationManager {
     }
 
     notifyNuevoTurno(turno) {
+        const materialesSap = Array.isArray(turno.materialesSap) ? turno.materialesSap : [];
         this.showLocalNotification('📋 Nuevo Turno Registrado', {
-            body: `Turno ${turno.numero} - ${turno.nombreEmpresa} - ${turno.destino}`,
+            body: `Turno ${turno.numero} - ${turno.nombreEmpresa} - ${turno.destino}${materialesSap.length ? ` - SAP: ${materialesSap.join(', ')}` : ''}`,
             data: { url: '/admin.html', tipo: 'nuevo_turno', turno },
             tag: 'nuevo-turno-' + turno.numero,
             requireInteraction: false,

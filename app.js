@@ -18,6 +18,14 @@ window.getLocalISOString = () => {
 const getLocalDate = window.getLocalDate;
 const getLocalISOString = window.getLocalISOString;
 
+const escaparHtml = valor => String(valor).replace(/[&<>"']/g, caracter => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+}[caracter]));
+
 const CONFIG = {
     ADMIN_PASSWORD: 'RECEPCIONCEDI2',
     DESPACHADOR_PASSWORD: 'RECEPCIONDESPACHO',
@@ -776,6 +784,7 @@ const SupabaseDB = {
                 servicio: turno.servicio || null,
                 consecutivo_ingreso: turno.consecutivoIngreso || null,
                 num_facturas: turno.numFacturas ?? null,
+                materiales_sap: turno.materialesSap || [],
                 autorizado_salida: turno.autorizadoSalida || false
             };
             
@@ -1195,6 +1204,7 @@ const SupabaseDB = {
             estado: t.estado,
             destino: t.destino,
             fechaCita: t.fecha_cita,
+            materialesSap: t.materiales_sap || [],
             numFactura: t.num_factura,
             tipoVehiculo: t.tipo_vehiculo,
             bultos: t.bultos,
@@ -1241,6 +1251,7 @@ const SupabaseDB = {
                 servicio: turno.servicio || null,
                 consecutivo_ingreso: turno.consecutivoIngreso || null,
                 num_facturas: turno.numFacturas ?? null,
+                materiales_sap: turno.materialesSap || [],
                 autorizado_salida: false,
                 inspeccion_fisica: false,
                 es_transporte: turno.esTransporte === true || false,
@@ -1261,7 +1272,7 @@ const SupabaseDB = {
             return true;
         } catch (error) {
             console.error('Error al guardar en historial:', error);
-            const columnsToStrip = ['consecutivo_ingreso', 'num_facturas', 'es_transporte', 'nombre_proveedor', 'proveedor_transporte_id'];
+            const columnsToStrip = ['consecutivo_ingreso', 'num_facturas', 'materiales_sap', 'es_transporte', 'nombre_proveedor', 'proveedor_transporte_id'];
             const strippedData = { ...historialData };
             let anyStripped = false;
             for (const col of columnsToStrip) {
@@ -1337,6 +1348,7 @@ const SupabaseDB = {
                 servicio: h.servicio,
                 consecutivoIngreso: h.consecutivo_ingreso,
                 numFacturas: h.num_facturas,
+                materialesSap: h.materiales_sap || [],
                 autorizadoSalida: h.autorizado_salida,
                 inspeccionFisica: h.inspeccion_fisica,
                 esTransporte: h.es_transporte === true,
@@ -2295,6 +2307,7 @@ const Turnos = {
             consecutivoIngreso: datosProveedor.consecutivoIngreso || null,
             numFactura: datosProveedor.numFactura || null,
             numFacturas: datosProveedor.numFacturas || null,
+            materialesSap: datosProveedor.materialesSap || [],
             tipoVehiculo: datosProveedor.tipoVehiculo || null,
             bultos: datosProveedor.bultos || null,
             peso: datosProveedor.peso || null,
@@ -2837,6 +2850,9 @@ const RenderAdmin = {
                 if (AppState.turnoActual.peso) lines.push(`Peso: ${AppState.turnoActual.peso} kg`);
                 if (AppState.turnoActual.responsable) lines.push(`Responsable: ${AppState.turnoActual.responsable}`);
                 if (AppState.turnoActual.destino) lines.push(`Destino: ${AppState.turnoActual.destino}`);
+                if (AppState.turnoActual.materialesSap?.length) {
+                    lines.push(`Materiales SAP: ${AppState.turnoActual.materialesSap.map(escaparHtml).join(', ')}`);
+                }
                 if (AppState.turnoActual.autorizadoSalida) lines.push(`✓ SALIDA AUTORIZADA`);
                 
                 despachoDetail.innerHTML = lines.map(line => `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed #e2e8f0;">${line}</div>`).join('');
@@ -2884,6 +2900,7 @@ const RenderAdmin = {
                             ${turno.peso ? `<span>Peso: ${turno.peso.toString().toUpperCase().includes('KG') ? turno.peso : turno.peso + ' kg'}</span>` : ''}
                             ${turno.responsable ? `<span>Resp: ${turno.responsable}</span>` : ''}
                             ${turno.consecutivoIngreso ? `<span>FMM: ${turno.consecutivoIngreso}</span>` : ''}
+                            ${turno.materialesSap?.length ? `<span>Materiales SAP: ${turno.materialesSap.map(escaparHtml).join(', ')}</span>` : ''}
                         </div>
                         <div class="turn-item-time">
                             ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
@@ -2940,6 +2957,7 @@ const RenderAdmin = {
                             ${turno.peso ? `<span>Peso: ${turno.peso} kg</span>` : ''}
                             ${turno.responsable ? `<span>Resp: ${turno.responsable}</span>` : ''}
                             ${turno.consecutivoIngreso ? `<span>Cons: ${turno.consecutivoIngreso}</span>` : ''}
+                            ${turno.materialesSap?.length ? `<span>Materiales SAP: ${turno.materialesSap.map(escaparHtml).join(', ')}</span>` : ''}
                         </div>
                         <div class="turn-item-time">
                             ${turno.fechaCita ? turno.fechaCita.split('T')[0] + ' ' : ''}${turno.horaSolicitud ? turno.horaSolicitud.slice(0,5) : ''}${turno.motivo ? ' - ' + turno.motivo : ''}
@@ -3026,6 +3044,7 @@ const RenderAdmin = {
                                 ${turno.telefono ? `<div style="font-size:11px;color:#475569;">Tel: ${turno.telefono}</div>` : ''}
                                 ${turno.destino ? `<div style="font-size:11px;color:#475569;">Destino: ${destinoLabel[turno.destino] || turno.destino}</div>` : ''}
                                 ${turno.consecutivoIngreso ? `<div style="font-size:11px;color:#475569;">Cons: ${turno.consecutivoIngreso}</div>` : ''}
+                                ${turno.materialesSap?.length ? `<div style="font-size:11px;color:#475569;">Materiales SAP: ${turno.materialesSap.map(escaparHtml).join(', ')}</div>` : ''}
                                 ${turno.motivo ? `<div style="font-size:11px;color:#475569;">${horaCita.slice(0,5)} - ${turno.motivo}</div>` : `<div style="font-size:11px;color:#475569;">${horaCita.slice(0,5)}</div>`}
                             </div>
                         </div>
@@ -3247,6 +3266,7 @@ const RenderAdmin = {
                                 <th>Responsable</th>
                                 <th>Hora Inicio</th>
                                 <th>Hora Fin</th>
+                                <th>Materiales SAP</th>
                                 <th>Inspeccion</th>
                                 <th>Estado</th>
                                 <th>Destino</th>
@@ -3270,6 +3290,9 @@ const RenderAdmin = {
                                     <td>${h.responsable || '-'}</td>
                                     <td>${Utils.formatearHora(h.horaLlamada)}</td>
                                     <td>${Utils.formatearHora(h.horaFinalizacion)}</td>
+                                    <td class="history-sap-cell">${Array.isArray(h.materialesSap) && h.materialesSap.length
+                                        ? `<details class="history-sap-details"><summary>Mostrar <span>${h.materialesSap.length}</span></summary><div class="history-sap-code-list">${h.materialesSap.map(codigo => `<span class="history-sap-code">${escaparHtml(codigo)}</span>`).join('')}</div></details>`
+                                        : '<span class="history-sap-empty">—</span>'}</td>
                                     <td>${h.inspeccionFisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
                                     <td>${h.autorizadoSalida ? '<span style="color:#10b981;font-weight:600;">✓ SALIDA OK</span>' : '<span style="color:#f59e0b;">PENDIENTE</span>'}</td>
                                     <td>${destinoLabel[h.destino] || h.destino || '-'}</td>
@@ -3434,6 +3457,9 @@ const UsuarioHandlers = {
                 telefono: document.getElementById('telefono')?.value?.trim(),
                 consecutivoIngreso: document.getElementById('consecutivoIngreso')?.value?.trim() || null,
                 numFacturas: parseInt(document.getElementById('numFacturas')?.value) || 0,
+                materialesSap: Array.from(document.querySelectorAll('#materialesSapLista input'))
+                    .map(input => input.value.trim())
+                    .filter(Boolean),
                 servicio: document.getElementById('servicio')?.value,
                 destino: destino,
                 fechaCita: fechaCitaISO
@@ -3475,6 +3501,7 @@ const UsuarioHandlers = {
             e.target.reset();
             // Restaurar valores por defecto de fecha y limpiar slot
             InputConfig.configurarFechaCita();
+            InputConfig.resetearMaterialesSap();
             InputConfig.resetearSelectorHora();
             const motivoGroup = document.getElementById('motivoGroup');
             if (motivoGroup) motivoGroup.style.display = 'none';
@@ -3499,6 +3526,7 @@ const UsuarioHandlers = {
                     }
                     e.target.reset();
                     InputConfig.configurarFechaCita();
+                    InputConfig.resetearMaterialesSap();
                     InputConfig.resetearSelectorHora();
                     const motivoGroup = document.getElementById('motivoGroup');
                     if (motivoGroup) motivoGroup.style.display = 'none';
@@ -4361,6 +4389,7 @@ const proveedorData = {
             telefono: turnoParaDespacho.telefono || '',
             servicio: turnoParaDespacho.servicio || '',
             numFactura: turnoParaDespacho.numFactura || '',
+            materialesSap: turnoParaDespacho.materialesSap || [],
             tipoVehiculo: turnoParaDespacho.tipoVehiculo || '',
             bultos: turnoParaDespacho.bultos || '',
             peso: turnoParaDespacho.peso || '',
@@ -4891,6 +4920,242 @@ const AdminAccess = {
 // ============================================
 
 const InputConfig = {
+    configurarMaterialesSap() {
+        const lista = document.getElementById('materialesSapLista');
+        const botonAgregar = document.getElementById('btnAgregarMaterialSap');
+        if (!lista || !botonAgregar) return;
+
+        botonAgregar.addEventListener('click', () => this.agregarMaterialSap(lista));
+        lista.addEventListener('input', event => {
+            if (event.target.matches('.material-sap-input')) {
+                this.mostrarSugerenciasMaterialSap(event.target);
+                clearTimeout(event.target.catalogSearchTimer);
+                event.target.catalogSearchTimer = setTimeout(() => {
+                    this.mostrarDescripcionMaterialSap(event.target);
+                }, 180);
+            }
+        });
+        document.getElementById('destino')?.addEventListener('change', () => {
+            lista.querySelectorAll('.material-sap-input').forEach(entrada => {
+                this.mostrarSugerenciasMaterialSap(entrada);
+                this.mostrarDescripcionMaterialSap(entrada);
+            });
+        });
+        lista.addEventListener('click', event => {
+            const sugerencia = event.target.closest('.material-sap-suggestion');
+            if (sugerencia) {
+                const fila = sugerencia.closest('.material-sap-row');
+                const entrada = fila.querySelector('.material-sap-input');
+                entrada.value = sugerencia.dataset.codigoSap;
+                this.mostrarSugerenciasMaterialSap(entrada);
+                this.mostrarDescripcionMaterialSap(entrada);
+                entrada.focus();
+                return;
+            }
+
+            const botonQuitar = event.target.closest('.material-sap-remove');
+            if (!botonQuitar) return;
+            botonQuitar.closest('.material-sap-row').remove();
+            this.actualizarEtiquetasMaterialesSap(lista);
+        });
+        this.resetearMaterialesSap();
+    },
+
+    agregarMaterialSap(lista = document.getElementById('materialesSapLista'), enfocar = true) {
+        if (!lista) return;
+        const fila = document.createElement('div');
+        fila.className = 'material-sap-row';
+
+        const entrada = document.createElement('input');
+        entrada.type = 'text';
+        entrada.className = 'material-sap-input';
+        entrada.placeholder = 'Buscar por código SAP o nombre';
+        entrada.autocomplete = 'off';
+        entrada.setAttribute('role', 'combobox');
+        entrada.setAttribute('aria-autocomplete', 'list');
+        entrada.setAttribute('aria-expanded', 'false');
+
+        entrada.addEventListener('keydown', event => {
+            const sugerencias = campo.querySelector('.material-sap-suggestions');
+            if (event.key === 'ArrowDown' && sugerencias && !sugerencias.hidden) {
+                event.preventDefault();
+                sugerencias.querySelector('button')?.focus();
+            } else if (event.key === 'Escape' && sugerencias) {
+                sugerencias.hidden = true;
+                entrada.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        const campo = document.createElement('div');
+        campo.className = 'material-sap-field';
+
+        const descripcion = document.createElement('small');
+        descripcion.className = 'material-sap-description';
+        descripcion.setAttribute('aria-live', 'polite');
+        const sugerencias = document.createElement('div');
+        sugerencias.className = 'material-sap-suggestions';
+        sugerencias.setAttribute('role', 'listbox');
+        sugerencias.hidden = true;
+        campo.append(entrada, sugerencias, descripcion);
+
+        const botonQuitar = document.createElement('button');
+        botonQuitar.type = 'button';
+        botonQuitar.className = 'material-sap-remove';
+        botonQuitar.textContent = 'Quitar';
+
+        fila.append(campo, botonQuitar);
+        lista.appendChild(fila);
+        this.actualizarEtiquetasMaterialesSap(lista);
+        if (enfocar) entrada.focus();
+    },
+
+    mostrarSugerenciasMaterialSap(entrada) {
+        const lista = entrada.closest('.material-sap-field')?.querySelector('.material-sap-suggestions');
+        if (!lista) return;
+
+        const normalizar = texto => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase();
+        const termino = normalizar(entrada.value.trim());
+        lista.replaceChildren();
+        if (!termino) {
+            lista.hidden = true;
+            entrada.setAttribute('aria-expanded', 'false');
+            return;
+        }
+
+        const destino = document.getElementById('destino')?.value || '';
+        const catalogos = [];
+        if (destino !== 'plasticos') catalogos.push(['SIE', window.CatalogoMaterialesSIE]);
+        if (destino !== 'ensambles') catalogos.push(['SIP / SI3 ZF', window.CatalogoMaterialesSIP]);
+
+        const coincidencias = [];
+        catalogos.forEach(([etiqueta, catalogo]) => {
+            if (!(catalogo instanceof Map)) return;
+            catalogo.forEach((material, codigoSap) => {
+                const descripcion = typeof material === 'string' ? material : material?.descripcion || '';
+                const codigoNormalizado = normalizar(codigoSap);
+                const descripcionNormalizada = normalizar(descripcion);
+                if (codigoNormalizado.includes(termino) || descripcionNormalizada.includes(termino)) {
+                    coincidencias.push({
+                        codigoSap,
+                        descripcion,
+                        etiqueta,
+                        prioridad: codigoNormalizado.startsWith(termino) || descripcionNormalizada.startsWith(termino) ? 0 : 1
+                    });
+                }
+            });
+        });
+
+        coincidencias.sort((a, b) => a.prioridad - b.prioridad || a.codigoSap.localeCompare(b.codigoSap, 'en', { numeric: true }));
+        coincidencias.slice(0, 8).forEach(material => {
+            const opcion = document.createElement('button');
+            opcion.type = 'button';
+            opcion.className = 'material-sap-suggestion';
+            opcion.setAttribute('role', 'option');
+            opcion.dataset.codigoSap = material.codigoSap;
+
+            const codigo = document.createElement('strong');
+            codigo.textContent = material.codigoSap;
+            const descripcion = document.createElement('span');
+            descripcion.textContent = material.descripcion;
+            const catalogo = document.createElement('small');
+            catalogo.textContent = material.etiqueta;
+            opcion.append(codigo, descripcion, catalogo);
+            lista.appendChild(opcion);
+        });
+
+        lista.hidden = coincidencias.length === 0;
+        entrada.setAttribute('aria-expanded', String(!lista.hidden));
+    },
+
+    async mostrarDescripcionMaterialSap(entrada) {
+        const detalle = entrada.closest('.material-sap-field')?.querySelector('.material-sap-description');
+        if (!detalle) return;
+
+        const requestId = String(Number(entrada.dataset.catalogRequest || 0) + 1);
+        entrada.dataset.catalogRequest = requestId;
+        const codigo = entrada.value.trim();
+        if (!codigo) {
+            detalle.textContent = '';
+            detalle.dataset.estado = '';
+            return;
+        }
+
+        const destino = document.getElementById('destino')?.value || '';
+        const buscarSIE = destino !== 'plasticos';
+        const buscarSIP = destino === 'plasticos' || destino === 'ambos' || !destino;
+        const resultados = [];
+
+        if (buscarSIE) {
+            const materialSIE = window.CatalogoMaterialesSIE?.get(codigo);
+            if (materialSIE) resultados.push(`SIE: ${materialSIE}`);
+        }
+
+        if (buscarSIP) {
+            const materialSIP = window.CatalogoMaterialesSIP?.get(codigo);
+            if (materialSIP) {
+                resultados.push(`SI3 ZF: ${materialSIP}`);
+            }
+        }
+
+        if (codigo.length >= 5 && window.supabaseClient) {
+            if (!resultados.length) detalle.textContent = 'Buscando en el catálogo...';
+            const consultas = [];
+            if (buscarSIE) consultas.push(['SIE', 'materiales_sie']);
+            if (buscarSIP) consultas.push(['SI3 ZF', 'materiales_sip']);
+            let errorConsulta = false;
+            const encontrados = await Promise.all(consultas.map(async ([etiqueta, tabla]) => {
+                try {
+                    const { data, error } = await window.supabaseClient
+                        .from(tabla)
+                        .select('descripcion')
+                        .eq('codigo_sap', codigo)
+                        .maybeSingle();
+                    if (error) {
+                        errorConsulta = true;
+                        return null;
+                    }
+                    return data?.descripcion ? [etiqueta, data.descripcion] : null;
+                } catch (error) {
+                    errorConsulta = true;
+                    return null;
+                }
+            }));
+
+            if (!entrada.isConnected || entrada.dataset.catalogRequest !== requestId) return;
+            if (!errorConsulta) {
+                resultados.length = 0;
+                encontrados.filter(Boolean).forEach(([etiqueta, descripcion]) => resultados.push(`${etiqueta}: ${descripcion}`));
+            }
+        }
+
+        detalle.textContent = resultados.join(' | ') || (destino === 'ensambles'
+            ? 'Código no encontrado en el catálogo SIE.'
+            : destino === 'plasticos'
+                ? 'Código no encontrado en el catálogo SIP / SI3 ZF.'
+                : 'Código no encontrado en los catálogos SIE ni SIP.');
+        detalle.dataset.estado = resultados.length ? 'encontrado' : 'no-encontrado';
+    },
+
+    actualizarEtiquetasMaterialesSap(lista) {
+        lista.querySelectorAll('.material-sap-row').forEach((fila, indice) => {
+            const numero = indice + 1;
+            const entrada = fila.querySelector('input');
+            entrada.setAttribute('aria-label', `Código SAP del material ${numero}`);
+            fila.querySelector('.material-sap-description').id = `materialSapDescripcion${numero}`;
+            fila.querySelector('.material-sap-suggestions').id = `materialSapSugerencias${numero}`;
+            entrada.setAttribute('aria-controls', `materialSapSugerencias${numero}`);
+            entrada.setAttribute('aria-describedby', `materialSapDescripcion${numero}`);
+            fila.querySelector('button').setAttribute('aria-label', `Quitar material ${numero}`);
+        });
+    },
+
+    resetearMaterialesSap() {
+        const lista = document.getElementById('materialesSapLista');
+        if (!lista) return;
+        lista.replaceChildren();
+        this.agregarMaterialSap(lista, false);
+    },
+
     /**
      * Genera un array de slots de 15 minutos desde 08:00 a 17:00 (5 PM)
      * Cada slot es un string "HH:MM"
@@ -5437,6 +5702,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Página de usuario (index.html)
         if (document.getElementById('formSolicitarTurno')) {
             InputConfig.configurarPlacaInput();
+            InputConfig.configurarMaterialesSap();
             InputConfig.configurarServicioSelect();
             InputConfig.configurarFechaCita();
             InputConfig.configurarMayusculas();

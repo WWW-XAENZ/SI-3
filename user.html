@@ -446,6 +446,11 @@
                                   autocomplete="off"
                               >
                           </div>
+                        <div class="form-group materiales-sap-group">
+                            <label>Materiales a Entregar (Código SAP o nombre):</label>
+                            <div id="materialesSapLista" class="materiales-sap-list" aria-live="polite"></div>
+                            <button type="button" id="btnAgregarMaterialSap" class="material-sap-add">+ Agregar material</button>
+                        </div>
                         <div class="form-group">
                             <label for="servicio">Tipo de Servicio: <span aria-hidden="true">*</span></label>
                             <select id="servicio" required aria-required="true">
@@ -653,6 +658,8 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
+    <script src="materiales_sie.js"></script>
+    <script src="materiales_sip.js"></script>
     <script src="app.js?v=3"></script>
     <script src="sonido.js"></script>
     <script src="push-notifications.js"></script>

@@ -702,6 +702,12 @@
 
         let turnosDelDia = [];
 
+        function cargarHistorialDespachador() {
+            return window._cargarHistorialDespachador
+                ? window._cargarHistorialDespachador()
+                : Promise.resolve();
+        }
+
         function fechaDespSeleccionada() {
             const inp = document.getElementById('fechaHistorialDesp');
             const val = (inp && inp.value) ? inp.value : '';
@@ -816,6 +822,7 @@
             const horaInicio = turno.horaLlamada || turno.hora_llamada || turno.horaSolicitud || turno.hora_solicitud;
             const horaLlegada = turno.horaLlegada || turno.hora_llegada;
             const peso = turno.peso ? (String(turno.peso).toUpperCase().includes('KG') ? turno.peso : `${turno.peso} kg`) : '-';
+            const materialesSap = turno.materialesSap || turno.materiales_sap || [];
             const campos = [
                 ['Turno', turno.numero],
                 ['Proveedor', turno.nombreProveedor || turno.nombre_proveedor || turno.nombre || turno.nombreEmpresa || turno.nombre_empresa],
@@ -840,6 +847,22 @@
                 row.append(title, ` ${value || '-'}`);
                 panel.appendChild(row);
             });
+            if (materialesSap.length) {
+                const sapRow = document.createElement('div');
+                sapRow.className = 'dispatch-sap-row';
+                const label = document.createElement('strong');
+                label.textContent = 'Materiales SAP';
+                const list = document.createElement('div');
+                list.className = 'sap-code-list';
+                materialesSap.forEach(codigo => {
+                    const code = document.createElement('span');
+                    code.className = 'sap-code';
+                    code.textContent = codigo;
+                    list.appendChild(code);
+                });
+                sapRow.append(label, list);
+                panel.appendChild(sapRow);
+            }
         };
 
         function normalizarDatosNotificacion(datos) {
@@ -848,6 +871,16 @@
                 try { return JSON.parse(datos); } catch (error) { return null; }
             }
             return datos;
+        }
+
+        function escaparHtmlDespachador(valor) {
+            return String(valor).replace(/[&<>"']/g, caracter => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[caracter]));
         }
 
         function filtrarYMostrarTurnos() {
@@ -882,6 +915,9 @@
                         const bultos = h.bultos || '-';
                         const vehiculo = h.tipo_vehiculo || '-';
                         const responsable = h.responsable || '-';
+                        const materialesSap = Array.isArray(h.materiales_sap || h.materialesSap)
+                            ? (h.materiales_sap || h.materialesSap)
+                            : [];
                         const horaInicio = Utils.formatearHora(h.hora_llamada);
                         const horaFin = Utils.formatearHora(h.hora_finalizacion);
                         
@@ -902,6 +938,7 @@
                             <span><strong>Bultos:</strong> ${bultos}</span>
                             <span><strong>Vehículo:</strong> ${vehiculo}</span>
                             <span><strong>Responsable:</strong> ${responsable}</span>
+                            ${materialesSap.length ? `<div class="pending-exit-materials"><strong>Materiales SAP</strong><div class="sap-code-list">${materialesSap.map(codigo => `<span class="sap-code">${escaparHtmlDespachador(codigo)}</span>`).join('')}</div></div>` : ''}
                             <span><strong>Hora inicio:</strong> ${horaInicio}</span>
                             <span><strong>Hora fin:</strong> ${horaFin}</span>
                         </div>
@@ -965,6 +1002,8 @@
                     } catch (err) {
                         console.error('❌ Error al parsear:', err);
                     }
+                } else if (e.key === 'proveedorListoSalir' && !e.newValue) {
+                    window.limpiarProveedorListo?.();
                 }
             });
             
@@ -1194,6 +1233,7 @@
                                             <th>Hora Inicio</th>
                                             <th>Hora Fin</th>
                                             <th>Consecutivo</th>
+                                            <th>Materiales SAP</th>
                                             <th>Inspeccion</th>
                                             <th>Estado</th>
                                             <th>Destino</th>
@@ -1205,6 +1245,10 @@ ${historialConProveedores.map(h => {
                         const horaInicio = Utils.formatearHora(h.hora_llamada);
                         const horaFin = Utils.formatearHora(h.hora_finalizacion);
                         const consecutivo = h.consecutivo_ingreso || '-';
+                        const codigosMaterialSap = Array.isArray(h.materiales_sap) ? h.materiales_sap : [];
+                        const materialesSap = codigosMaterialSap.length
+                            ? `<details class="history-sap-details"><summary>Mostrar <span>${codigosMaterialSap.length}</span></summary><div class="history-sap-code-list">${codigosMaterialSap.map(codigo => `<span class="history-sap-code">${escaparHtmlDespachador(codigo)}</span>`).join('')}</div></details>`
+                            : '<span class="history-sap-empty">—</span>';
                         const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
                         const displayDestino = h.proveedor_destino && h.proveedor_destino !== h.destino 
                             ? (destinoLabel[h.proveedor_destino] || h.proveedor_destino) 
@@ -1223,6 +1267,7 @@ ${historialConProveedores.map(h => {
                         <td>${horaInicio}</td>
                         <td>${horaFin}</td>
                         <td>${consecutivo}</td>
+                        <td>${materialesSap}</td>
                         <td>${h.inspeccion_fisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
                         <td>${h.autorizado_salida ? '<span class="estado-ok">✓ OK</span>' : '<span class="estado-pend">PEND</span>'}</td>
                         <td>${displayDestino}</td>
@@ -1298,6 +1343,7 @@ return `
                                              <div class="turn-item-company">${turno.nombre_empresa || '-'}</div>
                                              <div class="turn-item-time">${turno.fecha_cita ? turno.fecha_cita.split('T')[0] + ' ' : ''}${horaCita} - ${destinoLabel[turno.destino] || turno.destino}</div>
                                              ${turno.consecutivo_ingreso ? `<div class="turn-item-details" style="font-size:11px;color:#475569;margin-top:4px;">Cons: ${turno.consecutivo_ingreso}</div>` : ''}
+                                             ${(turno.materiales_sap || turno.materialesSap || []).length ? `<div class="turn-item-details" style="font-size:11px;color:#475569;margin-top:4px;">Materiales SAP: ${(turno.materiales_sap || turno.materialesSap || []).map(escaparHtmlDespachador).join(', ')}</div>` : ''}
                                          </div>
                                      </div>
                                  `;
@@ -1327,6 +1373,18 @@ return `
                     const ch = window.supabaseClient.channel('desp-realtime-' + Date.now())
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'historial_turnos' }, (payload) => {
                             console.log('📊 Cambio en historial detectado, recargando...');
+                            if (payload.eventType === 'DELETE' && payload.old) {
+                                const proveedorActivo = normalizarDatosNotificacion(
+                                    JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null')
+                                );
+                                const esProveedorBorrado = proveedorActivo && (
+                                    String(proveedorActivo.numero) === String(payload.old.numero) ||
+                                    (proveedorActivo.esTransporte && proveedorActivo.proveedores?.some(item =>
+                                        String(item.id) === String(payload.old.proveedor_transporte_id)
+                                    ))
+                                );
+                                if (esProveedorBorrado) window.limpiarProveedorListo?.();
+                            }
                             cargarTodoDespachador();
                             cargarHistorialDespachador();
                             if (window.SonidoSI3) window.SonidoSI3.inicializar();
@@ -1353,7 +1411,7 @@ return `
                             cargarEstadisticasDespachador();
                             cargarHistorialDespachador();
                         })
-                        .on('postgres_changes', { event: '*', schema: 'public', table: 'notificaciones_salida' }, (payload) => {
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'notificaciones_salida' }, async (payload) => {
                             if (window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(payload.new)) return;
                             console.log('🔔 Notificación salida detectada desde Supabase, actualizando proveedor...');
                             const notif = payload.new;
@@ -1373,7 +1431,12 @@ return `
                                         datos: datos
                                     }));
                                 } else {
-                                    mostrarProveedorListo(datos);
+                                    const pendiente = await window.validarProveedorPendienteSalida?.(datos);
+                                    if (pendiente !== false) {
+                                        mostrarProveedorListo(datos);
+                                    } else {
+                                        window.limpiarProveedorListo?.();
+                                    }
                                 }
                             }
 
@@ -1451,7 +1514,7 @@ return `
                             window.mostrarProveedorListo?.(proveedor);
                         } catch (err) {}
                     } else {
-                        cerrarModalProveedorListo();
+                        window.limpiarProveedorListo?.();
                     }
                 }
             });
@@ -1529,30 +1592,58 @@ return `
                         const { data, error } = await window.supabaseClient
                             .from('notificaciones_salida')
                             .select('*')
-                            .in('tipo', ['salida_pendiente', 'turno_completado', 'salida_autorizada'])
+                            .eq('tipo', 'salida_pendiente')
+                            .eq('remitente', 'admin')
                             .order('created_at', { ascending: false })
-                            .limit(20);
+                            .limit(50);
 
                         if (error) throw error;
 
-                        const notificacion = (data || []).find(item => item && item.datos);
-                        if (!notificacion || notificacion.tipo === 'salida_autorizada') {
-                            return null;
-                        }
+                        for (const notificacion of data || []) {
+                            const datos = normalizarDatosNotificacion(notificacion.datos);
+                            if (!datos) continue;
 
-                        const datos = normalizarDatosNotificacion(notificacion.datos);
-                        if (!datos) {
-                            return null;
-                        }
+                            const pendiente = await proveedorTieneSalidaPendiente(datos);
+                            if (pendiente === false) continue;
 
-                        console.log('📡 Proveedor listo cargado desde Supabase:', datos);
-                        window.mostrarProveedorListo?.(datos);
-                        return datos;
+                            console.log('📡 Proveedor pendiente cargado desde Supabase:', datos);
+                            window.mostrarProveedorListo?.(datos);
+                            return datos;
+                        }
+                        window.limpiarProveedorListo?.();
+                        return null;
                     } catch (e) {
                         console.warn('No se pudo cargar proveedor listo desde Supabase:', e);
                         return null;
                     }
                 }
+
+                async function proveedorTieneSalidaPendiente(proveedor) {
+                    if (!window.supabaseClient || !proveedor?.numero) return null;
+                    try {
+                        let consulta = window.supabaseClient
+                            .from('historial_turnos')
+                            .select('numero, autorizado_salida, proveedor_transporte_id');
+
+                        const idsProveedores = proveedor.esTransporte && Array.isArray(proveedor.proveedores)
+                            ? proveedor.proveedores.map(item => item.id).filter(Boolean)
+                            : [];
+
+                        if (idsProveedores.length) {
+                            consulta = consulta.in('proveedor_transporte_id', idsProveedores);
+                        } else {
+                            consulta = consulta.eq('numero', String(proveedor.numero));
+                        }
+
+                        const { data, error } = await consulta.limit(50);
+                        if (error) throw error;
+                        return (data || []).some(item => item.autorizado_salida !== true);
+                    } catch (error) {
+                        console.warn('No se pudo validar el turno pendiente:', error.message);
+                        return null;
+                    }
+                }
+                window.validarProveedorPendienteSalida = proveedorTieneSalidaPendiente;
 
                 function verificarProveedorListo() {
                     console.log('🔍 Verificando proveedorListoSalir...');
@@ -1561,7 +1652,18 @@ return `
                         try {
                             const proveedor = normalizarDatosNotificacion(JSON.parse(datosLocales));
                             if (proveedor) {
-                                window.mostrarProveedorListo?.(proveedor);
+                                proveedorTieneSalidaPendiente(proveedor).then(pendiente => {
+                                    if (pendiente === false) {
+                                        const proveedorActual = normalizarDatosNotificacion(
+                                            JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null')
+                                        );
+                                        if (proveedorActual?.numero === proveedor.numero) {
+                                            window.limpiarProveedorListo?.();
+                                        }
+                                        return;
+                                    }
+                                    window.mostrarProveedorListo?.(proveedor);
+                                });
                                 return;
                             }
                         } catch (error) {
@@ -1631,6 +1733,12 @@ return `
                         const peso = proveedor.peso
                             ? (String(proveedor.peso).toUpperCase().includes('KG') ? proveedor.peso : `${proveedor.peso} kg`)
                             : '-';
+                        const materialesSap = Array.isArray(proveedor.materialesSap || proveedor.materiales_sap)
+                            ? (proveedor.materialesSap || proveedor.materiales_sap)
+                            : [];
+                        const materialesSapHtml = materialesSap.length
+                            ? materialesSap.map(codigo => `<span class="sap-code">${escaparHtmlDespachador(codigo)}</span>`).join('')
+                            : '<span class="sap-code-empty">Sin materiales</span>';
                         const campos = [
                             ['Placa', proveedor.nit],
                             ['Factura', proveedor.numFactura],
@@ -1653,6 +1761,7 @@ return `
                             </div>
                             <div class="ready-turn-details">
                                 ${campos.map(([label, value]) => `<div class="ready-turn-field"><span>${label}</span><strong>${value || '-'}</strong></div>`).join('')}
+                                <div class="ready-turn-materials"><span>Materiales SAP</span><div class="sap-code-list">${materialesSapHtml}</div></div>
                             </div>
                         `;
                         
@@ -1664,6 +1773,7 @@ return `
                                 </div>
                                 <div class="ready-turn-details ready-turn-details-panel">
                                     ${campos.map(([label, value]) => `<div class="ready-turn-field"><span>${label}</span><strong>${value || '-'}</strong></div>`).join('')}
+                                    <div class="ready-turn-materials"><span>Materiales SAP</span><div class="sap-code-list">${materialesSapHtml}</div></div>
                                 </div>
                             `;
                         }
@@ -1761,6 +1871,12 @@ return `
                     if (modalExistente) modalExistente.remove();
                     
                     const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                    const materialesSap = Array.isArray(proveedor.materialesSap || proveedor.materiales_sap)
+                        ? (proveedor.materialesSap || proveedor.materiales_sap)
+                        : [];
+                    const materialesSapHtml = materialesSap.length
+                        ? materialesSap.map(codigo => `<span class="sap-code">${escaparHtmlDespachador(codigo)}</span>`).join('')
+                        : '<span class="sap-code-empty">Sin materiales</span>';
 
                     if (proveedor.esTransporte && Array.isArray(proveedor.proveedores) && proveedor.proveedores.length > 0) {
                         const total = proveedor.proveedores.length;
@@ -1848,6 +1964,10 @@ return `
                                         <td>${destinoLabel[proveedor.destino] || proveedor.destino || 'N/A'}</td>
                                     </tr>
                                     <tr>
+                                        <td><strong>Materiales SAP:</strong></td>
+                                        <td><div class="sap-code-list">${materialesSapHtml}</div></td>
+                                    </tr>
+                                    <tr>
                                         <td><strong>Contacto:</strong></td>
                                         <td>${proveedor.contacto || 'N/A'}</td>
                                     </tr>
@@ -1882,6 +2002,8 @@ return `
                 verificarProveedorListo();
                 
                 function limpiarProveedorListo() {
+                    localStorage.removeItem('proveedorListoSalir');
+                    document.getElementById('modal-proveedor-listo')?.remove();
                     const turnoListoDiv = document.getElementById('turnoListoSalir');
                     const infoDespachoDiv = document.getElementById('infoDespachoActual');
                     const btnAutorizar = document.getElementById('btnAutorizarSalida');
@@ -2075,6 +2197,7 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                                             <th>Hora Inicio</th>
                                             <th>Hora Fin</th>
                                             <th>Consecutivo</th>
+                                            <th>Materiales SAP</th>
                                             <th>Inspeccion</th>
                                             <th>Estado</th>
                                             <th>Destino</th>
@@ -2089,6 +2212,10 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                                                 ? (destinoLabel[h.proveedor_destino] || h.proveedor_destino) 
                                                 : (destinoLabel[h.destino] || h.destino || '-');
                                             const consecutivo = h.consecutivo_ingreso || '-';
+                                            const codigosMaterialSap = Array.isArray(h.materiales_sap) ? h.materiales_sap : [];
+                                            const materialesSap = codigosMaterialSap.length
+                                                ? `<details class="history-sap-details"><summary>Mostrar <span>${codigosMaterialSap.length}</span></summary><div class="history-sap-code-list">${codigosMaterialSap.map(codigo => `<span class="history-sap-code">${escaparHtmlDespachador(codigo)}</span>`).join('')}</div></details>`
+                                                : '<span class="history-sap-empty">—</span>';
                                             return `
                                             <tr>
                                                 <td><strong>${h.numero}</strong></td>
@@ -2103,6 +2230,7 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                                                 <td>${horaInicio}</td>
                                                 <td>${horaFin}</td>
                                                 <td>${consecutivo}</td>
+                                                <td>${materialesSap}</td>
                                                 <td>${h.inspeccion_fisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
                                                 <td>${h.autorizado_salida ? '<span class="estado-ok">✓ OK</span>' : '<span class="estado-pend">PEND</span>'}</td>
                                                 <td>${displayDestino}</td>
@@ -2123,6 +2251,8 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                     }
                 }
                 
+                window._cargarHistorialDespachador = cargarHistorialDespachador;
+
                 window.autorizarSalidaDesdeLista = async function(btn) {
                     const item = btn.closest('.pending-exit-item');
                     const turno = {
@@ -2308,7 +2438,7 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                             if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
                             if (window.SonidoAlerta) { window.SonidoAlerta.inicializar(); window.SonidoAlerta.reproducir(3); }
                             const datosNotificacion = normalizarDatosNotificacion(notif.datos);
-                            if (['salida_pendiente', 'turno_completado'].includes(notif.tipo) && datosNotificacion) {
+                            if (notif.tipo === 'salida_pendiente' && datosNotificacion) {
                                 if (typeof window.mostrarProveedorListo === 'function') {
                                     try {
                                         window.mostrarProveedorListo(datosNotificacion);

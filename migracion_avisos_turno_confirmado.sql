@@ -64,6 +64,7 @@ BEGIN
         'numFactura', NEW.num_factura,
         'consecutivoIngreso', NEW.consecutivo_ingreso,
         'numFacturas', NEW.num_facturas,
+        'materialesSap', COALESCE(NEW.materiales_sap, '[]'::jsonb),
         'tipoVehiculo', NEW.tipo_vehiculo,
         'bultos', NEW.bultos,
         'peso', NEW.peso,
