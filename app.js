@@ -4947,7 +4947,8 @@ const InputConfig = {
                 const fila = sugerencia.closest('.material-sap-row');
                 const entrada = fila.querySelector('.material-sap-input');
                 entrada.value = sugerencia.dataset.codigoSap;
-                this.mostrarSugerenciasMaterialSap(entrada);
+                fila.querySelector('.material-sap-suggestions').hidden = true;
+                entrada.setAttribute('aria-expanded', 'false');
                 this.mostrarDescripcionMaterialSap(entrada);
                 entrada.focus();
                 return;
