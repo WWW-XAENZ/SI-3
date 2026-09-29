@@ -173,6 +173,20 @@
     <script>
         let todasLasFacturas = [];
         let mostrandoTodas = false;
+        let nombresTransportadoras = new Set();
+
+        function normalizarNombreFactura(nombre) {
+            return (nombre || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase();
+        }
+
+        function obtenerProveedorFactura(factura) {
+            const proveedor = (factura.nombre_proveedor || '').trim();
+            if (proveedor) return proveedor;
+
+            const empresa = (factura.nombre_empresa || '').trim();
+            const esTransportadora = factura.es_transporte || nombresTransportadoras.has(normalizarNombreFactura(empresa));
+            return esTransportadora ? 'Proveedor no asociado' : empresa || '-';
+        }
 
         async function cargarFacturas() {
             const tbody = document.getElementById('facturasBody');
@@ -184,6 +198,9 @@
             }
             
             try {
+                const consultaTransportadoras = window.supabaseClient
+                    .from('proveedores_transporte')
+                    .select('nombre_empresa');
                 let query = window.supabaseClient
                      .from('historial_turnos')
                      .select('num_factura, nombre_empresa, nombre_proveedor, es_transporte, destino, bultos, peso, consecutivo_ingreso, hora_llamada, hora_finalizacion, fecha, estado, fecha_cita, hora_solicitud')
@@ -193,9 +210,19 @@
                     query = query.limit(1000);
                 }
                 
-                const { data, error } = await query;
+                const [resultadoFacturas, resultadoTransportadoras] = await Promise.all([query, consultaTransportadoras]);
+                const { data, error } = resultadoFacturas;
                 
                 if (error) throw error;
+
+                if (resultadoTransportadoras.error) {
+                    console.warn('No se pudo cargar el catálogo de transportadoras:', resultadoTransportadoras.error);
+                    nombresTransportadoras = new Set();
+                } else {
+                    nombresTransportadoras = new Set((resultadoTransportadoras.data || [])
+                        .map(transportadora => normalizarNombreFactura(transportadora.nombre_empresa))
+                        .filter(Boolean));
+                }
                 
                 todasLasFacturas = data || [];
                 aplicarFiltroFacturas();
@@ -223,7 +250,7 @@
 
                 if (query) {
                     const factura = (f.num_factura || '').toLowerCase();
-                    const proveedor = ((f.es_transporte && f.nombre_proveedor) ? f.nombre_proveedor : (f.nombre_empresa || f.nombre_proveedor || '')).toLowerCase();
+                    const proveedor = obtenerProveedorFactura(f).toLowerCase();
                     const destino = (destinoLabel[f.destino] || f.destino || '').toLowerCase();
                     const consecutivo = (f.consecutivo_ingreso || '').toLowerCase();
                     return factura.includes(query) || proveedor.includes(query) || destino.includes(query) || consecutivo.includes(query);
@@ -238,7 +265,7 @@
                 tbody.innerHTML = filtradas.map(f => `
                     <tr>
                         <td>${f.num_factura || '-'}</td>
-                        <td>${(f.es_transporte && f.nombre_proveedor) ? f.nombre_proveedor : (f.nombre_empresa || f.nombre_proveedor || '-')}</td>
+                        <td>${obtenerProveedorFactura(f)}</td>
                         <td>${destinoLabel[f.destino] || f.destino || '-'}</td>
                         <td>${f.bultos || '-'}</td>
                         <td>${f.peso || '-'}</td>
