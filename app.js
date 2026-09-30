@@ -26,6 +26,191 @@ const escaparHtml = valor => String(valor).replace(/[&<>"']/g, caracter => ({
     "'": '&#39;'
 }[caracter]));
 
+const normalizarTipoVehiculo = valor => String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+
+const iconoTipoVehiculoSvg = (valor, incluirRuedas = true) => {
+    const tipoNormalizado = normalizarTipoVehiculo(valor);
+    const tipo = tipoNormalizado.includes('CONTEN') ? 'contenedor'
+        : tipoNormalizado.includes('CARPADO') ? 'carpado'
+            : tipoNormalizado.includes('FURGON') ? 'furgon'
+                : tipoNormalizado.includes('MULA') ? 'mula'
+                    : tipoNormalizado.includes('MOTO') ? 'moto'
+                        : tipoNormalizado.includes('OTRO') ? 'otro'
+                            : tipoNormalizado.includes('PARTICULAR') ? 'particular'
+                                : 'sencillo';
+        if (tipo === 'otro') {
+            return '<svg class="dispatch-vehicle-svg vehicle-type-icon" viewBox="0 0 120 64" role="img" aria-label="Persona"><g class="dispatch-person-figure"><circle cx="60" cy="12" r="8"/><path d="M45 31q0-9 9-9h12q9 0 9 9v14h-8v15H54V45h-9z"/><path d="m47 31-11 16m37-16 11 16"/></g></svg>';
+        }
+        const sprites = {
+            mula: { src: 'vehiculo-mula.png', ratio: 490 / 190, wheelSize: 11, wheels: [[11.2, 78.9], [23, 78.9], [58.4, 78.9], [85.2, 78.9]], label: 'MULA' },
+            contenedor: { src: 'vehiculo-contenedor.png', ratio: 465 / 215, wheelSize: 11, wheels: [[13.2, 80.9], [26.5, 80.9], [83, 80.9]], label: 'CONTENEDOR' },
+            carpado: { src: 'vehiculo-carpado.png', ratio: 450 / 208, wheelSize: 12, wheels: [[16.9, 82.7], [31.7, 82.7], [81.8, 82.7]], label: 'CARPADO' },
+            furgon: { src: 'vehiculo-furgon.png', ratio: 395 / 215, wheelSize: 14, wheels: [[22.2, 79.5], [80.6, 79.5]], label: 'FURGON' },
+            moto: { src: 'vehiculo-moto.png', ratio: 340 / 220, wheelSize: 28, wheels: [[18.7, 70.2], [80.4, 70.5]], label: 'MOTO' },
+            particular: { src: 'vehiculo-particular.png', ratio: 390 / 185, wheelSize: 13, wheels: [[21.8, 77], [80.3, 77]], label: 'PARTICULAR' },
+            sencillo: { src: 'vehiculo-particular.png', ratio: 390 / 185, wheelSize: 13, wheels: [[21.8, 77], [80.3, 77]], label: 'SENCILLO' }
+        };
+        const sprite = sprites[tipo] || sprites.sencillo;
+        const ruedasRecortadas = incluirRuedas ? sprite.wheels.map(([x, y]) => `
+            <span class="dispatch-crop-wheel" style="left:${x}%;top:${y}%;--wheel-size:${sprite.wheelSize}%">
+                <svg class="dispatch-crop-wheel-spin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22M1 12h22M4.2 4.2l15.6 15.6M19.8 4.2 4.2 19.8"/><circle cx="12" cy="12" r="3"/></svg>
+            </span>
+        `).join('') : '';
+        return `<span class="dispatch-vehicle-crop" data-vehicle-type="${tipo}" style="--sprite-ratio:${sprite.ratio}" role="img" aria-label="${sprite.label} en ruta"><img class="dispatch-vehicle-crop-image" src="${sprite.src}" alt="" draggable="false">${ruedasRecortadas}</span>`;
+
+};
+
+window.iconoTipoVehiculoSvg = iconoTipoVehiculoSvg;
+
+const iconoTipoServicioSvg = valor => {
+    const iconos = {
+        entrega: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9M8 5.2l8 4.5"/>',
+        servicio: '<path d="M14.5 6.5a4 4 0 0 0-5.2 5.2l-5.5 5.5a1.4 1.4 0 0 0 2 2l5.5-5.5a4 4 0 0 0 5.2-5.2l-2.2 2.2-2-2 2.2-2.2Z"/>',
+        reunion: '<circle cx="9" cy="8" r="3"/><path d="M3.5 20v-1.5a5.5 5.5 0 0 1 11 0V20M16 5.5a3 3 0 0 1 0 5.8M17 14a4.5 4.5 0 0 1 3.5 4.4V20"/>',
+        otro: '<circle cx="12" cy="12" r="9"/><path d="M8 12h.01M12 12h.01M16 12h.01"/>'
+    };
+    const tipo = String(valor || '').toLowerCase();
+    return `<svg class="service-type-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconos[tipo] || iconos.otro}</svg>`;
+};
+
+function inicializarIconoSelect(select, crearIcono) {
+    if (!select) return;
+
+    let control = select.closest('.select-icon-wrap');
+    if (!control) {
+        control = document.createElement('div');
+        control.className = 'select-icon-wrap';
+        select.parentElement.insertBefore(control, select);
+        control.appendChild(select);
+        const icon = document.createElement('span');
+        icon.className = 'select-icon';
+        icon.hidden = true;
+        icon.setAttribute('aria-hidden', 'true');
+        control.appendChild(icon);
+    }
+
+    const icon = control.querySelector('.select-icon');
+    const actualizar = () => {
+        const tipo = select.value;
+        icon.hidden = !tipo;
+        icon.innerHTML = tipo ? crearIcono(tipo) : '';
+    };
+
+    select.addEventListener('change', actualizar);
+    select.addEventListener('focus', actualizar);
+    select.form?.addEventListener('reset', () => requestAnimationFrame(actualizar));
+    actualizar();
+}
+
+function inicializarVistasPreviasTipoVehiculo() {
+    ['#despachoTipoVehiculo', '#transportistaTipoVehiculo', '#editHistTipo', '#sinTurnoTipo']
+        .forEach(selector => inicializarIconoSelect(document.querySelector(selector), tipo => iconoTipoVehiculoSvg(tipo, false)));
+
+    inicializarIconoSelect(document.getElementById('servicio'), iconoTipoServicioSvg);
+}
+
+function formatearFacturasHistorial(turno) {
+    const factura = String(turno.numFactura || turno.num_factura || '').trim();
+    if (!factura) return '-';
+
+    const coincidencias = [...factura.matchAll(/\b(SI3\s+ZF|SIE)\s*\(([^)]+)\)/gi)];
+    if (normalizarTipoVehiculo(turno.destino || turno.destino_vehiculo) !== 'AMBOS' || coincidencias.length < 2) {
+        return escaparHtml(factura);
+    }
+
+    return `<div class="history-invoice-list">${coincidencias.map(([, destino, numero]) => `
+        <span class="history-invoice-chip"><small>${escaparHtml(destino.toUpperCase())}</small><strong>${escaparHtml(numero.trim())}</strong></span>
+    `).join('')}</div>`;
+}
+
+window.formatearFacturasHistorial = formatearFacturasHistorial;
+
+window.refrescarVistaPreviaTipoVehiculo = selector => {
+    const select = typeof selector === 'string' ? document.getElementById(selector) : selector;
+    select?.dispatchEvent(new Event('change', { bubbles: true }));
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', inicializarVistasPreviasTipoVehiculo, { once: true });
+} else {
+    inicializarVistasPreviasTipoVehiculo();
+}
+
+const tarjetaMaterialSapAdminHtml = (material, claseAdicional = '') => {
+    const codigo = typeof material === 'string'
+        ? material
+        : material?.codigoSap || material?.codigo_sap || '';
+    const descripcion = window.CatalogoMaterialesSIE?.get(String(codigo))
+        || window.CatalogoMaterialesSIP?.get(String(codigo));
+    const clases = `admin-sap-item${claseAdicional ? ` ${claseAdicional}` : ''}`;
+    return `<span class="${clases}"><strong>${escaparHtml(codigo || 'Código no disponible')}</strong><span>${escaparHtml(descripcion || 'Descripción no disponible')}</span></span>`;
+};
+
+const botonMostrarMaterialesSapHtml = (materiales, etiqueta = 'Mostrar', mostrarCantidad = true) => {
+    const lista = Array.isArray(materiales) ? materiales : [];
+    const cantidad = mostrarCantidad ? ` <span>${lista.length}</span>` : '';
+    return `<button type="button" class="sap-materials-trigger" aria-haspopup="dialog" data-materiales-sap="${escaparHtml(JSON.stringify(lista))}">${escaparHtml(etiqueta)}${cantidad}</button>`;
+};
+
+window.botonMostrarMaterialesSapHtml = botonMostrarMaterialesSapHtml;
+document.addEventListener('click', event => {
+    const botonMateriales = event.target instanceof Element
+        ? event.target.closest('.sap-materials-trigger')
+        : null;
+    if (botonMateriales) window.mostrarMaterialesSapDialogo?.(botonMateriales);
+});
+
+window.mostrarMaterialesSapDialogo = trigger => {
+    let materiales;
+    try {
+        materiales = JSON.parse(trigger.dataset.materialesSap || '[]');
+    } catch (error) {
+        return;
+    }
+    if (!Array.isArray(materiales)) return;
+
+    let dialogo = document.getElementById('sapMaterialsDialog');
+    if (!dialogo) {
+        dialogo = document.createElement('dialog');
+        dialogo.id = 'sapMaterialsDialog';
+        dialogo.className = 'sap-materials-dialog';
+        dialogo.innerHTML = `
+            <div class="sap-materials-dialog-head">
+                <div>
+                    <h2>Materiales SAP</h2>
+                    <span class="sap-materials-dialog-count"></span>
+                </div>
+                <button type="button" class="sap-materials-dialog-close" aria-label="Cerrar materiales">&times;</button>
+            </div>
+            <div class="sap-materials-dialog-list"></div>
+        `;
+        dialogo.querySelector('.sap-materials-dialog-close').addEventListener('click', () => dialogo.close());
+        dialogo.addEventListener('click', event => {
+            if (event.target === dialogo) dialogo.close();
+        });
+        document.body.appendChild(dialogo);
+    }
+
+    dialogo.querySelector('.sap-materials-dialog-count').textContent = `${materiales.length} material(es)`;
+    dialogo.querySelector('.sap-materials-dialog-list').innerHTML = `
+        <div class="admin-sap-list">${materiales.map(material => tarjetaMaterialSapAdminHtml(material)).join('')}</div>
+    `;
+    if (!dialogo.open) dialogo.showModal();
+};
+
+const bloqueMaterialesSapAdminHtml = materiales => {
+    const lista = Array.isArray(materiales) ? materiales : [];
+    return `
+        <div class="admin-sap-materials">
+            <strong>Materiales SAP</strong>
+            ${botonMostrarMaterialesSapHtml(lista)}
+        </div>
+    `;
+};
+
 const CONFIG = {
     ADMIN_PASSWORD: 'RECEPCIONCEDI2',
     DESPACHADOR_PASSWORD: 'RECEPCIONDESPACHO',
@@ -2851,7 +3036,7 @@ const RenderAdmin = {
                 if (AppState.turnoActual.responsable) lines.push(`Responsable: ${AppState.turnoActual.responsable}`);
                 if (AppState.turnoActual.destino) lines.push(`Destino: ${AppState.turnoActual.destino}`);
                 if (AppState.turnoActual.materialesSap?.length) {
-                    lines.push(`Materiales SAP: ${AppState.turnoActual.materialesSap.map(escaparHtml).join(', ')}`);
+                    lines.push(bloqueMaterialesSapAdminHtml(AppState.turnoActual.materialesSap));
                 }
                 if (AppState.turnoActual.autorizadoSalida) lines.push(`✓ SALIDA AUTORIZADA`);
                 
@@ -2900,7 +3085,7 @@ const RenderAdmin = {
                             ${turno.peso ? `<span>Peso: ${turno.peso.toString().toUpperCase().includes('KG') ? turno.peso : turno.peso + ' kg'}</span>` : ''}
                             ${turno.responsable ? `<span>Resp: ${turno.responsable}</span>` : ''}
                             ${turno.consecutivoIngreso ? `<span>FMM: ${turno.consecutivoIngreso}</span>` : ''}
-                            ${turno.materialesSap?.length ? `<span>Materiales SAP: ${turno.materialesSap.map(escaparHtml).join(', ')}</span>` : ''}
+                            ${turno.materialesSap?.length ? bloqueMaterialesSapAdminHtml(turno.materialesSap) : ''}
                         </div>
                         <div class="turn-item-time">
                             ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
@@ -2957,7 +3142,7 @@ const RenderAdmin = {
                             ${turno.peso ? `<span>Peso: ${turno.peso} kg</span>` : ''}
                             ${turno.responsable ? `<span>Resp: ${turno.responsable}</span>` : ''}
                             ${turno.consecutivoIngreso ? `<span>Cons: ${turno.consecutivoIngreso}</span>` : ''}
-                            ${turno.materialesSap?.length ? `<span>Materiales SAP: ${turno.materialesSap.map(escaparHtml).join(', ')}</span>` : ''}
+                            ${turno.materialesSap?.length ? bloqueMaterialesSapAdminHtml(turno.materialesSap) : ''}
                         </div>
                         <div class="turn-item-time">
                             ${turno.fechaCita ? turno.fechaCita.split('T')[0] + ' ' : ''}${turno.horaSolicitud ? turno.horaSolicitud.slice(0,5) : ''}${turno.motivo ? ' - ' + turno.motivo : ''}
@@ -3033,6 +3218,8 @@ const RenderAdmin = {
                         }
                         return turno.horaSolicitud;
                     })() : turno.horaSolicitud;
+                    const empresa = String(turno.nombreEmpresa || '').trim();
+                    const contacto = String(turno.contacto || '').trim();
                     return `
                     <div class="turn-item turn-item-citado">
                         <span class="turn-item-number">${turno.numero}</span>
@@ -3040,11 +3227,11 @@ const RenderAdmin = {
                             <div class="turn-item-company">${turno.nombreEmpresa}</div>
                             <div class="turn-item-details">
                                 ${turno.nit ? `<div style="font-size:11px;color:#475569;">Placa: ${turno.nit}</div>` : ''}
-                                ${turno.nombreEmpresa ? `<div style="font-size:11px;color:#475569;">Contacto: ${turno.nombreEmpresa}</div>` : ''}
+                                ${contacto && contacto.toLocaleLowerCase() !== empresa.toLocaleLowerCase() ? `<div style="font-size:11px;color:#475569;">Contacto: ${escaparHtml(contacto)}</div>` : ''}
                                 ${turno.telefono ? `<div style="font-size:11px;color:#475569;">Tel: ${turno.telefono}</div>` : ''}
                                 ${turno.destino ? `<div style="font-size:11px;color:#475569;">Destino: ${destinoLabel[turno.destino] || turno.destino}</div>` : ''}
                                 ${turno.consecutivoIngreso ? `<div style="font-size:11px;color:#475569;">Cons: ${turno.consecutivoIngreso}</div>` : ''}
-                                ${turno.materialesSap?.length ? `<div style="font-size:11px;color:#475569;">Materiales SAP: ${turno.materialesSap.map(escaparHtml).join(', ')}</div>` : ''}
+                                ${turno.materialesSap?.length ? bloqueMaterialesSapAdminHtml(turno.materialesSap) : ''}
                                 ${turno.motivo ? `<div style="font-size:11px;color:#475569;">${horaCita.slice(0,5)} - ${turno.motivo}</div>` : `<div style="font-size:11px;color:#475569;">${horaCita.slice(0,5)}</div>`}
                             </div>
                         </div>
@@ -3256,7 +3443,7 @@ const RenderAdmin = {
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th>Empresa</th>
+                                <th>Empresa transportadora</th>
                                 <th>Proveedor</th>
                                 <th>Placa</th>
                                 <th>Factura</th>
@@ -3283,7 +3470,7 @@ const RenderAdmin = {
                                       <td>${h.esTransporte ? (h.nombreEmpresa || '-') : ''}</td>
                                       <td>${(h.esTransporte && h.nombreProveedor) ? h.nombreProveedor : (h.nombreEmpresa || h.nombreProveedor || '-')}</td>
                                     <td>${h.nit || '-'}</td>
-                                    <td>${h.numFactura || '-'}</td>
+                                    <td>${formatearFacturasHistorial(h)}</td>
                                     <td>${h.tipoVehiculo || '-'}</td>
                                     <td>${h.bultos || '-'}</td>
                                     <td>${h.peso || '-'}</td>
@@ -3291,7 +3478,7 @@ const RenderAdmin = {
                                     <td>${Utils.formatearHora(h.horaLlamada)}</td>
                                     <td>${Utils.formatearHora(h.horaFinalizacion)}</td>
                                     <td class="history-sap-cell">${Array.isArray(h.materialesSap) && h.materialesSap.length
-                                        ? `<details class="history-sap-details"><summary>Mostrar <span>${h.materialesSap.length}</span></summary><div class="history-sap-code-list">${h.materialesSap.map(codigo => `<span class="history-sap-code">${escaparHtml(codigo)}</span>`).join('')}</div></details>`
+                                        ? botonMostrarMaterialesSapHtml(h.materialesSap)
                                         : '<span class="history-sap-empty">—</span>'}</td>
                                     <td>${h.inspeccionFisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
                                     <td>${h.autorizadoSalida ? '<span style="color:#10b981;font-weight:600;">✓ SALIDA OK</span>' : '<span style="color:#f59e0b;">PENDIENTE</span>'}</td>
@@ -4032,6 +4219,7 @@ const AdminHandlers = {
         document.getElementById('transportistaNombreProveedor').value = proveedor.nombreProveedor || '';
         document.getElementById('transportistaDestino').value = proveedor.destino || '';
         document.getElementById('transportistaTipoVehiculo').value = proveedor.tipoVehiculo || '';
+        window.refrescarVistaPreviaTipoVehiculo('transportistaTipoVehiculo');
 
         AppState.editandoProveedorIndex = index;
         Utils.mostrarNotificacion(`Editando proveedor ${proveedor.nombreProveedor || proveedor.nit}`, 'info');
@@ -4642,9 +4830,10 @@ const proveedorData = {
                     .eq('id', id);
                 if (error) throw error;
             }
-            const historial = LocalStorage.obtenerHistorial().filter(h => h.id !== id);
+            const coincideId = registro => String(registro.id) !== String(id);
+            const historial = LocalStorage.obtenerHistorial().filter(coincideId);
             LocalStorage.guardarHistorial(historial);
-            AppState.historial = historial;
+            AppState.historial = (Array.isArray(AppState.historial) ? AppState.historial : historial).filter(coincideId);
             Utils.mostrarNotificacion('Registro eliminado', 'success');
             await RenderAdmin.historial();
         } catch (error) {
@@ -4696,6 +4885,7 @@ const proveedorData = {
             }
             
             document.getElementById('editHistTipo').value = data.tipo_vehiculo || '';
+            window.refrescarVistaPreviaTipoVehiculo('editHistTipo');
             document.getElementById('editHistBultos').value = data.bultos || '';
             document.getElementById('editHistPeso').value = data.peso || '';
             document.getElementById('editHistResponsable').value = data.responsable || '';
@@ -5925,12 +6115,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.NotificacionesPolling.iniciar();
         }
         
-        // Página de despachador (despachador.html)
-        const btnAutorizarSalida = document.getElementById('btnAutorizarSalida');
-        if (btnAutorizarSalida) {
-            btnAutorizarSalida.addEventListener('click', DespachadorHandlers.autorizarSalida);
-        }
-
         async function inicializarPanelDespachador() {
             try {
                 console.log('Inicializando despachador desde app.js...');
@@ -5975,7 +6159,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 };
 
                 const btnAutorizar = document.getElementById('btnAutorizarSalida');
-                if (btnAutorizar) btnAutorizar.disabled = true;
+                if (btnAutorizar && !document.querySelector('.despacho-dashboard')) {
+                    btnAutorizar.disabled = true;
+                }
 
                 console.log('Panel despachador inicializado');
             } catch (error) {
@@ -6074,6 +6260,7 @@ const DespachadorHandlers = {
                     numero: turno.numero,
                     nombre: turno.nombre || turno.nombreEmpresa || turno.nombre,
                     nit: turno.nit || '',
+                    tipoVehiculo: turno.tipoVehiculo || turno.tipo_vehiculo || '',
                     timestamp: Date.now()
                 }));
                 localStorage.removeItem('proveedorListoSalir');
@@ -6123,7 +6310,12 @@ const DespachadorHandlers = {
                     turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Esperando que admin complete un turno...</div>';
                 }
                 if (infoDespachoDiv) {
-                    infoDespachoDiv.innerHTML = '<div class="despacho-empty">No hay proveedor esperando autorización</div>';
+                    if (typeof window.renderizarSeguimientoSalida === 'function') {
+                        const horaAutorizacion = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
+                        window.renderizarSeguimientoSalida({ ...turno, autorizadoSalida: true, horaAutorizacion }, false);
+                    } else {
+                        infoDespachoDiv.innerHTML = '<div class="despacho-empty">No hay proveedor esperando autorización</div>';
+                    }
                 }
                 if (btnAutorizar) {
                     btnAutorizar.disabled = true;
@@ -6137,6 +6329,7 @@ const DespachadorHandlers = {
                 numero: turno?.numero || '---',
                 nombre: turno.nombre || turno.nombreEmpresa || '',
                 nit: turno.nit || '',
+                tipoVehiculo: turno.tipoVehiculo || turno.tipo_vehiculo || '',
                 timestamp: Date.now()
             }));
             localStorage.removeItem('proveedorListoSalir');

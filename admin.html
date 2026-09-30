@@ -1063,7 +1063,7 @@
                         <option value="CARPADO">CARPADO</option>
                         <option value="FURGON">FURGON</option>
                         <option value="MOTO">MOTO</option>
-                        <option value="PARTICULAR">PARTICULAR</option>
+                        <option value="CONTENEDOR">CONTENEDOR</option>
                         <option value="OTRO">OTRO</option>
                     </select>
                 </div>
@@ -1118,7 +1118,7 @@
                                   <option value="CARPADO">CARPADO</option>
                                   <option value="FURGON">FURGON</option>
                                   <option value="MOTO">MOTO</option>
-                                  <option value="PARTICULAR">PARTICULAR</option>
+                                  <option value="CONTENEDOR">CONTENEDOR</option>
                                   <option value="OTRO">OTRO</option>
                              </select>
                          </div>
@@ -1180,7 +1180,10 @@
             </div>
             <div style="text-align: center; margin-bottom: 20px;">
                 <div style="font-size: 64px; font-weight: 700; color: #22c55e; line-height: 1;" id="salidaDespachadorNumero">---</div>
-                <div style="font-size: 16px; font-weight: 600; color: #1e293b; margin-top: 5px;" id="salidaDespachadorEmpresa">Proveedor</div>
+                <div style="font-size: 16px; font-weight: 600; color: #1e293b; margin-top: 5px;" id="salidaDespachadorEmpresa">
+                    <span id="salidaDespachadorIcono" aria-hidden="true" hidden></span>
+                    <span id="salidaDespachadorNombre">Proveedor</span>
+                </div>
             </div>
             <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px;" id="salidaDespachadorDetalles">
             </div>
@@ -1247,7 +1250,7 @@
                           <option value="CARPADO">CARPADO</option>
                           <option value="FURGON">FURGON</option>
                           <option value="MOTO">MOTO</option>
-                          <option value="PARTICULAR">PARTICULAR</option>
+                          <option value="CONTENEDOR">CONTENEDOR</option>
                           <option value="OTRO">OTRO</option>
                       </select>
                   </div>
@@ -1330,7 +1333,7 @@
                                 <option value="CARPADO">CARPADO</option>
                                 <option value="FURGON">FURGON</option>
                                 <option value="MOTO">MOTO</option>
-                                <option value="PARTICULAR">PARTICULAR</option>
+                                <option value="CONTENEDOR">CONTENEDOR</option>
                                 <option value="OTRO">OTRO</option>
                             </select>
                         </div>
@@ -1365,6 +1368,8 @@
       <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
      <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
      <script src="supabase-config.js"></script>
+    <script src="materiales_sie.js"></script>
+    <script src="materiales_sip.js"></script>
      <script src="app.js?v=5"></script>
      <script>
         window.salidaDespachadorAnterior = null;
@@ -1469,6 +1474,7 @@
             await new Promise(r => setTimeout(r, 800));
             reproducirSonido();
 
+            let tipoVehiculoSalida = datos.tipoVehiculo || datos.tipo_vehiculo || datos.datos?.tipoVehiculo || datos.datos?.tipo_vehiculo || '';
             let detallesHTML = '<p style="color: #94a3b8; text-align: center;">Cargando detalles...</p>';
             
             if (window.supabaseClient && datos.numero) {
@@ -1483,6 +1489,7 @@
                         .single();
                     
                     if (data && !error) {
+                        tipoVehiculoSalida = data.tipo_vehiculo || tipoVehiculoSalida;
                         const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
                         detallesHTML = `
                             <table style="width: 100%; font-size: 13px; color: #475569;">
@@ -1527,7 +1534,12 @@
             }
 
             document.getElementById('salidaDespachadorNumero').textContent = datos.numero || '---';
-            document.getElementById('salidaDespachadorEmpresa').textContent = datos.nombre || datos.empresa || 'Proveedor';
+            document.getElementById('salidaDespachadorNombre').textContent = datos.nombre || datos.empresa || 'Proveedor';
+            const iconoSalida = document.getElementById('salidaDespachadorIcono');
+            iconoSalida.hidden = !tipoVehiculoSalida;
+            iconoSalida.innerHTML = tipoVehiculoSalida && window.iconoTipoVehiculoSvg
+                ? window.iconoTipoVehiculoSvg(tipoVehiculoSalida, false)
+                : '';
             document.getElementById('salidaDespachadorDetalles').innerHTML = detallesHTML;
             modalVisible = true;
             document.getElementById('modalSalidaDespachador').style.display = 'flex';
@@ -2124,6 +2136,35 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                     <button type="button" data-provider-expand>Mostrar todos</button>
                     <button type="button" data-provider-collapse>Cerrar todos</button>
                 </div>
+                <p class="admin-provider-feedback" data-provider-feedback role="status" hidden></p>
+                <form class="admin-provider-editor" data-provider-editor hidden>
+                    <div class="admin-provider-editor-title">
+                        <span class="stats-info-eyebrow">EDITAR REGISTRO</span>
+                        <strong data-provider-editor-name>Proveedor</strong>
+                    </div>
+                    <div class="admin-provider-editor-grid">
+                        <label>Empresa<input data-provider-field="nombreEmpresa" required maxlength="255"></label>
+                        <label>Placa<input data-provider-field="nit" required maxlength="20"></label>
+                        <label>Contacto<input data-provider-field="contacto" maxlength="255"></label>
+                        <label>Teléfono<input data-provider-field="telefono" maxlength="50"></label>
+                        <label>Servicio
+                            <select data-provider-field="servicio">
+                                <option value="">Proveedor</option>
+                                <option value="entrega">Entrega</option>
+                                <option value="servicio">Servicio técnico</option>
+                                <option value="reunion">Reunión</option>
+                                <option value="otro">Otro</option>
+                                <option value="transporte">Transporte</option>
+                            </select>
+                        </label>
+                        <label>Consecutivo<input data-provider-field="consecutivoIngreso" maxlength="100"></label>
+                    </div>
+                    <p class="admin-provider-editor-status" data-provider-editor-status role="status"></p>
+                    <div class="admin-provider-editor-actions">
+                        <button type="button" data-provider-editor-cancel>Cancelar</button>
+                        <button type="submit">Guardar cambios</button>
+                    </div>
+                </form>
                 <div class="stats-info-list" data-content></div>
             </div>`;
             document.body.appendChild(modal);
@@ -2149,6 +2190,36 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
             };
 
             let proveedoresRegistrados = [];
+            const normalizarProveedor = valor => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+            const escaparProveedor = valor => String(valor ?? '').replace(/[&<>"']/g, caracter => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[caracter]));
+
+            function obtenerProveedoresUnicos(lista) {
+                const claves = new Set();
+                return [...lista].sort((a, b) =>
+                    (Date.parse(b.updatedAt || b.createdAt || '') || 0) - (Date.parse(a.updatedAt || a.createdAt || '') || 0)
+                ).filter(proveedor => {
+                    const placa = normalizarProveedor(proveedor.nit).replace(/[^a-z0-9]/g, '');
+                    const clave = placa
+                        ? `placa:${placa}`
+                        : `datos:${[proveedor.nombreEmpresa, proveedor.contacto, proveedor.telefono, proveedor.consecutivoIngreso].map(normalizarProveedor).join('|')}`;
+                    if (claves.has(clave)) return false;
+                    claves.add(clave);
+                    return true;
+                });
+            }
+
+            function actualizarConteoProveedores() {
+                const total = String(obtenerProveedoresUnicos(proveedoresRegistrados).length);
+                const estadistica = document.getElementById('totalProveedores');
+                if (estadistica) estadistica.textContent = total;
+                modal.querySelector('[data-number]').textContent = total;
+            }
 
             function renderProveedores(busqueda = '') {
                 const contenido = modal.querySelector('[data-content]');
@@ -2159,26 +2230,18 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                     return !termino || texto.includes(termino);
                 });
 
-                const unicos = [];
-                const claves = new Set();
-                filtrados.forEach(proveedor => {
-                    const clave = [proveedor.nombreEmpresa, proveedor.nit, proveedor.contacto, proveedor.telefono, proveedor.consecutivoIngreso]
-                        .map(valor => String(valor || '').trim().toLowerCase()).join('|');
-                    if (!claves.has(clave)) {
-                        claves.add(clave);
-                        unicos.push(proveedor);
-                    }
-                });
+                const unicos = obtenerProveedoresUnicos(filtrados);
 
-                const grupos = {};
+                const grupos = new Map();
                 unicos.forEach(proveedor => {
                     const empresa = proveedor.nombreEmpresa || 'Empresa sin nombre';
-                    if (!grupos[empresa]) grupos[empresa] = [];
-                    grupos[empresa].push(proveedor);
+                    const claveEmpresa = normalizarProveedor(empresa);
+                    if (!grupos.has(claveEmpresa)) grupos.set(claveEmpresa, { nombre: empresa, proveedores: [] });
+                    grupos.get(claveEmpresa).proveedores.push(proveedor);
                 });
 
-                const empresas = Object.entries(grupos);
-                contenido.innerHTML = empresas.length ? empresas.map(([empresa, lista], index) => {
+                const empresas = [...grupos.values()];
+                contenido.innerHTML = empresas.length ? empresas.map(({ nombre: empresa, proveedores: lista }, index) => {
                     const grupoId = `admin-prov-group-${index}`;
                     const varios = lista.length > 1;
                     const servicio = lista[0].servicio ? String(lista[0].servicio).toUpperCase() : 'Proveedor';
@@ -2187,15 +2250,22 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                         const placa = proveedor.nit || '—';
                         const telefono = proveedor.telefono || '—';
                         const consecutivo = proveedor.consecutivoIngreso || '—';
+                        const id = escaparProveedor(proveedor.id);
                         return `<div class="admin-provider-person">
-                            <strong>${contacto}</strong>
-                            <span><b>Placa</b> ${placa} <b>Tel.</b> ${telefono} <b>Cons.</b> ${consecutivo}</span>
+                            <div class="admin-provider-person-copy">
+                                <strong>${escaparProveedor(contacto)}</strong>
+                                <span><b>Placa</b> ${escaparProveedor(placa)} <b>Tel.</b> ${escaparProveedor(telefono)} <b>Cons.</b> ${escaparProveedor(consecutivo)}</span>
+                            </div>
+                            <div class="admin-provider-person-actions">
+                                <button type="button" data-provider-edit="${id}" aria-label="Editar ${escaparProveedor(contacto)}">Editar</button>
+                                <button type="button" data-provider-delete="${id}" aria-label="Eliminar ${escaparProveedor(contacto)}">Eliminar</button>
+                            </div>
                         </div>`;
                     }).join('');
                     return `<div class="stats-info-row admin-provider-record ${varios ? 'admin-provider-group' : ''}">
                         <button type="button" class="admin-provider-head" data-provider-toggle="${grupoId}" aria-expanded="${!varios}">
-                            <span class="admin-provider-mark">${empresa.slice(0, 2).toUpperCase()}</span>
-                            <span class="admin-provider-title"><strong>${empresa}</strong><small>${varios ? `${lista.length} conductores` : servicio}</small></span>
+                            <span class="admin-provider-mark">${escaparProveedor(empresa.slice(0, 2).toUpperCase())}</span>
+                            <span class="admin-provider-title"><strong>${escaparProveedor(empresa)}</strong><small>${varios ? `${lista.length} conductores` : escaparProveedor(servicio)}</small></span>
                             ${varios ? `<span class="admin-provider-chevron" data-provider-chevron="${grupoId}">⌄</span>` : ''}
                         </button>
                         <div class="admin-provider-people" id="${grupoId}" ${varios ? 'hidden' : ''}>${personas}</div>
@@ -2217,6 +2287,9 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
             async function abrir(card) {
                 const config = configuracion[card.dataset.adminStat];
                 if (!config) return;
+                modal.querySelector('[data-provider-editor]').hidden = true;
+                modal.querySelector('[data-content]').hidden = false;
+                modal.querySelector('[data-provider-feedback]').hidden = true;
                 modal.hidden = false;
                 modal.querySelector('.stats-info-close').focus();
                 modal.querySelector('[data-number]').textContent = document.getElementById(config.value)?.textContent || '0';
@@ -2230,8 +2303,9 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                     input.value = '';
                     modal.querySelector('[data-content]').innerHTML = '<div class="stats-info-empty">Cargando proveedores...</div>';
                     try {
-                        if (!proveedoresRegistrados.length && typeof SupabaseDB !== 'undefined' && SupabaseDB.cargarProveedores) {
+                        if (typeof SupabaseDB !== 'undefined' && SupabaseDB.cargarProveedores) {
                             proveedoresRegistrados = await SupabaseDB.cargarProveedores() || [];
+                            actualizarConteoProveedores();
                         }
                         renderProveedores();
                     } catch (error) {
@@ -2289,6 +2363,106 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                 });
             });
             modal.querySelector('.stats-info-close').addEventListener('click', cerrar);
+            const editor = modal.querySelector('[data-provider-editor]');
+            const contenido = modal.querySelector('[data-content]');
+            const buscadorProveedores = modal.querySelector('[data-provider-search]');
+            const accionesProveedores = modal.querySelector('[data-provider-actions]');
+            const campoEditor = nombre => editor.querySelector(`[data-provider-field="${nombre}"]`);
+            const cerrarEditor = () => {
+                editor.hidden = true;
+                contenido.hidden = false;
+                buscadorProveedores.hidden = false;
+                accionesProveedores.hidden = false;
+            };
+
+            contenido.addEventListener('click', async event => {
+                const botonEditar = event.target.closest('[data-provider-edit]');
+                const botonEliminar = event.target.closest('[data-provider-delete]');
+                const id = (botonEditar || botonEliminar)?.dataset.providerEdit || botonEliminar?.dataset.providerDelete;
+                if (!id) return;
+                const proveedor = proveedoresRegistrados.find(item => String(item.id) === String(id));
+                if (!proveedor) return;
+
+                if (botonEditar) {
+                    editor.dataset.providerId = String(proveedor.id);
+                    campoEditor('nombreEmpresa').value = proveedor.nombreEmpresa || '';
+                    campoEditor('nit').value = proveedor.nit || '';
+                    campoEditor('contacto').value = proveedor.contacto || '';
+                    campoEditor('telefono').value = proveedor.telefono || '';
+                    campoEditor('servicio').value = String(proveedor.servicio || '').toLowerCase();
+                    campoEditor('consecutivoIngreso').value = proveedor.consecutivoIngreso || '';
+                    modal.querySelector('[data-provider-editor-name]').textContent = proveedor.nombreEmpresa || 'Proveedor';
+                    modal.querySelector('[data-provider-editor-status]').textContent = '';
+                    editor.hidden = false;
+                    contenido.hidden = true;
+                    buscadorProveedores.hidden = true;
+                    accionesProveedores.hidden = true;
+                    campoEditor('nombreEmpresa').focus();
+                    return;
+                }
+
+                if (!confirm(`¿Eliminar a ${proveedor.contacto || proveedor.nombreEmpresa} del registro activo? Su historial se conservará.`)) return;
+                botonEliminar.disabled = true;
+                try {
+                    const eliminado = await SupabaseDB.eliminarProveedor(proveedor.id);
+                    if (!eliminado) throw new Error('No se pudo eliminar el proveedor.');
+                    proveedoresRegistrados = await SupabaseDB.cargarProveedores() || [];
+                    actualizarConteoProveedores();
+                    renderProveedores(modal.querySelector('[data-provider-input]').value);
+                    const feedback = modal.querySelector('[data-provider-feedback]');
+                    feedback.textContent = 'Proveedor eliminado del registro activo. El historial se conservó.';
+                    feedback.hidden = false;
+                } catch (error) {
+                    botonEliminar.disabled = false;
+                    console.error('Error eliminando proveedor desde el resumen:', error);
+                    modal.querySelector('[data-provider-feedback]').textContent = error.message || 'No se pudo eliminar el proveedor.';
+                    modal.querySelector('[data-provider-feedback]').hidden = false;
+                }
+            });
+
+            editor.addEventListener('submit', async event => {
+                event.preventDefault();
+                const id = editor.dataset.providerId;
+                const original = proveedoresRegistrados.find(item => String(item.id) === id);
+                if (!original) return;
+                const nit = campoEditor('nit').value.trim();
+                const claveNit = normalizarProveedor(nit);
+                const duplicado = proveedoresRegistrados.some(item => String(item.id) !== id && normalizarProveedor(item.nit) === claveNit);
+                const estado = modal.querySelector('[data-provider-editor-status]');
+                if (duplicado) {
+                    estado.textContent = 'Ya existe un proveedor registrado con esa placa.';
+                    return;
+                }
+
+                const botonGuardar = editor.querySelector('[type="submit"]');
+                botonGuardar.disabled = true;
+                estado.textContent = 'Guardando cambios...';
+                try {
+                    const actualizado = await SupabaseDB.guardarProveedor({
+                        ...original,
+                        nombreEmpresa: campoEditor('nombreEmpresa').value.trim(),
+                        nit,
+                        contacto: campoEditor('contacto').value.trim(),
+                        telefono: campoEditor('telefono').value.trim(),
+                        servicio: campoEditor('servicio').value,
+                        consecutivoIngreso: campoEditor('consecutivoIngreso').value.trim()
+                    });
+                    if (!actualizado) throw new Error('No se pudieron guardar los cambios.');
+                    proveedoresRegistrados = await SupabaseDB.cargarProveedores() || [];
+                    actualizarConteoProveedores();
+                    const filtro = modal.querySelector('[data-provider-input]').value;
+                    cerrarEditor();
+                    renderProveedores(filtro);
+                    modal.querySelector('[data-provider-feedback]').textContent = 'Cambios guardados.';
+                    modal.querySelector('[data-provider-feedback]').hidden = false;
+                } catch (error) {
+                    console.error('Error editando proveedor desde el resumen:', error);
+                    estado.textContent = error.message || 'No se pudieron guardar los cambios.';
+                } finally {
+                    botonGuardar.disabled = false;
+                }
+            });
+            modal.querySelector('[data-provider-editor-cancel]').addEventListener('click', cerrarEditor);
             modal.querySelector('[data-provider-input]').addEventListener('input', event => renderProveedores(event.target.value));
             modal.querySelector('[data-provider-expand]').addEventListener('click', () => {
                 modal.querySelectorAll('[data-provider-toggle]').forEach(toggle => {

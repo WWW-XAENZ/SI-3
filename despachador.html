@@ -113,28 +113,6 @@
             z-index: 1;
         }
         
-        .despacho-actions { 
-            margin-top: 20px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 12px; 
-            position: relative;
-            z-index: 1;
-        }
-        .despacho-actions .btn { 
-            padding: 18px; 
-            font-size: 15px; 
-            border-radius: 12px; 
-            font-weight: 700;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-        }
-        
-        .despacho-actions .btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
-        }
-        
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
         .stat-card { 
             background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); 
@@ -572,24 +550,24 @@
         </nav>
 
         <main>
-            <div class="admin-grid">
+            <div class="admin-grid despacho-dashboard">
                 <!-- Proveedor Listo para Salir -->
                 <section class="admin-section control-panel">
-                    <h2>Proveedor Listo para Salir</h2>
+                    <h2>Proveedor listo para salir</h2>
                     <div class="current-turn-display">
                         <div id="turnoListoSalir" class="turno-listo">
                             <div class="esperando-mensaje">Esperando que completen un turno...</div>
                         </div>
                     </div>
-                    <div class="despacho-actions">
-                        <button id="btnAutorizarSalida" class="btn btn-success" disabled>Autorizar Salida</button>
-                        <button id="btnSolicitarInspeccion" class="btn btn-warning" disabled>Solicitar Inspeccion</button>
+                    <div class="despacho-actions" role="group" aria-label="Acciones del despacho">
+                        <button id="btnAutorizarSalida" class="btn btn-success" type="button" disabled aria-describedby="turnoListoSalir">Autorizar Salida</button>
+                        <button id="btnSolicitarInspeccion" class="btn btn-warning" type="button" disabled aria-describedby="turnoListoSalir">Solicitar Inspección</button>
                     </div>
                 </section>
 
                 <!-- Estadisticas del Dia -->
                 <section class="admin-section statistics">
-                    <h2>Estadisticas del Dia</h2>
+                    <h2>Estadísticas del Día</h2>
                     <div class="stats-grid">
                         <div class="stat-card stat-card-action" data-stat="autorizados" tabindex="0" role="button" aria-label="Ver salidas autorizadas">
                             <div class="stat-number" id="totalAutorizados">0</div>
@@ -610,11 +588,11 @@
                     </div>
                 </section>
 
-                <!-- Detalles del Proveedor -->
+                <!-- Seguimiento de salida -->
                 <section class="admin-section despacho-actual">
-                    <h2>Detalles del Proveedor</h2>
-                    <div id="infoDespachoActual" class="despacho-detail">
-                        <p class="despacho-empty">Sin proveedor esperando</p>
+                    <h2>Seguimiento de Salida</h2>
+                    <div id="infoDespachoActual" class="despacho-detail dispatch-followup" aria-live="polite">
+                        <p class="dispatch-followup-empty">Sin proveedor esperando salida</p>
                     </div>
                 </section>
 
@@ -679,6 +657,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
+    <script src="materiales_sie.js"></script>
+    <script src="materiales_sip.js"></script>
     <script src="app.js?v=3"></script>
     <script src="sonido.js"></script>
     <script src="push-notifications.js"></script>
@@ -800,11 +780,18 @@
 
                 turnosDelDia = [...turnosConfirmados, ...historialDelDia];
                 const panelDetalles = document.getElementById('infoDespachoActual');
-                if (turnosConfirmados.length && panelDetalles?.querySelector('.despacho-empty')) {
+                if (turnosConfirmados.length && panelDetalles?.querySelector('.dispatch-followup-empty')) {
                     window.mostrarDetallesTurnoConfirmado(turnosConfirmados[0]);
                 }
                 
                 filtrarYMostrarTurnos();
+                const proveedorListo = normalizarDatosNotificacion(localStorage.getItem('proveedorListoSalir'));
+                const materialesSapProveedor = obtenerMaterialesSapDespachador(proveedorListo);
+                if (materialesSapProveedor.length) {
+                    window.mostrarProveedorListo?.(proveedorListo);
+                    const listaModal = document.querySelector('#modal-proveedor-listo .modal-proveedor-detalles-table .dispatch-sap-list');
+                    renderizarMaterialesSapDespachador(listaModal, materialesSapProveedor);
+                }
             } catch (e) {
                 console.error('Error:', e);
                 listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
@@ -816,53 +803,8 @@
         window.mostrarDetallesTurnoConfirmado = function(turno) {
             const panel = document.getElementById('infoDespachoActual');
             if (!panel || !turno) return;
-
-            const destinoLabels = { ensambles: 'SIE', plasticos: 'SI3 ZF SAS', ambos: 'AMBOS' };
-            const destino = turno.destino || '-';
-            const horaInicio = turno.horaLlamada || turno.hora_llamada || turno.horaSolicitud || turno.hora_solicitud;
-            const horaLlegada = turno.horaLlegada || turno.hora_llegada;
-            const peso = turno.peso ? (String(turno.peso).toUpperCase().includes('KG') ? turno.peso : `${turno.peso} kg`) : '-';
-            const materialesSap = turno.materialesSap || turno.materiales_sap || [];
-            const campos = [
-                ['Turno', turno.numero],
-                ['Proveedor', turno.nombreProveedor || turno.nombre_proveedor || turno.nombre || turno.nombreEmpresa || turno.nombre_empresa],
-                ['Placa', turno.nit],
-                ['Factura', turno.numFactura || turno.num_factura],
-                ['FMM', turno.consecutivoIngreso || turno.consecutivo_ingreso],
-                ['Destino', destinoLabels[destino] || destino],
-                ['Peso', peso],
-                ['Bultos', turno.bultos],
-                ['Vehículo', turno.tipoVehiculo || turno.tipo_vehiculo],
-                ['Responsable', turno.responsable],
-                ['Hora inicio', horaInicio ? Utils.formatearHora(horaInicio) : '-'],
-                ['Hora llegada', horaLlegada ? Utils.formatearHora(horaLlegada) : '-']
-            ];
-
-            panel.replaceChildren();
             panel.dataset.turnoConfirmadoId = String(turno.turnoId || turno.id || turno.numero || '');
-            campos.forEach(([label, value]) => {
-                const row = document.createElement('p');
-                const title = document.createElement('strong');
-                title.textContent = `${label}:`;
-                row.append(title, ` ${value || '-'}`);
-                panel.appendChild(row);
-            });
-            if (materialesSap.length) {
-                const sapRow = document.createElement('div');
-                sapRow.className = 'dispatch-sap-row';
-                const label = document.createElement('strong');
-                label.textContent = 'Materiales SAP';
-                const list = document.createElement('div');
-                list.className = 'sap-code-list';
-                materialesSap.forEach(codigo => {
-                    const code = document.createElement('span');
-                    code.className = 'sap-code';
-                    code.textContent = codigo;
-                    list.appendChild(code);
-                });
-                sapRow.append(label, list);
-                panel.appendChild(sapRow);
-            }
+            renderizarSeguimientoSalida(turno, false);
         };
 
         function normalizarDatosNotificacion(datos) {
@@ -871,6 +813,196 @@
                 try { return JSON.parse(datos); } catch (error) { return null; }
             }
             return datos;
+        }
+
+        function obtenerMaterialesSapDespachador(turno) {
+            if (!turno) return [];
+            const materialesDirectos = [turno.materialesSap, turno.materiales_sap]
+                .find(materiales => Array.isArray(materiales) && materiales.length);
+            if (materialesDirectos) return materialesDirectos;
+
+            const numero = String(turno.numero || '').trim();
+            if (!numero) return [];
+            const registroTurno = turnosDelDia.find(registro => String(registro.numero) === numero);
+            return [registroTurno?.materialesSap, registroTurno?.materiales_sap]
+                .find(materiales => Array.isArray(materiales) && materiales.length) || [];
+        }
+
+        function formatearHoraSeguimiento(valor) {
+            if (!valor) return '';
+            const texto = String(valor);
+            const hora = texto.match(/(?:T|\s)?(\d{1,2}):(\d{2})/);
+            if (hora) return `${hora[1].padStart(2, '0')}:${hora[2]}`;
+            const fecha = new Date(valor);
+            return Number.isNaN(fecha.getTime())
+                ? ''
+                : fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+
+        function obtenerVisualVehiculoSeguimiento(tipoVehiculo) {
+            const tipo = String(tipoVehiculo || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+            if (tipo.includes('OTRO')) return { clave: 'otro', etiqueta: 'OTRO' };
+            if (tipo.includes('CONTEN')) return { clave: 'contenedor', etiqueta: 'Camión contenedor' };
+            if (tipo.includes('MOTO')) return { clave: 'moto', etiqueta: 'Motocicleta' };
+            if (tipo.includes('CARPADO')) return { clave: 'carpado', etiqueta: 'Camión carpado' };
+            if (tipo.includes('MULA')) return { clave: 'mula', etiqueta: 'Tractomula' };
+            if (tipo.includes('FURGON')) return { clave: 'furgon', etiqueta: 'Furgón' };
+            if (tipo.includes('PARTICULAR')) return { clave: 'particular', etiqueta: 'Vehículo particular' };
+            return { clave: 'sencillo', etiqueta: tipo && tipo !== 'SENCILLO' ? 'Vehículo de carga' : 'SENCILLO' };
+        }
+
+        function ilustracionVehiculoSeguimiento(tipo) {
+            return window.iconoTipoVehiculoSvg(tipo);
+        }
+
+        function renderizarSeguimientoSalida(turno, listoParaSalida = false) {
+            const panel = document.getElementById('infoDespachoActual');
+            if (!panel) return;
+
+            const materialesSap = obtenerMaterialesSapDespachador(turno);
+            const autorizado = Boolean(turno?.autorizadoSalida || turno?.autorizado_salida);
+            const despachado = Boolean(turno?.despachado || turno?.horaSalida || turno?.hora_salida || turno?.fecha_despacho);
+            const horaRegistro = formatearHoraSeguimiento(turno?.horaSolicitud || turno?.hora_solicitud || turno?.fecha_solicitud || turno?.created_at);
+            const horaIngreso = formatearHoraSeguimiento(turno?.horaLlegada || turno?.hora_llegada || turno?.horaLlamada || turno?.hora_llamada);
+            const horaMaterial = formatearHoraSeguimiento(turno?.horaFinalizacion || turno?.hora_finalizacion);
+            const horaAutorizacion = formatearHoraSeguimiento(turno?.horaAutorizacion || turno?.hora_autorizacion);
+            const horaDespacho = formatearHoraSeguimiento(turno?.horaSalida || turno?.hora_salida || turno?.fecha_despacho);
+            const indiceActual = !turno ? -1 : despachado ? 5 : autorizado ? 3 : listoParaSalida ? 2 : materialesSap.length ? 1 : 0;
+            const etapaVisual = Math.min(4, Math.max(0, indiceActual));
+            const avanceVisual = etapaVisual / 4;
+            const tipoVisual = obtenerVisualVehiculoSeguimiento(turno?.tipoVehiculo || turno?.tipo_vehiculo);
+            const etapas = [
+                'Registro creado',
+                'Material preparado',
+                'Esperando autorización',
+                'Salida autorizada',
+                'Vehículo despachado'
+            ];
+            const tiempos = [horaRegistro, horaMaterial, listoParaSalida && !autorizado ? 'Ahora' : '', horaAutorizacion, horaDespacho];
+            const estado = !turno
+                ? 'Sin proveedor esperando'
+                : despachado
+                    ? 'Vehículo despachado'
+                    : autorizado
+                        ? 'Salida autorizada'
+                        : listoParaSalida
+                            ? 'Esperando autorización'
+                            : 'En preparación';
+
+            const actividades = [];
+            const agregarActividad = (hora, texto) => actividades.push({ hora: hora || '—', texto });
+            if (horaRegistro) agregarActividad(horaRegistro, 'Registro creado');
+            if (horaIngreso) agregarActividad(horaIngreso, 'Proveedor ingresó al área de despacho');
+            if (turno?.documentacionRevisada || turno?.documentacion_revisada) {
+                agregarActividad(formatearHoraSeguimiento(turno.horaDocumentacion || turno.hora_documentacion), 'Documentación revisada');
+            } else if (turno?.numFactura || turno?.num_factura || turno?.consecutivoIngreso || turno?.consecutivo_ingreso) {
+                agregarActividad('', 'Documentación registrada');
+            }
+            if (materialesSap.length) {
+                agregarActividad(horaMaterial || (listoParaSalida ? 'Ahora' : ''), listoParaSalida ? 'Material SAP verificado' : `${materialesSap.length} materiales SAP registrados`);
+            }
+            if (turno?.inspeccionSolicitada) {
+                agregarActividad(formatearHoraSeguimiento(turno.horaInspeccion), 'Inspección solicitada');
+            }
+            if (autorizado) agregarActividad(horaAutorizacion, 'Salida autorizada');
+            if (despachado) agregarActividad(horaDespacho, 'Vehículo despachado');
+            if (listoParaSalida && !autorizado && !despachado) agregarActividad('Ahora', 'Pendiente de autorización');
+
+            const etapasHtml = etapas.map((nombre, indice) => {
+                const completada = despachado || indice < indiceActual;
+                const actual = !despachado && indice === indiceActual;
+                const clase = completada ? 'is-done' : actual ? 'is-current' : 'is-pending';
+                const marca = completada ? '✓' : actual ? '●' : '○';
+                const tiempo = tiempos[indice];
+                return `
+                    <li class="dispatch-timeline-step ${clase}" ${actual ? 'aria-current="step"' : ''}>
+                        <span class="dispatch-timeline-marker" aria-hidden="true">${marca}</span>
+                        <span class="dispatch-timeline-copy">${nombre}</span>
+                        <span class="dispatch-timeline-time">${tiempo ? escaparHtmlDespachador(tiempo) : ''}</span>
+                    </li>
+                `;
+            }).join('');
+            const actividadesHtml = actividades.slice(-4).reverse().map(actividad => `
+                <li class="dispatch-activity-item">
+                    <time class="dispatch-activity-time">${escaparHtmlDespachador(actividad.hora)}</time>
+                    <span>${escaparHtmlDespachador(actividad.texto)}</span>
+                </li>
+            `).join('');
+            const materialesButton = materialesSap.length
+                ? window.botonMostrarMaterialesSapHtml(materialesSap, 'Ver materiales', false)
+                : '<span class="sap-code-empty">Sin materiales</span>';
+            const hitosVehiculoHtml = etapas.map((nombre, indice) => {
+                const completada = despachado || indice < indiceActual;
+                const actual = !despachado && indice === indiceActual;
+                return `<span class="dispatch-vehicle-stop ${completada ? 'is-done' : actual ? 'is-current' : ''}" style="left:${4 + indice * 23}%" aria-label="${nombre}"></span>`;
+            }).join('');
+            const vehiculoHtml = turno
+                ? `
+                    <div class="dispatch-vehicle-journey" data-vehicle-type="${tipoVisual.clave}">
+                        <div class="dispatch-vehicle-journey-head">
+                            <span>Vehículo</span>
+                            <strong>${tipoVisual.etiqueta}</strong>
+                        </div>
+                        <div class="dispatch-vehicle-track" aria-label="Vehículo en etapa ${etapaVisual + 1} de 5">
+                            <div class="dispatch-vehicle-track-inner">
+                                <span class="dispatch-vehicle-route-base"></span>
+                                <span class="dispatch-vehicle-route-progress" style="width:${avanceVisual * 100}%"></span>
+                                ${hitosVehiculoHtml}
+                                <span class="dispatch-vehicle-marker ${despachado ? 'is-departing' : ''}" style="left:${4 + etapaVisual * 23}%">${ilustracionVehiculoSeguimiento(tipoVisual.clave)}</span>
+                            </div>
+                        </div>
+                        <div class="dispatch-vehicle-stage-caption">Etapa ${etapaVisual + 1} de 5 · ${etapas[etapaVisual]}</div>
+                    </div>
+                `
+                : '';
+
+            panel.innerHTML = `
+                <div class="dispatch-followup-progress">
+                    <h3 class="dispatch-followup-section-title">Progreso del despacho</h3>
+                    <div class="dispatch-followup-status ${autorizado || despachado ? 'is-complete' : !turno ? 'is-empty' : ''}">${estado}</div>
+                    ${vehiculoHtml}
+                    <ol class="dispatch-timeline">${etapasHtml}</ol>
+                </div>
+                <section class="dispatch-activity-panel">
+                    <h3 class="dispatch-followup-section-title">Actividad reciente</h3>
+                    ${actividadesHtml
+                        ? `<ol class="dispatch-activity-list">${actividadesHtml}</ol>`
+                        : '<p class="dispatch-activity-empty">Sin actividad registrada.</p>'}
+                </section>
+                <section class="dispatch-followup-materials">
+                    <div class="dispatch-followup-materials-copy">
+                        <strong>Materiales SAP</strong>
+                        <span>${materialesSap.length} registrados</span>
+                    </div>
+                    ${materialesButton}
+                </section>
+                <section class="dispatch-transport-providers" hidden></section>
+            `;
+        }
+
+        window.renderizarSeguimientoSalida = renderizarSeguimientoSalida;
+
+        function tarjetaMaterialSapHtmlDespachador(material, claseAdicional = '') {
+            const codigo = typeof material === 'string'
+                ? material
+                : material?.codigoSap || material?.codigo_sap || '';
+            const descripcion = window.CatalogoMaterialesSIE?.get(String(codigo))
+                || window.CatalogoMaterialesSIP?.get(String(codigo));
+            const clases = `dispatch-sap-item${claseAdicional ? ` ${claseAdicional}` : ''}`;
+            return `<span class="${clases}"><strong>${escaparHtmlDespachador(codigo || 'Código no disponible')}</strong><span>${escaparHtmlDespachador(descripcion || 'Descripción no disponible')}</span></span>`;
+        }
+
+        function renderizarMaterialesSapDespachador(lista, materiales) {
+            if (!lista) return;
+            lista.replaceChildren();
+            if (!materiales.length) {
+                const vacio = document.createElement('span');
+                vacio.className = 'sap-code-empty';
+                vacio.textContent = 'Sin materiales';
+                lista.appendChild(vacio);
+                return;
+            }
+            lista.innerHTML = materiales.map(material => tarjetaMaterialSapHtmlDespachador(material)).join('');
         }
 
         function escaparHtmlDespachador(valor) {
@@ -938,7 +1070,7 @@
                             <span><strong>Bultos:</strong> ${bultos}</span>
                             <span><strong>Vehículo:</strong> ${vehiculo}</span>
                             <span><strong>Responsable:</strong> ${responsable}</span>
-                            ${materialesSap.length ? `<div class="pending-exit-materials"><strong>Materiales SAP</strong><div class="sap-code-list">${materialesSap.map(codigo => `<span class="sap-code">${escaparHtmlDespachador(codigo)}</span>`).join('')}</div></div>` : ''}
+                            ${materialesSap.length ? `<div class="pending-exit-materials"><strong>Materiales SAP</strong>${window.botonMostrarMaterialesSapHtml(materialesSap)}</div>` : ''}
                             <span><strong>Hora inicio:</strong> ${horaInicio}</span>
                             <span><strong>Hora fin:</strong> ${horaFin}</span>
                         </div>
@@ -1222,7 +1354,7 @@
                                     <thead>
                                         <tr>
                                             <th>#</th>
-                                            <th>Empresa</th>
+                                            <th>Empresa transportadora</th>
                                             <th>Proveedor</th>
                                             <th>Placa</th>
                                             <th>Factura</th>
@@ -1247,7 +1379,7 @@ ${historialConProveedores.map(h => {
                         const consecutivo = h.consecutivo_ingreso || '-';
                         const codigosMaterialSap = Array.isArray(h.materiales_sap) ? h.materiales_sap : [];
                         const materialesSap = codigosMaterialSap.length
-                            ? `<details class="history-sap-details"><summary>Mostrar <span>${codigosMaterialSap.length}</span></summary><div class="history-sap-code-list">${codigosMaterialSap.map(codigo => `<span class="history-sap-code">${escaparHtmlDespachador(codigo)}</span>`).join('')}</div></details>`
+                            ? window.botonMostrarMaterialesSapHtml(codigosMaterialSap)
                             : '<span class="history-sap-empty">—</span>';
                         const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
                         const displayDestino = h.proveedor_destino && h.proveedor_destino !== h.destino 
@@ -1259,7 +1391,7 @@ ${historialConProveedores.map(h => {
                         <td>${h.es_transporte ? (h.nombre_empresa || '-') : ''}</td>
                         <td>${h.nombre_proveedor || (h.es_transporte ? '-' : h.nombre_empresa || '-')}</td>
                         <td>${h.nit || '-'}</td>
-                        <td>${h.num_factura || '-'}</td>
+                        <td>${window.formatearFacturasHistorial(h)}</td>
                         <td>${h.tipo_vehiculo || '-'}</td>
                         <td>${h.bultos || '-'}</td>
                         <td>${h.peso ? (h.peso.toString().toUpperCase().includes('KG') ? h.peso : h.peso + ' kg') : '-'}</td>
@@ -1343,7 +1475,7 @@ return `
                                              <div class="turn-item-company">${turno.nombre_empresa || '-'}</div>
                                              <div class="turn-item-time">${turno.fecha_cita ? turno.fecha_cita.split('T')[0] + ' ' : ''}${horaCita} - ${destinoLabel[turno.destino] || turno.destino}</div>
                                              ${turno.consecutivo_ingreso ? `<div class="turn-item-details" style="font-size:11px;color:#475569;margin-top:4px;">Cons: ${turno.consecutivo_ingreso}</div>` : ''}
-                                             ${(turno.materiales_sap || turno.materialesSap || []).length ? `<div class="turn-item-details" style="font-size:11px;color:#475569;margin-top:4px;">Materiales SAP: ${(turno.materiales_sap || turno.materialesSap || []).map(escaparHtmlDespachador).join(', ')}</div>` : ''}
+                                             ${(turno.materiales_sap || turno.materialesSap || []).length ? `<div class="turn-item-details despachador-reserva-materiales"><span>Materiales SAP</span>${window.botonMostrarMaterialesSapHtml(turno.materiales_sap || turno.materialesSap)}</div>` : ''}
                                          </div>
                                      </div>
                                  `;
@@ -1574,6 +1706,7 @@ return `
                 }
                 
                 let conteo = 0;
+                let proveedorListoActual = null;
                 const intervaloVerificacion = setInterval(() => {
                     conteo++;
                     verificarProveedorListo();
@@ -1688,18 +1821,25 @@ return `
                 function mostrarProveedorListo(proveedor) {
                     proveedor = normalizarDatosNotificacion(proveedor);
                     if (!proveedor) return;
+                    proveedorListoActual = proveedor;
                     const turnoListoDiv = document.getElementById('turnoListoSalir');
-                    const infoDespachoDiv = document.getElementById('infoDespachoActual');
                     const btnAutorizar = document.getElementById('btnAutorizarSalida');
-                    
+                    const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
                     if (!turnoListoDiv) return;
+                    const materialesSapResueltos = obtenerMaterialesSapDespachador(proveedor);
+                    if (materialesSapResueltos.length) {
+                        proveedor = { ...proveedor, materialesSap: materialesSapResueltos };
+                    }
                     const proveedorFirma = JSON.stringify(proveedor);
                     if (turnoListoDiv.dataset.proveedorFirma === proveedorFirma) return;
                     turnoListoDiv.dataset.proveedorFirma = proveedorFirma;
+                    renderizarSeguimientoSalida(proveedor, true);
                     
                     if (proveedor.esTransporte && (!Array.isArray(proveedor.proveedores) || proveedor.proveedores.length === 0)) {
                         turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Todos los proveedores autorizados</div>';
+                        renderizarSeguimientoSalida(null, false);
                         if (btnAutorizar) btnAutorizar.disabled = true;
+                        if (btnInspeccion) btnInspeccion.disabled = true;
                         return;
                     }
                     
@@ -1712,20 +1852,8 @@ return `
                             <div class="turn-empresa">TRANSPORTADORA</div>
                             <div class="turn-badge">${total} PROVEEDOR(ES) RECIBIDOS DE RECEPCIÓN</div>
                         `;
-                        
-                        if (infoDespachoDiv) {
-                            infoDespachoDiv.innerHTML = `
-                                <p><strong>Turno:</strong> ${proveedor.numero}</p>
-                                <p><strong>Proveedores de la transportadora:</strong> ${total}</p>
-                                <p><strong>Pendientes de salida:</strong> ${proveedoresPendientes.length}</p>
-                                <p><strong>Autorizados:</strong> ${total - proveedoresPendientes.length}</p>
-                            `;
-                        }
-                        
-                        if (btnAutorizar) {
-                            btnAutorizar.disabled = true;
-                            btnAutorizar.textContent = 'Autorizar Salida';
-                        }
+                        if (btnAutorizar) btnAutorizar.disabled = true;
+                        if (btnInspeccion) btnInspeccion.disabled = true;
                         
                         renderizarProveedoresPendientes(proveedor.proveedores, proveedor.numero);
                     } else {
@@ -1733,27 +1861,25 @@ return `
                         const peso = proveedor.peso
                             ? (String(proveedor.peso).toUpperCase().includes('KG') ? proveedor.peso : `${proveedor.peso} kg`)
                             : '-';
-                        const materialesSap = Array.isArray(proveedor.materialesSap || proveedor.materiales_sap)
-                            ? (proveedor.materialesSap || proveedor.materiales_sap)
-                            : [];
-                        const materialesSapHtml = materialesSap.length
-                            ? materialesSap.map(codigo => `<span class="sap-code">${escaparHtmlDespachador(codigo)}</span>`).join('')
-                            : '<span class="sap-code-empty">Sin materiales</span>';
+                        const materialesSap = obtenerMaterialesSapDespachador(proveedor);
+                        const horaInicio = proveedor.horaLlamada || proveedor.hora_llamada || proveedor.horaLlegada || proveedor.hora_llegada;
                         const campos = [
                             ['Placa', proveedor.nit],
                             ['Factura', proveedor.numFactura],
-                            ['FMM', proveedor.consecutivoIngreso],
                             ['Vehículo', proveedor.tipoVehiculo],
                             ['Bultos', proveedor.bultos],
                             ['Peso', peso],
                             ['Responsable', proveedor.responsable],
                             ['Destino', destinoLabels[proveedor.destino] || proveedor.destino],
-                            ['Hora inicio', proveedor.horaLlamada],
-                            ['Hora fin', proveedor.horaFinalizacion || proveedor.horaLlegada]
+                            ['Hora de inicio', horaInicio],
+                            ['Materiales SAP', materialesSap.length]
                         ];
                         turnoListoDiv.innerHTML = `
                             <div class="ready-turn-overview">
-                                <div class="ready-turn-number">${proveedor.numero || '-'}</div>
+                                <div class="ready-turn-code">
+                                    <span>Código del proveedor</span>
+                                    <strong>${proveedor.numero || '-'}</strong>
+                                </div>
                                 <div class="ready-turn-heading">
                                     <div class="ready-turn-name">${proveedor.nombre || proveedor.nombreEmpresa || 'Proveedor'}</div>
                                     <div class="ready-turn-status">Listo para autorización de salida</div>
@@ -1761,32 +1887,10 @@ return `
                             </div>
                             <div class="ready-turn-details">
                                 ${campos.map(([label, value]) => `<div class="ready-turn-field"><span>${label}</span><strong>${value || '-'}</strong></div>`).join('')}
-                                <div class="ready-turn-materials"><span>Materiales SAP</span><div class="sap-code-list">${materialesSapHtml}</div></div>
                             </div>
                         `;
-                        
-                        if (infoDespachoDiv) {
-                            infoDespachoDiv.innerHTML = `
-                                <div class="ready-turn-detail-head">
-                                    <strong>${proveedor.numero || '-'}</strong>
-                                    <span>${proveedor.nombre || proveedor.nombreEmpresa || 'Proveedor'}</span>
-                                </div>
-                                <div class="ready-turn-details ready-turn-details-panel">
-                                    ${campos.map(([label, value]) => `<div class="ready-turn-field"><span>${label}</span><strong>${value || '-'}</strong></div>`).join('')}
-                                    <div class="ready-turn-materials"><span>Materiales SAP</span><div class="sap-code-list">${materialesSapHtml}</div></div>
-                                </div>
-                            `;
-                        }
-                        
-                        if (btnAutorizar) {
-                            btnAutorizar.disabled = false;
-                        }
-                        
-                        const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
-                        if (btnInspeccion) {
-                            btnInspeccion.disabled = false;
-                            btnInspeccion.textContent = 'Solicitar Inspeccion';
-                        }
+                        if (btnAutorizar) btnAutorizar.disabled = false;
+                        if (btnInspeccion) btnInspeccion.disabled = false;
                     }
                     
                     if (proveedorListoAnterior !== proveedor.timestamp) {
@@ -1800,8 +1904,9 @@ return `
                 }
                 
                 function renderizarProveedoresPendientes(proveedores, turnoNumero) {
-                    const infoDiv = document.getElementById('infoDespachoActual');
+                    const infoDiv = document.querySelector('#infoDespachoActual .dispatch-transport-providers');
                     if (!infoDiv) return;
+                    infoDiv.hidden = false;
                     
                     const html = proveedores.map((p) => {
                         const autorizado = p.autorizadoSalida === true;
@@ -1815,12 +1920,12 @@ return `
                             ? '<span class="autorizado-badge" style="margin-left:8px;">Inspección: NO</span>'
                             : `<button class="btn btn-secondary btn-small" onclick="DespachadorHandlers.solicitarInspeccionProveedorTransporteIndividual(${p.id}, '${p.nombreProveedor || ''}'); setTimeout(() => { cargarTurnosPendientesSalida(); }, 800);">Inspección</button>`;
                         return `
-                            <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${autorizado ? '#22c55e' : '#20538f'};">
-                                <div style="font-weight: 600; color: #3741a5;">${p.nombreProveedor || p.nit || 'N/A'}${estadoBadge}</div>
-                                <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
+                            <div class="dispatch-transport-provider">
+                                <div class="dispatch-transport-provider-head">${p.nombreProveedor || p.nit || 'N/A'}${estadoBadge}</div>
+                                <div class="dispatch-transport-provider-details">
                                     Consecutivo: ${p.consecutivoIngreso || 'N/A'} | Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
                                 </div>
-                                <div style="margin-top: 6px;">
+                                <div class="dispatch-transport-provider-actions">
                                     ${acciones}${inspeccion}
                                 </div>
                             </div>
@@ -1829,7 +1934,7 @@ return `
                     
                     const btnTodos = `<button class="btn btn-success btn-small" style="margin-bottom: 10px;" onclick="DespachadorHandlers.autorizarTodaTransportadora('${turnoNumero || ''}'); setTimeout(() => { const d = JSON.parse(localStorage.getItem('proveedorListoSalir')||'{}'); if (d.proveedores && d.proveedores.length && d.proveedores.every(p => p.autorizadoSalida)) { localStorage.removeItem('proveedorListoSalir'); if (window.limpiarProveedorListo) window.limpiarProveedorListo(); } else if (window.mostrarProveedorListo) { window.mostrarProveedorListo(d); } cargarTurnosPendientesSalida(); cargarEstadisticasDespachador(); }, 1000);">Autorizar toda la transportadora</button>`;
                     
-                    infoDiv.innerHTML += `<hr style="margin: 12px 0;"><h4 style="color: #3741a5;">Proveedores de la Transportadora (${proveedores.length}):</h4>${btnTodos}${html}`;
+                    infoDiv.innerHTML = `<h3 class="dispatch-followup-section-title">Proveedores de la transportadora (${proveedores.length})</h3>${btnTodos}${html}`;
                 }
                 
                 async function reproducirAlertaSalida(proveedor) {
@@ -1871,11 +1976,9 @@ return `
                     if (modalExistente) modalExistente.remove();
                     
                     const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
-                    const materialesSap = Array.isArray(proveedor.materialesSap || proveedor.materiales_sap)
-                        ? (proveedor.materialesSap || proveedor.materiales_sap)
-                        : [];
+                    const materialesSap = obtenerMaterialesSapDespachador(proveedor);
                     const materialesSapHtml = materialesSap.length
-                        ? materialesSap.map(codigo => `<span class="sap-code">${escaparHtmlDespachador(codigo)}</span>`).join('')
+                        ? window.botonMostrarMaterialesSapHtml(materialesSap)
                         : '<span class="sap-code-empty">Sin materiales</span>';
 
                     if (proveedor.esTransporte && Array.isArray(proveedor.proveedores) && proveedor.proveedores.length > 0) {
@@ -1965,7 +2068,7 @@ return `
                                     </tr>
                                     <tr>
                                         <td><strong>Materiales SAP:</strong></td>
-                                        <td><div class="sap-code-list">${materialesSapHtml}</div></td>
+                                        <td>${materialesSapHtml}</td>
                                     </tr>
                                     <tr>
                                         <td><strong>Contacto:</strong></td>
@@ -2002,28 +2105,22 @@ return `
                 verificarProveedorListo();
                 
                 function limpiarProveedorListo() {
+                    proveedorListoActual = null;
                     localStorage.removeItem('proveedorListoSalir');
                     document.getElementById('modal-proveedor-listo')?.remove();
                     const turnoListoDiv = document.getElementById('turnoListoSalir');
                     const infoDespachoDiv = document.getElementById('infoDespachoActual');
                     const btnAutorizar = document.getElementById('btnAutorizarSalida');
-                    
+                    const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
                     if (turnoListoDiv) {
                         turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Esperando que completen un turno...</div>';
                         delete turnoListoDiv.dataset.proveedorFirma;
                     }
                     if (infoDespachoDiv) {
-                        infoDespachoDiv.innerHTML = '<p class="despacho-empty">Sin proveedor esperando</p>';
+                        renderizarSeguimientoSalida(null, false);
                     }
-                    if (btnAutorizar) {
-                        btnAutorizar.disabled = true;
-                    }
-                    
-                    const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
-                    if (btnInspeccion) {
-                        btnInspeccion.disabled = true;
-                        btnInspeccion.textContent = 'Solicitar Inspeccion';
-                    }
+                    if (btnAutorizar) btnAutorizar.disabled = true;
+                    if (btnInspeccion) btnInspeccion.disabled = true;
                 }
                 
                 function mostrarCampo(valor) {
@@ -2186,7 +2283,7 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                                     <thead>
                                         <tr>
                                             <th>#</th>
-                                            <th>Empresa</th>
+                                            <th>Empresa transportadora</th>
                                             <th>Proveedor</th>
                                             <th>Placa</th>
                                             <th>Factura</th>
@@ -2214,7 +2311,7 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                                             const consecutivo = h.consecutivo_ingreso || '-';
                                             const codigosMaterialSap = Array.isArray(h.materiales_sap) ? h.materiales_sap : [];
                                             const materialesSap = codigosMaterialSap.length
-                                                ? `<details class="history-sap-details"><summary>Mostrar <span>${codigosMaterialSap.length}</span></summary><div class="history-sap-code-list">${codigosMaterialSap.map(codigo => `<span class="history-sap-code">${escaparHtmlDespachador(codigo)}</span>`).join('')}</div></details>`
+                                                ? window.botonMostrarMaterialesSapHtml(codigosMaterialSap)
                                                 : '<span class="history-sap-empty">—</span>';
                                             return `
                                             <tr>
@@ -2222,7 +2319,7 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                                                 <td>${h.es_transporte ? (h.nombre_empresa || '-') : ''}</td>
                                                 <td>${h.nombre_proveedor || (h.es_transporte ? '-' : h.nombre_empresa || '-')}</td>
                                                 <td>${h.nit || '-'}</td>
-                                                <td>${h.num_factura || '-'}</td>
+                                                <td>${window.formatearFacturasHistorial(h)}</td>
                                                 <td>${h.tipo_vehiculo || '-'}</td>
                                                 <td>${h.bultos || '-'}</td>
                                                 <td>${h.peso || '-'}</td>
@@ -2356,41 +2453,42 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                         cargarEstadisticasDespachador();
                     });
                 }
-                
+
                 const btnAutorizarSalida = document.getElementById('btnAutorizarSalida');
-                if (btnAutorizarSalida) {
-                    btnAutorizarSalida.addEventListener('click', async () => {
-                        const datos = localStorage.getItem('proveedorListoSalir');
-                        if (datos) {
-                            try {
-                                const proveedor = JSON.parse(datos);
-                                await window.DespachadorHandlers.autorizarSalida(proveedor);
-                                setTimeout(() => {
-                                    cargarTurnosPendientesSalida();
-                                    cargarEstadisticasDespachador();
-                                    cargarHistorialDespachador();
-                                }, 500);
-                            } catch (e) {
-                                console.error('Error:', e);
-                            }
-                        }
-                    });
-                }
-                
+                btnAutorizarSalida?.addEventListener('click', async () => {
+                    try {
+                        const proveedor = proveedorListoActual || normalizarDatosNotificacion(
+                            JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null')
+                        );
+                        if (!proveedor) return;
+                        await window.DespachadorHandlers.autorizarSalida(proveedor);
+                        setTimeout(() => {
+                            cargarTurnosPendientesSalida();
+                            cargarEstadisticasDespachador();
+                            cargarHistorialDespachador();
+                        }, 500);
+                    } catch (error) {
+                        console.error('Error al autorizar salida:', error);
+                    }
+                });
+
                 const btnSolicitarInspeccion = document.getElementById('btnSolicitarInspeccion');
-                if (btnSolicitarInspeccion) {
-                    btnSolicitarInspeccion.addEventListener('click', async () => {
-                        const datos = localStorage.getItem('proveedorListoSalir');
-                        if (datos) {
-                            try {
-                                const proveedor = JSON.parse(datos);
-                                await window.DespachadorHandlers.solicitarInspeccion(proveedor);
-                            } catch (e) {
-                                console.error('Error:', e);
-                            }
-                        }
-                    });
-                }
+                btnSolicitarInspeccion?.addEventListener('click', async () => {
+                    try {
+                        const proveedor = proveedorListoActual || normalizarDatosNotificacion(
+                            JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null')
+                        );
+                        if (!proveedor) return;
+                        await window.DespachadorHandlers.solicitarInspeccion(proveedor);
+                        window.renderizarSeguimientoSalida?.({
+                            ...proveedor,
+                            inspeccionSolicitada: true,
+                            horaInspeccion: new Date().toISOString()
+                        }, true);
+                    } catch (error) {
+                        console.error('Error al solicitar inspección:', error);
+                    }
+                });
                 
                 // Modal auto-cierra si se autoriza la salida desde admin (viene del modal del proveedor)
                 const modalProveedor = document.getElementById('modal-proveedor-listo');

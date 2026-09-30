@@ -25,20 +25,20 @@
         }
         .llegada-title {
             color: var(--primary-700);
-            text-align: center;
+            text-align: left;
             font-size: 24px;
             font-weight: 700;
             margin-bottom: var(--space-2);
         }
         .llegada-subtitle {
             color: var(--text-secondary);
-            text-align: center;
+            text-align: left;
             margin-bottom: var(--space-6);
         }
         .llegada-form {
             display: flex;
             flex-direction: column;
-            gap: var(--space-4);
+            gap: 18px;
         }
         .llegada-input {
             width: 100%;
@@ -78,6 +78,13 @@
 <body>
     <div class="llegada-container">
         <div class="llegada-box">
+            <div class="llegada-brand">
+                <img src="Logo-Web-SI3.png" alt="">
+                <div class="llegada-brand-copy">
+                    <strong>SI-3</strong>
+                    <span>Control de acceso</span>
+                </div>
+            </div>
             <div id="formSection">
                 <h1 class="llegada-title">Confirmar Llegada</h1>
                 <p class="llegada-subtitle">Ingrese sus datos</p>
