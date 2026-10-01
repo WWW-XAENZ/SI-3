@@ -3607,6 +3607,17 @@ const UsuarioHandlers = {
             
             console.log('✅ Validación OK. Placa:', placaInput);
             
+            const materialesSap = Array.from(document.querySelectorAll('#materialesSapLista input'))
+                .map(input => input.value.trim())
+                .filter(Boolean);
+
+            if (materialesSap.length === 0) {
+                const primerInput = document.querySelector('#materialesSapLista .material-sap-input');
+                primerInput?.focus();
+                primerInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                throw new Error('Debe ingresar al menos un material SAP');
+            }
+
             const destino = document.getElementById('destino')?.value;
             const fechaDateInput = document.getElementById('fechaCitaDate')?.value;
             const slotSeleccionado = document.getElementById('fechaCitaSlot')?.value;
@@ -3644,9 +3655,7 @@ const UsuarioHandlers = {
                 telefono: document.getElementById('telefono')?.value?.trim(),
                 consecutivoIngreso: document.getElementById('consecutivoIngreso')?.value?.trim() || null,
                 numFacturas: parseInt(document.getElementById('numFacturas')?.value) || 0,
-                materialesSap: Array.from(document.querySelectorAll('#materialesSapLista input'))
-                    .map(input => input.value.trim())
-                    .filter(Boolean),
+                materialesSap,
                 servicio: document.getElementById('servicio')?.value,
                 destino: destino,
                 fechaCita: fechaCitaISO
@@ -5162,6 +5171,7 @@ const InputConfig = {
         entrada.className = 'material-sap-input';
         entrada.placeholder = 'Buscar por código SAP o nombre';
         entrada.autocomplete = 'off';
+        entrada.required = true;
         entrada.setAttribute('role', 'combobox');
         entrada.setAttribute('aria-autocomplete', 'list');
         entrada.setAttribute('aria-expanded', 'false');
@@ -5218,7 +5228,7 @@ const InputConfig = {
         if (destino !== 'plasticos') catalogos.push(['SIE', window.CatalogoMaterialesSIE]);
         if (destino !== 'ensambles') catalogos.push(['SIP / SI3 ZF', window.CatalogoMaterialesSIP]);
 
-        const coincidencias = [];
+        const coincidenciasMap = new Map();
         catalogos.forEach(([etiqueta, catalogo]) => {
             if (!(catalogo instanceof Map)) return;
             catalogo.forEach((material, codigoSap) => {
@@ -5226,16 +5236,23 @@ const InputConfig = {
                 const codigoNormalizado = normalizar(codigoSap);
                 const descripcionNormalizada = normalizar(descripcion);
                 if (codigoNormalizado.includes(termino) || descripcionNormalizada.includes(termino)) {
-                    coincidencias.push({
+                    const prioridad = codigoNormalizado.startsWith(termino) || descripcionNormalizada.startsWith(termino) ? 0 : 1;
+                    const candidata = {
                         codigoSap,
                         descripcion,
                         etiqueta,
-                        prioridad: codigoNormalizado.startsWith(termino) || descripcionNormalizada.startsWith(termino) ? 0 : 1
-                    });
+                        prioridad
+                    };
+                    const clave = String(codigoSap);
+                    const existente = coincidenciasMap.get(clave);
+                    if (!existente || candidata.prioridad < existente.prioridad) {
+                        coincidenciasMap.set(clave, candidata);
+                    }
                 }
             });
         });
 
+        const coincidencias = [...coincidenciasMap.values()];
         coincidencias.sort((a, b) => a.prioridad - b.prioridad || a.codigoSap.localeCompare(b.codigoSap, 'en', { numeric: true }));
         coincidencias.slice(0, 8).forEach(material => {
             const opcion = document.createElement('button');
