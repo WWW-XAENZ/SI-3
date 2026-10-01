@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=11">
     <style>
     .admin-grid { 
             grid-template-columns: 300px 1fr 1fr; 
@@ -54,6 +54,8 @@
             border-radius: 9px;
             background: #fff;
             box-shadow: 0 12px 28px rgba(31, 56, 85, 0.16);
+            display: grid;
+            gap: 3px;
         }
         .admin-menu-panel button {
             width: 100%;
@@ -67,6 +69,29 @@
             cursor: pointer;
         }
         .admin-menu-panel button:hover { background: #eef6fc; }
+        .admin-menu-divider { height: 1px; margin: 4px 2px; background: #e5edf3; }
+        .admin-menu-panel .admin-menu-action {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            min-height: 38px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+        .admin-menu-panel .admin-menu-action::before {
+            width: 8px;
+            height: 8px;
+            flex: 0 0 8px;
+            border-radius: 50%;
+            background: currentColor;
+            content: '';
+            opacity: 0.75;
+        }
+        .admin-menu-panel .admin-menu-action.is-danger { color: #a52a35; }
+        .admin-menu-panel .admin-menu-action.is-warning { color: #9a5d0a; }
+        .admin-menu-panel .admin-menu-action.is-primary { color: #20538f; }
 
         .material-catalog-dialog {
             width: min(760px, calc(100vw - 28px));
@@ -809,6 +834,10 @@
                 </summary>
                 <div class="admin-menu-panel">
                     <button type="button" id="btnAbrirCatalogoMateriales">Catálogo de Materiales SAP</button>
+                    <div class="admin-menu-divider" role="separator"></div>
+                    <button type="button" id="btnReiniciarCola" class="admin-menu-action is-danger">Reiniciar Cola</button>
+                    <button type="button" id="btnReiniciarContador" class="admin-menu-action is-warning">Reiniciar Contador</button>
+                    <button type="button" id="btnProveedorSinTurno" class="admin-menu-action is-primary">Proveedor Sin Turno</button>
                 </div>
             </details>
         </nav>
@@ -827,9 +856,6 @@
                     <!-- Botones de control -->
                     <div class="control-buttons control-buttons-spaced">
                         <button id="btnCompletarTurno" class="btn btn-success">Completar Turno</button>
-                        <button id="btnReiniciarCola" class="btn btn-danger">Reiniciar Cola</button>
-                        <button id="btnReiniciarContador" class="btn btn-warning">Reiniciar Contador</button>
-                        <button id="btnProveedorSinTurno" class="btn btn-primary">Proveedor Sin Turno</button>
                     </div>
                     
                     <!-- Tiempo transcurrido del turno actual -->
@@ -1370,7 +1396,7 @@
      <script src="supabase-config.js"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-     <script src="app.js?v=5"></script>
+    <script src="app.js?v=14"></script>
      <script>
         window.salidaDespachadorAnterior = null;
         window.inspeccionAnterior = null;
@@ -1718,7 +1744,11 @@
                     return;
                 }
 
-                if (boton.dataset.catalogAction === 'borrar' && confirm(`¿Borrar ${codigoSap} · ${material.descripcion} del catálogo ${material.etiqueta}?`)) {
+                if (boton.dataset.catalogAction === 'borrar' && await window.ConfirmDialog.confirmar(
+                    `¿Borrar ${codigoSap} · ${material.descripcion} del catálogo ${material.etiqueta}?`,
+                    'Borrar material SAP',
+                    'Borrar material'
+                )) {
                     boton.disabled = true;
                     try {
                         const { error } = await window.supabaseClient
@@ -2401,7 +2431,11 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                     return;
                 }
 
-                if (!confirm(`¿Eliminar a ${proveedor.contacto || proveedor.nombreEmpresa} del registro activo? Su historial se conservará.`)) return;
+                if (!(await window.ConfirmDialog.confirmar(
+                    `¿Eliminar a ${proveedor.contacto || proveedor.nombreEmpresa} del registro activo? Su historial se conservará.`,
+                    'Eliminar proveedor',
+                    'Eliminar proveedor'
+                ))) return;
                 botonEliminar.disabled = true;
                 try {
                     const eliminado = await SupabaseDB.eliminarProveedor(proveedor.id);

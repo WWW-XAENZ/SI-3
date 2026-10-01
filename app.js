@@ -468,7 +468,13 @@ const Utils = {
 
     formatearFecha(fechaISO) {
         if (!fechaISO) return 'N/A';
+        const fechaTexto = String(fechaISO).split('T')[0];
+        const partes = fechaTexto.split('-');
+        if (partes.length === 3 && partes[0].length === 4) {
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
         const fecha = new Date(fechaISO);
+        if (Number.isNaN(fecha.getTime())) return 'N/A';
         return fecha.toLocaleDateString('es-ES', {
             year: 'numeric',
             month: '2-digit',
@@ -479,10 +485,12 @@ const Utils = {
     formatearHora(hora) {
         if (!hora) return '-';
         try {
-            const partes = hora.split(':');
+            const horaTexto = String(hora).split('T').pop();
+            const partes = horaTexto.split(':');
             if (partes.length >= 2) {
                 let h = parseInt(partes[0]);
-                const min = partes[1];
+                if (Number.isNaN(h)) return hora;
+                const min = partes[1].slice(0, 2);
                 const ampm = h >= 12 ? 'PM' : 'AM';
                 h = h % 12 || 12;
                 return `${h}:${min} ${ampm}`;
@@ -592,6 +600,77 @@ const SupabaseDB = {
         }
     },
 
+    async obtenerFechaReinicioContador() {
+        const clave = 'contador_reinicio_fecha';
+        const fechaLocal = localStorage.getItem(clave);
+        if (!window.supabaseClient) return fechaLocal;
+
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('configuracion')
+                .select('valor')
+                .eq('clave', clave)
+                .maybeSingle();
+            if (error) throw error;
+
+            const fechaRemota = data?.valor || '';
+            if (!fechaRemota && fechaLocal) {
+                const { error: errorGuardar } = await window.supabaseClient
+                    .from('configuracion')
+                    .upsert({ clave, valor: fechaLocal, descripcion: 'Fecha de reinicio de contadores' }, { onConflict: 'clave' });
+                if (errorGuardar) throw errorGuardar;
+                return fechaLocal;
+            }
+
+            if (fechaRemota !== fechaLocal) {
+                LocalStorage.guardarContadorPrefijo('T', 0);
+                LocalStorage.guardarContadorPrefijo('C', 0);
+                AppState.contadorTurnos = 0;
+                AppState.contadorTurnosT = 0;
+                AppState.contadorTurnosC = 0;
+                if (fechaRemota) localStorage.setItem(clave, fechaRemota);
+                else localStorage.removeItem(clave);
+            }
+
+            return fechaRemota || null;
+        } catch (error) {
+            console.warn('Error al obtener fecha de reinicio del contador:', error.message);
+            return fechaLocal;
+        }
+    },
+
+    async guardarFechaReinicioContador(fecha) {
+        const clave = 'contador_reinicio_fecha';
+        if (window.supabaseClient) {
+            const { error } = await window.supabaseClient
+                .from('configuracion')
+                .upsert({ clave, valor: fecha, descripcion: 'Fecha de reinicio de contadores' }, { onConflict: 'clave' });
+            if (error) throw error;
+        }
+        localStorage.setItem(clave, fecha);
+    },
+
+    obtenerMaximosTurnos(turnos, fechaReinicio) {
+        let maxT = 0;
+        let maxC = 0;
+        const timestampReinicio = fechaReinicio ? Date.parse(fechaReinicio) : null;
+
+        turnos.forEach(turno => {
+            if (Number.isFinite(timestampReinicio)) {
+                const fechaTurno = Date.parse(turno.fechaSolicitud || '');
+                if (!Number.isFinite(fechaTurno) || fechaTurno < timestampReinicio) return;
+            }
+
+            const coincidencia = String(turno.numero || '').match(/^([TC])(\d+)$/i);
+            if (!coincidencia) return;
+            const numero = parseInt(coincidencia[2], 10);
+            if (coincidencia[1].toUpperCase() === 'T') maxT = Math.max(maxT, numero);
+            else maxC = Math.max(maxC, numero);
+        });
+
+        return { maxT, maxC };
+    },
+
     async obtenerContadorTurnos(prefijo = 'T') {
         const claveLocal = prefijo === 'C' ? 'contador_turnos_C' : 'contador_turnos';
         const contadorLocal = LocalStorage.obtenerContadorPrefijo(prefijo);
@@ -632,6 +711,7 @@ const SupabaseDB = {
 
     async incrementarContadorTurnos(prefijo = 'T', signal = null) {
         console.log('=== Incrementando contador ===');
+        await this.obtenerFechaReinicioContador();
         
         if (!window.supabaseClient) {
             const contadorLocal = LocalStorage.obtenerContadorPrefijo(prefijo);
@@ -686,7 +766,7 @@ const SupabaseDB = {
         LocalStorage.guardarContadorPrefijo(prefijo, valor);
         if (!window.supabaseClient) return;
         try {
-            await window.supabaseClient
+            const { error } = await window.supabaseClient
                 .from('configuracion')
                 .upsert({ 
                     clave: claveLocal, 
@@ -694,8 +774,10 @@ const SupabaseDB = {
                     descripcion: `Contador global de turnos ${prefijo}`,
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'clave' });
+            if (error) throw error;
         } catch (e) {
             console.warn('Error al fijar contador en Supabase:', e.message);
+            throw e;
         }
     },
 
@@ -1336,10 +1418,14 @@ const SupabaseDB = {
                 }
             }
             
-            // Push notification - Turno completado (con sonido garantizado)
-            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_completado' } }));
-            if (window.SonidoAlerta) SonidoAlerta.reproducir(2);
-            this._notificarTurnoCompletado(turnoMapeado);
+            // Alerts must not turn a successful deletion into a reported completion failure.
+            try {
+                window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_completado' } }));
+                if (window.SonidoAlerta) SonidoAlerta.reproducir(2);
+                this._notificarTurnoCompletado(turnoMapeado);
+            } catch (alertError) {
+                console.warn('El turno se completó, pero no se pudo reproducir un aviso:', alertError);
+            }
             
             return true;
         } catch (error) {
@@ -1350,8 +1436,13 @@ const SupabaseDB = {
 
     // Push notification - Turno completado
     _notificarTurnoCompletado(turnoMapeado) {
-        if (window.PushManager) {
-            window.PushManager.notifyTurnoCompletado(turnoMapeado);
+        const pushManager = window.SI3PushManager;
+        if (typeof pushManager?.notifyTurnoCompletado !== 'function') return;
+        try {
+            const notificacion = pushManager.notifyTurnoCompletado(turnoMapeado);
+            notificacion?.catch?.(error => console.warn('No se pudo enviar la notificación de turno completado:', error));
+        } catch (error) {
+            console.warn('No se pudo enviar la notificación de turno completado:', error);
         }
     },
 
@@ -2676,45 +2767,29 @@ const Turnos = {
                     
                     console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total`);
                     
-                    let maxT = 0;
-                    let maxC = 0;
-                    const contadorReiniciado = localStorage.getItem('contador_reiniciado') === 'true';
-                    
-                    if (!contadorReiniciado) {
-                        todosLosTurnos.forEach(t => {
-                            const num = parseInt(t.numero.replace(/^[TC]/i, ''));
-                            if (t.numero.toUpperCase().startsWith('T') && num > maxT) maxT = num;
-                            if (t.numero.toUpperCase().startsWith('C') && num > maxC) maxC = num;
-                        });
-                    }
+                    const fechaReinicioContador = await SupabaseDB.obtenerFechaReinicioContador();
+                    const { maxT, maxC } = SupabaseDB.obtenerMaximosTurnos(todosLosTurnos, fechaReinicioContador);
                     
                     const [contadorT, contadorC] = await Promise.all([
                         SupabaseDB.obtenerContadorTurnos('T'),
                         SupabaseDB.obtenerContadorTurnos('C')
                     ]);
                     
-                    const nuevoMaxT = contadorReiniciado ? 0 : Math.max(contadorT, maxT);
-                    const nuevoMaxC = contadorReiniciado ? 0 : Math.max(contadorC, maxC);
-                    
-                    if (contadorReiniciado) {
-                        LocalStorage.guardarContadorPrefijo('T', 0);
-                        LocalStorage.guardarContadorPrefijo('C', 0);
-                    }
+                    const nuevoMaxT = Math.max(contadorT, maxT);
+                    const nuevoMaxC = Math.max(contadorC, maxC);
                     
                     AppState.contadorTurnosT = nuevoMaxT;
                     AppState.contadorTurnosC = nuevoMaxC;
                     AppState.contadorTurnos = Math.max(nuevoMaxT, nuevoMaxC);
                     
                     if (nuevoMaxT > contadorT) {
-                        SupabaseDB.incrementarContadorTurnosHasta('T', nuevoMaxT);
+                        await SupabaseDB.incrementarContadorTurnosHasta('T', nuevoMaxT);
                         LocalStorage.guardarContadorPrefijo('T', nuevoMaxT);
                     }
                     if (nuevoMaxC > contadorC) {
-                        SupabaseDB.incrementarContadorTurnosHasta('C', nuevoMaxC);
+                        await SupabaseDB.incrementarContadorTurnosHasta('C', nuevoMaxC);
                         LocalStorage.guardarContadorPrefijo('C', nuevoMaxC);
                     }
-                    
-                    localStorage.removeItem('contador_reiniciado');
                     
                     return;
                 }
@@ -3069,7 +3144,13 @@ const RenderAdmin = {
         if (turnosLlegados.length === 0) {
             listaDiv.innerHTML = '<p class="empty-message">No hay turnos confirmados</p>';
         } else {
-            listaDiv.innerHTML = turnosLlegados.map(turno => `
+            listaDiv.innerHTML = turnosLlegados.map(turno => {
+                const fechaTurno = turno.fechaCita || turno.fechaSolicitud;
+                const fechaHoraTurno = [
+                    fechaTurno ? Utils.formatearFecha(fechaTurno) : '',
+                    turno.horaSolicitud ? Utils.formatearHora(turno.horaSolicitud) : ''
+                ].filter(Boolean).join(' ');
+                return `
                 <div class="turn-item turn-item-llegado">
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
@@ -3088,7 +3169,7 @@ const RenderAdmin = {
                             ${turno.materialesSap?.length ? bloqueMaterialesSapAdminHtml(turno.materialesSap) : ''}
                         </div>
                         <div class="turn-item-time">
-                            ${turno.horaSolicitud}${turno.motivo ? ' - ' + turno.motivo : ''}
+                            ${fechaHoraTurno}${turno.motivo ? ' - ' + turno.motivo : ''}
                         </div>
                     </div>
                     <div class="turn-item-actions">
@@ -3100,7 +3181,7 @@ const RenderAdmin = {
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
     },
 
@@ -3126,7 +3207,13 @@ const RenderAdmin = {
         if (turnosNormales.length === 0) {
             listaDiv.innerHTML = '<p class="empty-message">No hay turnos en espera</p>';
         } else {
-            listaDiv.innerHTML = turnosNormales.map(turno => `
+            listaDiv.innerHTML = turnosNormales.map(turno => {
+                const horaTurno = turno.horaSolicitud || turno.fechaCita?.split('T')[1];
+                const fechaHoraTurno = [
+                    turno.fechaCita ? Utils.formatearFecha(turno.fechaCita) : '',
+                    horaTurno ? Utils.formatearHora(horaTurno) : ''
+                ].filter(Boolean).join(' ');
+                return `
                 <div class="turn-item turn-item-espera">
                     <span class="turn-item-number">${turno.numero}</span>
                     <div class="turn-item-info">
@@ -3145,7 +3232,7 @@ const RenderAdmin = {
                             ${turno.materialesSap?.length ? bloqueMaterialesSapAdminHtml(turno.materialesSap) : ''}
                         </div>
                         <div class="turn-item-time">
-                            ${turno.fechaCita ? turno.fechaCita.split('T')[0] + ' ' : ''}${turno.horaSolicitud ? turno.horaSolicitud.slice(0,5) : ''}${turno.motivo ? ' - ' + turno.motivo : ''}
+                            ${fechaHoraTurno}${turno.motivo ? ' - ' + turno.motivo : ''}
                         </div>
                     </div>
                     <div class="turn-item-actions">
@@ -3154,7 +3241,7 @@ const RenderAdmin = {
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
     },
 
@@ -3199,25 +3286,12 @@ const RenderAdmin = {
             
             let html = '';
             for (const [fecha, turnos] of Object.entries(gruposPorFecha)) {
-                const nombreDia = new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO', { 
-                    weekday: 'long', 
-                    day: 'numeric', 
-                    month: 'long' 
-                });
-                html += `<div class="cited-day-header">${nombreDia}</div>`;
+                const fechaVisible = fecha === 'Sin fecha'
+                    ? fecha
+                    : `${new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CO', { weekday: 'long' })} · ${Utils.formatearFecha(fecha)}`;
+                html += `<div class="cited-day-header">${fechaVisible}</div>`;
                 html += turnos.map(turno => {
-                    const horaCita = turno.fechaCita ? (() => {
-                        const fechaHora = turno.fechaCita.split('T');
-                        if (fechaHora.length >= 2) {
-                            const [horas, minSeg] = fechaHora[1].split(':');
-                            const h = parseInt(horas);
-                            const min = minSeg.split('.')[0];
-                            const ampm = h >= 12 ? 'PM' : 'AM';
-                            const h12 = h % 12 || 12;
-                            return `${h12}:${min} ${ampm}`;
-                        }
-                        return turno.horaSolicitud;
-                    })() : turno.horaSolicitud;
+                    const horaCita = Utils.formatearHora(turno.fechaCita?.split('T')[1] || turno.horaSolicitud);
                     const empresa = String(turno.nombreEmpresa || '').trim();
                     const contacto = String(turno.contacto || '').trim();
                     return `
@@ -3232,8 +3306,8 @@ const RenderAdmin = {
                                 ${turno.destino ? `<div style="font-size:11px;color:#475569;">Destino: ${destinoLabel[turno.destino] || turno.destino}</div>` : ''}
                                 ${turno.consecutivoIngreso ? `<div style="font-size:11px;color:#475569;">Cons: ${turno.consecutivoIngreso}</div>` : ''}
                                 ${turno.materialesSap?.length ? bloqueMaterialesSapAdminHtml(turno.materialesSap) : ''}
-                                ${turno.motivo ? `<div style="font-size:11px;color:#475569;">${horaCita.slice(0,5)} - ${turno.motivo}</div>` : `<div style="font-size:11px;color:#475569;">${horaCita.slice(0,5)}</div>`}
                             </div>
+                            <div class="turn-item-time">${horaCita}${turno.motivo ? ` - ${turno.motivo}` : ''}</div>
                         </div>
                         <div class="turn-item-actions">
                             ${AppState.turnoActual && AppState.turnoActual.id === turno.id
@@ -3748,7 +3822,7 @@ const UsuarioHandlers = {
             return;
         }
         
-        if (confirm(`¿Cancelar turno ${miTurno.numero}?`)) {
+        if (await ConfirmDialog.confirmar(`¿Cancelar turno ${miTurno.numero}?`, 'Cancelar turno', 'Cancelar turno')) {
             try {
                 await Turnos.cancelar(miTurno.id);
                 LocalStorage.eliminarMiTurno();
@@ -3787,6 +3861,8 @@ const AdminHandlers = {
             Utils.mostrarNotificacion(`Ya hay un turno en atención (${AppState.turnoActual.numero}). Complételo primero.`, 'error');
             return;
         }
+
+        if (!(await ConfirmDialog.confirmar(`¿Llamar al turno ${turno.numero}?`, 'Confirmar llamada', 'Sí, llamar'))) return;
 
         AppState.turnoActual = turno;
         AppState.turnos = AppState.turnos.filter(t => t.id !== turno.id);
@@ -3832,6 +3908,7 @@ const AdminHandlers = {
         }
 
         const turno = AppState.turnos[0];
+        if (!(await ConfirmDialog.confirmar(`¿Llamar al siguiente turno ${turno.numero}?`, 'Confirmar llamada', 'Sí, llamar'))) return;
         
         AppState.turnoActual = turno;
         AppState.turnos = AppState.turnos.filter(t => t.id !== turno.id);
@@ -4238,7 +4315,7 @@ const AdminHandlers = {
         const proveedor = AppState.proveedoresTransporte[index];
         if (!proveedor) return;
         
-        if (confirm(`¿Eliminar proveedor ${proveedor.nombreProveedor || proveedor.nit}?`)) {
+        if (await ConfirmDialog.confirmar(`¿Eliminar proveedor ${proveedor.nombreProveedor || proveedor.nit}?`, 'Eliminar proveedor', 'Eliminar')) {
             if (proveedor.id) {
                 await SupabaseDB.eliminarProveedorTransporte(proveedor.id);
             }
@@ -4308,7 +4385,7 @@ const AdminHandlers = {
             return;
         }
 
-        if (!confirm(`¿Finalizar registro de ${proveedores.length} proveedor(es)?`)) {
+        if (!(await ConfirmDialog.confirmar(`¿Finalizar registro de ${proveedores.length} proveedor(es)?`, 'Finalizar registro', 'Finalizar'))) {
             return;
         }
 
@@ -4539,6 +4616,7 @@ const AdminHandlers = {
         }
 
         const turno = AppState.turnos[0];
+        if (!(await ConfirmDialog.confirmar(`¿Llamar al siguiente turno ${turno.numero}?`, 'Confirmar llamada', 'Sí, llamar'))) return;
         
         AppState.turnoActual = turno;
         AppState.turnos = AppState.turnos.filter(t => t.id !== turno.id);
@@ -4568,9 +4646,7 @@ const AdminHandlers = {
         console.log('AppState.turnoActual:', AppState.turnoActual);
         console.log('despachoInfo:', despachoInfo);
         
-        if (!confirm(`¿Completar turno ${turnoNumero}?`)) {
-            return;
-        }
+        if (!(await ConfirmDialog.confirmar(`¿Completar turno ${turnoNumero}?`, 'Completar turno', 'Completar turno'))) return;
         
         const turnoParaDespacho = { ...AppState.turnoActual };
         
@@ -4619,7 +4695,7 @@ const proveedorData = {
     },
 
     async cancelarTurno(id) {
-        if (confirm('¿Cancelar turno?')) {
+        if (await ConfirmDialog.confirmar('¿Cancelar turno?', 'Cancelar turno', 'Cancelar turno')) {
             await Turnos.cancelar(id);
             await RenderAdmin.todo();
         }
@@ -4629,7 +4705,7 @@ const proveedorData = {
         const numTurnos = AppState.turnos ? AppState.turnos.length : 0;
 
         if (numTurnos === 0) {
-            if (confirm('¿Reiniciar cola? No hay turnos en espera.')) {
+            if (await ConfirmDialog.confirmar('¿Reiniciar cola? No hay turnos en espera.', 'Reiniciar cola', 'Reiniciar cola')) {
                 await Turnos.reiniciarCola();
                 Utils.mostrarNotificacion('Cola reiniciada', 'success');
                 await RenderAdmin.todo();
@@ -4637,16 +4713,18 @@ const proveedorData = {
             return;
         }
 
-        if (!confirm(`¿Reiniciar cola?\n\nSe perderán ${numTurnos} turno(s) en espera de forma PERMANENTE.\n\n¿Estás seguro?`)) {
+        if (!(await ConfirmDialog.confirmar(`Se perderán ${numTurnos} turno(s) en espera de forma permanente.`, 'Reiniciar cola', 'Continuar'))) {
             return;
         }
 
-        const confirmacion = prompt(
-            `¡ATENCIÓN! Se borrarán ${numTurnos} turno(s) definiamente.\n\n` +
-            'Escribe "REINICIAR" en el cuadro para confirmar:'
+        const confirmacion = await ConfirmDialog.pedirTexto(
+            `Se eliminarán ${numTurnos} turno(s). Escribe REINICIAR para confirmar.`,
+            'Confirmación adicional',
+            'Escribe REINICIAR',
+            'REINICIAR'
         );
 
-        if (confirmacion && confirmacion.toUpperCase() === 'REINICIAR') {
+        if (confirmacion?.toUpperCase() === 'REINICIAR') {
             await Turnos.reiniciarCola();
             Utils.mostrarNotificacion('Cola reiniciada', 'success');
             await RenderAdmin.todo();
@@ -4654,11 +4732,12 @@ const proveedorData = {
     },
 
     async reiniciarContador() {
-        if (confirm('¿Reiniciar contador de turnos? Los próximos turnos empezarán en T001 y C001.')) {
+        if (await ConfirmDialog.confirmar('Los próximos turnos empezarán en T001 y C001.', 'Reiniciar contador', 'Reiniciar contador')) {
             try {
+                await SupabaseDB.guardarFechaReinicioContador(new Date().toISOString());
                 LocalStorage.guardarContadorPrefijo('T', 0);
                 LocalStorage.guardarContadorPrefijo('C', 0);
-                localStorage.setItem('contador_reiniciado', 'true');
+                localStorage.removeItem('contador_reiniciado');
                 AppState.contadorTurnos = 0;
                 AppState.contadorTurnosT = 0;
                 AppState.contadorTurnosC = 0;
@@ -4676,6 +4755,13 @@ const proveedorData = {
                         console.warn('⚠️ Contadores no se resetearon completamente en Supabase. Reintentando...');
                         await SupabaseDB.incrementarContadorTurnosHasta('T', 0);
                         await SupabaseDB.incrementarContadorTurnosHasta('C', 0);
+                        const [verifFinalT, verifFinalC] = await Promise.all([
+                            SupabaseDB.obtenerContadorTurnos('T'),
+                            SupabaseDB.obtenerContadorTurnos('C')
+                        ]);
+                        if (verifFinalT > 0 || verifFinalC > 0) {
+                            throw new Error('Supabase no confirmó el reinicio de ambos contadores.');
+                        }
                     }
                 }
                 
@@ -4690,7 +4776,7 @@ const proveedorData = {
 
     // CORRECCIÓN: Función eliminarProveedor añadida correctamente
     async eliminarProveedor(id) {
-        if (confirm('¿Eliminar este proveedor?')) {
+        if (await ConfirmDialog.confirmar('¿Eliminar este proveedor?', 'Eliminar proveedor', 'Eliminar')) {
             const resultado = await SupabaseDB.eliminarProveedor(id);
             if (resultado) {
                 Utils.mostrarNotificacion('Proveedor eliminado', 'success');
@@ -4830,7 +4916,7 @@ const proveedorData = {
     },
 
     async eliminarHistorial(id) {
-        if (!confirm('¿Eliminar este registro del historial?')) return;
+        if (!(await ConfirmDialog.confirmar('¿Eliminar este registro del historial?', 'Eliminar registro', 'Eliminar'))) return;
         try {
             if (window.supabaseClient) {
                 const { error } = await window.supabaseClient
@@ -5007,7 +5093,7 @@ document.getElementById('editHistDestino').value = editDestino;
     },
 
     async limpiarHistorial() {
-        if (confirm('¿Está seguro de que desea limpiar todo el historial?')) {
+        if (await ConfirmDialog.confirmar('¿Está seguro de que desea limpiar todo el historial?', 'Limpiar historial', 'Limpiar historial')) {
             try {
                 LocalStorage.guardarHistorial([]);
                 AppState.historial = [];
@@ -5223,10 +5309,10 @@ const InputConfig = {
             return;
         }
 
-        const destino = document.getElementById('destino')?.value || '';
-        const catalogos = [];
-        if (destino !== 'plasticos') catalogos.push(['SIE', window.CatalogoMaterialesSIE]);
-        if (destino !== 'ensambles') catalogos.push(['SIP / SI3 ZF', window.CatalogoMaterialesSIP]);
+        const catalogos = [
+            ['SIE', window.CatalogoMaterialesSIE],
+            ['SIP / SI3 ZF', window.CatalogoMaterialesSIP]
+        ];
 
         const coincidenciasMap = new Map();
         catalogos.forEach(([etiqueta, catalogo]) => {
@@ -5288,28 +5374,22 @@ const InputConfig = {
             return;
         }
 
-        const destino = document.getElementById('destino')?.value || '';
-        const buscarSIE = destino !== 'plasticos';
-        const buscarSIP = destino === 'plasticos' || destino === 'ambos' || !destino;
         const resultados = [];
 
-        if (buscarSIE) {
-            const materialSIE = window.CatalogoMaterialesSIE?.get(codigo);
-            if (materialSIE) resultados.push(`SIE: ${materialSIE}`);
-        }
+        const materialSIE = window.CatalogoMaterialesSIE?.get(codigo);
+        if (materialSIE) resultados.push(`SIE: ${materialSIE}`);
 
-        if (buscarSIP) {
-            const materialSIP = window.CatalogoMaterialesSIP?.get(codigo);
-            if (materialSIP) {
-                resultados.push(`SI3 ZF: ${materialSIP}`);
-            }
+        const materialSIP = window.CatalogoMaterialesSIP?.get(codigo);
+        if (materialSIP) {
+            resultados.push(`SI3 ZF: ${materialSIP}`);
         }
 
         if (codigo.length >= 5 && window.supabaseClient) {
             if (!resultados.length) detalle.textContent = 'Buscando en el catálogo...';
-            const consultas = [];
-            if (buscarSIE) consultas.push(['SIE', 'materiales_sie']);
-            if (buscarSIP) consultas.push(['SI3 ZF', 'materiales_sip']);
+            const consultas = [
+                ['SIE', 'materiales_sie'],
+                ['SI3 ZF', 'materiales_sip']
+            ];
             let errorConsulta = false;
             const encontrados = await Promise.all(consultas.map(async ([etiqueta, tabla]) => {
                 try {
@@ -5336,11 +5416,7 @@ const InputConfig = {
             }
         }
 
-        detalle.textContent = resultados.join(' | ') || (destino === 'ensambles'
-            ? 'Código no encontrado en el catálogo SIE.'
-            : destino === 'plasticos'
-                ? 'Código no encontrado en el catálogo SIP / SI3 ZF.'
-                : 'Código no encontrado en los catálogos SIE ni SIP.');
+        detalle.textContent = resultados.join(' | ') || 'Código no encontrado en los catálogos SIE ni SIP.';
         detalle.dataset.estado = resultados.length ? 'encontrado' : 'no-encontrado';
     },
 
@@ -6262,6 +6338,8 @@ const DespachadorHandlers = {
             Utils.mostrarNotificacion('No hay proveedor esperando', 'error');
             return;
         }
+
+        if (!(await ConfirmDialog.confirmar(`¿Autorizar la salida del turno ${turno.numero}?`, 'Autorizar salida', 'Autorizar salida'))) return;
         
         try {
             if (turno.esTransporte && Array.isArray(turno.proveedores) && turno.proveedores.length > 0) {
@@ -6568,6 +6646,12 @@ const DespachadorHandlers = {
                 return;
             }
 
+            if (!(await ConfirmDialog.confirmar(
+                `¿Autorizar la salida de ${pendientes.length} proveedor(es) de la transportadora ${d.numero}?`,
+                'Autorizar transportadora',
+                'Autorizar salida'
+            ))) return;
+
             const ids = pendientes.map(p => p.id);
             const horaFin = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
 
@@ -6644,6 +6728,8 @@ const DespachadorHandlers = {
             Utils.mostrarNotificacion('No hay proveedor esperando', 'error');
             return;
         }
+
+        if (!(await ConfirmDialog.confirmar(`¿Solicitar inspección para el turno ${turno.numero}?`, 'Solicitar inspección', 'Solicitar inspección'))) return;
         
         try {
             if (turno.proveedorTransporteId) {
@@ -7663,30 +7749,127 @@ const RelojVivo = {
 
 const ConfirmDialog = {
     mostrar(mensaje, titulo = 'Confirmar', onConfirm) {
+        this.confirmar(mensaje, titulo).then(confirmado => {
+            if (confirmado && onConfirm) onConfirm();
+        });
+    },
+    confirmar(mensaje, titulo = 'Confirmar', textoConfirmar = 'Confirmar') {
+        return new Promise(resolve => {
         let modal = document.getElementById('confirmDialogModal');
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'confirmDialogModal';
-            modal.className = 'modal';
+            modal.className = 'modal confirm-dialog-overlay';
+            modal.tabIndex = -1;
             modal.innerHTML = `
-                <div class="modal-content" style="max-width:420px;text-align:center;">
-                    <h3 id="confirmDialogTitulo" style="margin-bottom:12px;font-size:18px;color:#1e293b;"></h3>
-                    <p id="confirmDialogMensaje" style="color:#475569;margin-bottom:24px;font-size:14px;"></p>
-                    <div style="display:flex;gap:12px;justify-content:center;">
-                        <button id="confirmDialogNo" class="btn" style="flex:1;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;">Cancelar</button>
-                        <button id="confirmDialogSi" class="btn btn-danger" style="flex:1;">Confirmar</button>
+                <div class="confirm-dialog-card" role="dialog" aria-modal="true" aria-labelledby="confirmDialogTitulo" aria-describedby="confirmDialogMensaje">
+                    <div class="confirm-dialog-heading">
+                        <span class="confirm-dialog-mark" aria-hidden="true">?</span>
+                        <div>
+                            <span class="confirm-dialog-kicker">ACCIÓN DE RECEPCIÓN</span>
+                            <h3 id="confirmDialogTitulo"></h3>
+                        </div>
+                    </div>
+                    <p id="confirmDialogMensaje"></p>
+                    <div class="confirm-dialog-actions">
+                        <button type="button" id="confirmDialogNo" class="confirm-dialog-cancel">Cancelar</button>
+                        <button type="button" id="confirmDialogSi" class="confirm-dialog-accept"></button>
                     </div>
                 </div>
             `;
             document.body.appendChild(modal);
-            modal.querySelector('#confirmDialogNo').onclick = () => modal.style.display = 'none';
-            modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
         }
+
         modal.querySelector('#confirmDialogTitulo').textContent = titulo;
         modal.querySelector('#confirmDialogMensaje').textContent = mensaje;
+        modal.querySelector('#confirmDialogSi').textContent = textoConfirmar;
+        const resolver = valor => {
+            modal.style.display = 'none';
+            modal.onclick = null;
+            modal.onkeydown = null;
+            resolve(valor);
+        };
+        modal.querySelector('#confirmDialogNo').onclick = () => resolver(false);
         const btnSi = modal.querySelector('#confirmDialogSi');
-        btnSi.onclick = () => { modal.style.display = 'none'; if (onConfirm) onConfirm(); };
+        btnSi.onclick = () => resolver(true);
+        modal.onclick = event => { if (event.target === modal) resolver(false); };
+        modal.onkeydown = event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                resolver(false);
+            }
+        };
         modal.style.display = 'flex';
+        modal.querySelector('#confirmDialogNo').focus();
+        });
+    },
+    pedirTexto(mensaje, titulo = 'Confirmación adicional', placeholder = '', textoRequerido = '') {
+        return new Promise(resolve => {
+            let modal = document.getElementById('confirmDialogTextModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'confirmDialogTextModal';
+                modal.className = 'modal confirm-dialog-overlay';
+                modal.tabIndex = -1;
+                modal.innerHTML = `
+                    <div class="confirm-dialog-card" role="dialog" aria-modal="true" aria-labelledby="confirmDialogTextTitulo" aria-describedby="confirmDialogTextMensaje">
+                        <div class="confirm-dialog-heading">
+                            <span class="confirm-dialog-mark confirm-dialog-mark-danger" aria-hidden="true">!</span>
+                            <div>
+                                <span class="confirm-dialog-kicker">CONFIRMACIÓN ADICIONAL</span>
+                                <h3 id="confirmDialogTextTitulo"></h3>
+                            </div>
+                        </div>
+                        <p id="confirmDialogTextMensaje"></p>
+                        <input id="confirmDialogTextInput" class="confirm-dialog-input" type="text" autocomplete="off" spellcheck="false">
+                        <div class="confirm-dialog-actions">
+                            <button type="button" id="confirmDialogTextNo" class="confirm-dialog-cancel">Cancelar</button>
+                            <button type="button" id="confirmDialogTextSi" class="confirm-dialog-accept" disabled></button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+
+            const input = modal.querySelector('#confirmDialogTextInput');
+            const btnNo = modal.querySelector('#confirmDialogTextNo');
+            const btnSi = modal.querySelector('#confirmDialogTextSi');
+            const requeridoNormalizado = textoRequerido.trim().toLocaleUpperCase();
+            const actualizarBoton = () => {
+                btnSi.disabled = Boolean(requeridoNormalizado) && input.value.trim().toLocaleUpperCase() !== requeridoNormalizado;
+            };
+            const resolver = valor => {
+                modal.style.display = 'none';
+                input.oninput = null;
+                btnNo.onclick = null;
+                btnSi.onclick = null;
+                modal.onclick = null;
+                modal.onkeydown = null;
+                resolve(valor);
+            };
+
+            modal.querySelector('#confirmDialogTextTitulo').textContent = titulo;
+            modal.querySelector('#confirmDialogTextMensaje').textContent = mensaje;
+            input.value = '';
+            input.placeholder = placeholder;
+            btnSi.textContent = textoRequerido ? 'Confirmar' : 'Continuar';
+            input.oninput = actualizarBoton;
+            btnNo.onclick = () => resolver(null);
+            btnSi.onclick = () => resolver(input.value.trim());
+            modal.onclick = event => { if (event.target === modal) resolver(null); };
+            modal.onkeydown = event => {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    resolver(null);
+                } else if (event.key === 'Enter' && !btnSi.disabled) {
+                    event.preventDefault();
+                    btnSi.click();
+                }
+            };
+            actualizarBoton();
+            modal.style.display = 'flex';
+            input.focus();
+        });
     }
 };
 
