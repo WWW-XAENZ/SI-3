@@ -1069,13 +1069,16 @@ const SupabaseDB = {
                 throw new Error(`El turno ${turno.numero} ya fue registrado hoy.`);
             }
             
+            const fechaTurnoPlaca = turno.fechaCita?.split('T')[0] || getLocalDate();
+            const columnaFechaPlaca = turno.fechaCita ? 'fecha_cita' : 'fecha_solicitud';
             const { data: turnoPlaca, error: errorPlaca } = await window.supabaseClient
                 .from('turnos')
                 .select('id, numero, estado')
                 .eq('nit', turno.nit)
-                .gte('fecha_solicitud', getLocalDate() + 'T00:00:00')
-                .lt('fecha_solicitud', getLocalDate() + 'T23:59:59')
+                .gte(columnaFechaPlaca, `${fechaTurnoPlaca}T00:00:00`)
+                .lt(columnaFechaPlaca, `${fechaTurnoPlaca}T23:59:59.999`)
                 .in('estado', ['espera', 'citado', 'atendiendo'])
+                .limit(1)
                 .maybeSingle();
             
             if (turnoPlaca && !errorPlaca) {
@@ -1453,13 +1456,15 @@ const SupabaseDB = {
         }
         
         try {
-            const { error } = await window.supabaseClient
+            const { data, error } = await window.supabaseClient
                 .from('turnos')
-                .delete()
-                .eq('id', turnoId);
+                .update({ estado: 'cancelado' })
+                .eq('id', turnoId)
+                .select('id')
+                .maybeSingle();
             
             if (error) throw error;
-            return true;
+            return !!data;
         } catch (error) {
             console.error('Error al cancelar turno:', error);
             return false;
@@ -2493,7 +2498,8 @@ const Turnos = {
 
         if (window.supabaseClient) {
             try {
-                const hoy = getLocalDate();
+                const fechaTurno = datosProveedor.fechaCita?.split('T')[0] || getLocalDate();
+                const columnaFecha = datosProveedor.fechaCita ? 'fecha_cita' : 'fecha_solicitud';
                 const estadosActivos = estadoOverride === 'llegado'
                     ? ['espera', 'citado', 'atendiendo', 'llegado']
                     : ['espera', 'citado', 'atendiendo'];
@@ -2501,9 +2507,10 @@ const Turnos = {
                     .from('turnos')
                     .select('id, numero, estado')
                     .eq('nit', placa)
-                    .gte('fecha_solicitud', `${hoy}T00:00:00`)
-                    .lt('fecha_solicitud', `${hoy}T23:59:59`)
+                    .gte(columnaFecha, `${fechaTurno}T00:00:00`)
+                    .lt(columnaFecha, `${fechaTurno}T23:59:59.999`)
                     .in('estado', estadosActivos)
+                    .limit(1)
                     .maybeSingle();
                 
                 if (turnoActivo && !errorActivo) {
@@ -2654,7 +2661,9 @@ const Turnos = {
 
     async cancelar(turnoId) {
         try {
-            await SupabaseDB.cancelarTurno(turnoId);
+            const cancelado = await SupabaseDB.cancelarTurno(turnoId);
+            if (!cancelado) return false;
+
             AppState.turnos = AppState.turnos.filter(t => t.id !== turnoId);
             LocalStorage.guardarTurnos(AppState.turnos);
             return true;
@@ -3126,6 +3135,13 @@ const RenderAdmin = {
         const listaDiv = document.getElementById('listaTurnosLlegados');
         const contadorDiv = document.getElementById('contadorTurnosLlegados');
         const busqueda = document.getElementById('busquedaLlegados')?.value?.toLowerCase() || '';
+        const hayTurnosConfirmados = AppState.turnos.some(t => t.estado === 'llegado');
+        const seccionConfirmados = listaDiv?.closest('.arrived-list');
+
+        if (seccionConfirmados) {
+            seccionConfirmados.hidden = !hayTurnosConfirmados;
+            seccionConfirmados.closest('.admin-grid')?.classList.toggle('has-confirmed-turns', hayTurnosConfirmados);
+        }
         
         let turnosLlegados = AppState.turnos.filter(t => t.estado === 'llegado');
         
@@ -3685,13 +3701,6 @@ const UsuarioHandlers = {
                 .map(input => input.value.trim())
                 .filter(Boolean);
 
-            if (materialesSap.length === 0) {
-                const primerInput = document.querySelector('#materialesSapLista .material-sap-input');
-                primerInput?.focus();
-                primerInput?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                throw new Error('Debe ingresar al menos un material SAP');
-            }
-
             const destino = document.getElementById('destino')?.value;
             const fechaDateInput = document.getElementById('fechaCitaDate')?.value;
             const slotSeleccionado = document.getElementById('fechaCitaSlot')?.value;
@@ -3824,12 +3833,17 @@ const UsuarioHandlers = {
         
         if (await ConfirmDialog.confirmar(`¿Cancelar turno ${miTurno.numero}?`, 'Cancelar turno', 'Cancelar turno')) {
             try {
-                await Turnos.cancelar(miTurno.id);
+                const cancelado = await Turnos.cancelar(miTurno.id);
+                if (!cancelado) {
+                    throw new Error('No se pudo confirmar la cancelación en el servidor');
+                }
+
                 LocalStorage.eliminarMiTurno();
                 if (typeof ModoEspera !== 'undefined') {
                     ModoEspera.desactivar();
                 }
                 Utils.mostrarNotificacion('Turno cancelado', 'success');
+                await Turnos.cargarTurnos();
                 RenderUsuario.todo();
             } catch (error) {
                 console.error('Error al cancelar turno:', error);
@@ -4958,6 +4972,11 @@ const proveedorData = {
             document.getElementById('editHistEmpresa').value = data.nombre_empresa || data.nombre_proveedor || '';
             document.getElementById('editHistProveedor').value = data.nombre_proveedor || '';
             document.getElementById('editHistPlaca').value = data.nit || '';
+            document.getElementById('editHistFmm').value = data.consecutivo_ingreso || '';
+            InputConfig.cargarMaterialesSap(
+                document.getElementById('editHistMaterialesSapLista'),
+                data.materiales_sap
+            );
             
             // Handle factura fields based on destino
             const editDestino = data.destino || '';
@@ -5029,6 +5048,10 @@ document.getElementById('editHistDestino').value = editDestino;
         const empresaVal = (document.getElementById('editHistEmpresa').value || '').trim();
         const proveedorVal = (document.getElementById('editHistProveedor').value || '').trim();
         const destino = document.getElementById('editHistDestino').value || null;
+        const listaMaterialesSap = document.getElementById('editHistMaterialesSapLista');
+        const materialesSap = Array.from(listaMaterialesSap?.querySelectorAll('.material-sap-input') || [])
+            .map(entrada => entrada.value.trim())
+            .filter(Boolean);
         
         // Handle factura(s) based on destino
         let numFactura = '';
@@ -5048,6 +5071,8 @@ document.getElementById('editHistDestino').value = editDestino;
             nombre_empresa: empresaVal || proveedorVal,
             nombre_proveedor: proveedorVal,
             nit: (document.getElementById('editHistPlaca').value || '').trim(),
+            consecutivo_ingreso: (document.getElementById('editHistFmm').value || '').trim() || null,
+            materiales_sap: materialesSap,
             num_factura: numFactura,
             tipo_vehiculo: document.getElementById('editHistTipo').value || null,
             bultos: (bultosVal !== null && !isNaN(bultosVal)) ? bultosVal : null,
@@ -5247,6 +5272,57 @@ const InputConfig = {
         this.resetearMaterialesSap();
     },
 
+    configurarListaMaterialesSap(lista, botonAgregar) {
+        if (!lista || !botonAgregar || lista.dataset.materialesSapConfigured === 'true') return;
+        lista.dataset.materialesSapConfigured = 'true';
+        botonAgregar.addEventListener('click', () => this.agregarMaterialSap(lista));
+        lista.addEventListener('input', event => {
+            if (!event.target.matches('.material-sap-input')) return;
+            this.mostrarSugerenciasMaterialSap(event.target);
+            clearTimeout(event.target.catalogSearchTimer);
+            event.target.catalogSearchTimer = setTimeout(() => {
+                this.mostrarDescripcionMaterialSap(event.target);
+            }, 180);
+        });
+        lista.addEventListener('click', event => {
+            const sugerencia = event.target.closest('.material-sap-suggestion');
+            if (sugerencia) {
+                const fila = sugerencia.closest('.material-sap-row');
+                const entrada = fila.querySelector('.material-sap-input');
+                entrada.value = sugerencia.dataset.codigoSap;
+                fila.querySelector('.material-sap-suggestions').hidden = true;
+                entrada.setAttribute('aria-expanded', 'false');
+                this.mostrarDescripcionMaterialSap(entrada);
+                entrada.focus();
+                return;
+            }
+
+            const botonQuitar = event.target.closest('.material-sap-remove');
+            if (!botonQuitar) return;
+            botonQuitar.closest('.material-sap-row').remove();
+            this.actualizarEtiquetasMaterialesSap(lista);
+        });
+    },
+
+    cargarMaterialesSap(lista, materiales) {
+        if (!lista) return;
+        lista.replaceChildren();
+
+        (Array.isArray(materiales) ? materiales : []).forEach(material => {
+            const codigo = typeof material === 'string'
+                ? material
+                : material?.codigoSap || material?.codigo_sap || '';
+            if (!codigo) return;
+
+            this.agregarMaterialSap(lista, false);
+            const entrada = lista.lastElementChild.querySelector('.material-sap-input');
+            entrada.value = codigo;
+            this.mostrarDescripcionMaterialSap(entrada);
+        });
+
+        if (!lista.children.length) this.agregarMaterialSap(lista, false);
+    },
+
     agregarMaterialSap(lista = document.getElementById('materialesSapLista'), enfocar = true) {
         if (!lista) return;
         const fila = document.createElement('div');
@@ -5257,7 +5333,6 @@ const InputConfig = {
         entrada.className = 'material-sap-input';
         entrada.placeholder = 'Buscar por código SAP o nombre';
         entrada.autocomplete = 'off';
-        entrada.required = true;
         entrada.setAttribute('role', 'combobox');
         entrada.setAttribute('aria-autocomplete', 'list');
         entrada.setAttribute('aria-expanded', 'false');
@@ -6066,6 +6141,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (btnLlamarTurno) {
             console.log('Configurando página de administrador...');
             btnLlamarTurno.addEventListener('click', AdminHandlers.llamarTurno);
+        }
+
+        const listaSapHistorial = document.getElementById('editHistMaterialesSapLista');
+        const btnAgregarSapHistorial = document.getElementById('btnAgregarSapHistorial');
+        if (listaSapHistorial && btnAgregarSapHistorial) {
+            InputConfig.configurarListaMaterialesSap(listaSapHistorial, btnAgregarSapHistorial);
         }
         
         const btnCompletarTurno = document.getElementById('btnCompletarTurno');

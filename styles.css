@@ -3199,6 +3199,23 @@ footer {
     border-radius: var(--radius-sm);
 }
 
+.pending-exit-invoices {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-tertiary);
+}
+
+.pending-exit-invoices > strong {
+    flex: 0 0 auto;
+}
+
+.pending-exit-invoices .history-invoice-list {
+    min-width: 0;
+}
+
 .turn-list-empty {
     text-align: center;
     padding: var(--space-6);
@@ -8112,6 +8129,11 @@ body:has(.facturas-table) #btnMostrarTodas {
     min-width: 0;
 }
 
+.arrived-list,
+.waiting-list {
+    container: turn-list-panel / inline-size;
+}
+
 .arrived-list .turn-item-company,
 .waiting-list .turn-item-company {
     grid-area: company;
@@ -8138,7 +8160,8 @@ body:has(.facturas-table) #btnMostrarTodas {
 .waiting-list .turn-item-company,
 .cited-list .turn-item-citado .turn-item-company {
     overflow: visible;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+    word-break: normal;
     text-overflow: clip;
     white-space: normal;
 }
@@ -8473,6 +8496,69 @@ body:has(.facturas-table) #btnMostrarTodas {
         font-size: 0.6rem !important;
     }
 }
+
+@container turn-list-panel (max-width: 480px) {
+    .arrived-list .turn-item,
+    .waiting-list .turn-item {
+        grid-template-columns: 46px minmax(0, 1fr);
+        align-items: start;
+        gap: 7px !important;
+        min-height: 0;
+        padding: 8px !important;
+    }
+
+    .arrived-list .turn-item-info,
+    .waiting-list .turn-item-info {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            "company"
+            "time"
+            "details";
+        gap: 5px;
+    }
+
+    .arrived-list .turn-item-actions,
+    .waiting-list .turn-item-actions {
+        grid-column: 2;
+        width: 100%;
+        min-width: 0;
+        margin-top: 0 !important;
+    }
+
+    .arrived-list .turn-item-llegado .turn-item-actions {
+        align-self: auto;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: none;
+    }
+
+    .waiting-list .turn-item-espera .turn-item-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-self: auto;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: none;
+    }
+
+    .arrived-list .turn-item-details,
+    .waiting-list .turn-item-details {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .arrived-list .turn-item-number,
+    .waiting-list .turn-item-number {
+        width: 46px;
+        height: 46px;
+        min-width: 46px;
+        min-height: 46px;
+        border-radius: 14px;
+        font-size: 1rem !important;
+    }
+}
+
 .pending-exit .turn-item {
     display: grid;
     grid-template-columns: 92px minmax(0, 1fr);
@@ -9418,6 +9504,14 @@ footer {
 .user-content .turn-form .form-group,
 .user-content .turn-form > button {
     min-width: 0;
+}
+
+.optional-field-note {
+    display: block;
+    margin-top: 6px;
+    color: #60758a;
+    font-size: 0.76rem;
+    line-height: 1.4;
 }
 
 .user-content .turn-form .form-group:nth-last-of-type(2),

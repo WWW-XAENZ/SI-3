@@ -1192,7 +1192,9 @@
                 listaDiv.innerHTML = filtrados.map(h => {
                         const nit = h.nit || '-';
                         const proveedor = h.nombre_proveedor || h.nombre_empresa || '-';
-                        const factura = h.num_factura || '-';
+                        const factura = typeof window.formatearFacturasHistorial === 'function'
+                            ? window.formatearFacturasHistorial(h)
+                            : escaparHtmlDespachador(h.num_factura || '-');
                         const fmm = h.consecutivo_ingreso || '-';
                         const destino = h.destino === 'ensambles' ? 'SIE' : h.destino === 'plasticos' ? 'SI3 ZF' : h.destino || '-';
                         const peso = h.peso ? (h.peso.toString().toUpperCase().includes('KG') ? h.peso : h.peso + ' kg') : '-';
@@ -1215,7 +1217,7 @@
                         <div class="pending-exit-details">
                             <span><strong>Placa:</strong> ${nit}</span>
                             <span><strong>Proveedor:</strong> ${proveedor}</span>
-                            <span><strong>Fact:</strong> ${factura}</span>
+                            <div class="pending-exit-invoices"><strong>Fact:</strong>${factura}</div>
                             <span><strong>FMM:</strong> ${fmm}</span>
                             <span><strong>Destino:</strong> ${destino}</span>
                             <span><strong>Peso:</strong> ${peso}</span>
