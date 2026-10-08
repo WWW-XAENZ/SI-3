@@ -1463,24 +1463,17 @@ const SupabaseDB = {
 
     async cancelarTurno(turnoId) {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return false;
+            throw new Error('Supabase no está disponible');
         }
         
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('turnos')
-                .delete()
-                .eq('id', turnoId)
-                .select('id')
-                .maybeSingle();
-            
-            if (error) throw error;
-            return !!data;
-        } catch (error) {
-            console.error('Error al cancelar turno:', error);
-            return false;
-        }
+        const { count, error } = await window.supabaseClient
+            .from('turnos')
+            .delete({ count: 'exact' })
+            .eq('id', turnoId);
+
+        if (error) throw error;
+        if (!count) throw new Error('Supabase no confirmó la eliminación del turno. Verifique los permisos DELETE de la tabla turnos.');
+        return true;
     },
 
     _mapearTurno(t) {
@@ -2672,17 +2665,10 @@ const Turnos = {
     },
 
     async cancelar(turnoId) {
-        try {
-            const cancelado = await SupabaseDB.cancelarTurno(turnoId);
-            if (!cancelado) return false;
-
-            AppState.turnos = AppState.turnos.filter(t => t.id !== turnoId);
-            LocalStorage.guardarTurnos(AppState.turnos);
-            return true;
-        } catch (error) {
-            console.error('Error al cancelar turno:', error);
-            return false;
-        }
+        const cancelado = await SupabaseDB.cancelarTurno(turnoId);
+        AppState.turnos = AppState.turnos.filter(t => String(t.id) !== String(turnoId));
+        LocalStorage.guardarTurnos(AppState.turnos);
+        return cancelado;
     },
 
     async completarTurnoActual() {
@@ -3860,7 +3846,7 @@ const UsuarioHandlers = {
                 RenderUsuario.todo();
             } catch (error) {
                 console.error('Error al cancelar turno:', error);
-                Utils.mostrarNotificacion('Error al cancelar turno', 'error');
+                Utils.mostrarNotificacion(error.message || 'Error al cancelar turno', 'error');
             }
         }
     }
@@ -4734,8 +4720,14 @@ const proveedorData = {
 
     async cancelarTurno(id) {
         if (await ConfirmDialog.confirmar('¿Cancelar turno?', 'Cancelar turno', 'Cancelar turno')) {
-            await Turnos.cancelar(id);
-            await RenderAdmin.todo();
+            try {
+                await Turnos.cancelar(id);
+                await RenderAdmin.todo();
+                Utils.mostrarNotificacion('Turno cancelado', 'success');
+            } catch (error) {
+                console.error('Error al cancelar turno:', error);
+                Utils.mostrarNotificacion(error.message || 'Error al cancelar turno', 'error');
+            }
         }
     },
 
