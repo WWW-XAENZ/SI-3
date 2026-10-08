@@ -1472,7 +1472,9 @@ const SupabaseDB = {
             .eq('id', turnoId);
 
         if (error) throw error;
-        if (!count) throw new Error('Supabase no confirmó la eliminación del turno. Verifique los permisos DELETE de la tabla turnos.');
+        if (!count) {
+            throw new Error('Supabase no encontró el turno o no permite eliminarlo. Ejecute migracion_permisos_cancelar_turnos.sql en el SQL Editor.');
+        }
         return true;
     },
 
