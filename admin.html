@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=11">
+        <link rel="stylesheet" href="styles.css?v=16">
     <style>
     .admin-grid { 
             grid-template-columns: 300px 1fr 1fr; 
@@ -439,12 +439,12 @@
         }
         
         .turn-item-llegado { 
-            border-left: 5px solid #10b981; 
-            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border-left: 5px solid #63a9df; 
+            background: linear-gradient(135deg, #eef6ff 0%, #dcecff 100%);
         }
         .turn-item-llegado:hover { 
-            border-color: #059669; 
-            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border-color: #3478c5; 
+            background: linear-gradient(135deg, #dcecff 0%, #bdd9f5 100%);
         }
         
         .turn-item-espera { 
@@ -830,7 +830,32 @@
     <div class="container">
         <header>
             <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo">
-            <h1>Panel de Recepción</h1>
+            <div class="admin-header-content">
+                <h1>Panel de Recepción</h1>
+                <section class="reception-greeting" aria-label="Saludo y horario del equipo de recepción">
+                    <div class="reception-greeting-icon" aria-hidden="true">
+                        <svg data-reception-icon="morning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 18h18M5 18a7 7 0 0 1 14 0M12 2v3m-7 1 2 2m12-2-2 2M2 12h3m14 0h3"></path>
+                        </svg>
+                        <svg data-reception-icon="afternoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden>
+                            <circle cx="12" cy="12" r="4"></circle>
+                            <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+                        </svg>
+                        <svg data-reception-icon="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden>
+                            <path d="M20.9 13.1A8.5 8.5 0 0 1 10.9 3.1 8.5 8.5 0 1 0 20.9 13.1Z"></path>
+                            <path d="m17 3 .6 1.4L19 5l-1.4.6L17 7l-.6-1.4L15 5l1.4-.6L17 3Z"></path>
+                        </svg>
+                    </div>
+                    <div class="reception-greeting-copy">
+                        <span class="reception-greeting-eyebrow" id="saludoRecepcionEyebrow">Equipo de recepción · SI-3</span>
+                        <h2><span id="saludoRecepcionTexto">¡Muy buenos días,</span> <strong id="saludoRecepcionNombre">Anderzon</strong>!</h2>
+                        <p id="saludoRecepcionDetalle">Que tengas una excelente jornada de atención.</p>
+                    </div>
+                    <div class="reception-greeting-info">
+                        <time class="reception-greeting-clock" id="receptionLiveClock" aria-label="Hora actual">--:--:--</time>
+                    </div>
+                </section>
+            </div>
         </header>
         
         <nav class="main-nav">
@@ -1210,13 +1235,13 @@
       </div>
       
      <!-- Modal Salida Autorizada (por despachador) -->
-     <div id="modalSalidaDespachador" class="modal" style="display: none;"><div class="modal-content" style="max-width: 500px; border: 3px solid #22c55e;">
-            <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 20px; text-align: center; border-radius: 10px 10px 0 0; margin: -24px -24px 20px -24px;">
+        <div id="modalSalidaDespachador" class="modal" style="display: none;"><div class="modal-content" style="max-width: 500px; border: 3px solid #63a9df;">
+              <div style="background: linear-gradient(135deg, #3478c5 0%, #20538f 100%); padding: 20px; text-align: center; border-radius: 10px 10px 0 0; margin: -24px -24px 20px -24px;">
                 <h2 style="color: white; margin: 0; font-size: 22px;">SALIDA AUTORIZADA</h2>
-                <p style="color: #dcfce7; margin: 5px 0 0 0;">El despachador ha confirmado la salida</p>
+                <p style="color: #dcecff; margin: 5px 0 0 0;">El despachador ha confirmado la salida</p>
             </div>
             <div style="text-align: center; margin-bottom: 20px;">
-                <div style="font-size: 64px; font-weight: 700; color: #22c55e; line-height: 1;" id="salidaDespachadorNumero">---</div>
+                <div style="font-size: 64px; font-weight: 700; color: #20538f; line-height: 1;" id="salidaDespachadorNumero">---</div>
                 <div style="font-size: 16px; font-weight: 600; color: #1e293b; margin-top: 5px;" id="salidaDespachadorEmpresa">
                     <span id="salidaDespachadorIcono" aria-hidden="true" hidden></span>
                     <span id="salidaDespachadorNombre">Proveedor</span>

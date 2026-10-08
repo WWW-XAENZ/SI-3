@@ -352,7 +352,7 @@ const Utils = {
             right: '20px',
             padding: '18px 24px',
             borderRadius: '12px',
-            backgroundColor: tipo === 'success' ? '#059669' : tipo === 'error' ? '#dc2626' : '#2563eb',
+            backgroundColor: tipo === 'success' ? '#20538f' : tipo === 'error' ? '#dc2626' : '#2563eb',
             color: 'white',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
             zIndex: '9999',
@@ -396,7 +396,7 @@ const Utils = {
 
         if (requireAccept) {
             const btnAceptar = notificacion.querySelector('.notificacion-aceptar');
-            btnAceptar.style.cssText = 'background: white; border: none; color: ' + (tipo === 'success' ? '#059669' : tipo === 'error' ? '#dc2626' : '#2563eb') + '; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; margin-left: auto; font-size: 13px;';
+            btnAceptar.style.cssText = 'background: white; border: none; color: ' + (tipo === 'success' ? '#20538f' : tipo === 'error' ? '#dc2626' : '#2563eb') + '; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; margin-left: auto; font-size: 13px;';
             btnAceptar.onclick = () => {
                 notificacion.style.animation = 'notifSlideOut 0.3s ease forwards';
                 setTimeout(quitarNotificacion, 300);
@@ -3005,20 +3005,7 @@ const RenderUsuario = {
             let miNumero = null;
             try { miNumero = miTurno.numero; } catch(e) {}
             
-            const formatearHora = (hora) => {
-                if (!hora) return '';
-                try {
-                    const fechaHora = hora.split('T');
-                    if (fechaHora.length >= 2) {
-                        const [horas, minutos] = fechaHora[1].split(':');
-                        const h = parseInt(horas);
-                        const ampm = h >= 12 ? 'PM' : 'AM';
-                        const h12 = h % 12 || 12;
-                        return `${h12}:${minutos} ${ampm}`;
-                    }
-                    return hora;
-                } catch(e) { return hora; }
-            };
+            const formatearHora = hora => Utils.formatearHora(hora);
             
             listaDiv.innerHTML = turnosHoy.map(turno => `
                 <div class="turn-item-user ${turno.numero === miNumero ? 'current' : ''}">
@@ -3584,7 +3571,7 @@ const RenderAdmin = {
                                         ? botonMostrarMaterialesSapHtml(h.materialesSap)
                                         : '<span class="history-sap-empty">—</span>'}</td>
                                     <td>${h.inspeccionFisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
-                                    <td>${h.autorizadoSalida ? '<span style="color:#10b981;font-weight:600;">✓ SALIDA OK</span>' : '<span style="color:#f59e0b;">PENDIENTE</span>'}</td>
+                                    <td>${h.autorizadoSalida ? '<span style="color:#20538f;font-weight:600;">✓ SALIDA OK</span>' : '<span style="color:#f59e0b;">PENDIENTE</span>'}</td>
                                     <td>${destinoLabel[h.destino] || h.destino || '-'}</td>
                                     <td>
                                         <button class="btn btn-secondary btn-small" onclick="AdminHandlers.editarHistorial(${h.id})">Editar</button>
@@ -6008,7 +5995,7 @@ const ModoEspera = {
             left: '50%',
             transform: 'translate(-50%, -50%)',
             zIndex: '10000',
-            backgroundColor: '#10b981',
+            backgroundColor: '#20538f',
             color: 'white',
             padding: '50px 80px',
             borderRadius: '20px',
@@ -6029,7 +6016,7 @@ const ModoEspera = {
             <div style="font-size: 72px; font-weight: bold; margin: 20px 0; letter-spacing: 4px;">${this.miTurno.numero}</div>
             <p style="margin: 10px 0; font-size: 18px; opacity: 0.9;">${this.miTurno.nombreEmpresa}</p>
             <p style="margin: 10px 0 30px 0; font-size: 16px; opacity: 0.8;">Diríjase al punto de atención</p>
-            <button style="background: white; color: #10b981; border: none; padding: 15px 40px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.2s;" 
+            <button style="background: white; color: #20538f; border: none; padding: 15px 40px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.2s;" 
                     onmouseover="this.style.transform='scale(1.05)'" 
                     onmouseout="this.style.transform='scale(1)'"
                     onclick="this.closest('.turn-called-notification').remove(); document.body.style.overflow = '';">Entendido</button>
@@ -7228,8 +7215,8 @@ const GenerarCertificado = {
                      <div style="font-size: 24px; font-weight: 700; color: #2563eb;">${d.totalVehiculos}</div>
                      <div style="font-size: 11px; color: #64748b;">Vehículos</div>
                  </div>
-                 <div style="background: #f0fdf4; padding: 12px; border-radius: 8px; text-align: center;">
-                     <div style="font-size: 24px; font-weight: 700; color: #16a34a;">${d.promedioTurnosDia}</div>
+                 <div style="background: #eaf4ff; padding: 12px; border-radius: 8px; text-align: center;">
+                     <div style="font-size: 24px; font-weight: 700; color: #20538f;">${d.promedioTurnosDia}</div>
                      <div style="font-size: 11px; color: #64748b;">Prom. Turnos/Día</div>
                  </div>
                  <div style="background: #fefce8; padding: 12px; border-radius: 8px; text-align: center;">
@@ -7265,8 +7252,8 @@ const GenerarCertificado = {
                       <div style="font-size: 11px; color: #64748b;">Con Consecutivo</div>
                   </div>
               </div>
-              <div style="background: #f0fdf4; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
-                  <strong style="color: #16a34a;">✓ ${d.vehiculosConSalida}</strong> salidas autorizadas / <strong>${d.vehiculosConFactura}</strong> con factura
+              <div style="background: #eaf4ff; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+                  <strong style="color: #20538f;">✓ ${d.vehiculosConSalida}</strong> salidas autorizadas / <strong>${d.vehiculosConFactura}</strong> con factura
               </div>
              <p style="text-align: center; color: #64748b; font-size: 12px; margin-bottom: 16px;">
                  ${d.primerDia} — ${d.ultimoDia}
@@ -8036,7 +8023,7 @@ const PanelRendimiento = {
             panel.innerHTML = `
                 <div class="rendimiento-grid">
                     <div class="rendimiento-item"><span class="rendimiento-val">${historialHoy.length}</span><span class="rendimiento-lbl">Completados hoy</span></div>
-                    <div class="rendimiento-item verde"><span class="rendimiento-val">${conSalida}</span><span class="rendimiento-lbl">Salidas OK</span></div>
+                    <div class="rendimiento-item azul-claro"><span class="rendimiento-val">${conSalida}</span><span class="rendimiento-lbl">Salidas OK</span></div>
                     <div class="rendimiento-item naranja"><span class="rendimiento-val">${sinSalida}</span><span class="rendimiento-lbl">Sin autorizar</span></div>
                     <div class="rendimiento-item azul"><span class="rendimiento-val">${empresasUnicas}</span><span class="rendimiento-lbl">Empresas</span></div>
                     <div class="rendimiento-item"><span class="rendimiento-val">${pesoTotal > 0 ? pesoTotal.toLocaleString('es-CO') + ' kg' : '—'}</span><span class="rendimiento-lbl">Peso total</span></div>
@@ -8052,13 +8039,13 @@ const PanelRendimiento = {
     style.textContent = `
         .rendimiento-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
         .rendimiento-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; }
-        .rendimiento-item.verde { background: #f0fdf4; border-color: #86efac; }
+        .rendimiento-item.azul-claro { background: #eaf4ff; border-color: #a9d6f5; }
         .rendimiento-item.naranja { background: #fff7ed; border-color: #fed7aa; }
         .rendimiento-item.azul { background: #eff6ff; border-color: #bfdbfe; }
         .rendimiento-val { display: block; font-size: 22px; font-weight: 700; color: #1e293b; }
         .rendimiento-lbl { display: block; font-size: 11px; color: #64748b; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
         .barra-progreso-wrap { background: #e2e8f0; border-radius: 20px; height: 8px; overflow: hidden; margin: 8px 0; }
-        #barraProgreso { height: 100%; background: linear-gradient(90deg, #3b82f6, #22c55e); border-radius: 20px; transition: width 0.6s ease; width: 5%; }
+        #barraProgreso { height: 100%; background: linear-gradient(90deg, #3b82f6, #80bfee); border-radius: 20px; transition: width 0.6s ease; width: 5%; }
         #tiempoTranscurrido { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: #2563eb; letter-spacing: 2px; }
         .historial-toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
         #busquedaHistorial { flex: 1; min-width: 180px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #f8fafc; }
@@ -8073,7 +8060,177 @@ const PanelRendimiento = {
     document.head.appendChild(style);
 })();
 
+function actualizarSaludoRecepcion() {
+    const texto = document.getElementById('saludoRecepcionTexto');
+    const nombre = document.getElementById('saludoRecepcionNombre');
+    const detalle = document.getElementById('saludoRecepcionDetalle');
+    const reloj = document.getElementById('receptionLiveClock');
+    if (!texto || !nombre || !detalle || !reloj) return;
+
+    const ahora = new Date();
+    const lunesActualUtc = Date.UTC(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - ((ahora.getDay() + 6) % 7));
+    const lunesBaseUtc = Date.UTC(2026, 9, 5);
+    const semanasDesdeBase = Math.round((lunesActualUtc - lunesBaseUtc) / 604800000);
+    const turnoManana = semanasDesdeBase % 2 === 0 ? 'Anderzon' : 'Mateo';
+    const turnoTarde = semanasDesdeBase % 2 === 0 ? 'Mateo' : 'Anderzon';
+    const hora = ahora.getHours();
+    const minuto = ahora.getMinutes();
+    const dia = ahora.getDay();
+    const dentroCierreManana = hora === 13 && minuto >= 30;
+    const dentroCierreTarde = hora === 21 && minuto >= 30;
+    const esTurnoManana = hora >= 6 && hora < 14;
+    const esTurnoTarde = hora >= 14 && hora < 22;
+    const personaTurno = esTurnoManana ? turnoManana : esTurnoTarde ? turnoTarde : turnoManana;
+    const icono = hora >= 6 && hora < 12 ? 'morning' : hora >= 12 && hora < 19 ? 'afternoon' : 'night';
+    const mensajesManana = [
+        'Que tu jornada empiece con buena energía.',
+        'Hoy es una nueva oportunidad para brindar una atención excelente.',
+        'Tu amabilidad hace la diferencia desde temprano.',
+        'Que tengas un día ágil, tranquilo y lleno de buenos momentos.',
+        'Gracias por recibir cada jornada con tanta disposición.',
+        'Que hoy cada atención termine con una sonrisa.',
+        'Una gran jornada comienza con tu buena actitud.'
+    ];
+    const mensajesTarde = [
+        'Que esta tarde llegue con buenas noticias y grandes resultados.',
+        'Gracias por mantener la mejor energía durante la jornada.',
+        'Cada atención cuenta; gracias por dar siempre lo mejor.',
+        'Que tengas una tarde productiva y tranquila.',
+        'Tu compromiso hace más fácil el día de todo el equipo.',
+        'Que esta tarde esté llena de buenos momentos.',
+        'Gracias por cuidar cada detalle en la atención.'
+    ];
+    const mensajesCierre = [
+        'Tu turno está por terminar. Gracias por todo lo que hiciste hoy.',
+        'Ya casi es hora de descansar. ¡Gracias por tu gran trabajo!',
+        'Buen cierre de jornada; hoy hiciste una gran diferencia.',
+        'Gracias por tu energía y compromiso durante este turno.',
+        'La jornada termina pronto. ¡Que tengas un merecido descanso!',
+        'Último tramo del turno: gracias por dar siempre lo mejor.',
+        'Casi termina tu jornada. ¡Excelente trabajo el de hoy!'
+    ];
+    const mensajesNoche = [
+        'La recepción descansa; mañana nos espera una nueva jornada.',
+        'Que tengas una noche tranquila. Volvemos a las 6:00 a. m.',
+        'Mañana comienza un nuevo día de atención. ¡Hasta pronto!',
+        'Es hora de recargar energía para la próxima jornada.',
+        'La atención se reanuda mañana a las 6:00 a. m.',
+        'Que descanses; mañana tendremos nuevas oportunidades.',
+        'Cerramos por hoy. ¡Nos vemos en la próxima jornada!'
+    ];
+    const prefijosManana = ['¡Muy buenos días,', '¡Feliz mañana,', '¡Qué gusto saludarte,', '¡Un gran día para ti,', '¡Hola y buenos días,', '¡Que tengas una linda mañana,', '¡Arriba ese ánimo,'];
+    const prefijosTarde = ['¡Muy buenas tardes,', '¡Qué gusto verte,', '¡Una gran tarde para ti,', '¡Hola,', '¡Que tengas una tarde excelente,', '¡Seguimos con toda,', '¡A darle con energía,'];
+    const indiceMensaje = (dia + 6) % 7;
+
+    reloj.textContent = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    document.querySelectorAll('[data-reception-icon]').forEach(elemento => {
+        elemento.hidden = elemento.dataset.receptionIcon !== icono;
+    });
+
+    if (esTurnoManana && dentroCierreManana) {
+        texto.textContent = '¡Buen cierre de turno,';
+        nombre.textContent = turnoManana;
+        detalle.textContent = mensajesCierre[indiceMensaje];
+    } else if (esTurnoTarde && dentroCierreTarde) {
+        texto.textContent = '¡Buen cierre de turno,';
+        nombre.textContent = turnoTarde;
+        detalle.textContent = mensajesCierre[indiceMensaje];
+    } else if (esTurnoManana) {
+        texto.textContent = prefijosManana[indiceMensaje];
+        nombre.textContent = turnoManana;
+        detalle.textContent = mensajesManana[indiceMensaje];
+    } else if (esTurnoTarde) {
+        texto.textContent = prefijosTarde[indiceMensaje];
+        nombre.textContent = turnoTarde;
+        detalle.textContent = mensajesTarde[indiceMensaje];
+    } else {
+        texto.textContent = hora >= 22 ? '¡Hasta mañana,' : '¡Buenos días,';
+        nombre.textContent = turnoManana;
+        detalle.textContent = mensajesNoche[indiceMensaje];
+    }
+}
+
+const MENSAJES_SALUDO_DESPACHO = {
+    manana: [
+        'Que tu jornada empiece con buena energía.',
+        'Hoy es una nueva oportunidad para hacer un gran trabajo.',
+        'Tu compromiso hace que todo avance mejor.',
+        'Que tengas una mañana tranquila y productiva.',
+        'Gracias por empezar el día con toda la actitud.',
+        'Cada detalle cuenta; que tengas una excelente jornada.',
+        'Que hoy esté lleno de buenos resultados.'
+    ],
+    tarde: [
+        'Que tengas una tarde productiva y llena de buenos resultados.',
+        'Gracias por mantener todo en movimiento.',
+        'Tu esfuerzo hace la diferencia en cada despacho.',
+        'Que la tarde avance con calma y buenos resultados.',
+        'Gracias por tu atención y compromiso.',
+        'Que tengas una excelente tarde de trabajo.',
+        'Seguimos con toda; tu labor es muy importante.'
+    ],
+    cierre: [
+        'Tu turno está por terminar. Gracias por todo lo que hiciste hoy.',
+        'Ya casi es hora de descansar. ¡Excelente trabajo!',
+        'Buen cierre de jornada; hoy hiciste una gran diferencia.',
+        'Gracias por tu energía y compromiso durante este turno.',
+        'Último tramo del turno: gracias por dar siempre lo mejor.',
+        'La jornada termina pronto. ¡Que tengas un merecido descanso!',
+        'Casi termina tu turno. ¡Gran trabajo el de hoy!'
+    ],
+    noche: [
+        'La jornada terminó. Que tengas una noche tranquila.',
+        'Es hora de descansar y recargar energía.',
+        'Gracias por tu trabajo de hoy. ¡Hasta la próxima jornada!',
+        'Cerramos por hoy. Que descanses.',
+        'Mañana será una nueva oportunidad para seguir avanzando.',
+        'Que tengas un merecido descanso; gracias por todo.',
+        'Fin de la jornada. ¡Nos vemos pronto!'
+    ]
+};
+
+function actualizarSaludoDespacho() {
+    const texto = document.getElementById('despachoSaludoTexto');
+    const detalle = document.getElementById('despachoSaludoDetalle');
+    const reloj = document.getElementById('despachoLiveClock');
+    if (!texto || !detalle || !reloj) return;
+
+    const ahora = new Date();
+    const hora = ahora.getHours();
+    const minuto = ahora.getMinutes();
+    const indiceMensaje = (ahora.getDay() + 6) % 7;
+    const icono = hora >= 7 && hora < 12 ? 'morning' : hora >= 12 && hora < 17 ? 'afternoon' : 'night';
+    const cerrandoTurno = hora === 16 && minuto >= 30;
+    const enTurno = hora >= 7 && hora < 17;
+
+    reloj.textContent = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    document.querySelectorAll('[data-dispatch-icon]').forEach(elemento => {
+        elemento.hidden = elemento.dataset.dispatchIcon !== icono;
+    });
+
+    if (enTurno && cerrandoTurno) {
+        texto.textContent = '¡Buen cierre de turno,';
+        detalle.textContent = MENSAJES_SALUDO_DESPACHO.cierre[indiceMensaje];
+    } else if (hora >= 6 && hora < 14) {
+        texto.textContent = ['¡Muy buenos días,', '¡Feliz mañana,', '¡Qué gusto saludarte,', '¡Un gran día para ti,', '¡Hola,', '¡Que tengas una linda mañana,', '¡Arriba ese ánimo,'][indiceMensaje];
+        detalle.textContent = MENSAJES_SALUDO_DESPACHO.manana[indiceMensaje];
+    } else if (hora >= 14 && hora < 22) {
+        texto.textContent = ['¡Muy buenas tardes,', '¡Qué gusto verte,', '¡Una gran tarde para ti,', '¡Hola,', '¡Que tengas una tarde excelente,', '¡Seguimos con toda,', '¡A darle con energía,'][indiceMensaje];
+        detalle.textContent = MENSAJES_SALUDO_DESPACHO.tarde[indiceMensaje];
+    } else if (hora >= 17) {
+        texto.textContent = '¡Hasta mañana,';
+        detalle.textContent = MENSAJES_SALUDO_DESPACHO.noche[indiceMensaje];
+    } else {
+        texto.textContent = '¡Buenos días,';
+        detalle.textContent = MENSAJES_SALUDO_DESPACHO.manana[indiceMensaje];
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    actualizarSaludoRecepcion();
+    actualizarSaludoDespacho();
+    setInterval(actualizarSaludoRecepcion, 1000);
+    setInterval(actualizarSaludoDespacho, 1000);
     const patchModoEspera = () => {
         if (!window.ModoEspera) { setTimeout(patchModoEspera, 200); return; }
         const _origActualizar = window.ModoEspera.actualizar.bind(window.ModoEspera);

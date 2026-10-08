@@ -25,12 +25,12 @@
     --primary-900: #102d52;
     
     /* Colores de acento */
-    --accent-50: #f0fdf4;
-    --accent-100: #dcfce7;
-    --accent-200: #bbf7d0;
-    --accent-500: #22c55e;
-    --accent-600: #16a34a;
-    --accent-700: #15803d;
+    --accent-50: #eef6ff;
+    --accent-100: #dcecff;
+    --accent-200: #bdd9f5;
+    --accent-500: #3478c5;
+    --accent-600: #20538f;
+    --accent-700: #173f70;
     
     /* Colores de peligro */
     --danger-50: #fef2f2;
@@ -118,12 +118,12 @@
     --primary-800: #bfdbfe;
     --primary-900: #dbeafe;
     
-    --accent-50: #052e16;
-    --accent-100: #064e3b;
-    --accent-200: #065f46;
-    --accent-500: #22c55e;
-    --accent-600: #4ade80;
-    --accent-700: #86efac;
+    --accent-50: #0b1f36;
+    --accent-100: #143659;
+    --accent-200: #1d4c76;
+    --accent-500: #3478c5;
+    --accent-600: #60a5fa;
+    --accent-700: #93c5fd;
     
     --danger-50: #450a0a;
     --danger-100: #7f1d1d;
@@ -876,7 +876,7 @@ main {
 .form-group input:valid:not(:placeholder-shown):focus,
 .form-group select:valid:focus,
 .form-group textarea:valid:not(:placeholder-shown):focus {
-    box-shadow: 0 0 0 4px var(--accent-100), 0 4px 12px rgba(34, 197, 94, 0.15);
+    box-shadow: 0 0 0 4px var(--accent-100), 0 4px 12px rgba(52, 120, 197, 0.15);
 }
 
 /* Indicador de campo inválido */
@@ -980,11 +980,11 @@ main {
 @keyframes pulseGlow {
     0%, 100% {
         transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+        box-shadow: 0 0 0 0 rgba(52, 120, 197, 0.4);
     }
     50% {
         transform: scale(1.02);
-        box-shadow: 0 0 20px 10px rgba(34, 197, 94, 0.2);
+        box-shadow: 0 0 20px 10px rgba(52, 120, 197, 0.2);
     }
 }
 
@@ -1491,10 +1491,10 @@ input[type="time"]:focus {
 
 @keyframes connectedPulse {
     0%, 100% {
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+        box-shadow: 0 0 0 0 rgba(52, 120, 197, 0.4);
     }
     50% {
-        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0);
+        box-shadow: 0 0 0 4px rgba(52, 120, 197, 0);
     }
 }
 
@@ -2444,13 +2444,13 @@ input[type="time"]:focus {
 
 @keyframes successFeedback {
     0% {
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+        box-shadow: 0 0 0 0 rgba(52, 120, 197, 0.4);
     }
     50% {
-        box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+        box-shadow: 0 0 0 8px rgba(52, 120, 197, 0);
     }
     100% {
-        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+        box-shadow: 0 0 0 0 rgba(52, 120, 197, 0);
     }
 }
 
@@ -3352,9 +3352,9 @@ html {
 
 body {
     background:
-        linear-gradient(rgba(52, 120, 197, 0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(52, 120, 197, 0.035) 1px, transparent 1px),
-        #edf2f7 !important;
+        linear-gradient(rgba(173, 211, 243, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(173, 211, 243, 0.04) 1px, transparent 1px),
+        linear-gradient(135deg, #081c32 0%, #102d52 58%, #173f70 100%) !important;
     background-size: 32px 32px;
     color: #18283d;
     letter-spacing: 0;
@@ -3900,6 +3900,182 @@ footer {
 .admin-grid {
     gap: 18px !important;
     padding: 0 !important;
+}
+
+.admin-header-content {
+    z-index: 1;
+    flex: 1 1 620px;
+    min-width: 0;
+}
+
+.admin-header-content > h1 {
+    display: table;
+    margin: 0 auto 12px !important;
+    padding-bottom: 7px;
+    border-bottom: 3px solid #ffdf8b;
+    color: #ffffff !important;
+    font-size: clamp(1.8rem, 3.2vw, 2.5rem) !important;
+    font-weight: 800 !important;
+    line-height: 1.12 !important;
+    text-align: center !important;
+    text-shadow: 0 2px 10px rgba(5, 24, 46, 0.2) !important;
+}
+
+.reception-greeting {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    grid-template-areas: "copy icon" "copy info";
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    animation: reception-greeting-enter 520ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.reception-greeting-icon {
+    grid-area: icon;
+    align-self: start;
+    justify-self: end;
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffdf8b;
+    animation: reception-sun-pulse 3.4s ease-in-out infinite;
+}
+
+.reception-greeting-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.reception-greeting-copy {
+    grid-area: copy;
+    min-width: 0;
+}
+
+.reception-greeting-eyebrow {
+    display: block;
+    margin-bottom: 3px;
+    color: #c9ddf2;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.reception-greeting h2 {
+    color: #ffffff;
+    font-size: 1.12rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.reception-greeting h2 strong {
+    color: #ffe08a;
+    font-weight: 800;
+}
+
+.reception-greeting p {
+    margin: 3px 0 0;
+    color: #d9e7f6;
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
+.reception-greeting-info {
+    grid-area: info;
+    align-self: end;
+    display: grid;
+    justify-items: end;
+    gap: 5px;
+    min-width: 0;
+    animation: reception-greeting-enter 650ms 100ms both;
+}
+
+.reception-greeting-clock {
+    color: #ffffff;
+    font-size: 1.12rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+
+.reception-greeting-icon svg[hidden] {
+    display: none;
+}
+
+@keyframes reception-greeting-enter {
+    from { opacity: 0; transform: translateY(7px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes reception-sun-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.07); }
+}
+
+@media (max-width: 700px) {
+    header {
+        align-items: flex-start !important;
+    }
+
+    .admin-header-content {
+        flex-basis: calc(100% - 76px);
+    }
+
+    .reception-greeting {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: "copy icon" "info info";
+        gap: 10px;
+    }
+
+    .reception-greeting-info {
+        justify-items: start;
+        justify-self: stretch;
+        width: 100%;
+        padding: 8px 0 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+}
+
+@media (max-width: 480px) {
+    .admin-header-content {
+        flex: 1 1 auto;
+        width: 100%;
+    }
+
+    .admin-header-content > h1 {
+        text-align: center;
+        margin-right: auto !important;
+        margin-left: auto !important;
+    }
+
+    .reception-greeting {
+        grid-template-columns: 38px minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .reception-greeting-icon {
+        width: 38px;
+        height: 38px;
+    }
+
+    .reception-greeting-info {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reception-greeting,
+    .reception-greeting-icon,
+    .reception-greeting-info {
+        animation: none;
+    }
 }
 
 .admin-section {
@@ -9944,7 +10120,157 @@ footer {
         min-height: 44px;
         justify-content: center;
     }
+}
 
+
+/* Identidad visual SI3 compartida entre paneles y flujos operativos. */
+:root {
+    --si3-navy: #102d52;
+    --si3-blue: #20538f;
+    --si3-accent: #63a9df;
+    --si3-light-blue: #a9d6f5;
+    --si3-gold: #f0bc59;
+    --si3-border: #c6def2;
+}
+
+.admin-section,
+.user-section,
+.info-section,
+.main-section,
+.tv-panel,
+.card {
+    border: 1px solid var(--si3-border) !important;
+    border-top: 3px solid var(--si3-accent) !important;
+    border-radius: 8px !important;
+    background: linear-gradient(155deg, #ffffff 0%, #f5f9fb 100%) !important;
+    box-shadow: 0 9px 24px rgba(16, 45, 82, 0.075) !important;
+    transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease !important;
+}
+
+.admin-section:hover,
+.user-section:hover,
+.info-section:hover,
+.card:hover {
+    border-color: #91c5eb !important;
+    box-shadow: 0 15px 32px rgba(16, 45, 82, 0.13) !important;
+}
+
+.admin-section h2,
+.user-section h2,
+.info-section h3 {
+    border-bottom-color: #bad9f3 !important;
+}
+
+.admin-section h2::after,
+.user-section h2::after {
+    background: linear-gradient(90deg, var(--si3-accent), var(--si3-gold)) !important;
+}
+
+.btn-primary {
+    border-color: var(--si3-blue) !important;
+    background: linear-gradient(115deg, var(--si3-blue), #3478c5) !important;
+}
+
+.btn-primary:hover:not(:disabled) {
+    border-color: var(--si3-navy) !important;
+    background: linear-gradient(115deg, var(--si3-navy), var(--si3-blue)) !important;
+}
+
+.btn-success {
+    border-color: #3478c5 !important;
+    background: linear-gradient(115deg, #3478c5, var(--si3-accent)) !important;
+}
+
+.btn-success:hover:not(:disabled) {
+    border-color: var(--si3-navy) !important;
+    background: linear-gradient(115deg, var(--si3-navy), var(--si3-blue)) !important;
+}
+
+input,
+select,
+textarea {
+    border-color: #c8d7e2 !important;
+    background-color: #f9fbfc;
+    transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--si3-accent) !important;
+    background-color: #ffffff;
+    box-shadow: 0 0 0 3px rgba(99, 169, 223, 0.2) !important;
+}
+
+.facturas-table {
+    border-color: var(--si3-border) !important;
+    border-radius: 8px !important;
+}
+
+.facturas-table thead th {
+    border-bottom-color: var(--si3-accent) !important;
+}
+
+.facturas-table tbody tr:hover {
+    background: #e8f4ff !important;
+}
+
+.tv-header {
+    border-bottom: 3px solid var(--si3-light-blue) !important;
+}
+
+.tv-container .tv-panel {
+    border-top: 3px solid var(--si3-accent) !important;
+}
+
+.tv-panel-header {
+    border-bottom-color: var(--si3-light-blue) !important;
+}
+
+.tv-badge {
+    background: linear-gradient(115deg, var(--si3-blue), #3478c5) !important;
+}
+
+.tv-footer-stats {
+    border-top: 3px solid var(--si3-light-blue) !important;
+}
+
+.llegada-box {
+    border-color: rgba(99, 169, 223, 0.7) !important;
+    background: linear-gradient(155deg, #ffffff 0%, #eaf4ff 100%) !important;
+    box-shadow: 0 26px 58px rgba(8, 32, 62, 0.3), 0 0 0 5px rgba(99, 169, 223, 0.1) !important;
+}
+
+.llegada-brand {
+    border-bottom-color: #bad9f3 !important;
+    background: linear-gradient(110deg, #e5f2ff, #f8fbfd) !important;
+}
+
+.llegada-form .btn-success {
+    background: linear-gradient(115deg, #3478c5, var(--si3-accent)) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-section,
+    .user-section,
+    .info-section,
+    .main-section,
+    .tv-panel,
+    .card,
+    .btn,
+    input,
+    select,
+    textarea {
+        transition: none !important;
+    }
+
+    .admin-section:hover,
+    .user-section:hover,
+    .info-section:hover,
+    .card:hover {
+        transform: none !important;
+    }
+}
     .waiting-actions {
         width: 100%;
     }

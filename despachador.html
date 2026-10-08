@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=11">
+        <link rel="stylesheet" href="styles.css?v=16">
     <style>
         .admin-grid { 
             grid-template-columns: 320px 1fr; 
@@ -23,10 +23,9 @@
         .turnos-confirmados { grid-column: 1 / 3; grid-row: 6; }
         .despachador-historial { grid-column: 1 / 3; grid-row: 7; }
         
-        .turnos-confirmados .turn-item { border-left: 4px solid #22c55e; }
-        .turnos-confirmados .turn-item-number { background: #22c55e; }
-        .turnos-confirmados .turn-item-time { color: #16a34a; }
-        
+        .turnos-confirmados .turn-item { border-left: 4px solid #63a9df; }
+        .turnos-confirmados .turn-item-number { background: #3478c5; }
+        .turnos-confirmados .turn-item-time { color: #20538f; }
         .pending-exit .turn-item { border-left: 4px solid #20538f; background: #eef6ff; }
         .pending-exit .turn-item:hover { border-color: #173f70; }
         
@@ -45,13 +44,13 @@
         }
         
         .current-turn-display { 
-            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); 
+            background: linear-gradient(135deg, #20538f 0%, #3478c5 100%); 
             border-radius: 16px; 
             padding: 36px 28px; 
             text-align: center; 
-            border: 2px solid #16a34a; 
+            border: 2px solid #63a9df; 
             margin-bottom: 24px;
-            box-shadow: 0 8px 24px rgba(22, 163, 74, 0.25);
+            box-shadow: 0 8px 24px rgba(52, 120, 197, 0.25);
             position: relative;
             overflow: hidden;
         }
@@ -479,7 +478,7 @@
         }
         
         .estado-ok { 
-            color: #16a34a; 
+            color: #20538f; 
             font-weight: 700; 
         }
         .estado-pend { 
@@ -489,12 +488,12 @@
         
         .modal-proveedor-content {
             max-width: 500px;
-            border: 3px solid #22c55e;
+            border: 3px solid #63a9df;
             animation: slideIn 0.3s ease-out;
         }
         
         .modal-proveedor-header {
-            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            background: linear-gradient(135deg, #3478c5 0%, #20538f 100%);
             padding: 20px;
             text-align: center;
             border-radius: 10px 10px 0 0;
@@ -509,7 +508,7 @@
         }
         
         .modal-proveedor-header p {
-            color: #dcfce7;
+            color: #dcecff;
             margin: 5px 0 0 0;
             font-size: 14px;
         }
@@ -522,9 +521,9 @@
         .modal-proveedor-numero {
             font-size: 72px;
             font-weight: 700;
-            color: #22c55e;
+            color: #20538f;
             line-height: 1;
-            text-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+            text-shadow: 0 4px 12px rgba(52, 120, 197, 0.3);
         }
         
         .modal-proveedor-nombre {
@@ -642,7 +641,32 @@
     <div class="container">
         <header>
             <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo">
-            <h1>Panel Despachador</h1>
+            <div class="admin-header-content">
+                <h1>Panel Despachador</h1>
+                <section class="reception-greeting dispatch-greeting" aria-label="Saludo del equipo de despacho">
+                    <div class="reception-greeting-icon" aria-hidden="true">
+                        <svg data-dispatch-icon="morning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 18h18M5 18a7 7 0 0 1 14 0M12 2v3m-7 1 2 2m12-2-2 2M2 12h3m14 0h3"></path>
+                        </svg>
+                        <svg data-dispatch-icon="afternoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden>
+                            <circle cx="12" cy="12" r="4"></circle>
+                            <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+                        </svg>
+                        <svg data-dispatch-icon="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden>
+                            <path d="M20.9 13.1A8.5 8.5 0 0 1 10.9 3.1 8.5 8.5 0 1 0 20.9 13.1Z"></path>
+                            <path d="m17 3 .6 1.4L19 5l-1.4.6L17 7l-.6-1.4L15 5l1.4-.6L17 3Z"></path>
+                        </svg>
+                    </div>
+                    <div class="reception-greeting-copy">
+                        <span class="reception-greeting-eyebrow">Equipo de despacho · SI-3</span>
+                        <h2><span id="despachoSaludoTexto">¡Muy buenos días,</span> <strong>Paula</strong>!</h2>
+                        <p id="despachoSaludoDetalle">Que tu jornada empiece con buena energía.</p>
+                    </div>
+                    <div class="reception-greeting-info">
+                        <time class="reception-greeting-clock" id="despachoLiveClock" aria-label="Hora actual">--:--:--</time>
+                    </div>
+                </section>
+            </div>
         </header>
         
         <nav class="main-nav">
@@ -2080,7 +2104,7 @@ return `
                     const html = proveedores.map((p) => {
                         const autorizado = p.autorizadoSalida === true;
                         const estadoBadge = autorizado
-                            ? '<span style="color:#16a34a;font-weight:700;margin-left:8px;">✓ AUTORIZADO</span>'
+                            ? '<span style="color:#20538f;font-weight:700;margin-left:8px;">✓ AUTORIZADO</span>'
                             : '<span style="color:#d97706;font-weight:700;margin-left:8px;">PENDIENTE</span>';
                         const acciones = autorizado
                             ? '<span class="autorizado-badge" style="margin-right:8px;">✓ Autorizado</span>'
@@ -2128,8 +2152,8 @@ return `
                         const proveedoresHtml = proveedor.proveedores.map(p => {
                             const autorizado = p.autorizadoSalida === true;
                             return `
-                                <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${autorizado ? '#22c55e' : '#20538f'};">
-                                    <div style="font-weight: 600; color: #3741a5;">${p.nombreProveedor || p.nit || 'N/A'} ${autorizado ? '<span style="color:#16a34a;font-weight:700;">✓ AUTORIZADO</span>' : '<span style="color:#d97706;font-weight:700;">PENDIENTE</span>'}</div>
+                                <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${autorizado ? '#63a9df' : '#20538f'};">
+                                    <div style="font-weight: 600; color: #3741a5;">${p.nombreProveedor || p.nit || 'N/A'} ${autorizado ? '<span style="color:#20538f;font-weight:700;">✓ AUTORIZADO</span>' : '<span style="color:#d97706;font-weight:700;">PENDIENTE</span>'}</div>
                                     <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
                                         Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
                                     </div>

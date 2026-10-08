@@ -1,3 +1,4 @@
+                        <td>${f.estado === 'llegado' || !f.fecha_cita || (f.hora_solicitud && f.hora_llamada && f.hora_solicitud === f.hora_llamada) ? '<span style="color: #dc2626; font-weight: 600;">Sin turno</span>' : '<span style="color: #20538f; font-weight: 600;">Con turno</span>'}</td>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -7,13 +8,13 @@
     <title>Panel de Facturas - Sistema de Turnos SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=11">
+        <link rel="stylesheet" href="styles.css?v=16">
     <style>
         :root {
-            --facturas-primary: #2563eb;
-            --facturas-accent: #20538f;
-            --facturas-bg: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
-            --facturas-card: rgba(255, 255, 255, 0.85);
+            --facturas-primary: #20538f;
+            --facturas-accent: #63a9df;
+            --facturas-bg: linear-gradient(135deg, #f5faff 0%, #e4f2ff 100%);
+            --facturas-card: rgba(255, 255, 255, 0.94);
         }
 
         .admin-grid { 
@@ -40,7 +41,7 @@
         .admin-section h2 {
             font-size: 22px;
             font-weight: 800;
-            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            background: linear-gradient(115deg, #173f70 0%, #3478c5 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -65,10 +66,10 @@
         }
         
         .facturas-table thead th {
-            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            background: linear-gradient(135deg, #eaf4ff 0%, #dceeff 100%);
             padding: 14px 16px;
             text-align: left;
-            border-bottom: 2px solid #2563eb;
+            border-bottom: 2px solid #63a9df;
             font-size: 0.75rem;
             text-transform: uppercase;
             color: #475569;
@@ -86,7 +87,7 @@
         }
         
         .facturas-table tbody tr:hover {
-            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            background: linear-gradient(135deg, #eaf4ff 0%, #d7eaff 100%);
             transform: scale(1.005);
             box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
         }
@@ -101,7 +102,7 @@
 
         .facturas-table td:first-child {
             font-weight: 700;
-            color: #2563eb;
+            color: #20538f;
             font-family: 'Courier New', monospace;
             letter-spacing: 0.5px;
         }
@@ -273,7 +274,7 @@
                         <td>${typeof Utils !== 'undefined' ? Utils.formatearHora(f.hora_llamada) : (f.hora_llamada || '-')}</td>
                         <td>${typeof Utils !== 'undefined' ? Utils.formatearHora(f.hora_finalizacion) : (f.hora_finalizacion || '-')}</td>
                         <td>${f.fecha ? f.fecha.split('T')[0] : '-'}</td>
-                        <td>${f.estado === 'llegado' || !f.fecha_cita || (f.hora_solicitud && f.hora_llamada && f.hora_solicitud === f.hora_llamada) ? '<span style="color: #dc2626; font-weight: 600;">Sin turno</span>' : '<span style="color: #059669; font-weight: 600;">Con turno</span>'}</td>
+                        <td>${f.estado === 'llegado' || !f.fecha_cita || (f.hora_solicitud && f.hora_llamada && f.hora_solicitud === f.hora_llamada) ? '<span style="color: #dc2626; font-weight: 600;">Sin turno</span>' : '<span style="color: #20538f; font-weight: 600;">Con turno</span>'}</td>
                     </tr>
                 `).join('');
             }
