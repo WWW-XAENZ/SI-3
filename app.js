@@ -266,34 +266,9 @@ const SonidoAlerta = {
     reproducir(veces = 3) {
         if (window.SonidoSI3) {
             window.SonidoSI3.tocarAlerta();
+            return;
         }
         this.inicializar();
-        if (this.contexto && this.contexto.state === 'suspended') {
-            this.contexto.resume().catch(() => {});
-        }
-        if (!this.contexto || this.contexto.state === 'closed') return;
-        
-        for (let i = 0; i < veces; i++) {
-            setTimeout(() => {
-                try {
-                    if (!this.contexto || this.contexto.state === 'closed') return;
-                    const oscilador = this.contexto.createOscillator();
-                    const ganancia = this.contexto.createGain();
-                    
-                    oscilador.connect(ganancia);
-                    ganancia.connect(this.contexto.destination);
-                    
-                    oscilador.frequency.value = 880;
-                    oscilador.type = 'sine';
-                    
-                    ganancia.gain.setValueAtTime(0.5, this.contexto.currentTime);
-                    ganancia.gain.exponentialRampToValueAtTime(0.01, this.contexto.currentTime + 0.5);
-                    
-                    oscilador.start(this.contexto.currentTime);
-                    oscilador.stop(this.contexto.currentTime + 0.5);
-                } catch(e) {}
-            }, i * 600);
-        }
     }
 };
 
@@ -308,6 +283,16 @@ window.addEventListener('visibilitychange', () => {
 // ============================================
 
 const Utils = {
+    notificacionesRecientes: new Map(),
+
+    reordenarNotificaciones() {
+        let top = 20;
+        document.querySelectorAll('.notificacion').forEach(notificacion => {
+            notificacion.style.top = `${top}px`;
+            top += notificacion.offsetHeight + 10;
+        });
+    },
+
     setLoading(loading) {
         const btn = document.getElementById('btnSolicitar');
         if (btn) {
@@ -317,8 +302,29 @@ const Utils = {
     },
 
     mostrarNotificacion(mensaje, tipo = 'info', requireAccept = false) {
+        const texto = String(mensaje ?? '');
+        const ahora = Date.now();
+        const clave = `${tipo}:${texto}`;
+        const visibleDuplicada = Array.from(document.querySelectorAll('.notificacion'))
+            .find(notificacion => notificacion.dataset.notificationKey === clave);
+        if (visibleDuplicada) return null;
+
+        const notificacionReciente = this.notificacionesRecientes.get(clave);
+        if (notificacionReciente && ahora - notificacionReciente < 2500) return null;
+        this.notificacionesRecientes.set(clave, ahora);
+        for (const [notificacionClave, timestamp] of this.notificacionesRecientes) {
+            if (ahora - timestamp > 10000) this.notificacionesRecientes.delete(notificacionClave);
+        }
+
+        const visibles = document.querySelectorAll('.notificacion');
+        if (visibles.length >= 3) {
+            visibles[0].remove();
+            this.reordenarNotificaciones();
+        }
+
         const notificacion = document.createElement('div');
         notificacion.className = 'notificacion';
+        notificacion.dataset.notificationKey = clave;
 
         const iconos = {
             'success': '✅',
@@ -329,7 +335,7 @@ const Utils = {
 
         let contenido = `
             <span class="notif-icon">${iconos[tipo] || 'ℹ'}</span>
-            <span class="notificacion-mensaje">${mensaje}</span>
+            <span class="notificacion-mensaje">${texto}</span>
         `;
 
         if (requireAccept) {
@@ -361,6 +367,12 @@ const Utils = {
         });
 
         document.body.appendChild(notificacion);
+        this.reordenarNotificaciones();
+
+        const quitarNotificacion = () => {
+            notificacion.remove();
+            this.reordenarNotificaciones();
+        };
 
         const style = document.createElement('style');
         style.textContent = `
@@ -387,14 +399,14 @@ const Utils = {
             btnAceptar.style.cssText = 'background: white; border: none; color: ' + (tipo === 'success' ? '#059669' : tipo === 'error' ? '#dc2626' : '#2563eb') + '; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; margin-left: auto; font-size: 13px;';
             btnAceptar.onclick = () => {
                 notificacion.style.animation = 'notifSlideOut 0.3s ease forwards';
-                setTimeout(() => notificacion.remove(), 300);
+                setTimeout(quitarNotificacion, 300);
             };
         } else {
             const btnCerrar = notificacion.querySelector('.notificacion-cerrar');
             btnCerrar.style.cssText = 'background: none; border: none; color: white; font-size: 22px; cursor: pointer; padding: 0; margin-left: auto; opacity: 0.8;';
             btnCerrar.onclick = () => {
                 notificacion.style.animation = 'notifSlideOut 0.3s ease forwards';
-                setTimeout(() => notificacion.remove(), 300);
+                setTimeout(quitarNotificacion, 300);
             };
 
             const styleOut = document.createElement('style');
@@ -410,7 +422,7 @@ const Utils = {
                 if (notificacion.parentNode) {
                     notificacion.style.animation = 'notifFadeOut 0.4s ease forwards';
                     setTimeout(() => {
-                        if (notificacion.parentNode) notificacion.remove();
+                        if (notificacion.parentNode) quitarNotificacion();
                     }, 400);
                 }
             }, 4000);
@@ -1458,7 +1470,7 @@ const SupabaseDB = {
         try {
             const { data, error } = await window.supabaseClient
                 .from('turnos')
-                .update({ estado: 'cancelado' })
+                .delete()
                 .eq('id', turnoId)
                 .select('id')
                 .maybeSingle();
@@ -3835,7 +3847,8 @@ const UsuarioHandlers = {
             try {
                 const cancelado = await Turnos.cancelar(miTurno.id);
                 if (!cancelado) {
-                    throw new Error('No se pudo confirmar la cancelación en el servidor');
+                    Utils.mostrarNotificacion('No fue posible cancelar el turno. Verifique la conexión e inténtelo nuevamente.', 'error');
+                    return;
                 }
 
                 LocalStorage.eliminarMiTurno();
@@ -4045,6 +4058,17 @@ const AdminHandlers = {
         modal.dataset.turnoId = turnoId || turno.id;
         modal.dataset.tipo = tipo;
         modal.style.display = 'flex';
+    },
+
+    revisarFormularioDespacho() {
+        const confirmModal = document.getElementById('turnoModal');
+        const despachoModal = document.getElementById('despachoModal');
+        if (confirmModal) confirmModal.style.display = 'none';
+        if (despachoModal) {
+            despachoModal.classList.add('no-close');
+            despachoModal.style.display = 'flex';
+            document.getElementById('despachoDestino')?.focus();
+        }
     },
 
     async guardarDespacho() {

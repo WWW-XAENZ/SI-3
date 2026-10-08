@@ -908,6 +908,15 @@
             renderizarSeguimientoSalida(turno, false);
         };
 
+        window.notificarTurnoConfirmadoDespachador = function(datos, mensaje = '') {
+            const numero = String(datos?.numero || '').trim();
+            if (!numero) return;
+            const evento = { eventType: 'CONFIRMED', new: { id: numero } };
+            if (window.SI3Realtime && !window.SI3Realtime.reclamarEvento('despachador-confirmacion', evento)) return;
+            Utils.mostrarNotificacion(mensaje || `Llegada confirmada: turno ${numero}`, 'success');
+            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_llamado' } }));
+        };
+
         function normalizarDatosNotificacion(datos) {
             if (!datos) return null;
             if (typeof datos === 'string') {
@@ -1185,6 +1194,9 @@
                 
                 return coincideBusqueda && coincideEstado;
             });
+
+            listaDiv.classList.toggle('has-one-item', filtrados.length === 1);
+            listaDiv.classList.toggle('has-multiple-items', filtrados.length > 1);
             
             if (filtrados.length === 0) {
                 listaDiv.innerHTML = '<p class="empty-message">No hay turnos que coincidan</p>';
@@ -1676,23 +1688,15 @@ return `
                             }
                             cargarTodoDespachador();
                             cargarHistorialDespachador();
-                            if (window.SonidoSI3) window.SonidoSI3.inicializar();
-                            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_completado' } }));
                         })
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos' }, (payload) => {
                             console.log('📋 Cambio en turnos detectado, recargando...');
                             if (payload.new?.estado === 'llegado') {
                                 window.mostrarDetallesTurnoConfirmado(payload.new);
-                                if (window.SI3Realtime) {
-                                    window.SI3Realtime.notificarTurnoConfirmado(payload.new);
-                                } else {
-                                    Utils.mostrarNotificacion(`Llegada confirmada: turno ${payload.new.numero}`, 'success');
-                                }
+                                window.notificarTurnoConfirmadoDespachador(payload.new);
                             }
                             cargarTodoDespachador();
                             cargarHistorialDespachador();
-                            if (window.SonidoSI3) window.SonidoSI3.inicializar();
-                            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_llamado' } }));
                         })
                         .on('postgres_changes', { event: '*', schema: 'public', table: 'proveedores_transporte' }, (payload) => {
                             console.log('🚛 Cambio en proveedores_transporte detectado, recargando...');
@@ -2020,9 +2024,16 @@ return `
                             : '-';
                         const materialesSap = obtenerMaterialesSapDespachador(proveedor);
                         const horaInicio = proveedor.horaLlamada || proveedor.hora_llamada || proveedor.horaLlegada || proveedor.hora_llegada;
+                        const numFactura = proveedor.numFactura || proveedor.num_factura || '';
+                        const esDestinoAmbos = String(proveedor.destino || '').toLowerCase() === 'ambos';
+                        const facturasHtml = typeof window.formatearFacturasHistorial === 'function'
+                            ? window.formatearFacturasHistorial({ destino: proveedor.destino, numFactura })
+                            : escaparHtmlDespachador(numFactura || '-');
+                        const facturaFieldHtml = esDestinoAmbos
+                            ? `<div class="ready-turn-field ready-turn-invoices"><span>Facturas</span>${facturasHtml}</div>`
+                            : `<div class="ready-turn-field"><span>Factura</span><strong>${escaparHtmlDespachador(numFactura || '-')}</strong></div>`;
                         const campos = [
                             ['Placa', proveedor.nit],
-                            ['Factura', proveedor.numFactura],
                             ['Vehículo', proveedor.tipoVehiculo],
                             ['Bultos', proveedor.bultos],
                             ['Peso', peso],
@@ -2043,6 +2054,7 @@ return `
                                 </div>
                             </div>
                             <div class="ready-turn-details">
+                                ${facturaFieldHtml}
                                 ${campos.map(([label, value]) => `<div class="ready-turn-field"><span>${label}</span><strong>${value || '-'}</strong></div>`).join('')}
                             </div>
                         `;
@@ -2096,34 +2108,6 @@ return `
                 
                 async function reproducirAlertaSalida(proveedor) {
                     window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
-                    if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
-                    if (window.SonidoAlerta && window.SonidoAlerta.reproducir) {
-                        window.SonidoAlerta.reproducir(3);
-                    } else {
-                        try {
-                            const AudioContext = window.AudioContext || window.webkitAudioContext;
-                            if (!window.audioContext) {
-                                window.audioContext = new AudioContext();
-                            }
-                            const ctx = window.audioContext;
-                            for (let i = 0; i < 3; i++) {
-                                setTimeout(() => {
-                                    const osc = ctx.createOscillator();
-                                    const gain = ctx.createGain();
-                                    osc.connect(gain);
-                                    gain.connect(ctx.destination);
-                                    osc.frequency.value = 880;
-                                    osc.type = 'sine';
-                                    gain.gain.setValueAtTime(0.5, ctx.currentTime);
-                                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-                                    osc.start(ctx.currentTime);
-                                    osc.stop(ctx.currentTime + 0.5);
-                                }, i * 600);
-                            }
-                        } catch (e) {
-                            console.warn('Error reproduciendo sonido:', e);
-                        }
-                    }
                     
                     mostrarModalProveedorListo(proveedor);
                 }
@@ -2683,6 +2667,7 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                 .on('postgres_changes',
                     { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
                     async (payload) => {
+                        if (window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(payload.new)) return;
                         console.log('🔔 Notificación realtime despachador:', payload);
                         const notif = payload.new;
 
@@ -2690,11 +2675,7 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                             const datos = normalizarDatosNotificacion(notif.datos);
                             if (datos) {
                                 window.mostrarDetallesTurnoConfirmado(datos);
-                                if (window.SI3Realtime) {
-                                    window.SI3Realtime.notificarTurnoConfirmado(datos, notif.mensaje);
-                                } else {
-                                    Utils.mostrarNotificacion(notif.mensaje || `Llegada confirmada: ${datos.numero || ''}`, 'success');
-                                }
+                                window.notificarTurnoConfirmadoDespachador(datos, notif.mensaje);
                                 await window.actualizarTurnosDiaDespachador();
                             }
                             await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notif.id);
@@ -2702,9 +2683,6 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                         }
                         
                         if (notif.remitente === 'admin') {
-                            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
-                            if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
-                            if (window.SonidoAlerta) { window.SonidoAlerta.inicializar(); window.SonidoAlerta.reproducir(3); }
                             const datosNotificacion = normalizarDatosNotificacion(notif.datos);
                             if (notif.tipo === 'salida_pendiente' && datosNotificacion) {
                                 if (typeof window.mostrarProveedorListo === 'function') {

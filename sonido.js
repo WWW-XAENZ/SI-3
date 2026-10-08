@@ -6,7 +6,7 @@
 const SonidoSI3 = {
     contexto: null,
     _ultimoBeep: 0,
-    _minIntervalo: 300,
+    _minIntervalo: 900,
 
     inicializar() {
         try {
@@ -67,13 +67,13 @@ const SonidoSI3 = {
         for (let i = 0; i < (veces || 1); i++) {
             setTimeout(() => {
                 this._beep(config.frecuencia, config.duracion, config.tipo, config.volumen);
-            }, i * config.intervalo || 400);
+            }, i * config.intervalo);
         }
     },
 
     tocarAlerta() {
-        const patrón = { frecuencia: 1046, duracion: 0.15, tipo: 'square', volumen: 0.15, intervalo: 250 };
-        this.tocar(4, patrón);
+        const patrón = { frecuencia: 784, duracion: 0.16, tipo: 'sine', volumen: 0.12, intervalo: 180 };
+        this.tocar(2, patrón);
     },
 
     tocarConfirmacion() {

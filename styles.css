@@ -3216,6 +3216,21 @@ footer {
     min-width: 0;
 }
 
+.pending-exit-invoices {
+    flex: 1 1 100%;
+    min-width: 0;
+}
+
+.pending-exit-invoices .history-invoice-list {
+    flex: 1 1 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pending-exit-invoices .history-invoice-chip {
+    grid-template-columns: minmax(0, 48px) minmax(0, 1fr);
+    min-width: 0;
+}
+
 .turn-list-empty {
     text-align: center;
     padding: var(--space-6);
@@ -6581,6 +6596,26 @@ header > h1 + span {
     font-size: 0.72rem;
 }
 
+.admin-grid.despacho-dashboard .ready-turn-invoices {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+}
+
+.admin-grid.despacho-dashboard .ready-turn-invoices .history-invoice-list {
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-grid.despacho-dashboard .ready-turn-invoices .history-invoice-chip strong {
+    color: #294966;
+}
+
+.admin-grid.despacho-dashboard .ready-turn-invoices .history-invoice-chip small {
+    color: #64788b;
+}
+
 .admin-grid.despacho-dashboard .despacho-detail {
     display: grid !important;
         grid-template-columns: minmax(0, 1.65fr) minmax(220px, 1fr);
@@ -8913,6 +8948,14 @@ body:has(.facturas-table) #btnMostrarTodas {
     padding-right: 10px !important;
 }
 
+.cited-list .pending-exit-list.has-one-item {
+    grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.cited-list .pending-exit-list.has-multiple-items {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
 .cited-list .pending-exit-item {
     width: 100%;
     min-width: 0;
@@ -8949,6 +8992,10 @@ body:has(.facturas-table) #btnMostrarTodas {
 @media (max-width: 850px) {
     .cited-list .pending-exit-list {
         grid-template-columns: 1fr !important;
+    }
+
+    .cited-list .pending-exit-list.has-multiple-items {
+        grid-template-columns: minmax(0, 1fr) !important;
     }
 
     .cited-list .pending-exit-details {
@@ -9530,6 +9577,7 @@ footer {
     display: flex;
     gap: 8px;
     align-items: center;
+    min-width: 0;
 }
 
 .material-sap-row input {
@@ -9655,6 +9703,11 @@ footer {
     font-size: 0.875rem;
     font-weight: 700;
     cursor: pointer;
+}
+
+.material-sap-remove {
+    flex: 0 0 auto;
+    min-width: 72px;
 }
 
 .material-sap-remove:hover,
@@ -9871,6 +9924,29 @@ footer {
     #proveedorSinTurnoModal .modal-content {
         padding: 12px;
         max-height: 98vh;
+    }
+}
+
+@media (max-width: 480px) {
+    .material-sap-row {
+        gap: 6px;
+        align-items: stretch;
+    }
+
+    .material-sap-remove {
+        min-width: 76px;
+        padding: 8px 10px;
+    }
+
+    .material-sap-add,
+    .waiting-actions .btn {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+
+    .waiting-actions {
+        width: 100%;
     }
 }
 
