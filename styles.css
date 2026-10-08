@@ -4005,7 +4005,19 @@ footer {
 }
 
 .reception-greeting-icon svg[hidden] {
-    display: none;
+    display: none !important;
+}
+
+.reception-greeting-icon[data-time-period="morning"] svg[data-reception-icon="morning"],
+.reception-greeting-icon[data-time-period="afternoon"] svg[data-reception-icon="afternoon"],
+.reception-greeting-icon[data-time-period="night"] svg[data-reception-icon="night"] {
+    display: block !important;
+}
+
+.dispatch-greeting .reception-greeting-icon[data-time-period="morning"] svg[data-dispatch-icon="morning"],
+.dispatch-greeting .reception-greeting-icon[data-time-period="afternoon"] svg[data-dispatch-icon="afternoon"],
+.dispatch-greeting .reception-greeting-icon[data-time-period="night"] svg[data-dispatch-icon="night"] {
+    display: block !important;
 }
 
 @keyframes reception-greeting-enter {
@@ -6821,6 +6833,40 @@ header > h1 + span {
     grid-column: 2;
 }
 
+#infoDespachoActual.has-transport-providers > .dispatch-followup-progress {
+    grid-column: 1 / -1;
+    grid-row: 1;
+}
+
+#infoDespachoActual.has-transport-providers > .dispatch-activity-panel {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+#infoDespachoActual.has-transport-providers > .dispatch-followup-materials {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+#infoDespachoActual.has-transport-providers > .dispatch-transport-providers {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 3;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+    align-items: start;
+    gap: 8px 12px;
+}
+
+#infoDespachoActual.has-transport-providers > .dispatch-transport-providers > .dispatch-followup-section-title,
+#infoDespachoActual.has-transport-providers > .dispatch-transport-providers > .btn {
+    grid-column: 1 / -1;
+    justify-self: start;
+}
+
+#infoDespachoActual.has-transport-providers > .dispatch-transport-providers > .btn {
+    margin-bottom: 0 !important;
+}
+
 .dispatch-followup-progress,
 .dispatch-activity-panel,
 .dispatch-transport-providers {
@@ -6875,6 +6921,43 @@ header > h1 + span {
     color: #52677c;
     font-size: 0.75rem;
     font-weight: 700;
+}
+
+.dispatch-transport-company {
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border: 1px solid #dce6ef;
+    border-radius: 8px;
+    background: #f5f9fc;
+}
+
+.dispatch-transport-company dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    gap: 6px;
+}
+
+.dispatch-transport-company dl > div {
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid #e4edf4;
+    border-radius: 5px;
+    background: #ffffff;
+}
+
+.dispatch-transport-company dt {
+    color: #8192a3;
+    font-size: 0.62rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.dispatch-transport-company dd {
+    margin: 2px 0 0;
+    color: #405970;
+    font-size: 0.73rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
 }
 
 .dispatch-followup-status::before {
@@ -7454,11 +7537,13 @@ header > h1 + span {
 }
 
 .dispatch-transport-provider {
-    margin-top: 8px;
-    padding: 10px 12px;
+    min-width: 0;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid #dce6ef;
     border-left: 3px solid #2866ad;
     border-radius: 6px;
-    background: #f5f9fc;
+    background: linear-gradient(180deg, #ffffff, #f5f9fc);
 }
 
 .dispatch-transport-provider-head {
@@ -7477,6 +7562,42 @@ header > h1 + span {
     font-size: 0.69rem;
     line-height: 1.4;
     overflow-wrap: anywhere;
+}
+
+.dispatch-transport-provider-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.dispatch-transport-provider-facts > span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid #e4edf4;
+    border-radius: 5px;
+    background: #ffffff;
+    color: #52677c;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.dispatch-transport-provider-facts > span > span {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+}
+
+.dispatch-transport-provider-facts strong {
+    color: #8192a3;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
 }
 
 .dispatch-transport-provider-actions {
@@ -7521,6 +7642,10 @@ header > h1 + span {
         align-items: flex-start;
         flex-direction: column;
     }
+
+    #infoDespachoActual.has-transport-providers > .dispatch-transport-providers {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 @container (max-width: 620px) {
@@ -7537,6 +7662,14 @@ header > h1 + span {
     .admin-grid.despacho-dashboard .despacho-detail.dispatch-followup > .dispatch-activity-panel,
     .admin-grid.despacho-dashboard .despacho-detail.dispatch-followup > .dispatch-followup-materials {
         grid-column: auto;
+    }
+
+    #infoDespachoActual.has-transport-providers > .dispatch-followup-progress,
+    #infoDespachoActual.has-transport-providers > .dispatch-activity-panel,
+    #infoDespachoActual.has-transport-providers > .dispatch-followup-materials,
+    #infoDespachoActual.has-transport-providers > .dispatch-transport-providers {
+        grid-column: 1 / -1;
+        grid-row: auto;
     }
 
     .dispatch-timeline {
@@ -7949,6 +8082,204 @@ header > h1 + span {
     background: rgba(247, 251, 254, 0.9);
 }
 
+.modal-proveedor-transportadora {
+    display: flex;
+    flex-direction: column;
+    max-height: min(680px, calc(100vh - 28px));
+    overflow: hidden;
+}
+
+.modal-proveedor-transportadora .modal-proveedor-header {
+    flex: 0 0 auto;
+    padding: 16px 22px !important;
+}
+
+.modal-proveedor-transportadora .modal-proveedor-header h2 {
+    font-size: 1rem !important;
+}
+
+.modal-proveedor-transportadora .modal-proveedor-header p {
+    font-size: 0.78rem !important;
+}
+
+.modal-proveedor-transportadora .modal-proveedor-transportadora-overview {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 14px;
+    margin: 0;
+    padding: 16px 22px 12px !important;
+    text-align: left;
+}
+
+.modal-proveedor-transportadora .modal-proveedor-numero {
+    flex: 0 0 auto;
+    min-width: 78px;
+    min-height: 48px;
+    padding: 6px 12px;
+    border-radius: 11px;
+    font-size: 1.35rem !important;
+    line-height: 1.2;
+}
+
+.modal-proveedor-transportadora .modal-proveedor-nombre {
+    margin: 0;
+    font-size: 0.92rem !important;
+    line-height: 1.35;
+    text-align: left;
+}
+
+.modal-proveedor-transportadora .modal-proveedor-transportadora-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: min(360px, 45vh);
+    overflow-y: auto;
+    display: grid;
+    align-content: start;
+    gap: 10px;
+    margin: 0 22px 14px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.modal-transport-company-info {
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid #dce6ef;
+    border-radius: 8px;
+    background: #f2f7fb;
+}
+
+.modal-transport-company-info h3 {
+    margin: 0 0 8px;
+    color: #294966;
+    font-size: 0.78rem;
+}
+
+.modal-transport-company-info dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.modal-transport-company-info dl > div {
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid #e4edf4;
+    border-radius: 5px;
+    background: #ffffff;
+}
+
+.modal-transport-company-info dt {
+    color: #8192a3;
+    font-size: 0.6rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.modal-transport-company-info dd {
+    margin: 2px 0 0;
+    color: #405970;
+    font-size: 0.72rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.modal-transport-provider {
+    min-width: 0;
+    padding: 11px 12px;
+    border: 1px solid #dce6ef;
+    border-left: 3px solid #d28a1e;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.modal-transport-provider.is-authorized {
+    border-left-color: #23865b;
+}
+
+.modal-transport-provider-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.modal-transport-provider-head > strong {
+    min-width: 0;
+    color: #193452;
+    font-size: 0.86rem;
+    overflow-wrap: anywhere;
+}
+
+.modal-transport-provider-status {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border: 1px solid #f2dfb7;
+    border-radius: 999px;
+    background: #fff8e8;
+    color: #9a5d0a;
+    font-size: 0.64rem;
+    font-weight: 800;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.modal-transport-provider-status.is-authorized {
+    border-color: #cce6d5;
+    background: #eff8f2;
+    color: #286246;
+}
+
+.modal-transport-provider-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin: 10px 0 0;
+}
+
+.modal-transport-provider-facts > div {
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid #e7eef4;
+    border-radius: 5px;
+    background: #f7fafc;
+}
+
+.modal-transport-provider-facts dt {
+    color: #8192a3;
+    font-size: 0.59rem;
+    font-weight: 800;
+    line-height: 1.25;
+    text-transform: uppercase;
+}
+
+.modal-transport-provider-facts dd {
+    margin: 2px 0 0;
+    color: #405970;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.modal-proveedor-transportadora > .pending-exit-actions {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(120px, 0.7fr);
+    gap: 10px;
+    padding: 0 22px 18px;
+}
+
+.modal-proveedor-transportadora > .pending-exit-actions .btn {
+    min-width: 0;
+    min-height: 42px;
+    padding: 9px 12px !important;
+    font-size: 0.78rem !important;
+    white-space: normal;
+}
+
 .modal-proveedor-detalles-table,
 .modal-proveedor-detalles table {
     width: 100%;
@@ -8010,17 +8341,26 @@ header > h1 + span {
 
 /* Notificaciones emergentes. */
 .notificacion {
-    width: min(430px, calc(100vw - 28px)) !important;
+    position: fixed !important;
+    top: 18px !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: min(440px, calc(100vw - 24px)) !important;
     min-height: 58px;
-    padding: 12px 14px !important;
-    border: 1px solid rgba(255, 255, 255, 0.35) !important;
-    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    border-radius: 14px !important;
     background: linear-gradient(135deg, #2866ad, #173f70) !important;
-    box-shadow: 0 16px 34px rgba(8, 32, 62, 0.24), inset 0 1px rgba(255, 255, 255, 0.2) !important;
+    box-shadow: 0 18px 38px rgba(15, 31, 52, 0.22), 0 8px 18px rgba(15, 31, 52, 0.12) !important;
     color: #ffffff !important;
     font-family: 'Plus Jakarta Sans', sans-serif !important;
-    font-size: 0.78rem !important;
-    line-height: 1.4;
+    font-size: 0.8rem !important;
+    line-height: 1.35;
+    z-index: 9999 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
 }
 
 .notificacion-success {
@@ -8099,6 +8439,28 @@ header > h1 + span {
 
     .modal-proveedor-content > .pending-exit-actions .btn {
         width: 100%;
+    }
+
+    .modal-transport-company-info dl {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .modal-proveedor-transportadora .modal-proveedor-transportadora-overview {
+        padding: 14px 16px 10px !important;
+    }
+
+    .modal-proveedor-transportadora .modal-proveedor-transportadora-list {
+        max-height: min(360px, 42vh);
+        margin: 0 16px 12px;
+    }
+
+    .modal-proveedor-transportadora .modal-transport-provider-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .modal-proveedor-transportadora > .pending-exit-actions {
+        display: flex;
+        padding: 0 16px 16px;
     }
 }
 
@@ -9129,7 +9491,7 @@ body:has(.facturas-table) #btnMostrarTodas {
 }
 
 .cited-list .pending-exit-list.has-multiple-items {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: minmax(0, 1fr) !important;
 }
 
 .cited-list .pending-exit-item {
@@ -9147,7 +9509,8 @@ body:has(.facturas-table) #btnMostrarTodas {
 
 .cited-list .pending-exit-company {
     min-width: 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+    word-break: normal;
 }
 
 .cited-list .pending-exit-details {
@@ -9159,6 +9522,13 @@ body:has(.facturas-table) #btnMostrarTodas {
     flex-wrap: wrap;
     gap: 8px;
     align-items: center;
+}
+
+.cited-list .pending-exit-actions .btn {
+    width: auto;
+    min-width: 120px;
+    min-height: 36px;
+    margin-top: 0;
 }
 
 .pending-exit-list .pending-exit-details {
@@ -9194,6 +9564,11 @@ body:has(.facturas-table) #btnMostrarTodas {
         justify-self: start;
     }
 
+    .cited-list .pending-exit-actions .btn {
+        flex: 1 1 100%;
+        width: 100%;
+    }
+
     .despachador-historial .history-table-desp {
         min-width: 1400px !important;
     }
@@ -9201,7 +9576,6 @@ body:has(.facturas-table) #btnMostrarTodas {
     .despachador-historial .toolbar-spaced {
         justify-content: stretch;
     }
-
     .despachador-historial .toolbar-spaced input {
         width: 100%;
     }
@@ -10274,5 +10648,169 @@ textarea:focus {
     .waiting-actions {
         width: 100%;
     }
+}
+
+.deleted-turns-dialog {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    box-sizing: border-box;
+    margin: 0;
+    padding: clamp(12px, 3vw, 24px);
+    border: 0;
+    background: transparent;
+    overflow: auto;
+}
+
+.deleted-turns-dialog[open] {
+    display: grid;
+}
+
+.deleted-turns-dialog::backdrop {
+    background: rgba(8, 28, 50, 0.52);
+    backdrop-filter: blur(3px);
+}
+
+.deleted-turns-panel {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    max-height: calc(100vh - 32px);
+    box-sizing: border-box;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    border-radius: 18px;
+    background: linear-gradient(145deg, #ffffff, #eef6fc);
+    box-shadow: 0 28px 70px rgba(8, 32, 62, 0.3);
+    margin: 0 auto;
+}
+
+.deleted-turns-panel .close-modal {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.deleted-turns-panel .close-modal:hover,
+.deleted-turns-panel .close-modal:focus-visible {
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    transform: rotate(90deg);
+    outline: none;
+}
+
+.deleted-turns-panel .deleted-turns-header {
+    display: grid;
+    gap: 7px;
+    margin: 0;
+    padding: 22px 24px 20px !important;
+    border-bottom: 1px solid #dfeaf4;
+    background: linear-gradient(120deg, #102d52, #2866ad) !important;
+    text-align: left;
+}
+
+.deleted-turns-panel .deleted-turns-header > div {
+    flex: 1;
+    text-align: left;
+}
+
+.deleted-turns-panel .deleted-turns-header h2 {
+    margin: 0 !important;
+    color: #ffffff !important;
+    text-align: left;
+    font-size: 1.05rem !important;
+    line-height: 1.3;
+    letter-spacing: 0;
+    font-weight: 800;
+}
+
+.deleted-turns-panel .deleted-turns-header p {
+    margin: 0 !important;
+    color: #d7e9f8 !important;
+    font-size: 0.82rem !important;
+    line-height: 1.4;
+    text-align: left;
+    font-weight: 500;
+}
+
+.deleted-turns-panel .deleted-turns-list {
+    display: grid;
+    gap: 12px;
+    min-height: 150px;
+    max-height: min(60vh, 560px);
+    overflow-y: auto;
+    padding: 18px 20px 20px;
+}
+
+.deleted-turns-panel .deleted-turns-list .empty-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 110px;
+    margin: 0;
+    padding: 20px 18px;
+    border: 1px dashed #cfe0ee;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(242, 248, 255, 0.9), rgba(255,255,255,0.7));
+    color: #7a8fa8;
+    font-style: normal;
+    font-size: 0.92rem;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.5;
+}
+
+.deleted-turns-panel .deleted-turn-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    border: 1px solid #d7e5f1;
+    border-left: 4px solid #8bbde9;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #f8fbff 0%, #f0f7ff 100%);
+    box-shadow: 0 8px 18px rgba(27, 80, 131, 0.06);
+}
+
+.deleted-turns-panel .deleted-turn-item-main { min-width: 0; }
+
+.deleted-turns-panel .deleted-turn-item-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    color: #193452;
+}
+
+.deleted-turns-panel .deleted-turn-number { color: #20538f; font-weight: 800; }
+.deleted-turns-panel .deleted-turn-item-meta { margin-top: 5px; color: #60758a; font-size: 0.76rem; }
+.deleted-turns-panel .deleted-turn-item .btn { flex: 0 0 auto; }
+
+@media (max-width: 600px) {
+    .deleted-turns-panel { max-height: calc(100vh - 24px); }
+    .deleted-turns-panel .deleted-turns-header { padding: 18px 54px 16px 18px !important; }
+    .deleted-turns-panel .deleted-turns-list { padding: 14px; }
+    .deleted-turns-panel .deleted-turn-item { align-items: stretch; flex-direction: column; }
+    .deleted-turns-panel .deleted-turn-item .btn { width: 100%; }
 }
 

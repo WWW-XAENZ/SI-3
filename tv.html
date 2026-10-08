@@ -246,9 +246,26 @@
         }
 
         .tv-cola-hora {
-            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            width: fit-content;
+            padding: 4px 9px;
+            border: 1px solid #d5e7f6;
+            border-radius: 999px;
+            background: #edf6fd;
+            font-size: 0.78rem;
+            font-weight: 700;
             color: var(--gray-500);
-            margin-top: 2px;
+            margin-top: 7px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .tv-cola-hora svg {
+            width: 14px;
+            height: 14px;
+            flex: 0 0 14px;
+            color: #3478c5;
         }
 
         .tv-cola-posicion {
@@ -541,15 +558,13 @@
                     const formatearHora = (hora) => {
                         if (!hora) return '';
                         try {
-                            const fechaHora = hora.split('T');
-                            if (fechaHora.length >= 2) {
-                                const [horas, minutos] = fechaHora[1].split(':');
-                                const h = parseInt(horas);
-                                const ampm = h >= 12 ? 'PM' : 'AM';
-                                const h12 = h % 12 || 12;
-                                return `${h12}:${minutos} ${ampm}`;
-                            }
-                            return hora;
+                            const horaTexto = String(hora).split('T').pop();
+                            const coincidencia = horaTexto.match(/^(\d{1,2}):(\d{2})/);
+                            if (!coincidencia) return hora;
+                            const hora24 = Number(coincidencia[1]);
+                            if (hora24 > 23) return hora;
+                            const periodo = hora24 >= 12 ? 'p. m.' : 'a. m.';
+                            return `${hora24 % 12 || 12}:${coincidencia[2]} ${periodo}`;
                         } catch(e) { return hora; }
                     };
                     listaEl.innerHTML = turnos.map((turno, index) => `
@@ -557,7 +572,7 @@
                             <div class="tv-cola-numero">${turno.numero}</div>
                             <div class="tv-cola-info">
                                 <div class="tv-cola-empresa">${turno.nombreEmpresa}</div>
-                                <div class="tv-cola-hora">${formatearHora(turno.horaSolicitud)}</div>
+                                <div class="tv-cola-hora"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span>${formatearHora(turno.horaSolicitud)}</span></div>
                             </div>
                             <div class="tv-cola-posicion">#${index + 1}</div>
                         </div>

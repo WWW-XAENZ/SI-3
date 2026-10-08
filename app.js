@@ -348,22 +348,29 @@ const Utils = {
 
         Object.assign(notificacion.style, {
             position: 'fixed',
-            top: '20px',
-            right: '20px',
-            padding: '18px 24px',
-            borderRadius: '12px',
-            backgroundColor: tipo === 'success' ? '#20538f' : tipo === 'error' ? '#dc2626' : '#2563eb',
+            top: '18px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            right: 'auto',
+            padding: '14px 18px',
+            borderRadius: '14px',
+            backgroundColor: tipo === 'success' ? '#1f5c9c' : tipo === 'error' ? '#c83c4a' : tipo === 'warning' ? '#d9821f' : '#2a63a6',
             color: 'white',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 18px 38px rgba(15, 31, 52, 0.22), 0 8px 18px rgba(15, 31, 52, 0.12)',
             zIndex: '9999',
             display: 'flex',
             alignItems: 'center',
-            gap: '14px',
-            maxWidth: '420px',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            fontSize: '14px',
-            animation: 'notifSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            transform: 'translateX(0)'
+            gap: '12px',
+            width: 'min(440px, calc(100vw - 24px))',
+            maxWidth: '440px',
+            minHeight: '58px',
+            fontFamily: '"Plus Jakarta Sans", "Inter", sans-serif',
+            fontSize: '0.8rem',
+            fontWeight: '700',
+            lineHeight: '1.35',
+            letterSpacing: '0.01em',
+            animation: 'notifSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            border: '1px solid rgba(255,255,255,0.2)'
         });
 
         document.body.appendChild(notificacion);
@@ -377,19 +384,32 @@ const Utils = {
         const style = document.createElement('style');
         style.textContent = `
             @keyframes notifSlideIn {
-                from { transform: translateX(120%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
+                from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.98); }
+                to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+            }
+            @keyframes notifSlideOut {
+                from { opacity: 1; transform: translateX(-50%) translateY(0); }
+                to { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+            }
+            @keyframes notifFadeOut {
+                from { opacity: 1; }
+                to { opacity: 0; }
             }
             .notif-icon {
-                font-size: 18px;
                 width: 28px;
                 height: 28px;
-                background: rgba(255,255,255,0.2);
                 border-radius: 50%;
+                background: rgba(255,255,255,0.18);
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                font-size: 0.95rem;
                 flex-shrink: 0;
+            }
+            .notificacion-mensaje {
+                flex: 1;
+                min-width: 0;
+                word-break: break-word;
             }
         `;
         document.head.appendChild(style);
@@ -412,8 +432,8 @@ const Utils = {
             const styleOut = document.createElement('style');
             styleOut.textContent = `
                 @keyframes notifSlideOut {
-                    from { transform: translateX(0); opacity: 1; }
-                    to { transform: translateX(120%); opacity: 0; }
+                    from { transform: translateX(-50%) translateY(0); opacity: 1; }
+                    to { transform: translateX(-50%) translateY(-8px); opacity: 0; }
                 }
             `;
             document.head.appendChild(styleOut);
@@ -430,8 +450,8 @@ const Utils = {
             const styleFade = document.createElement('style');
             styleFade.textContent = `
                 @keyframes notifFadeOut {
-                    from { transform: translateX(0); opacity: 1; }
-                    to { transform: translateX(20px); opacity: 0; }
+                    from { transform: translateX(-50%) translateY(0); opacity: 1; }
+                    to { transform: translateX(-50%) translateY(-8px); opacity: 0; }
                 }
             `;
             document.head.appendChild(styleFade);
@@ -1467,28 +1487,71 @@ const SupabaseDB = {
         }
 
         const estadosActivos = ['espera', 'citado', 'llegado', 'atendiendo'];
-        
-        const { count, error } = await window.supabaseClient
-            .from('turnos')
-            .delete({ count: 'exact' })
-            .eq('id', turnoId)
-            .in('estado', estadosActivos);
 
-        if (error) throw error;
-        if (count) return true;
-
-        if (numeroTurno) {
-            const { count: countPorNumero, error: errorPorNumero } = await window.supabaseClient
+        const cargarTurnoActivo = async (columna, valor) => {
+            const { data, error } = await window.supabaseClient
                 .from('turnos')
-                .delete({ count: 'exact' })
-                .eq('numero', numeroTurno)
-                .in('estado', estadosActivos);
+                .select('*')
+                .eq(columna, valor)
+                .in('estado', estadosActivos)
+                .maybeSingle();
+            if (error) throw error;
+            return data;
+        };
 
-            if (errorPorNumero) throw errorPorNumero;
-            if (countPorNumero) return true;
+        let turno = turnoId !== null && turnoId !== undefined
+            ? await cargarTurnoActivo('id', turnoId)
+            : null;
+        if (!turno && numeroTurno) turno = await cargarTurnoActivo('numero', numeroTurno);
+        if (!turno) {
+            throw new Error('Supabase no encontró un turno activo con ese ID o número. Recargue la página para sincronizar sus turnos.');
         }
 
-        throw new Error('Supabase no encontró un turno activo con ese ID o número. Recargue la página para sincronizar sus turnos.');
+        const { data: respaldo, error: errorRespaldo } = await window.supabaseClient
+            .from('turnos_eliminados')
+            .insert({
+                turno_id: turno.id,
+                numero: turno.numero,
+                fecha_cita: turno.fecha_cita || null,
+                fecha_solicitud: turno.fecha_solicitud || null,
+                turno_data: turno
+            })
+            .select('id')
+            .single();
+
+        if (errorRespaldo) {
+            throw new Error(`No se pudo respaldar el turno; no se eliminó. ${errorRespaldo.message}`);
+        }
+
+        const { data: eliminado, error: errorEliminacion } = await window.supabaseClient
+            .from('turnos')
+            .delete()
+            .eq('id', turno.id)
+            .in('estado', estadosActivos)
+            .select('id')
+            .maybeSingle();
+
+        if (errorEliminacion || !eliminado) {
+            const { error: errorLimpiarRespaldo } = await window.supabaseClient
+                .from('turnos_eliminados')
+                .delete()
+                .eq('id', respaldo.id);
+            if (errorLimpiarRespaldo) console.error('No se pudo limpiar un respaldo tras fallar la cancelación:', errorLimpiarRespaldo);
+            if (errorEliminacion) throw errorEliminacion;
+            throw new Error('El turno cambió antes de cancelarlo. Recargue la página e intente de nuevo.');
+        }
+
+        return true;
+    },
+
+    async cargarTurnosEliminados() {
+        if (!window.supabaseClient) throw new Error('Supabase no está disponible');
+        const { data, error } = await window.supabaseClient
+            .from('turnos_eliminados')
+            .select('id, numero, fecha_cita, fecha_solicitud, eliminado_en, turno_data')
+            .order('eliminado_en', { ascending: false });
+        if (error) throw error;
+        return data || [];
     },
 
     _mapearTurno(t) {
@@ -4225,7 +4288,7 @@ const AdminHandlers = {
         Utils.mostrarNotificacion(`Turno ${turnoActual.numero} - Registre proveedores`, 'info');
     },
 
-    agregarProveedorTransportista() {
+    async agregarProveedorTransportista() {
         const nombreProveedorInput = document.getElementById('transportistaNombreProveedor');
         const facturaInput = document.getElementById('transportistaFactura');
         const consecutivoInput = document.getElementById('transportistaConsecutivo');
@@ -4280,7 +4343,7 @@ const AdminHandlers = {
             const existente = AppState.proveedoresTransporte[idx];
             if (existente && existente.id) {
                 proveedor.id = existente.id;
-                SupabaseDB.actualizarProveedorTransporte(existente.id, {
+                const actualizaciones = {
                     nombre_proveedor: proveedor.nombreProveedor,
                     num_factura: proveedor.numFactura,
                     tipo_vehiculo: proveedor.tipoVehiculo,
@@ -4289,7 +4352,19 @@ const AdminHandlers = {
                     responsable: proveedor.responsable,
                     destino: proveedor.destino,
                     consecutivo_ingreso: proveedor.consecutivoIngreso || null
-                });
+                };
+                const actualizado = await SupabaseDB.actualizarProveedorTransporte(existente.id, actualizaciones);
+                if (!actualizado) {
+                    Utils.mostrarNotificacion('No se pudo guardar la edición del proveedor.', 'error');
+                    return;
+                }
+                const { error: errorHistorial } = await window.supabaseClient
+                    .from('historial_turnos')
+                    .update(actualizaciones)
+                    .eq('proveedor_transporte_id', existente.id);
+                if (errorHistorial) {
+                    console.warn('Proveedor actualizado, pero no se pudo sincronizar su historial:', errorHistorial);
+                }
             }
             AppState.proveedoresTransporte[idx] = proveedor;
             AppState.editandoProveedorIndex = null;
@@ -4479,16 +4554,40 @@ const AdminHandlers = {
             const proveedorDataPrincipal = {
                 numero: turnoActual.numero,
                 esTransporte: true,
+                nombre: turnoActual.nombreEmpresa || '',
+                nombreEmpresa: turnoActual.nombreEmpresa || '',
+                nit: turnoActual.nit || '',
+                motivo: turnoActual.motivo || '',
+                contacto: turnoActual.contacto || '',
+                telefono: turnoActual.telefono || '',
+                servicio: turnoActual.servicio || 'transporte',
+                destino: turnoActual.destino || '',
+                horaSolicitud: turnoActual.horaSolicitud || '',
+                horaLlamada: turnoActual.horaLlamada || '',
+                horaFinalizacion: horaFin,
+                materialesSap: turnoActual.materialesSap || [],
                 proveedores: proveedoresListos.map(p => ({
                     id: p.id,
                     nombreProveedor: p.nombreProveedor || '',
+                    nombreEmpresa: p.nombreEmpresa || turnoActual.nombreEmpresa || '',
+                    nit: p.nit || turnoActual.nit || '',
+                    motivo: p.motivo || turnoActual.motivo || '',
+                    contacto: p.contacto || turnoActual.contacto || '',
+                    telefono: p.telefono || turnoActual.telefono || '',
+                    servicio: p.servicio || turnoActual.servicio || 'transporte',
                     numFactura: p.numFactura,
                     tipoVehiculo: p.tipoVehiculo,
                     bultos: p.bultos,
                     peso: p.peso,
                     responsable: p.responsable,
                     destino: p.destino || '',
-                    consecutivoIngreso: p.consecutivoIngreso || ''
+                    consecutivoIngreso: p.consecutivoIngreso || '',
+                    horaSolicitud: p.horaSolicitud || turnoActual.horaSolicitud || '',
+                    horaLlamada: p.horaLlamada || turnoActual.horaLlamada || '',
+                    horaFinalizacion: horaFin,
+                    estado: p.estado || 'pendiente',
+                    autorizadoSalida: p.autorizadoSalida === true,
+                    inspeccionFisica: p.inspeccionFisica === true
                 })),
                 timestamp: Date.now()
             };
@@ -4730,6 +4829,149 @@ const proveedorData = {
                 console.error('Error al cancelar turno:', error);
                 Utils.mostrarNotificacion(error.message || 'Error al cancelar turno', 'error');
             }
+        }
+    },
+
+    async abrirTurnosEliminados() {
+        const section = document.getElementById('turnosEliminadosSection');
+        if (!section) return;
+        const isDialog = section instanceof HTMLDialogElement;
+        if (isDialog) {
+            if (!section.open) section.showModal();
+        } else {
+            section.hidden = false;
+        }
+        const menu = document.querySelector('.admin-menu, .facturas-trash-menu');
+        if (menu) menu.open = false;
+        await this.cargarTurnosEliminados();
+        if (!isDialog) {
+            section.scrollIntoView({
+                behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+                block: 'start'
+            });
+        }
+    },
+
+    cerrarTurnosEliminados() {
+        const section = document.getElementById('turnosEliminadosSection');
+        if (!section) return;
+        if (section instanceof HTMLDialogElement) {
+            if (section.open) section.close();
+        } else {
+            section.hidden = true;
+        }
+    },
+
+    async cargarTurnosEliminados() {
+        const lista = document.getElementById('listaTurnosEliminados');
+        if (!lista) return;
+
+        lista.replaceChildren();
+        const cargando = document.createElement('p');
+        cargando.className = 'empty-message';
+        cargando.textContent = 'Cargando turnos eliminados...';
+        lista.appendChild(cargando);
+
+        try {
+            const respaldos = await SupabaseDB.cargarTurnosEliminados();
+            lista.replaceChildren();
+            if (respaldos.length === 0) {
+                const vacio = document.createElement('p');
+                vacio.className = 'empty-message';
+                vacio.textContent = 'No hay turnos eliminados para restaurar.';
+                lista.appendChild(vacio);
+                return;
+            }
+
+            respaldos.forEach(respaldo => {
+                const turno = respaldo.turno_data || {};
+                const tarjeta = document.createElement('article');
+                tarjeta.className = 'deleted-turn-item';
+
+                const contenido = document.createElement('div');
+                contenido.className = 'deleted-turn-item-main';
+                const titulo = document.createElement('div');
+                titulo.className = 'deleted-turn-item-title';
+                const numero = document.createElement('strong');
+                numero.className = 'deleted-turn-number';
+                numero.textContent = respaldo.numero || turno.numero || 'Turno';
+                const empresa = document.createElement('span');
+                empresa.textContent = turno.nombre_empresa || 'Empresa sin nombre';
+                titulo.append(numero, empresa);
+
+                const fechaOriginal = turno.fecha_cita || respaldo.fecha_cita || turno.fecha_solicitud || respaldo.fecha_solicitud;
+                const horaOriginal = turno.fecha_cita?.split('T')[1] || turno.hora_solicitud || '';
+                const fechaEtiqueta = turno.fecha_cita ? 'Cita original' : 'Fecha de solicitud';
+                const metadata = document.createElement('p');
+                metadata.className = 'deleted-turn-item-meta';
+                metadata.textContent = `${fechaEtiqueta}: ${Utils.formatearFecha(fechaOriginal)}${horaOriginal ? ` · ${Utils.formatearHora(horaOriginal)}` : ''}${turno.nit ? ` · Placa ${turno.nit}` : ''}`;
+
+                contenido.append(titulo, metadata);
+
+                const restaurar = document.createElement('button');
+                restaurar.type = 'button';
+                restaurar.className = 'btn btn-primary btn-small';
+                restaurar.setAttribute('aria-label', `Restaurar turno ${respaldo.numero || turno.numero || ''}`);
+                restaurar.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg><span>Restaurar</span>';
+                restaurar.addEventListener('click', () => this.restaurarTurnoEliminado(respaldo.id));
+
+                tarjeta.append(contenido, restaurar);
+                lista.appendChild(tarjeta);
+            });
+        } catch (error) {
+            console.error('Error al cargar turnos eliminados:', error);
+            lista.replaceChildren();
+            const aviso = document.createElement('p');
+            aviso.className = 'empty-message';
+            aviso.textContent = 'No se pudo cargar la papelera. Verifica que la migración de turnos eliminados esté instalada en Supabase.';
+            lista.appendChild(aviso);
+        }
+    },
+
+    async restaurarTurnoEliminado(respaldoId) {
+        if (!(await ConfirmDialog.confirmar('Se restaurará el turno con sus datos y fecha originales.', 'Restaurar turno', 'Restaurar'))) return;
+
+        try {
+            const { data: respaldo, error: errorRespaldo } = await window.supabaseClient
+                .from('turnos_eliminados')
+                .select('*')
+                .eq('id', respaldoId)
+                .maybeSingle();
+            if (errorRespaldo) throw errorRespaldo;
+            if (!respaldo?.turno_data) throw new Error('No se encontró el respaldo del turno.');
+
+            const { data: turnoRestaurado, error: errorRestaurar } = await window.supabaseClient
+                .from('turnos')
+                .insert(respaldo.turno_data)
+                .select('id')
+                .single();
+            if (errorRestaurar) {
+                if (errorRestaurar.code === '23505') {
+                    throw new Error(`No se puede restaurar ${respaldo.numero}: ya existe un turno con el mismo número o identificador.`);
+                }
+                throw errorRestaurar;
+            }
+
+            const { error: errorQuitarRespaldo } = await window.supabaseClient
+                .from('turnos_eliminados')
+                .delete()
+                .eq('id', respaldoId);
+            if (errorQuitarRespaldo) {
+                const { error: errorRollback } = await window.supabaseClient
+                    .from('turnos')
+                    .delete()
+                    .eq('id', turnoRestaurado.id);
+                if (errorRollback) console.error('No se pudo revertir una restauración incompleta:', errorRollback);
+                throw errorQuitarRespaldo;
+            }
+
+            await Turnos.cargarTurnos();
+            await RenderAdmin.todo();
+            await this.cargarTurnosEliminados();
+            Utils.mostrarNotificacion(`Turno ${respaldo.numero} restaurado con su fecha original`, 'success');
+        } catch (error) {
+            console.error('Error al restaurar turno:', error);
+            Utils.mostrarNotificacion(error.message || 'No se pudo restaurar el turno', 'error');
         }
     },
 
@@ -5107,8 +5349,27 @@ document.getElementById('editHistDestino').value = editDestino;
             if (error) throw error;
             console.log('Edicion historial - update response:', data);
 
+            let proveedorTransporteSincronizado = true;
             if (this._editTransporteId) {
                 try {
+                    const { error: errorProveedorTransporte } = await window.supabaseClient
+                        .from('proveedores_transporte')
+                        .update({
+                            nombre_empresa: payload.nombre_empresa,
+                            nombre_proveedor: payload.nombre_proveedor,
+                            nit: payload.nit,
+                            num_factura: payload.num_factura,
+                            consecutivo_ingreso: payload.consecutivo_ingreso,
+                            tipo_vehiculo: payload.tipo_vehiculo,
+                            bultos: payload.bultos,
+                            peso: payload.peso,
+                            responsable: payload.responsable,
+                            destino: payload.destino,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', this._editTransporteId);
+                    if (errorProveedorTransporte) throw errorProveedorTransporte;
+
                     const { data: propData, error: propError } = await window.supabaseClient
                         .from('historial_turnos')
                         .update({
@@ -5121,12 +5382,18 @@ document.getElementById('editHistDestino').value = editDestino;
                     if (propError) throw propError;
                     console.log('Edicion historial - propagate response:', propData);
                 } catch (e) {
-                    console.warn('No se pudo propagar a los demás proveedores de la transportadora:', e);
+                    proveedorTransporteSincronizado = false;
+                    console.warn('No se pudo sincronizar el proveedor de transporte:', e);
                 }
             }
 
             document.getElementById('modalEditarHistorial').style.display = 'none';
-            Utils.mostrarNotificacion('Registro actualizado', 'success');
+            Utils.mostrarNotificacion(
+                proveedorTransporteSincronizado
+                    ? 'Registro actualizado'
+                    : 'Historial actualizado, pero no se pudo sincronizar el proveedor de transporte.',
+                proveedorTransporteSincronizado ? 'success' : 'warning'
+            );
             await new Promise(r => setTimeout(r, 500));
             await RenderAdmin.historial();
         } catch (error) {
@@ -6182,6 +6449,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (btnProveedorSinTurno) {
             btnProveedorSinTurno.addEventListener('click', AdminHandlers.abrirModalProveedorSinTurno);
         }
+
+        const btnTurnosEliminados = document.getElementById('btnTurnosEliminados');
+        if (btnTurnosEliminados) btnTurnosEliminados.addEventListener('click', () => AdminHandlers.abrirTurnosEliminados());
+        const btnCerrarTurnosEliminados = document.getElementById('btnCerrarTurnosEliminados');
+        if (btnCerrarTurnosEliminados) btnCerrarTurnosEliminados.addEventListener('click', () => AdminHandlers.cerrarTurnosEliminados());
         
         const btnLimpiar = document.getElementById('btnLimpiarHistorial');
         if (btnLimpiar) btnLimpiar.addEventListener('click', AdminHandlers.limpiarHistorial);
@@ -8060,6 +8332,29 @@ const PanelRendimiento = {
     document.head.appendChild(style);
 })();
 
+function obtenerFechaHoraBogota(fecha = new Date()) {
+    const partes = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Bogota',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        weekday: 'short',
+        hour: 'numeric',
+        minute: 'numeric',
+        hourCycle: 'h23'
+    }).formatToParts(fecha);
+    const valores = Object.fromEntries(partes.map(parte => [parte.type, parte.value]));
+    const diasSemana = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    return {
+        year: Number(valores.year),
+        month: Number(valores.month),
+        day: Number(valores.day),
+        weekday: diasSemana[valores.weekday] ?? fecha.getDay(),
+        hour: Number(valores.hour),
+        minute: Number(valores.minute)
+    };
+}
+
 function actualizarSaludoRecepcion() {
     const texto = document.getElementById('saludoRecepcionTexto');
     const nombre = document.getElementById('saludoRecepcionNombre');
@@ -8068,14 +8363,15 @@ function actualizarSaludoRecepcion() {
     if (!texto || !nombre || !detalle || !reloj) return;
 
     const ahora = new Date();
-    const lunesActualUtc = Date.UTC(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - ((ahora.getDay() + 6) % 7));
+    const fechaBogota = obtenerFechaHoraBogota(ahora);
+    const lunesActualUtc = Date.UTC(fechaBogota.year, fechaBogota.month - 1, fechaBogota.day - ((fechaBogota.weekday + 6) % 7));
     const lunesBaseUtc = Date.UTC(2026, 9, 5);
     const semanasDesdeBase = Math.round((lunesActualUtc - lunesBaseUtc) / 604800000);
     const turnoManana = semanasDesdeBase % 2 === 0 ? 'Anderzon' : 'Mateo';
     const turnoTarde = semanasDesdeBase % 2 === 0 ? 'Mateo' : 'Anderzon';
-    const hora = ahora.getHours();
-    const minuto = ahora.getMinutes();
-    const dia = ahora.getDay();
+    const hora = fechaBogota.hour;
+    const minuto = fechaBogota.minute;
+    const dia = fechaBogota.weekday;
     const dentroCierreManana = hora === 13 && minuto >= 30;
     const dentroCierreTarde = hora === 21 && minuto >= 30;
     const esTurnoManana = hora >= 6 && hora < 14;
@@ -8122,33 +8418,36 @@ function actualizarSaludoRecepcion() {
     const prefijosTarde = ['¡Muy buenas tardes,', '¡Qué gusto verte,', '¡Una gran tarde para ti,', '¡Hola,', '¡Que tengas una tarde excelente,', '¡Seguimos con toda,', '¡A darle con energía,'];
     const indiceMensaje = (dia + 6) % 7;
 
-    reloj.textContent = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    reloj.textContent = ahora.toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    const contenedorIcono = document.querySelector('.reception-greeting-icon');
+    if (contenedorIcono) contenedorIcono.dataset.timePeriod = icono;
     document.querySelectorAll('[data-reception-icon]').forEach(elemento => {
-        elemento.hidden = elemento.dataset.receptionIcon !== icono;
+        const visible = elemento.dataset.receptionIcon === icono;
+        elemento.hidden = !visible;
+        elemento.style.display = visible ? 'block' : 'none';
     });
+    nombre.textContent = personaTurno;
 
     if (esTurnoManana && dentroCierreManana) {
         texto.textContent = '¡Buen cierre de turno,';
-        nombre.textContent = turnoManana;
         detalle.textContent = mensajesCierre[indiceMensaje];
     } else if (esTurnoTarde && dentroCierreTarde) {
         texto.textContent = '¡Buen cierre de turno,';
-        nombre.textContent = turnoTarde;
         detalle.textContent = mensajesCierre[indiceMensaje];
-    } else if (esTurnoManana) {
+    } else if (hora >= 6 && hora < 12) {
         texto.textContent = prefijosManana[indiceMensaje];
-        nombre.textContent = turnoManana;
         detalle.textContent = mensajesManana[indiceMensaje];
-    } else if (esTurnoTarde) {
+    } else if (hora >= 12 && hora < 19) {
         texto.textContent = prefijosTarde[indiceMensaje];
-        nombre.textContent = turnoTarde;
         detalle.textContent = mensajesTarde[indiceMensaje];
     } else {
-        texto.textContent = hora >= 22 ? '¡Hasta mañana,' : '¡Buenos días,';
-        nombre.textContent = turnoManana;
+        texto.textContent = hora >= 22 ? '¡Hasta mañana,' : hora >= 19 ? '¡Buenas noches,' : '¡Buenos días,';
         detalle.textContent = mensajesNoche[indiceMensaje];
     }
 }
+
+window.actualizarSaludoRecepcion = actualizarSaludoRecepcion;
+window.addEventListener('load', actualizarSaludoRecepcion, { once: true });
 
 const MENSAJES_SALUDO_DESPACHO = {
     manana: [
@@ -8196,29 +8495,34 @@ function actualizarSaludoDespacho() {
     if (!texto || !detalle || !reloj) return;
 
     const ahora = new Date();
-    const hora = ahora.getHours();
-    const minuto = ahora.getMinutes();
-    const indiceMensaje = (ahora.getDay() + 6) % 7;
-    const icono = hora >= 7 && hora < 12 ? 'morning' : hora >= 12 && hora < 17 ? 'afternoon' : 'night';
+    const fechaBogota = obtenerFechaHoraBogota(ahora);
+    const hora = fechaBogota.hour;
+    const minuto = fechaBogota.minute;
+    const indiceMensaje = (fechaBogota.weekday + 6) % 7;
+    const icono = hora >= 7 && hora < 12 ? 'morning' : hora >= 12 && hora < 19 ? 'afternoon' : 'night';
     const cerrandoTurno = hora === 16 && minuto >= 30;
     const enTurno = hora >= 7 && hora < 17;
 
-    reloj.textContent = ahora.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    reloj.textContent = ahora.toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    const contenedorIcono = document.querySelector('.dispatch-greeting .reception-greeting-icon');
+    if (contenedorIcono) contenedorIcono.dataset.timePeriod = icono;
     document.querySelectorAll('[data-dispatch-icon]').forEach(elemento => {
-        elemento.hidden = elemento.dataset.dispatchIcon !== icono;
+        const visible = elemento.dataset.dispatchIcon === icono;
+        elemento.hidden = !visible;
+        elemento.style.display = visible ? 'block' : 'none';
     });
 
     if (enTurno && cerrandoTurno) {
         texto.textContent = '¡Buen cierre de turno,';
         detalle.textContent = MENSAJES_SALUDO_DESPACHO.cierre[indiceMensaje];
-    } else if (hora >= 6 && hora < 14) {
+    } else if (hora >= 6 && hora < 12) {
         texto.textContent = ['¡Muy buenos días,', '¡Feliz mañana,', '¡Qué gusto saludarte,', '¡Un gran día para ti,', '¡Hola,', '¡Que tengas una linda mañana,', '¡Arriba ese ánimo,'][indiceMensaje];
         detalle.textContent = MENSAJES_SALUDO_DESPACHO.manana[indiceMensaje];
-    } else if (hora >= 14 && hora < 22) {
+    } else if (hora >= 12 && hora < 19) {
         texto.textContent = ['¡Muy buenas tardes,', '¡Qué gusto verte,', '¡Una gran tarde para ti,', '¡Hola,', '¡Que tengas una tarde excelente,', '¡Seguimos con toda,', '¡A darle con energía,'][indiceMensaje];
         detalle.textContent = MENSAJES_SALUDO_DESPACHO.tarde[indiceMensaje];
-    } else if (hora >= 17) {
-        texto.textContent = '¡Hasta mañana,';
+    } else if (hora >= 19) {
+        texto.textContent = hora >= 22 ? '¡Hasta mañana,' : '¡Buenas noches,';
         detalle.textContent = MENSAJES_SALUDO_DESPACHO.noche[indiceMensaje];
     } else {
         texto.textContent = '¡Buenos días,';

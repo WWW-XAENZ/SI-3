@@ -80,6 +80,19 @@ CREATE TABLE IF NOT EXISTS turnos (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS public.turnos_eliminados (
+    id BIGSERIAL PRIMARY KEY,
+    turno_id BIGINT NOT NULL UNIQUE,
+    numero VARCHAR(10) NOT NULL,
+    fecha_cita TIMESTAMP WITH TIME ZONE,
+    fecha_solicitud TIMESTAMP WITH TIME ZONE,
+    eliminado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    turno_data JSONB NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_turnos_eliminados_eliminado_en
+    ON public.turnos_eliminados (eliminado_en DESC);
+
 CREATE TABLE IF NOT EXISTS historial_turnos (
     id BIGSERIAL PRIMARY KEY,
     turno_id BIGINT,
@@ -253,6 +266,7 @@ ALTER TABLE configuracion ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mensajes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notificaciones_salida ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.turnos_eliminados ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Turnos: permitir todo" ON turnos;
 CREATE POLICY "Turnos: permitir todo" ON turnos FOR ALL USING (true) WITH CHECK (true);
@@ -268,6 +282,12 @@ DROP POLICY IF EXISTS "Mensajes: permitir todo" ON mensajes;
 CREATE POLICY "Mensajes: permitir todo" ON mensajes FOR ALL USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS "NotificacionesSalida: permitir todo" ON notificaciones_salida;
 CREATE POLICY "NotificacionesSalida: permitir todo" ON notificaciones_salida FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Turnos eliminados: permitir todo" ON public.turnos_eliminados;
+CREATE POLICY "Turnos eliminados: permitir todo"
+    ON public.turnos_eliminados
+    FOR ALL TO anon, authenticated
+    USING (true)
+    WITH CHECK (true);
 
 -- 2. Reservas
 
@@ -2728,6 +2748,8 @@ $$;
 
 -- Cancelación de turnos activos
 GRANT DELETE ON TABLE public.turnos TO anon, authenticated;
+GRANT SELECT, INSERT, DELETE ON TABLE public.turnos_eliminados TO anon, authenticated;
+GRANT USAGE, SELECT ON SEQUENCE public.turnos_eliminados_id_seq TO anon, authenticated;
 
 DROP POLICY IF EXISTS "Cancelar turnos no atendidos desde la aplicación" ON public.turnos;
 DROP POLICY IF EXISTS "Cancelar turnos activos desde la aplicación" ON public.turnos;

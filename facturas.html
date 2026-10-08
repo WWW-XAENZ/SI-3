@@ -1,4 +1,3 @@
-                        <td>${f.estado === 'llegado' || !f.fecha_cita || (f.hora_solicitud && f.hora_llamada && f.hora_solicitud === f.hora_llamada) ? '<span style="color: #dc2626; font-weight: 600;">Sin turno</span>' : '<span style="color: #20538f; font-weight: 600;">Con turno</span>'}</td>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -118,6 +117,142 @@
         .facturas-table tbody tr:last-child td {
             border-bottom: none;
         }
+
+        .facturas-trash-menu { position: relative; margin-left: auto; }
+        .facturas-trash-menu > summary { list-style: none; }
+        .facturas-trash-menu > summary::-webkit-details-marker { display: none; }
+        .facturas-trash-menu .admin-menu-trigger {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 42px;
+            padding: 9px 14px;
+            border: 1px solid #cbd8e5;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #ffffff 0%, #f3f9ff 100%);
+            color: #285b8e;
+            font: inherit;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            cursor: pointer;
+            box-shadow: 0 8px 16px rgba(32, 83, 143, 0.08);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+        .facturas-trash-menu .admin-menu-trigger:hover,
+        .facturas-trash-menu .admin-menu-trigger:focus-visible {
+            transform: translateY(-1px);
+            border-color: #9bbbd7;
+            background: linear-gradient(180deg, #eef7ff 0%, #ffffff 100%);
+            box-shadow: 0 12px 18px rgba(32, 83, 143, 0.12);
+            outline: none;
+        }
+        .facturas-trash-menu .admin-menu-panel {
+            position: absolute;
+            z-index: 50;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 220px;
+            padding: 8px;
+            border: 1px solid #d9e3ed;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 16px 30px rgba(31, 56, 85, 0.18);
+            backdrop-filter: blur(4px);
+        }
+        .facturas-trash-menu .admin-menu-panel button {
+            width: 100%;
+            padding: 10px 12px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #20538f;
+            font: inherit;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.15s ease, color 0.15s ease;
+        }
+        .facturas-trash-menu .admin-menu-panel button:hover,
+        .facturas-trash-menu .admin-menu-panel button:focus-visible {
+            background: linear-gradient(180deg, #eff7ff 0%, #e7f0fa 100%);
+            color: #173f70;
+            outline: none;
+            transform: translateX(1px);
+        }
+
+        .deleted-turns-panel {
+            position: relative;
+            width: 100%;
+            max-width: 560px;
+            max-height: calc(100vh - 32px);
+            box-sizing: border-box;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.75);
+            border-radius: 18px;
+            background: linear-gradient(145deg, #ffffff, #eef6fc);
+            box-shadow: 0 28px 70px rgba(8, 32, 62, 0.3);
+            overflow: hidden;
+        }
+        .deleted-turns-panel .deleted-turns-header {
+            display: grid;
+            gap: 7px;
+            margin: 0;
+            padding: 22px 24px 20px !important;
+            border-bottom: 1px solid #dfeaf4;
+            background: linear-gradient(120deg, #102d52, #2866ad) !important;
+            text-align: left;
+        }
+        .deleted-turns-panel .deleted-turns-header > div {
+            flex: 1;
+            text-align: left;
+        }
+        .deleted-turns-panel .deleted-turns-header h2 {
+            margin: 0 !important;
+            color: #ffffff !important;
+            text-align: left;
+            font-size: 1.05rem !important;
+            line-height: 1.3;
+            letter-spacing: 0;
+            font-weight: 800;
+        }
+        .deleted-turns-panel .deleted-turns-header p {
+            margin: 0 !important;
+            color: #d7e9f8 !important;
+            font-size: 0.82rem !important;
+            line-height: 1.4;
+            text-align: left;
+            font-weight: 500;
+        }
+        .deleted-turns-panel .close-modal {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .deleted-turns-panel .close-modal:hover,
+        .deleted-turns-panel .close-modal:focus-visible {
+            background: rgba(255, 255, 255, 0.18);
+            color: #ffffff;
+            transform: rotate(90deg);
+            outline: none;
+        }
+        .deleted-turns-panel .deleted-turns-list {
+            padding: 18px 20px 20px;
+        }
     </style>
 </head>
 <body>
@@ -130,6 +265,15 @@
         <nav class="main-nav">
             <a href="index.html" class="nav-link">Inicio</a>
             <a href="facturas.html" class="nav-link active">Panel de Facturas</a>
+            <details class="facturas-trash-menu">
+                <summary class="admin-menu-trigger" aria-label="Abrir menú de facturas">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    <span>Menú</span>
+                </summary>
+                <div class="admin-menu-panel">
+                    <button type="button" id="btnTurnosEliminados">Turnos eliminados</button>
+                </div>
+            </details>
         </nav>
 
         <main>
@@ -168,9 +312,24 @@
         </section>
     </div>
 
+    <dialog id="turnosEliminadosSection" class="deleted-turns-dialog" aria-labelledby="turnosEliminadosTitle">
+        <section class="deleted-turns-panel">
+            <div class="deleted-turns-header">
+                <div>
+                    <h2 id="turnosEliminadosTitle">Turnos eliminados</h2>
+                    <p>Los turnos restaurados conservan la fecha, hora y datos originales.</p>
+                </div>
+                <button type="button" class="close-modal" id="btnCerrarTurnosEliminados" aria-label="Cerrar turnos eliminados">&times;</button>
+            </div>
+            <div class="deleted-turns-list" id="listaTurnosEliminados" aria-live="polite">
+                <p class="empty-message">Abre esta sección para consultar los turnos eliminados.</p>
+            </div>
+        </section>
+    </dialog>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
-    <script src="app.js?v=14"></script>
+    <script src="app.js?v=16"></script>
     <script>
         let todasLasFacturas = [];
         let mostrandoTodas = false;

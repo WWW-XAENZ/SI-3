@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="styles.css?v=16">
+        <link rel="stylesheet" href="styles.css?v=19">
     <style>
         .admin-grid { 
             grid-template-columns: 320px 1fr; 
@@ -778,13 +778,11 @@
         </div>
     </div>
 
-
-
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-    <script src="app.js?v=14"></script>
+    <script src="app.js?v=19"></script>
     <script src="sonido.js"></script>
     <script src="push-notifications.js"></script>
     <script>
@@ -910,10 +908,16 @@
                 }
                 
                 filtrarYMostrarTurnos();
-                const proveedorListo = normalizarDatosNotificacion(localStorage.getItem('proveedorListoSalir'));
+                const proveedorListo = completarDatosTransportadora(
+                    normalizarDatosNotificacion(localStorage.getItem('proveedorListoSalir'))
+                );
+                if (proveedorListo?.esTransporte) {
+                    localStorage.setItem('proveedorListoSalir', JSON.stringify(proveedorListo));
+                    window.mostrarProveedorListo?.(proveedorListo);
+                }
                 const materialesSapProveedor = obtenerMaterialesSapDespachador(proveedorListo);
                 if (materialesSapProveedor.length) {
-                    window.mostrarProveedorListo?.(proveedorListo);
+                    if (!proveedorListo?.esTransporte) window.mostrarProveedorListo?.(proveedorListo);
                     const listaModal = document.querySelector('#modal-proveedor-listo .modal-proveedor-detalles-table .dispatch-sap-list');
                     renderizarMaterialesSapDespachador(listaModal, materialesSapProveedor);
                 }
@@ -949,17 +953,102 @@
             return datos;
         }
 
+        function combinarMaterialesSapDespachador(grupos) {
+            const vistos = new Set();
+            return grupos.flatMap(grupo => Array.isArray(grupo) ? grupo : []).filter(material => {
+                const codigo = typeof material === 'string'
+                    ? material
+                    : material?.codigoSap || material?.codigo_sap || material?.codigo || JSON.stringify(material);
+                const clave = String(codigo || '').trim();
+                if (!clave || vistos.has(clave)) return false;
+                vistos.add(clave);
+                return true;
+            });
+        }
+
+        function completarDatosTransportadora(proveedor) {
+            if (!(proveedor?.esTransporte || proveedor?.es_transporte) || !Array.isArray(proveedor.proveedores)) return proveedor;
+            proveedor.esTransporte = true;
+            const filasTransporte = turnosDelDia.filter(registro => registro.proveedor_transporte_id);
+            const filaPrincipal = filasTransporte.find(registro =>
+                proveedor.proveedores.some(item => String(item.id) === String(registro.proveedor_transporte_id))
+            );
+            if (!filaPrincipal) return proveedor;
+            const idsProveedores = new Set(proveedor.proveedores.map(item => String(item.id)));
+            const filasRelacionadas = filasTransporte.filter(registro => idsProveedores.has(String(registro.proveedor_transporte_id)));
+
+            const actualizarValor = (destino, campo, valor) => {
+                if (valor !== undefined && valor !== null && valor !== '' && (!Array.isArray(valor) || valor.length)) {
+                    destino[campo] = valor;
+                }
+            };
+            [
+                ['nombreEmpresa', 'nombre_empresa'],
+                ['nit', 'nit'],
+                ['motivo', 'motivo'],
+                ['contacto', 'contacto'],
+                ['telefono', 'telefono'],
+                ['servicio', 'servicio'],
+                ['destino', 'destino'],
+                ['horaSolicitud', 'hora_solicitud'],
+                ['horaLlamada', 'hora_llamada'],
+                ['horaFinalizacion', 'hora_finalizacion']
+            ].forEach(([campo, origen]) => actualizarValor(proveedor, campo, filaPrincipal[campo] ?? filaPrincipal[origen]));
+            actualizarValor(proveedor, 'materialesSap', combinarMaterialesSapDespachador([
+                proveedor.materialesSap,
+                proveedor.materiales_sap,
+                ...filasRelacionadas.map(fila => fila.materialesSap || fila.materiales_sap)
+            ]));
+
+            const camposProveedor = [
+                ['nombreProveedor', 'nombre_proveedor'],
+                ['nombreEmpresa', 'nombre_empresa'],
+                ['nit', 'nit'],
+                ['motivo', 'motivo'],
+                ['contacto', 'contacto'],
+                ['telefono', 'telefono'],
+                ['servicio', 'servicio'],
+                ['numFactura', 'num_factura'],
+                ['consecutivoIngreso', 'consecutivo_ingreso'],
+                ['tipoVehiculo', 'tipo_vehiculo'],
+                ['bultos', 'bultos'],
+                ['peso', 'peso'],
+                ['responsable', 'responsable'],
+                ['destino', 'destino'],
+                ['horaSolicitud', 'hora_solicitud'],
+                ['horaLlamada', 'hora_llamada'],
+                ['horaFinalizacion', 'hora_finalizacion'],
+                ['estado', 'estado'],
+                ['autorizadoSalida', 'autorizado_salida'],
+                ['inspeccionFisica', 'inspeccion_fisica'],
+                ['materialesSap', 'materiales_sap']
+            ];
+            proveedor.proveedores.forEach(item => {
+                const fila = filasTransporte.find(registro => String(registro.proveedor_transporte_id) === String(item.id));
+                if (!fila) return;
+                camposProveedor.forEach(([campo, origen]) => {
+                    actualizarValor(item, campo, fila[campo] ?? fila[origen]);
+                });
+            });
+            return proveedor;
+        }
+
         function obtenerMaterialesSapDespachador(turno) {
             if (!turno) return [];
-            const materialesDirectos = [turno.materialesSap, turno.materiales_sap]
-                .find(materiales => Array.isArray(materiales) && materiales.length);
-            if (materialesDirectos) return materialesDirectos;
-
             const numero = String(turno.numero || '').trim();
-            if (!numero) return [];
-            const registroTurno = turnosDelDia.find(registro => String(registro.numero) === numero);
-            return [registroTurno?.materialesSap, registroTurno?.materiales_sap]
-                .find(materiales => Array.isArray(materiales) && materiales.length) || [];
+            const esTransporte = turno.esTransporte === true || turno.es_transporte === true || Array.isArray(turno.proveedores);
+            const idsProveedores = new Set((turno.proveedores || []).map(item => String(item.id)));
+            const registros = numero
+                ? turnosDelDia.filter(registro => esTransporte
+                    ? registro.proveedor_transporte_id && idsProveedores.has(String(registro.proveedor_transporte_id))
+                    : String(registro.numero) === numero)
+                : [];
+            return combinarMaterialesSapDespachador([
+                turno.materialesSap,
+                turno.materiales_sap,
+                ...(turno.proveedores || []).flatMap(item => [item.materialesSap, item.materiales_sap]),
+                ...registros.flatMap(registro => [registro.materialesSap, registro.materiales_sap])
+            ]);
         }
 
         function formatearHoraSeguimiento(valor) {
@@ -989,10 +1078,18 @@
             return window.iconoTipoVehiculoSvg(tipo);
         }
 
+        function formatearPesoDespachador(peso) {
+            const valor = String(peso ?? '').trim();
+            if (!valor || /^n\/?a$/i.test(valor)) return 'N/A';
+            const cantidad = valor.replace(/(?:\s*(?:kg|k))+$/i, '').trim();
+            return `${cantidad || valor} kg`;
+        }
+
         function renderizarSeguimientoSalida(turno, listoParaSalida = false) {
             const panel = document.getElementById('infoDespachoActual');
             if (!panel) return;
 
+            panel.classList.remove('has-transport-providers');
             const materialesSap = obtenerMaterialesSapDespachador(turno);
             const autorizado = Boolean(turno?.autorizadoSalida || turno?.autorizado_salida);
             const despachado = Boolean(turno?.despachado || turno?.horaSalida || turno?.hora_salida || turno?.fecha_despacho);
@@ -1039,6 +1136,17 @@
             const nombreTurno = String(turno?.nombreEmpresa || turno?.nombre_empresa || turno?.nombre || '').trim();
             const numeroTurno = String(turno?.numero || '').trim();
             const placaTurno = String(turno?.nit || '').trim();
+            const destinoTurno = { ensambles: 'SIE / Ensambles', plasticos: 'SI3 ZF / Plásticos', ambos: 'Ambos' }[turno?.destino] || turno?.destino;
+            const datosTransportadora = [
+                ['Empresa', nombreTurno],
+                ['NIT / Placa', placaTurno],
+                ['Motivo', turno?.motivo],
+                ['Contacto', turno?.contacto],
+                ['Teléfono', turno?.telefono],
+                ['Servicio', turno?.servicio],
+                ['Destino', destinoTurno],
+                ['Hora de solicitud', formatearHoraSeguimiento(turno?.horaSolicitud || turno?.hora_solicitud)]
+            ].filter(([, valor]) => valor);
             const resumenTurnoHtml = turno ? `
                 <div class="dispatch-followup-turn">
                     ${numeroTurno ? `<strong>Turno ${escaparHtmlDespachador(numeroTurno)}</strong>` : ''}
@@ -1046,6 +1154,9 @@
                     ${placaTurno ? `<span>Placa: ${escaparHtmlDespachador(placaTurno)}</span>` : ''}
                 </div>
             ` : '';
+            const datosTransportadoraHtml = (turno?.esTransporte || turno?.es_transporte)
+                ? `<section class="dispatch-transport-company"><h3 class="dispatch-followup-section-title">Datos de la transportadora</h3><dl>${datosTransportadora.map(([etiqueta, valor]) => `<div><dt>${etiqueta}</dt><dd>${escaparHtmlDespachador(valor)}</dd></div>`).join('')}</dl></section>`
+                : '';
             const etapas = [
                 'Registro creado',
                 'Material preparado',
@@ -1138,6 +1249,7 @@
                 <div class="dispatch-followup-progress ${nuevoTurno ? 'is-entering' : ''}">
                     <h3 class="dispatch-followup-section-title">Progreso del despacho</h3>
                     ${resumenTurnoHtml}
+                    ${datosTransportadoraHtml}
                     <div class="dispatch-followup-status ${autorizado || despachado ? 'is-complete' : !turno ? 'is-empty' : ''}">${estado}</div>
                     ${vehiculoHtml}
                     <ol class="dispatch-timeline">${etapasHtml}</ol>
@@ -1233,7 +1345,7 @@
                             : escaparHtmlDespachador(h.num_factura || '-');
                         const fmm = h.consecutivo_ingreso || '-';
                         const destino = h.destino === 'ensambles' ? 'SIE' : h.destino === 'plasticos' ? 'SI3 ZF' : h.destino || '-';
-                        const peso = h.peso ? (h.peso.toString().toUpperCase().includes('KG') ? h.peso : h.peso + ' kg') : '-';
+                        const peso = h.peso ? formatearPesoDespachador(h.peso) : '-';
                         const bultos = h.bultos || '-';
                         const vehiculo = h.tipo_vehiculo || '-';
                         const responsable = h.responsable || '-';
@@ -2100,9 +2212,33 @@ return `
                     const infoDiv = document.querySelector('#infoDespachoActual .dispatch-transport-providers');
                     if (!infoDiv) return;
                     infoDiv.hidden = false;
+                    infoDiv.closest('.dispatch-followup')?.classList.toggle('has-transport-providers', proveedores.length > 0);
                     
                     const html = proveedores.map((p) => {
-                        const autorizado = p.autorizadoSalida === true;
+                        const autorizado = p.autorizadoSalida === true || p.autorizado_salida === true;
+                        const inspeccionSolicitada = p.inspeccionFisica === true || p.inspeccion_fisica === true;
+                        const horaSolicitudProveedor = formatearHoraSeguimiento(p.horaSolicitud || p.hora_solicitud);
+                        const horaLlamadaProveedor = formatearHoraSeguimiento(p.horaLlamada || p.hora_llamada);
+                        const horaFinProveedor = formatearHoraSeguimiento(p.horaFinalizacion || p.hora_finalizacion);
+                        const detallesProveedor = [
+                            ['Empresa transportadora', p.nombreEmpresa || p.nombre_empresa],
+                            ['NIT / Placa', p.nit],
+                            ['Motivo', p.motivo],
+                            ['Contacto', p.contacto],
+                            ['Teléfono', p.telefono],
+                            ['Servicio', p.servicio],
+                            ['Consecutivo', p.consecutivoIngreso || p.consecutivo_ingreso],
+                            ['Factura', p.numFactura || p.num_factura],
+                            ['Vehículo', p.tipoVehiculo || p.tipo_vehiculo],
+                            ['Bultos', p.bultos],
+                            ['Peso', formatearPesoDespachador(p.peso)],
+                            ['Destino', p.destino],
+                            ['Hora de solicitud', horaSolicitudProveedor],
+                            ['Hora de llamada', horaLlamadaProveedor],
+                            ['Hora de finalización', horaFinProveedor],
+                            ['Estado', p.estado || (autorizado ? 'Autorizado' : 'Pendiente')],
+                            ['Inspección', inspeccionSolicitada ? 'Solicitada' : 'No solicitada']
+                        ].filter(([, valor]) => valor !== null && valor !== undefined && String(valor).trim() !== '');
                         const estadoBadge = autorizado
                             ? '<span style="color:#20538f;font-weight:700;margin-left:8px;">✓ AUTORIZADO</span>'
                             : '<span style="color:#d97706;font-weight:700;margin-left:8px;">PENDIENTE</span>';
@@ -2114,9 +2250,9 @@ return `
                             : `<button class="btn btn-secondary btn-small" onclick="DespachadorHandlers.solicitarInspeccionProveedorTransporteIndividual(${p.id}, '${p.nombreProveedor || ''}'); setTimeout(() => { cargarTurnosPendientesSalida(); }, 800);">Inspección</button>`;
                         return `
                             <div class="dispatch-transport-provider">
-                                <div class="dispatch-transport-provider-head">${p.nombreProveedor || p.nit || 'N/A'}${estadoBadge}</div>
-                                <div class="dispatch-transport-provider-details">
-                                    Consecutivo: ${p.consecutivoIngreso || 'N/A'} | Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
+                                <div class="dispatch-transport-provider-head">${escaparHtmlDespachador(p.nombreProveedor || p.nombre_proveedor || p.nit || 'N/A')}${estadoBadge}</div>
+                                <div class="dispatch-transport-provider-facts">
+                                    ${detallesProveedor.map(([etiqueta, valor]) => `<span><strong>${etiqueta}</strong><span>${escaparHtmlDespachador(etiqueta === 'Peso' ? formatearPesoDespachador(valor) : valor)}</span></span>`).join('')}
                                 </div>
                                 <div class="dispatch-transport-provider-actions">
                                     ${acciones}${inspeccion}
@@ -2146,18 +2282,60 @@ return `
                         ? window.botonMostrarMaterialesSapHtml(materialesSap)
                         : '<span class="sap-code-empty">Sin materiales</span>';
 
-                    if (proveedor.esTransporte && Array.isArray(proveedor.proveedores) && proveedor.proveedores.length > 0) {
+                    if ((proveedor.esTransporte || proveedor.es_transporte) && Array.isArray(proveedor.proveedores) && proveedor.proveedores.length > 0) {
                         const total = proveedor.proveedores.length;
-                        const pendientes = proveedor.proveedores.filter(p => !p.autorizadoSalida).length;
+                        const pendientes = proveedor.proveedores.filter(p => p.autorizadoSalida !== true && p.autorizado_salida !== true).length;
+                        const datosTransportadora = [
+                            ['Empresa', proveedor.nombreEmpresa || proveedor.nombre_empresa || proveedor.nombre],
+                            ['NIT / Placa', proveedor.nit],
+                            ['Motivo', proveedor.motivo],
+                            ['Contacto', proveedor.contacto],
+                            ['Teléfono', proveedor.telefono],
+                            ['Servicio', proveedor.servicio],
+                            ['Destino', destinoLabel[proveedor.destino] || proveedor.destino],
+                            ['Hora de solicitud', formatearHoraSeguimiento(proveedor.horaSolicitud || proveedor.hora_solicitud)],
+                            ['Hora de llamada', formatearHoraSeguimiento(proveedor.horaLlamada || proveedor.hora_llamada)],
+                            ['Hora de finalización', formatearHoraSeguimiento(proveedor.horaFinalizacion || proveedor.hora_finalizacion)],
+                            ['Materiales SAP', materialesSap.length]
+                        ].filter(([, valor]) => valor !== null && valor !== undefined && String(valor).trim() !== '');
+                        const datosTransportadoraHtml = `
+                            <section class="modal-transport-company-info">
+                                <h3>Datos de la transportadora</h3>
+                                <dl>${datosTransportadora.map(([etiqueta, valor]) => `<div><dt>${etiqueta}</dt><dd>${escaparHtmlDespachador(valor)}</dd></div>`).join('')}</dl>
+                            </section>
+                        `;
                         const proveedoresHtml = proveedor.proveedores.map(p => {
-                            const autorizado = p.autorizadoSalida === true;
+                            const autorizado = p.autorizadoSalida === true || p.autorizado_salida === true;
+                            const inspeccion = p.inspeccionFisica === true || p.inspeccion_fisica === true;
+                            const datosProveedor = [
+                                ['NIT / Placa', p.nit],
+                                ['Motivo', p.motivo],
+                                ['Contacto', p.contacto],
+                                ['Teléfono', p.telefono],
+                                ['Servicio', p.servicio],
+                                ['Consecutivo', p.consecutivoIngreso || p.consecutivo_ingreso],
+                                ['Factura', p.numFactura || p.num_factura],
+                                ['Vehículo', p.tipoVehiculo || p.tipo_vehiculo],
+                                ['Bultos', p.bultos],
+                                ['Peso', formatearPesoDespachador(p.peso)],
+                                ['Responsable', p.responsable],
+                                ['Destino', destinoLabel[p.destino] || p.destino],
+                                ['Hora de solicitud', formatearHoraSeguimiento(p.horaSolicitud || p.hora_solicitud)],
+                                ['Hora de llamada', formatearHoraSeguimiento(p.horaLlamada || p.hora_llamada)],
+                                ['Hora de finalización', formatearHoraSeguimiento(p.horaFinalizacion || p.hora_finalizacion)],
+                                ['Estado', p.estado || (autorizado ? 'Autorizado' : 'Pendiente')],
+                                ['Inspección', inspeccion ? 'Solicitada' : 'No solicitada']
+                            ].filter(([, valor]) => valor !== null && valor !== undefined && String(valor).trim() !== '');
                             return `
-                                <div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${autorizado ? '#63a9df' : '#20538f'};">
-                                    <div style="font-weight: 600; color: #3741a5;">${p.nombreProveedor || p.nit || 'N/A'} ${autorizado ? '<span style="color:#20538f;font-weight:700;">✓ AUTORIZADO</span>' : '<span style="color:#d97706;font-weight:700;">PENDIENTE</span>'}</div>
-                                    <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
-                                        Factura: ${p.numFactura || 'N/A'} | Tipo: ${p.tipoVehiculo || 'N/A'} | Bultos: ${p.bultos || 'N/A'} | Peso: ${p.peso || 'N/A'} kg | Destino: ${p.destino || 'N/A'}
+                                <article class="modal-transport-provider ${autorizado ? 'is-authorized' : ''}">
+                                    <div class="modal-transport-provider-head">
+                                        <strong>${escaparHtmlDespachador(p.nombreProveedor || p.nombre_proveedor || p.nit || 'N/A')}</strong>
+                                        <span class="modal-transport-provider-status ${autorizado ? 'is-authorized' : ''}">${autorizado ? '✓ Autorizado' : 'Pendiente'}</span>
                                     </div>
-                                </div>
+                                    <dl class="modal-transport-provider-facts">
+                                        ${datosProveedor.map(([etiqueta, valor]) => `<div><dt>${etiqueta}</dt><dd>${escaparHtmlDespachador(etiqueta === 'Peso' ? formatearPesoDespachador(valor) : valor)}</dd></div>`).join('')}
+                                    </dl>
+                                </article>
                             `;
                         }).join('');
 
@@ -2165,16 +2343,17 @@ return `
                         modal.id = 'modal-proveedor-listo';
                         modal.className = 'modal-overlay';
                         modal.innerHTML = `
-                            <div class="modal-content modal-proveedor-content" style="max-width: 560px;">
+                            <div class="modal-content modal-proveedor-content modal-proveedor-transportadora" style="max-width: 560px;">
                                 <div class="modal-proveedor-header" style="background: linear-gradient(135deg, #3478c5 0%, #173f70 100%);">
                                     <h2>TRANSPORTADORA - TURNO ${proveedor.numero}</h2>
                                     <p>${total} proveedor(es) recibidos de recepción - ${pendientes} pendientes</p>
                                 </div>
-                                <div class="modal-proveedor-body">
+                                <div class="modal-proveedor-body modal-proveedor-transportadora-overview">
                                     <div class="modal-proveedor-numero" style="color: #2866ad;">${proveedor.numero}</div>
                                     <div class="modal-proveedor-nombre">Listo para autorización de salida</div>
                                 </div>
-                                <div class="modal-proveedor-detalles" style="max-height: 320px; overflow-y: auto;">
+                                <div class="modal-proveedor-detalles modal-proveedor-transportadora-list">
+                                    ${datosTransportadoraHtml}
                                     ${proveedoresHtml}
                                 </div>
                                 <div class="pending-exit-actions">
