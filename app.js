@@ -1461,21 +1461,34 @@ const SupabaseDB = {
         }
     },
 
-    async cancelarTurno(turnoId) {
+    async cancelarTurno(turnoId, numeroTurno = null) {
         if (!window.supabaseClient) {
             throw new Error('Supabase no está disponible');
         }
+
+        const estadosActivos = ['espera', 'citado', 'llegado', 'atendiendo'];
         
         const { count, error } = await window.supabaseClient
             .from('turnos')
             .delete({ count: 'exact' })
-            .eq('id', turnoId);
+            .eq('id', turnoId)
+            .in('estado', estadosActivos);
 
         if (error) throw error;
-        if (!count) {
-            throw new Error('Supabase no encontró el turno o no permite eliminarlo. Ejecute migracion_permisos_cancelar_turnos.sql en el SQL Editor.');
+        if (count) return true;
+
+        if (numeroTurno) {
+            const { count: countPorNumero, error: errorPorNumero } = await window.supabaseClient
+                .from('turnos')
+                .delete({ count: 'exact' })
+                .eq('numero', numeroTurno)
+                .in('estado', estadosActivos);
+
+            if (errorPorNumero) throw errorPorNumero;
+            if (countPorNumero) return true;
         }
-        return true;
+
+        throw new Error('Supabase no encontró un turno activo con ese ID o número. Recargue la página para sincronizar sus turnos.');
     },
 
     _mapearTurno(t) {
@@ -2666,8 +2679,8 @@ const Turnos = {
         return siguiente;
     },
 
-    async cancelar(turnoId) {
-        const cancelado = await SupabaseDB.cancelarTurno(turnoId);
+    async cancelar(turnoId, numeroTurno = null) {
+        const cancelado = await SupabaseDB.cancelarTurno(turnoId, numeroTurno);
         AppState.turnos = AppState.turnos.filter(t => String(t.id) !== String(turnoId));
         LocalStorage.guardarTurnos(AppState.turnos);
         return cancelado;
@@ -3833,7 +3846,7 @@ const UsuarioHandlers = {
         
         if (await ConfirmDialog.confirmar(`¿Cancelar turno ${miTurno.numero}?`, 'Cancelar turno', 'Cancelar turno')) {
             try {
-                const cancelado = await Turnos.cancelar(miTurno.id);
+                const cancelado = await Turnos.cancelar(miTurno.id, miTurno.numero);
                 if (!cancelado) {
                     Utils.mostrarNotificacion('No fue posible cancelar el turno. Verifique la conexión e inténtelo nuevamente.', 'error');
                     return;

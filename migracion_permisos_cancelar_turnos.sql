@@ -1,5 +1,5 @@
 -- Permite cancelar turnos activos desde el cliente público.
--- Ejecutar una sola vez en el SQL Editor de Supabase.
+-- Ejecutar o volver a ejecutar en el SQL Editor para reemplazar la política anterior.
 
 GRANT DELETE ON TABLE public.turnos TO anon, authenticated;
 
