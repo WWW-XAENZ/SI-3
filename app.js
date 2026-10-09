@@ -1511,6 +1511,8 @@ const SupabaseDB = {
             .from('turnos_eliminados')
             .insert({
                 turno_id: turno.id,
+                origen: 'turno',
+                origen_id: turno.id,
                 numero: turno.numero,
                 fecha_cita: turno.fecha_cita || null,
                 fecha_solicitud: turno.fecha_solicitud || null,
@@ -1544,11 +1546,31 @@ const SupabaseDB = {
         return true;
     },
 
+    async respaldarRegistrosEliminados(registros, origen) {
+        if (!window.supabaseClient) throw new Error('Supabase no está disponible');
+        for (let inicio = 0; inicio < registros.length; inicio += 100) {
+            const respaldos = registros.slice(inicio, inicio + 100).map(registro => ({
+                turno_id: origen === 'turno' ? registro.id : null,
+                origen,
+                origen_id: registro.id,
+                numero: registro.numero,
+                fecha_cita: registro.fecha_cita || null,
+                fecha_solicitud: registro.fecha_solicitud || null,
+                turno_data: registro
+            }));
+            const { error } = await window.supabaseClient
+                .from('turnos_eliminados')
+                .upsert(respaldos, { onConflict: 'origen,origen_id', ignoreDuplicates: true });
+            if (error) throw error;
+        }
+    },
+
     async cargarTurnosEliminados() {
         if (!window.supabaseClient) throw new Error('Supabase no está disponible');
         const { data, error } = await window.supabaseClient
             .from('turnos_eliminados')
-            .select('id, numero, fecha_cita, fecha_solicitud, eliminado_en, turno_data')
+            .select('id, numero, fecha_cita, fecha_solicitud, eliminado_en, origen, origen_id, turno_data')
+            .gte('eliminado_en', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
             .order('eliminado_en', { ascending: false });
         if (error) throw error;
         return data || [];
@@ -4890,23 +4912,38 @@ const proveedorData = {
 
                 const contenido = document.createElement('div');
                 contenido.className = 'deleted-turn-item-main';
+                const factura = document.createElement('div');
+                factura.className = 'deleted-turn-invoice';
+                const facturaEtiqueta = document.createElement('span');
+                facturaEtiqueta.className = 'deleted-turn-invoice-label';
+                facturaEtiqueta.textContent = 'Factura';
+                const facturaNumero = document.createElement('strong');
+                facturaNumero.className = 'deleted-turn-invoice-value';
+                facturaNumero.textContent = String(turno.num_factura || turno.numFactura || '').trim() || 'Sin factura registrada';
+                factura.append(facturaEtiqueta, facturaNumero);
+
                 const titulo = document.createElement('div');
                 titulo.className = 'deleted-turn-item-title';
                 const numero = document.createElement('strong');
                 numero.className = 'deleted-turn-number';
                 numero.textContent = respaldo.numero || turno.numero || 'Turno';
                 const empresa = document.createElement('span');
-                empresa.textContent = turno.nombre_empresa || 'Empresa sin nombre';
-                titulo.append(numero, empresa);
+                empresa.textContent = turno.nombre_empresa || turno.nombre_proveedor || 'Empresa sin nombre';
+                const origen = document.createElement('span');
+                origen.className = 'deleted-turn-source';
+                origen.textContent = respaldo.origen === 'historial' ? 'Historial reciente' : 'Turno cancelado';
+                titulo.append(numero, empresa, origen);
 
-                const fechaOriginal = turno.fecha_cita || respaldo.fecha_cita || turno.fecha_solicitud || respaldo.fecha_solicitud;
+                const fechaOriginal = turno.fecha_cita || respaldo.fecha_cita || turno.fecha_solicitud || respaldo.fecha_solicitud || turno.fecha;
                 const horaOriginal = turno.fecha_cita?.split('T')[1] || turno.hora_solicitud || '';
-                const fechaEtiqueta = turno.fecha_cita ? 'Cita original' : 'Fecha de solicitud';
+                const esHistorial = respaldo.origen === 'historial';
+                const fechaEtiqueta = esHistorial ? 'Historial reciente' : (turno.fecha_cita ? 'Cita original' : 'Fecha de solicitud');
                 const metadata = document.createElement('p');
                 metadata.className = 'deleted-turn-item-meta';
                 metadata.textContent = `${fechaEtiqueta}: ${Utils.formatearFecha(fechaOriginal)}${horaOriginal ? ` · ${Utils.formatearHora(horaOriginal)}` : ''}${turno.nit ? ` · Placa ${turno.nit}` : ''}`;
+                tarjeta.classList.toggle('is-history', esHistorial);
 
-                contenido.append(titulo, metadata);
+                contenido.append(factura, titulo, metadata);
 
                 const restaurar = document.createElement('button');
                 restaurar.type = 'button';
@@ -4929,8 +4966,7 @@ const proveedorData = {
     },
 
     async restaurarTurnoEliminado(respaldoId) {
-        if (!(await ConfirmDialog.confirmar('Se restaurará el turno con sus datos y fecha originales.', 'Restaurar turno', 'Restaurar'))) return;
-
+        let reabrirPapelera = false;
         try {
             const { data: respaldo, error: errorRespaldo } = await window.supabaseClient
                 .from('turnos_eliminados')
@@ -4940,9 +4976,33 @@ const proveedorData = {
             if (errorRespaldo) throw errorRespaldo;
             if (!respaldo?.turno_data) throw new Error('No se encontró el respaldo del turno.');
 
+            const esHistorial = respaldo.origen === 'historial';
+            const turno = respaldo.turno_data;
+            const numero = respaldo.numero || turno.numero || 'Turno';
+            const factura = String(turno.num_factura || turno.numFactura || '').trim() || 'Sin factura registrada';
+            const empresa = turno.nombre_empresa || turno.nombre_proveedor || 'Empresa sin nombre';
+            const fechaOriginal = turno.fecha_cita || respaldo.fecha_cita || turno.fecha_solicitud || respaldo.fecha_solicitud || turno.fecha;
+            const horaOriginal = turno.fecha_cita?.split('T')[1] || turno.hora_solicitud || '';
+            const fecha = fechaOriginal ? Utils.formatearFecha(fechaOriginal) : 'Fecha no disponible';
+            const detalles = [
+                `Factura: ${factura}`,
+                empresa,
+                `${esHistorial ? 'Historial reciente' : 'Turno cancelado'}: ${fecha}${horaOriginal ? ` · ${Utils.formatearHora(horaOriginal)}` : ''}`,
+                turno.nit ? `Placa: ${turno.nit}` : ''
+            ].filter(Boolean).join(' · ');
+            this.cerrarTurnosEliminados();
+            reabrirPapelera = true;
+            if (!(await ConfirmDialog.confirmar(`Se restaurará ${numero}: ${detalles}.`, 'Restaurar turno', 'Restaurar'))) {
+                reabrirPapelera = false;
+                await this.abrirTurnosEliminados();
+                return;
+            }
+
+            const datosRestaurar = { ...respaldo.turno_data };
+            if (esHistorial) delete datosRestaurar.id;
             const { data: turnoRestaurado, error: errorRestaurar } = await window.supabaseClient
-                .from('turnos')
-                .insert(respaldo.turno_data)
+                .from(esHistorial ? 'historial_turnos' : 'turnos')
+                .insert(datosRestaurar)
                 .select('id')
                 .single();
             if (errorRestaurar) {
@@ -4958,19 +5018,22 @@ const proveedorData = {
                 .eq('id', respaldoId);
             if (errorQuitarRespaldo) {
                 const { error: errorRollback } = await window.supabaseClient
-                    .from('turnos')
+                    .from(esHistorial ? 'historial_turnos' : 'turnos')
                     .delete()
                     .eq('id', turnoRestaurado.id);
                 if (errorRollback) console.error('No se pudo revertir una restauración incompleta:', errorRollback);
                 throw errorQuitarRespaldo;
             }
 
+            this.cerrarTurnosEliminados();
+            reabrirPapelera = false;
             await Turnos.cargarTurnos();
             await RenderAdmin.todo();
             await this.cargarTurnosEliminados();
-            Utils.mostrarNotificacion(`Turno ${respaldo.numero} restaurado con su fecha original`, 'success');
+            Utils.mostrarNotificacion(esHistorial ? `Turno ${respaldo.numero} restaurado al historial` : `Turno ${respaldo.numero} restaurado con su fecha original`, 'success');
         } catch (error) {
             console.error('Error al restaurar turno:', error);
+            if (reabrirPapelera) await this.abrirTurnosEliminados();
             Utils.mostrarNotificacion(error.message || 'No se pudo restaurar el turno', 'error');
         }
     },
@@ -5193,6 +5256,14 @@ const proveedorData = {
         if (!(await ConfirmDialog.confirmar('¿Eliminar este registro del historial?', 'Eliminar registro', 'Eliminar'))) return;
         try {
             if (window.supabaseClient) {
+                const { data: registro, error: errorCarga } = await window.supabaseClient
+                    .from('historial_turnos')
+                    .select('*')
+                    .eq('id', id)
+                    .maybeSingle();
+                if (errorCarga) throw errorCarga;
+                if (!registro) throw new Error('No se encontró el registro del historial.');
+                await SupabaseDB.respaldarRegistrosEliminados([registro], 'historial');
                 const { error } = await window.supabaseClient
                     .from('historial_turnos')
                     .delete()
@@ -5405,19 +5476,28 @@ document.getElementById('editHistDestino').value = editDestino;
     async limpiarHistorial() {
         if (await ConfirmDialog.confirmar('¿Está seguro de que desea limpiar todo el historial?', 'Limpiar historial', 'Limpiar historial')) {
             try {
-                LocalStorage.guardarHistorial([]);
-                AppState.historial = [];
-                
                 if (window.supabaseClient) {
+                    const tamanoPagina = 500;
+                    for (let desde = 0; ; desde += tamanoPagina) {
+                        const { data: historial, error: errorCarga } = await window.supabaseClient
+                            .from('historial_turnos')
+                            .select('*')
+                            .order('id', { ascending: true })
+                            .range(desde, desde + tamanoPagina - 1);
+                        if (errorCarga) throw errorCarga;
+                        if (!historial?.length) break;
+                        await SupabaseDB.respaldarRegistrosEliminados(historial, 'historial');
+                        if (historial.length < tamanoPagina) break;
+                    }
                     const { error } = await window.supabaseClient
                         .from('historial_turnos')
                         .delete()
                         .neq('id', 0);
-                    
-                    if (error) {
-                        console.error('Error al limpiar historial:', error);
-                    }
+                    if (error) throw error;
                 }
+
+                LocalStorage.guardarHistorial([]);
+                AppState.historial = [];
                 
                 Utils.mostrarNotificacion('Historial limpiado', 'success');
                 await RenderAdmin.todo();

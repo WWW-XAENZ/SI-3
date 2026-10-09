@@ -10653,7 +10653,7 @@ textarea:focus {
 .deleted-turns-dialog {
     position: fixed;
     inset: 0;
-    display: grid;
+    display: none;
     place-items: center;
     width: 100%;
     max-width: none;
@@ -10679,16 +10679,18 @@ textarea:focus {
 .deleted-turns-panel {
     position: relative;
     width: 100%;
-    max-width: 560px;
-    max-height: calc(100vh - 32px);
+    max-width: 720px;
+    max-height: calc(100dvh - 32px);
     box-sizing: border-box;
     padding: 0;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.75);
-    border-radius: 18px;
-    background: linear-gradient(145deg, #ffffff, #eef6fc);
-    box-shadow: 0 28px 70px rgba(8, 32, 62, 0.3);
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 28px 70px rgba(8, 32, 62, 0.32);
     margin: 0 auto;
+    justify-self: center;
+    align-self: center;
 }
 
 .deleted-turns-panel .close-modal {
@@ -10720,23 +10722,24 @@ textarea:focus {
 
 .deleted-turns-panel .deleted-turns-header {
     display: grid;
+    place-items: center;
     gap: 7px;
     margin: 0;
-    padding: 22px 24px 20px !important;
+    padding: 26px 64px 24px !important;
     border-bottom: 1px solid #dfeaf4;
     background: linear-gradient(120deg, #102d52, #2866ad) !important;
-    text-align: left;
+    text-align: center;
 }
 
 .deleted-turns-panel .deleted-turns-header > div {
     flex: 1;
-    text-align: left;
+    text-align: center;
 }
 
 .deleted-turns-panel .deleted-turns-header h2 {
     margin: 0 !important;
     color: #ffffff !important;
-    text-align: left;
+    text-align: center;
     font-size: 1.05rem !important;
     line-height: 1.3;
     letter-spacing: 0;
@@ -10748,7 +10751,7 @@ textarea:focus {
     color: #d7e9f8 !important;
     font-size: 0.82rem !important;
     line-height: 1.4;
-    text-align: left;
+    text-align: center;
     font-weight: 500;
 }
 
@@ -10794,6 +10797,28 @@ textarea:focus {
 
 .deleted-turns-panel .deleted-turn-item-main { min-width: 0; }
 
+.deleted-turns-panel .deleted-turn-invoice {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 7px;
+    color: #173f70;
+}
+
+.deleted-turns-panel .deleted-turn-invoice-label {
+    color: #60758a;
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.deleted-turns-panel .deleted-turn-invoice-value {
+    overflow-wrap: anywhere;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
 .deleted-turns-panel .deleted-turn-item-title {
     display: flex;
     align-items: baseline;
@@ -10802,13 +10827,25 @@ textarea:focus {
     color: #193452;
 }
 
+.deleted-turns-panel .deleted-turn-source {
+    padding: 3px 8px;
+    border: 1px solid #d9e7f3;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #526b82;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.deleted-turns-panel .deleted-turn-item.is-history { border-left-color: #6da987; }
+.deleted-turns-panel .deleted-turn-item.is-history .deleted-turn-source { border-color: #cce6d6; color: #34704d; }
 .deleted-turns-panel .deleted-turn-number { color: #20538f; font-weight: 800; }
 .deleted-turns-panel .deleted-turn-item-meta { margin-top: 5px; color: #60758a; font-size: 0.76rem; }
 .deleted-turns-panel .deleted-turn-item .btn { flex: 0 0 auto; }
 
 @media (max-width: 600px) {
-    .deleted-turns-panel { max-height: calc(100vh - 24px); }
-    .deleted-turns-panel .deleted-turns-header { padding: 18px 54px 16px 18px !important; }
+    .deleted-turns-panel { max-height: calc(100dvh - 24px); }
+    .deleted-turns-panel .deleted-turns-header { padding: 20px 52px 18px !important; }
     .deleted-turns-panel .deleted-turns-list { padding: 14px; }
     .deleted-turns-panel .deleted-turn-item { align-items: stretch; flex-direction: column; }
     .deleted-turns-panel .deleted-turn-item .btn { width: 100%; }

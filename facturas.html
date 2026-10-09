@@ -7,7 +7,7 @@
     <title>Panel de Facturas - Sistema de Turnos SI-3</title>
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="styles.css?v=16">
+        <link rel="stylesheet" href="styles.css?v=22">
     <style>
         :root {
             --facturas-primary: #20538f;
@@ -182,77 +182,24 @@
             transform: translateX(1px);
         }
 
-        .deleted-turns-panel {
-            position: relative;
-            width: 100%;
-            max-width: 560px;
-            max-height: calc(100vh - 32px);
-            box-sizing: border-box;
-            padding: 0;
-            border: 1px solid rgba(255, 255, 255, 0.75);
-            border-radius: 18px;
-            background: linear-gradient(145deg, #ffffff, #eef6fc);
-            box-shadow: 0 28px 70px rgba(8, 32, 62, 0.3);
-            overflow: hidden;
-        }
-        .deleted-turns-panel .deleted-turns-header {
-            display: grid;
-            gap: 7px;
+        .deleted-turns-dialog {
+            position: fixed;
+            inset: 0;
+            display: none;
+            place-items: center;
+            width: 100vw;
+            max-width: none;
+            height: 100vh;
+            height: 100dvh;
+            max-height: none;
             margin: 0;
-            padding: 22px 24px 20px !important;
-            border-bottom: 1px solid #dfeaf4;
-            background: linear-gradient(120deg, #102d52, #2866ad) !important;
-            text-align: left;
+            padding: clamp(12px, 3vw, 24px);
+            border: 0;
+            background: transparent;
+            overflow: auto;
         }
-        .deleted-turns-panel .deleted-turns-header > div {
-            flex: 1;
-            text-align: left;
-        }
-        .deleted-turns-panel .deleted-turns-header h2 {
-            margin: 0 !important;
-            color: #ffffff !important;
-            text-align: left;
-            font-size: 1.05rem !important;
-            line-height: 1.3;
-            letter-spacing: 0;
-            font-weight: 800;
-        }
-        .deleted-turns-panel .deleted-turns-header p {
-            margin: 0 !important;
-            color: #d7e9f8 !important;
-            font-size: 0.82rem !important;
-            line-height: 1.4;
-            text-align: left;
-            font-weight: 500;
-        }
-        .deleted-turns-panel .close-modal {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            width: 36px;
-            height: 36px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.12);
-            color: #ffffff;
-            font-size: 1.5rem;
-            line-height: 1;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        .deleted-turns-panel .close-modal:hover,
-        .deleted-turns-panel .close-modal:focus-visible {
-            background: rgba(255, 255, 255, 0.18);
-            color: #ffffff;
-            transform: rotate(90deg);
-            outline: none;
-        }
-        .deleted-turns-panel .deleted-turns-list {
-            padding: 18px 20px 20px;
-        }
+        .deleted-turns-dialog[open] { display: grid; }
+
     </style>
 </head>
 <body>
@@ -329,7 +276,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
-    <script src="app.js?v=16"></script>
+    <script src="app.js?v=17"></script>
     <script>
         let todasLasFacturas = [];
         let mostrandoTodas = false;

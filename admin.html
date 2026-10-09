@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="styles.css?v=16">
+        <link rel="stylesheet" href="styles.css?v=22">
     <style>
     .admin-grid { 
             grid-template-columns: 300px 1fr 1fr; 
@@ -33,14 +33,25 @@
             justify-content: center;
             gap: 8px;
             min-height: 42px;
-            padding: 8px 12px;
+            padding: 9px 14px;
             border: 1px solid #cbd8e5;
-            border-radius: 8px;
-            background: #fff;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #ffffff 0%, #f3f9ff 100%);
             color: #285b8e;
             font: inherit;
-            font-weight: 700;
+            font-weight: 800;
+            letter-spacing: 0.01em;
             cursor: pointer;
+            box-shadow: 0 8px 16px rgba(32, 83, 143, 0.08);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+        .admin-menu-trigger:hover,
+        .admin-menu-trigger:focus-visible {
+            transform: translateY(-1px);
+            border-color: #9bbbd7;
+            background: linear-gradient(180deg, #eef7ff 0%, #ffffff 100%);
+            box-shadow: 0 12px 18px rgba(32, 83, 143, 0.12);
+            outline: none;
         }
         .admin-menu-trigger svg { width: 18px; height: 18px; }
         .admin-menu-panel {
@@ -48,35 +59,44 @@
             z-index: 50;
             top: calc(100% + 8px);
             right: 0;
-            min-width: 230px;
-            padding: 6px;
+            min-width: 240px;
+            padding: 8px;
             border: 1px solid #d9e3ed;
-            border-radius: 9px;
-            background: #fff;
-            box-shadow: 0 12px 28px rgba(31, 56, 85, 0.16);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 16px 30px rgba(31, 56, 85, 0.18);
             display: grid;
-            gap: 3px;
+            gap: 4px;
+            backdrop-filter: blur(4px);
         }
         .admin-menu-panel button {
             width: 100%;
             padding: 10px 12px;
             border: 0;
-            border-radius: 6px;
+            border-radius: 8px;
             background: transparent;
             color: #243b53;
             font: inherit;
+            font-weight: 700;
             text-align: left;
             cursor: pointer;
+            transition: background 0.15s ease, transform 0.15s ease, color 0.15s ease;
         }
-        .admin-menu-panel button:hover { background: #eef6fc; }
-        .admin-menu-divider { height: 1px; margin: 4px 2px; background: #e5edf3; }
+        .admin-menu-panel button:hover,
+        .admin-menu-panel button:focus-visible {
+            background: linear-gradient(180deg, #eff7ff 0%, #e7f0fa 100%);
+            color: #173f70;
+            outline: none;
+            transform: translateX(1px);
+        }
+        .admin-menu-divider { height: 1px; margin: 6px 2px; background: linear-gradient(90deg, transparent 0%, #dfeaf4 20%, #dfeaf4 80%, transparent 100%); }
         .admin-menu-panel .admin-menu-action {
             display: flex;
             align-items: center;
             gap: 9px;
-            min-height: 38px;
-            padding: 8px 10px;
-            border-radius: 6px;
+            min-height: 40px;
+            padding: 9px 10px;
+            border-radius: 8px;
             font-size: 0.8rem;
             font-weight: 700;
         }
@@ -87,11 +107,133 @@
             border-radius: 50%;
             background: currentColor;
             content: '';
-            opacity: 0.75;
+            opacity: 0.85;
+            box-shadow: 0 0 0 3px rgba(99, 169, 223, 0.14);
         }
         .admin-menu-panel .admin-menu-action.is-danger { color: #a52a35; }
         .admin-menu-panel .admin-menu-action.is-warning { color: #9a5d0a; }
         .admin-menu-panel .admin-menu-action.is-primary { color: #20538f; }
+
+        .deleted-turns { grid-column: 1 / -1; }
+        .deleted-turns[hidden] { display: none !important; }
+        .deleted-turns-dialog {
+            position: fixed;
+            inset: 0;
+            display: none;
+            place-items: center;
+            width: 100vw;
+            max-width: none;
+            height: 100vh;
+            height: 100dvh;
+            max-height: none;
+            margin: 0;
+            padding: clamp(12px, 3vw, 24px);
+            border: 0;
+            background: transparent;
+            overflow: auto;
+        }
+        .deleted-turns-dialog[open] { display: grid; }
+        .deleted-turns-panel {
+            position: relative;
+            width: 100%;
+            max-width: 720px;
+            max-height: calc(100dvh - 32px);
+            box-sizing: border-box;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.75);
+            border-radius: 16px;
+            background: linear-gradient(145deg, #ffffff, #eef6fc);
+            box-shadow: 0 28px 70px rgba(8, 32, 62, 0.3);
+            overflow: hidden;
+            margin: 0 auto;
+            justify-self: center;
+            align-self: center;
+        }
+        .deleted-turns-panel .deleted-turns-header {
+            display: grid;
+            place-items: center;
+            gap: 7px;
+            margin: 0;
+            padding: 26px 64px 24px !important;
+            border-bottom: 1px solid #dfeaf4;
+            background: linear-gradient(120deg, #102d52, #2866ad) !important;
+            text-align: center;
+        }
+        .deleted-turns-panel .deleted-turns-header > div {
+            flex: 1;
+            width: 100%;
+            text-align: center;
+        }
+        .deleted-turns-panel .deleted-turns-header h2 {
+            margin: 0 !important;
+            color: #ffffff !important;
+            text-align: center;
+            font-size: 1.05rem !important;
+            line-height: 1.3;
+            letter-spacing: 0;
+            font-weight: 800;
+        }
+        .deleted-turns-panel .deleted-turns-header p {
+            margin: 0 !important;
+            color: #d7e9f8 !important;
+            font-size: 0.82rem !important;
+            line-height: 1.4;
+            text-align: center;
+            font-weight: 500;
+        }
+        .deleted-turns-panel .close-modal {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .deleted-turns-panel .close-modal:hover,
+        .deleted-turns-panel .close-modal:focus-visible {
+            background: rgba(255, 255, 255, 0.18);
+            color: #ffffff;
+            transform: rotate(90deg);
+            outline: none;
+        }
+        .deleted-turns-list { display: grid; gap: 10px; padding: 18px 20px 20px; }
+        .deleted-turn-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 16px;
+            border: 1px solid #d7e5f1;
+            border-left: 4px solid #8bbde9;
+            border-radius: 12px;
+            background: linear-gradient(180deg, #f8fbff 0%, #f0f7ff 100%);
+            box-shadow: 0 8px 18px rgba(27, 80, 131, 0.06);
+        }
+        .deleted-turn-item-main { min-width: 0; }
+        .deleted-turn-item-title {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            flex-wrap: wrap;
+            color: #193452;
+        }
+        .deleted-turn-number { color: #20538f; font-weight: 800; }
+        .deleted-turn-item-meta { margin-top: 5px; color: #60758a; font-size: 0.76rem; }
+        .deleted-turn-item .btn { flex: 0 0 auto; }
+        @media (max-width: 600px) {
+            .deleted-turn-item { align-items: stretch; flex-direction: column; }
+            .deleted-turn-item .btn { width: 100%; }
+        }
 
         .material-catalog-dialog {
             width: min(760px, calc(100vw - 28px));
@@ -870,6 +1012,7 @@
                 </summary>
                 <div class="admin-menu-panel">
                     <button type="button" id="btnAbrirCatalogoMateriales">Catálogo de Materiales SAP</button>
+                    <button type="button" id="btnTurnosEliminados" class="admin-menu-action is-primary">Turnos eliminados</button>
                     <div class="admin-menu-divider" role="separator"></div>
                     <button type="button" id="btnReiniciarCola" class="admin-menu-action is-danger">Reiniciar Cola</button>
                     <button type="button" id="btnReiniciarContador" class="admin-menu-action is-warning">Reiniciar Contador</button>
@@ -979,9 +1122,25 @@
                         <p class="empty-message">Cargando historial...</p>
                     </div>
                 </section>
+
             </div>
         </main>
     </div>
+
+    <dialog id="turnosEliminadosSection" class="deleted-turns-dialog" aria-labelledby="turnosEliminadosTitle">
+        <section class="deleted-turns-panel">
+            <div class="deleted-turns-header">
+                <div>
+                    <h2 id="turnosEliminadosTitle">Turnos eliminados</h2>
+                    <p>Turnos cancelados e historial reciente · conservación por 30 días</p>
+                </div>
+                <button type="button" class="close-modal" id="btnCerrarTurnosEliminados" aria-label="Cerrar turnos eliminados">&times;</button>
+            </div>
+            <div class="deleted-turns-list" id="listaTurnosEliminados" aria-live="polite">
+                <p class="empty-message">Abre esta sección para consultar los turnos eliminados.</p>
+            </div>
+        </section>
+    </dialog>
 
     <dialog id="materialCatalogDialog" class="material-catalog-dialog" aria-labelledby="materialCatalogTitle">
         <section class="admin-section material-catalog-admin">
@@ -1441,7 +1600,7 @@
      <script src="supabase-config.js"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-    <script src="app.js?v=14"></script>
+    <script src="app.js?v=24"></script>
      <script>
         window.salidaDespachadorAnterior = null;
         window.inspeccionAnterior = null;
