@@ -1,0 +1,2783 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Panel de Administrador - Sistema de Turnos SI-3">
+    <title>Panel de Recepción - Sistema de Turnos SI-3</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="manifest" href="manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="styles.css?v=30">
+    <style>
+    .admin-grid { 
+            grid-template-columns: 300px 1fr 1fr; 
+            grid-template-rows: auto auto auto auto auto auto auto;
+            gap: 24px;
+            padding: 28px;
+        }
+        .control-panel { grid-column: 1; grid-row: 1 / 3; }
+        .statistics { grid-column: 2 / 4; grid-row: 1; }
+        .arrived-list { grid-column: 2; grid-row: 2; }
+        .waiting-list { grid-column: 3; grid-row: 2; }
+        .cited-list { grid-column: 1 / 4; grid-row: 3; }
+        .providers-list { grid-column: 1 / 24; grid-row: 4; }
+        .turn-history { grid-column: 1 / 24; grid-row: 5; }
+
+        .admin-menu { position: relative; margin-left: auto; }
+        .admin-menu summary { list-style: none; }
+        .admin-menu summary::-webkit-details-marker { display: none; }
+        .admin-menu-trigger {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 42px;
+            padding: 9px 14px;
+            border: 1px solid #cbd8e5;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #ffffff 0%, #f3f9ff 100%);
+            color: #285b8e;
+            font: inherit;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            cursor: pointer;
+            box-shadow: 0 8px 16px rgba(32, 83, 143, 0.08);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+        .admin-menu-trigger:hover,
+        .admin-menu-trigger:focus-visible {
+            transform: translateY(-1px);
+            border-color: #9bbbd7;
+            background: linear-gradient(180deg, #eef7ff 0%, #ffffff 100%);
+            box-shadow: 0 12px 18px rgba(32, 83, 143, 0.12);
+            outline: none;
+        }
+        .admin-menu-trigger svg { width: 18px; height: 18px; }
+        .admin-menu-panel {
+            position: absolute;
+            z-index: 50;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 240px;
+            padding: 8px;
+            border: 1px solid #d9e3ed;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 16px 30px rgba(31, 56, 85, 0.18);
+            display: grid;
+            gap: 4px;
+            backdrop-filter: blur(4px);
+        }
+        .admin-menu-panel button {
+            width: 100%;
+            padding: 10px 12px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #243b53;
+            font: inherit;
+            font-weight: 700;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.15s ease, color 0.15s ease;
+        }
+        .admin-menu-panel button:hover,
+        .admin-menu-panel button:focus-visible {
+            background: linear-gradient(180deg, #eff7ff 0%, #e7f0fa 100%);
+            color: #173f70;
+            outline: none;
+            transform: translateX(1px);
+        }
+        .admin-menu-divider { height: 1px; margin: 6px 2px; background: linear-gradient(90deg, transparent 0%, #dfeaf4 20%, #dfeaf4 80%, transparent 100%); }
+        .admin-menu-panel .admin-menu-action {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            min-height: 40px;
+            padding: 9px 10px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+        .admin-menu-panel .admin-menu-action::before {
+            width: 8px;
+            height: 8px;
+            flex: 0 0 8px;
+            border-radius: 50%;
+            background: currentColor;
+            content: '';
+            opacity: 0.85;
+            box-shadow: 0 0 0 3px rgba(99, 169, 223, 0.14);
+        }
+        .admin-menu-panel .admin-menu-action.is-danger { color: #a52a35; }
+        .admin-menu-panel .admin-menu-action.is-warning { color: #9a5d0a; }
+        .admin-menu-panel .admin-menu-action.is-primary { color: #20538f; }
+
+        .deleted-turns { grid-column: 1 / -1; }
+        .deleted-turns[hidden] { display: none !important; }
+        .deleted-turns-dialog {
+            position: fixed;
+            inset: 0;
+            display: none;
+            place-items: center;
+            width: 100vw;
+            max-width: none;
+            height: 100vh;
+            height: 100dvh;
+            max-height: none;
+            margin: 0;
+            padding: clamp(12px, 3vw, 24px);
+            border: 0;
+            background: transparent;
+            overflow: auto;
+        }
+        .deleted-turns-dialog[open] { display: grid; }
+        .deleted-turns-panel {
+            position: relative;
+            width: 100%;
+            max-width: 720px;
+            max-height: calc(100dvh - 32px);
+            box-sizing: border-box;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.75);
+            border-radius: 16px;
+            background: linear-gradient(145deg, #ffffff, #eef6fc);
+            box-shadow: 0 28px 70px rgba(8, 32, 62, 0.3);
+            overflow: hidden;
+            margin: 0 auto;
+            justify-self: center;
+            align-self: center;
+        }
+        .deleted-turns-panel .deleted-turns-header {
+            display: grid;
+            place-items: center;
+            gap: 7px;
+            margin: 0;
+            padding: 26px 64px 24px !important;
+            border-bottom: 1px solid #dfeaf4;
+            background: linear-gradient(120deg, #102d52, #2866ad) !important;
+            text-align: center;
+        }
+        .deleted-turns-panel .deleted-turns-header > div {
+            flex: 1;
+            width: 100%;
+            text-align: center;
+        }
+        .deleted-turns-panel .deleted-turns-header h2 {
+            margin: 0 !important;
+            color: #ffffff !important;
+            text-align: center;
+            font-size: 1.05rem !important;
+            line-height: 1.3;
+            letter-spacing: 0;
+            font-weight: 800;
+        }
+        .deleted-turns-panel .deleted-turns-header p {
+            margin: 0 !important;
+            color: #d7e9f8 !important;
+            font-size: 0.82rem !important;
+            line-height: 1.4;
+            text-align: center;
+            font-weight: 500;
+        }
+        .deleted-turns-panel .close-modal {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .deleted-turns-panel .close-modal:hover,
+        .deleted-turns-panel .close-modal:focus-visible {
+            background: rgba(255, 255, 255, 0.18);
+            color: #ffffff;
+            transform: rotate(90deg);
+            outline: none;
+        }
+        .deleted-turns-list { display: grid; gap: 10px; padding: 18px 20px 20px; }
+        .deleted-turn-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 16px;
+            border: 1px solid #d7e5f1;
+            border-left: 4px solid #8bbde9;
+            border-radius: 12px;
+            background: linear-gradient(180deg, #f8fbff 0%, #f0f7ff 100%);
+            box-shadow: 0 8px 18px rgba(27, 80, 131, 0.06);
+        }
+        .deleted-turn-item-main { min-width: 0; }
+        .deleted-turn-item-title {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            flex-wrap: wrap;
+            color: #193452;
+        }
+        .deleted-turn-number { color: #20538f; font-weight: 800; }
+        .deleted-turn-item-meta { margin-top: 5px; color: #60758a; font-size: 0.76rem; }
+        .deleted-turn-item .btn { flex: 0 0 auto; }
+        @media (max-width: 600px) {
+            .deleted-turn-item { align-items: stretch; flex-direction: column; }
+            .deleted-turn-item .btn { width: 100%; }
+        }
+
+        .material-catalog-dialog {
+            width: min(760px, calc(100vw - 28px));
+            max-width: none;
+            max-height: calc(100dvh - 32px);
+            margin: auto;
+            padding: 0;
+            overflow: auto;
+            border: 0;
+            background: transparent;
+        }
+        .material-catalog-dialog::backdrop { background: rgba(15, 34, 54, 0.56); }
+        .material-edit-dialog { width: min(540px, calc(100vw - 28px)); }
+        .material-catalog-admin { margin: 0; }
+        .material-catalog-admin:hover { transform: none; }
+        .material-catalog-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .material-catalog-header h2 { margin: 0; }
+        .material-catalog-close {
+            width: 38px;
+            height: 38px;
+            flex: 0 0 auto;
+            border: 1px solid #cbd8e5;
+            border-radius: 8px;
+            background: #fff;
+            color: #38556f;
+            font-size: 1.4rem;
+            cursor: pointer;
+        }
+
+        .material-catalog-form {
+            display: grid;
+            grid-template-columns: minmax(160px, 0.8fr) minmax(180px, 0.8fr) minmax(260px, 1.4fr) auto;
+            align-items: end;
+            gap: 12px;
+        }
+
+        .material-catalog-form .form-group { margin-bottom: 0; }
+        .material-catalog-form .btn { min-height: 42px; }
+        .material-catalog-status { min-height: 1.4em; margin: 12px 0 0; color: #49647e; }
+        .material-catalog-status[data-state="error"] { color: #b42318; }
+        .material-catalog-status[data-state="success"] { color: #16794a; }
+        .material-catalog-viewer { margin-top: 24px; border-top: 1px solid #e1e9f1; padding-top: 18px; }
+        .material-catalog-toolbar { display: grid; grid-template-columns: minmax(170px, 0.7fr) minmax(220px, 1.3fr) auto; align-items: end; gap: 10px; }
+        .material-catalog-toolbar .form-group { margin-bottom: 0; }
+        .material-catalog-count { min-height: 40px; display: flex; align-items: center; color: #60758a; font-size: 0.82rem; }
+        .material-catalog-table-wrap { max-height: min(42vh, 420px); margin-top: 12px; overflow: auto; border: 1px solid #dce6ef; border-radius: 8px; background: #fff; }
+        .material-catalog-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .material-catalog-table th { position: sticky; top: 0; padding: 10px 12px; background: #eef4f8; color: #38556f; text-align: left; }
+        .material-catalog-table td { padding: 9px 12px; border-top: 1px solid #edf1f5; color: #334e68; overflow-wrap: anywhere; }
+        .material-catalog-table td:first-child { width: 150px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .material-catalog-table td:last-child { width: 110px; color: #60758a; }
+        .material-catalog-empty { padding: 20px !important; color: #718399 !important; text-align: center; }
+        .material-catalog-actions { display: flex; gap: 6px; white-space: nowrap; }
+        .material-catalog-row-action { padding: 5px 8px; border: 1px solid #cbd8e5; border-radius: 6px; background: #fff; color: #285b8e; font: inherit; font-size: 0.75rem; cursor: pointer; }
+        .material-catalog-row-action:hover { background: #eef6fc; }
+        .material-catalog-row-action.is-danger { border-color: #f1c7c4; color: #a52a22; }
+        .material-catalog-row-action.is-danger:hover { background: #fff1f0; }
+        .material-edit-form { display: grid; gap: 14px; margin-top: 18px; }
+        .material-edit-form .form-group { margin-bottom: 0; }
+        .material-edit-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 4px; }
+        @media (max-width: 600px) { .material-edit-actions { flex-direction: column-reverse; } .material-edit-actions .btn { width: 100%; } }
+
+        @media (max-width: 900px) {
+            .material-catalog-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
+        @media (max-width: 600px) {
+            .material-catalog-form { grid-template-columns: minmax(0, 1fr); }
+            .material-catalog-form .btn { width: 100%; }
+            .material-catalog-toolbar { grid-template-columns: minmax(0, 1fr); }
+            .material-catalog-count { min-height: 0; }
+        }
+        
+        .admin-section {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+            border: 1px solid #e2e8f0;
+            margin-bottom: 0;
+            transition: all 0.3s ease;
+        }
+        
+        .admin-section:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.06);
+            transform: translateY(-2px);
+        }
+        
+        .current-turn-display { 
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); 
+            border-radius: 16px; 
+            padding: 36px 28px; 
+            text-align: center; 
+            border: 2px solid #2563eb; 
+            margin-bottom: 24px;
+            box-shadow: 0 8px 24px rgba(37, 99, 235, 0.25);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .current-turn-display::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: rotate 15s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .current-turn-display h3 { 
+            font-size: 13px; 
+            color: rgba(255,255,255,0.9); 
+            margin-bottom: 16px; 
+            text-transform: uppercase; 
+            letter-spacing: 2px;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+        .current-turn-display .turn-number { 
+            font-size: 72px; 
+            font-weight: 800; 
+            color: white; 
+            text-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            position: relative;
+            z-index: 1;
+        }
+        .current-turn-display .turn-info { 
+            font-size: 16px; 
+            color: rgba(255,255,255,0.95); 
+            margin-top: 12px; 
+            line-height: 1.5;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .control-buttons { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 16px; 
+            position: relative;
+            z-index: 1;
+        }
+        .control-buttons .btn { 
+            padding: 22px; 
+            font-size: 16px; 
+            border-radius: 12px; 
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .control-buttons .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+        
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 20px; 
+        }
+        .stat-card { 
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); 
+            padding: 28px 20px; 
+            border-radius: 14px; 
+            text-align: center; 
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #2563eb, #60a5fa);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+        }
+        
+        .stat-card .stat-number { 
+            font-size: 42px; 
+            font-weight: 800; 
+            color: #2563eb;
+            text-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+        }
+        .stat-card .stat-label { 
+            font-size: 13px; 
+            color: #64748b; 
+            margin-top: 10px; 
+            text-transform: uppercase; 
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        
+        .monthly-controls { 
+            display: flex; 
+            gap: 14px; 
+            margin-top: 28px; 
+            align-items: center; 
+            flex-wrap: wrap; 
+        }
+        .month-select { 
+            flex: 1; 
+            min-width: 160px; 
+            padding: 14px; 
+            border: 2px solid #cbd5e1; 
+            border-radius: 10px; 
+            font-size: 14px;
+            background: white;
+            transition: all 0.3s ease;
+        }
+        
+        .month-select:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .turn-list { 
+            max-height: 240px; 
+            overflow-y: auto; 
+            padding-right: 10px;
+        }
+        
+        .turn-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .turn-list::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        
+        .turn-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        
+        .turn-list::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        .turn-item { 
+            display: flex; 
+            align-items: center; 
+            gap: 16px; 
+            padding: 16px; 
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); 
+            border-radius: 12px; 
+            margin-bottom: 12px; 
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .turn-item:hover { 
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); 
+            border-color: #2563eb; 
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+        }
+        .turn-item-number { 
+            font-size: 24px; 
+            font-weight: 800; 
+            color: #2563eb; 
+            min-width: 60px;
+            text-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+        }
+        .turn-item-info { 
+            flex: 1; 
+            min-width: 0; 
+        }
+        .turn-item-company { 
+            font-weight: 700; 
+            font-size: 14px; 
+            color: #1e293b; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap;
+        }
+        .turn-item-time { 
+            font-size: 12px; 
+            color: #64748b; 
+            margin-top: 6px; 
+            white-space: normal; 
+            overflow: visible; 
+            text-overflow: clip;
+            font-weight: 500;
+        }
+        .turn-item-details { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
+            gap: 6px 16px; 
+            font-size: 12px; 
+            color: #475569; 
+            margin-top: 8px; 
+        }
+        .turn-item-details span {
+            padding: 2px 0;
+            border-bottom: 1px dashed #e2e8f0;
+            white-space: normal;
+            overflow: visible;
+        }
+        .turn-item-actions { 
+            display: flex; 
+            gap: 10px; 
+            flex-shrink: 0; 
+        }
+         
+        .admin-filters { 
+            display: flex; 
+            gap: 12px; 
+            margin-bottom: 16px; 
+        }
+        .filter-input-small { 
+            flex: 1; 
+            padding: 10px 14px; 
+            border: 2px solid #cbd5e1; 
+            border-radius: 8px; 
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
+        
+        .filter-input-small:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .turn-item-llegado { 
+            border-left: 5px solid #63a9df; 
+            background: linear-gradient(135deg, #eef6ff 0%, #dcecff 100%);
+        }
+        .turn-item-llegado:hover { 
+            border-color: #3478c5; 
+            background: linear-gradient(135deg, #dcecff 0%, #bdd9f5 100%);
+        }
+        
+        .turn-item-espera { 
+            border-left: 5px solid #f97316; 
+            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+        }
+        .turn-item-espera:hover { 
+            border-color: #ea580c;
+            background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%);
+        }
+        
+        .turn-item-citado { 
+            border-left: 5px solid #20538f;
+            background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); 
+            flex-wrap: wrap; 
+        }
+        .turn-item-citado:hover { 
+            border-color: #173f70;
+            background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+        }
+        .turn-item-citado .turn-item-info { 
+            min-width: 0; 
+        }
+        .turn-item-citado .turn-item-company { 
+            display: block; 
+            margin-bottom: 6px; 
+        }
+        .turn-item-citado .turn-item-time { 
+            display: block; 
+            font-size: 12px; 
+            color: #64748b; 
+        }
+        .turn-item-citado .turn-item-details { 
+            margin-top: 8px; 
+        }
+        
+        .providers-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 13px;
+        }
+        .providers-table th { 
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            padding: 14px; 
+            text-align: left; 
+            border-bottom: 3px solid #2563eb; 
+            font-size: 11px; 
+            text-transform: uppercase; 
+            color: #475569;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .providers-table td { 
+            padding: 12px 14px; 
+            border-bottom: 1px solid #e2e8f0;
+            font-weight: 500;
+        }
+        .providers-table tr {
+            transition: all 0.3s ease;
+        }
+        .providers-table tr:hover { 
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            transform: scale(1.01);
+        }
+        
+        .admin-section h2 { 
+            font-size: 18px; 
+            color: #1e293b; 
+            border-bottom: 3px solid #2563eb; 
+            padding-bottom: 14px; 
+            margin-bottom: 20px; 
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            position: relative;
+        }
+        
+        .admin-section h2::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            left: 0;
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(90deg, #2563eb, transparent);
+        }
+        
+        .history-list { 
+            max-height: 300px; 
+            overflow-y: auto;
+        }
+        
+        .history-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 13px;
+        }
+        .history-table th { 
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            padding: 12px 10px; 
+            text-align: left; 
+            border-bottom: 3px solid #2563eb; 
+            font-size: 11px; 
+            text-transform: uppercase; 
+            color: #475569;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .history-table td { 
+            padding: 10px; 
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .history-table tr {
+            transition: all 0.3s ease;
+        }
+        .history-table tr:hover { 
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            transform: scale(1.01);
+        }
+        .history-table { 
+            display: block; 
+            overflow-x: auto; 
+            white-space: nowrap;
+        }
+
+        .history-table .history-sap-cell {
+            min-width: 180px;
+            white-space: normal;
+        }
+        .history-sap-codes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            max-width: 260px;
+        }
+        .history-sap-chip {
+            display: inline-flex;
+            max-width: 100%;
+            padding: 4px 7px;
+            border: 1px solid #d5e2ec;
+            border-radius: 6px;
+            background: #f4f8fb;
+            color: #285b8e;
+            font-size: 11px;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+            white-space: normal;
+        }
+        .history-sap-empty { color: #94a3b8; }
+        
+        @media (max-width: 1100px) {
+            .admin-grid { grid-template-columns: 1fr 1fr; }
+            .control-panel { grid-column: 1; grid-row: auto; }
+            .statistics { grid-column: 2; }
+            .arrived-list { grid-column: 1; }
+            .waiting-list { grid-column: 2; }
+            .cited-list { grid-column: 1 / 3; }
+            .providers-list { grid-column: 1 / 3; }
+            .turn-history { grid-column: 1 / 3; }
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        
+        @media (max-width: 768px) {
+            .admin-grid { grid-template-columns: 1fr; gap: 18px; padding: 18px; }
+            .control-panel, .statistics, .arrived-list, .waiting-list, .cited-list, .providers-list, .turn-history { grid-column: 1; grid-row: auto; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .admin-section { padding: 20px; }
+            .turn-number { font-size: 52px; }
+            .control-buttons { flex-direction: column; }
+            .control-buttons .btn { width: 100%; }
+            .turn-item { flex-direction: column; align-items: flex-start; }
+            .turn-item-actions { width: 100%; justify-content: flex-end; margin-top: 12px; }
+        }
+        
+        @media (max-width: 480px) {
+            .admin-grid { padding: 14px; gap: 14px; }
+            .admin-section { padding: 16px; }
+            .current-turn-display { padding: 24px 18px; }
+            .stats-grid { grid-template-columns: 1fr; gap: 12px; }
+            .stat-card { padding: 18px 14px; }
+            .stat-card .stat-number { font-size: 32px; }
+            .monthly-controls { flex-direction: column; }
+            .month-select { width: 100%; }
+            .btn { padding: 14px; font-size: 14px; }
+            .main-nav { padding: 10px; }
+            .nav-link { 
+                padding: 14px 20px; 
+                font-size: 15px; 
+                text-align: center; 
+                width: 100%; 
+            }
+        }
+        .control-panel { grid-column: 1; grid-row: 1 / 3; }
+        .statistics { grid-column: 2 / 4; grid-row: 1; }
+        .arrived-list { grid-column: 2; grid-row: 2; }
+        .waiting-list { grid-column: 3; grid-row: 2; }
+        .cited-list { grid-column: 1 / 4; grid-row: 3; }
+        .providers-list { grid-column: 1 / 4; grid-row: 4; }
+        .turn-history { grid-column: 1 / 4; grid-row: 5; }
+
+        .admin-grid > .arrived-list[hidden] { display: none !important; }
+        .admin-grid:not(.has-confirmed-turns) > .waiting-list { grid-column: 2 / 4; }
+
+        @media (max-width: 1100px) {
+            .admin-grid:not(.has-confirmed-turns) > .waiting-list { grid-column: 1 / 3; }
+        }
+
+        @media (max-width: 768px) {
+            .admin-grid:not(.has-confirmed-turns) > .waiting-list { grid-column: 1 / -1; }
+        }
+        
+
+        .historial-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 14px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .control-buttons-spaced {
+            margin-bottom: 16px;
+        }
+        
+        .tiempo-turno-wrap {
+            text-align: center;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .tiempo-turno-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        
+        .tiempo-turno-promedio {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+        
+        .despacho-detail {
+            font-size: 13px;
+            color: #475569;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+            margin-bottom: 14px;
+            min-height: 36px;
+            line-height: 1.8;
+        }
+        
+        .btn-toggle {
+            margin-left: 10px;
+        }
+        
+        .proveedores-container {
+            overflow-x: auto;
+        }
+        
+        .historial-scroll {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        /* Tarjetas de Proveedores */
+        .proveedores-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .prov-empresa-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            background: #fff;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .prov-empresa-card:hover {
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+            border-color: #cbd5e1;
+        }
+        .prov-empresa-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px 18px;
+            cursor: pointer;
+            user-select: none;
+            background: linear-gradient(135deg, #fafbfc 0%, #f8fafc 100%);
+        }
+        .prov-empresa-header:hover { background: linear-gradient(135deg, #f0f4f8 0%, #eef2f6 100%); }
+        .prov-avatar {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: #fff;
+            font-size: 17px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .prov-empresa-info { flex: 1; min-width: 0; }
+        .prov-empresa-nombre {
+            font-weight: 700;
+            color: #1e293b;
+            font-size: 16px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .prov-empresa-sub {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .prov-chevron {
+            transition: transform 0.2s ease;
+            color: #94a3b8;
+            font-size: 12px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            background: #f1f5f9;
+        }
+        .prov-chevron:hover { background: #e2e8f0; }
+        .prov-chevron.abierto { transform: rotate(90deg); }
+        .prov-detalles {
+            border-top: 1px solid #eef2f7;
+            padding: 12px 18px 16px 18px;
+            background: #fcfdff;
+        }
+        .prov-proveedor {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 10px;
+            background: #f8fafc;
+            margin-bottom: 8px;
+            border: 1px solid #f1f5f9;
+            transition: all 0.2s ease;
+        }
+        .prov-proveedor:last-child { margin-bottom: 0; }
+        .prov-proveedor:hover { 
+            background: #f0f4f8; 
+            border-color: #e2e8f0;
+            transform: translateX(2px);
+        }
+        .prov-proveedor-info { flex: 1; min-width: 0; }
+        .prov-proveedor-nombre { font-weight: 600; color: #334155; font-size: 14px; }
+        .prov-proveedor-meta { font-size: 12px; color: #64748b; margin-top: 3px; }
+        .prov-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .prov-badge.transporte { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+        .prov-badge.normal { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo">
+            <div class="admin-header-content">
+                <h1>Panel de Recepción</h1>
+                <section class="reception-greeting" aria-label="Saludo y horario del equipo de recepción">
+                    <div class="reception-greeting-icon" aria-hidden="true">
+                        <svg data-reception-icon="morning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 18h18M5 18a7 7 0 0 1 14 0M12 2v3m-7 1 2 2m12-2-2 2M2 12h3m14 0h3"></path>
+                        </svg>
+                        <svg data-reception-icon="afternoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden>
+                            <circle cx="12" cy="12" r="4"></circle>
+                            <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+                        </svg>
+                        <svg data-reception-icon="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden>
+                            <path d="M20.9 13.1A8.5 8.5 0 0 1 10.9 3.1 8.5 8.5 0 1 0 20.9 13.1Z"></path>
+                            <path d="m17 3 .6 1.4L19 5l-1.4.6L17 7l-.6-1.4L15 5l1.4-.6L17 3Z"></path>
+                        </svg>
+                    </div>
+                    <div class="reception-greeting-copy">
+                        <span class="reception-greeting-eyebrow" id="saludoRecepcionEyebrow">Equipo de recepción · SI-3</span>
+                        <h2><span id="saludoRecepcionTexto">¡Muy buenos días,</span> <strong id="saludoRecepcionNombre">Anderzon</strong>!</h2>
+                        <p id="saludoRecepcionDetalle">Que tengas una excelente jornada de atención.</p>
+                    </div>
+                    <div class="reception-greeting-info">
+                        <time class="reception-greeting-clock" id="receptionLiveClock" aria-label="Hora actual">--:--:--</time>
+                    </div>
+                </section>
+            </div>
+        </header>
+        
+        <nav class="main-nav">
+            <a href="index.html" class="nav-link">Inicio</a>
+            <a href="admin.html" class="nav-link active">Panel Recepción</a>
+            <details class="admin-menu">
+                <summary class="admin-menu-trigger" aria-label="Abrir menú de administración">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                        <path d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                    <span>Menú</span>
+                </summary>
+                <div class="admin-menu-panel">
+                    <button type="button" id="btnAbrirCatalogoMateriales">Catálogo de Materiales SAP</button>
+                    <button type="button" id="btnTurnosEliminados" class="admin-menu-action is-primary">Turnos eliminados</button>
+                    <div class="admin-menu-divider" role="separator"></div>
+                    <button type="button" id="btnReiniciarCola" class="admin-menu-action is-danger">Reiniciar Cola</button>
+                    <button type="button" id="btnReiniciarContador" class="admin-menu-action is-warning">Reiniciar Contador</button>
+                    <button type="button" id="btnProveedorSinTurno" class="admin-menu-action is-primary">Proveedor Sin Turno</button>
+                </div>
+            </details>
+        </nav>
+
+        <main>
+            <div class="admin-grid">
+                <!-- Panel de Control -->
+                <section class="admin-section control-panel">
+                    <h2>Panel de Control</h2>
+                    <div class="current-turn-display">
+                        <h3>Turno en Atencion</h3>
+                        <div id="turnoActual" class="turn-number">--</div>
+                        <div id="turnoInfo" class="turn-info">Sin turno en atencion</div>
+                    </div>
+                    
+                    <!-- Botones de control -->
+                    <div class="control-buttons control-buttons-spaced">
+                        <button id="btnCompletarTurno" class="btn btn-success">Completar Turno</button>
+                    </div>
+                    
+                    <!-- Tiempo transcurrido del turno actual -->
+                    <div id="tiempoTurnoWrap" class="tiempo-turno-wrap">
+                        <div class="tiempo-turno-label">Tiempo en Atencion</div>
+                        <div id="tiempoTranscurrido" class="reloj-vivo">-</div>
+                        <div class="tiempo-turno-promedio">Promedio: <span id="metricaTiempoPromedio">-</span></div>
+                    </div>
+                    
+                    <!-- Detalle del turno actual -->
+                    <div id="despachoDetail" class="despacho-detail"></div>
+                </section>
+
+                <!-- Estadisticas Hoy -->
+                <section class="admin-section statistics">
+                    <h2>Hoy</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card stat-card-action" data-admin-stat="atendidos" tabindex="0" role="button" aria-label="Ver turnos atendidos">
+                            <div class="stat-number" id="totalTurnos">0</div>
+                            <div class="stat-label">Atendidos</div>
+                        </div>
+                        <div class="stat-card stat-card-action" data-admin-stat="espera" tabindex="0" role="button" aria-label="Ver turnos en espera">
+                            <div class="stat-number" id="turnosEspera">0</div>
+                            <div class="stat-label">En Espera</div>
+                        </div>
+                        <div class="stat-card stat-card-action" data-admin-stat="proveedores" tabindex="0" role="button" aria-label="Ver proveedores">
+                            <div class="stat-number" id="totalProveedores">0</div>
+                            <div class="stat-label">Proveedores</div>
+                        </div>
+                    </div>
+                    <div class="monthly-controls">
+                        <select id="mesSelect" class="month-select">
+                            <option value="">Mes...</option>
+                        </select>
+                        <button id="btnVerMes" class="btn btn-secondary btn-small">Ver</button>
+                        <button id="btnGenerarCertificado" class="btn btn-primary">Certificado</button>
+                    </div>
+                </section>
+
+                <!-- Turnos Confirmados (verde) -->
+                <section class="admin-section arrived-list" hidden>
+                    <h2>Turnos Confirmados (<span id="contadorTurnosLlegados">0</span>)</h2>
+                    <div class="admin-filters">
+                        <input type="text" id="busquedaLlegados" placeholder="Buscar por empresa, placa o factura..." class="filter-input-small">
+                    </div>
+                    <div id="listaTurnosLlegados" class="turn-list">
+                        <p class="empty-message">Sin turnos confirmados</p>
+                    </div>
+                </section>
+
+                <!-- Turnos en Espera (naranja) -->
+                <section class="admin-section waiting-list">
+                    <h2>Turnos en Espera (<span id="contadorTurnosEspera">0</span>)</h2>
+                    <div class="admin-filters">
+                        <input type="text" id="busquedaEspera" placeholder="Buscar por empresa, placa o factura..." class="filter-input-small">
+                    </div>
+                    <div id="listaTurnosEspera" class="turn-list">
+                        <p class="empty-message">Sin turnos en espera</p>
+                    </div>
+                </section>
+
+                <!-- Citas Reservadas -->
+                <section class="admin-section cited-list">
+                    <h2>Citas Reservadas (<span id="contadorTurnosCitados">0</span>)</h2>
+                    <div class="admin-filters">
+                        <input type="text" id="busquedaCitados" placeholder="Buscar por empresa, placa o factura..." class="filter-input-small">
+                    </div>
+                    <div id="listaTurnosCitados" class="turn-list">
+                        <p class="empty-message">Sin citas reservadas</p>
+                    </div>
+                </section>
+
+                <!-- Historial -->
+                <section class="admin-section turn-history">
+                    <h2>Historial Reciente</h2>
+                    <div class="historial-toolbar">
+                        <input type="date" id="fechaHistorial" title="Filtrar por día" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
+                        <input type="text" id="busquedaHistorial" placeholder="Buscar por empresa, placa, factura..." />
+                        <button id="btnExportarHoy" class="btn btn-secondary btn-small" onclick="ExportarHoy.exportar()" title="Exportar turnos del día filtrado a CSV">
+                            ↓ CSV Día
+                        </button>
+                        <button id="btnLimpiarHistorial" class="btn btn-secondary btn-small" title="Limpiar solo el historial del día seleccionado">Limpiar</button>
+                    </div>
+                    <div id="historialTurnos" class="history-list historial-scroll">
+                        <p class="empty-message">Cargando historial...</p>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <dialog id="turnosEliminadosSection" class="deleted-turns-dialog" aria-labelledby="turnosEliminadosTitle">
+        <section class="deleted-turns-panel">
+            <div class="deleted-turns-header">
+                <div>
+                    <h2 id="turnosEliminadosTitle">Turnos eliminados</h2>
+                    <p>Turnos cancelados e historial reciente · conservación por 30 días</p>
+                </div>
+                <button type="button" class="close-modal" id="btnCerrarTurnosEliminados" aria-label="Cerrar turnos eliminados">&times;</button>
+            </div>
+            <div class="deleted-turns-list" id="listaTurnosEliminados" aria-live="polite">
+                <label class="deleted-turns-search">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
+                    <input type="search" id="buscadorTurnosEliminados" placeholder="Buscar por turno, proveedor, placa o factura..." aria-label="Buscar en turnos cancelados e historial reciente">
+                </label>
+                <section class="deleted-turns-group" aria-labelledby="turnosCanceladosTitle">
+                    <h3 id="turnosCanceladosTitle">Turnos cancelados</h3>
+                    <div class="deleted-turns-group-list" id="listaTurnosCancelados">
+                        <p class="empty-message">Abre esta sección para consultar los turnos cancelados.</p>
+                    </div>
+                </section>
+                <section class="deleted-turns-group is-history" aria-labelledby="historialRecienteTitle">
+                    <h3 id="historialRecienteTitle">Historial reciente</h3>
+                    <div class="deleted-turns-group-list" id="listaHistorialReciente">
+                        <p class="empty-message">Abre esta sección para consultar el historial reciente.</p>
+                    </div>
+                </section>
+            </div>
+        </section>
+    </dialog>
+
+    <dialog id="materialCatalogDialog" class="material-catalog-dialog" aria-labelledby="materialCatalogTitle">
+        <section class="admin-section material-catalog-admin">
+            <div class="material-catalog-header">
+                <h2 id="materialCatalogTitle">Catálogo de Materiales SAP</h2>
+                <button type="button" id="btnCerrarCatalogoMateriales" class="material-catalog-close" aria-label="Cerrar catálogo">&times;</button>
+            </div>
+            <form id="formCatalogoMateriales" class="material-catalog-form">
+                <div class="form-group">
+                    <label for="materialCatalogDestino">Catálogo:</label>
+                    <select id="materialCatalogDestino" required>
+                        <option value="ensambles">SIE / SI ENSAMBLES</option>
+                        <option value="plasticos">SIP / SI3 ZF SAS</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="materialCatalogCodigo">Código SAP:</label>
+                    <input id="materialCatalogCodigo" type="text" required autocomplete="off" placeholder="Ej. 10001234">
+                </div>
+                <div class="form-group">
+                    <label for="materialCatalogDescripcion">Material:</label>
+                    <input id="materialCatalogDescripcion" type="text" required maxlength="500" placeholder="Nombre del material">
+                </div>
+                <button type="submit" class="btn btn-primary">Agregar material</button>
+            </form>
+            <p id="materialCatalogStatus" class="material-catalog-status" role="status" aria-live="polite"></p>
+            <div class="material-catalog-viewer">
+                <div class="material-catalog-toolbar">
+                    <div class="form-group">
+                        <label for="materialCatalogFilter">Catálogo:</label>
+                        <select id="materialCatalogFilter">
+                            <option value="todos">Todos</option>
+                            <option value="ensambles">SIE / SI ENSAMBLES</option>
+                            <option value="plasticos">SIP / SI3 ZF SAS</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="materialCatalogSearch">Buscar material:</label>
+                        <input id="materialCatalogSearch" type="search" placeholder="Código SAP o nombre">
+                    </div>
+                    <div id="materialCatalogCount" class="material-catalog-count" role="status" aria-live="polite">Abre el catálogo para cargar materiales</div>
+                </div>
+                <div class="material-catalog-table-wrap">
+                    <table class="material-catalog-table">
+                        <thead>
+                            <tr><th>Código SAP</th><th>Material</th><th>Catálogo</th><th>Acciones</th></tr>
+                        </thead>
+                        <tbody id="materialCatalogRows">
+                            <tr><td colspan="3" class="material-catalog-empty">Cargando materiales...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </dialog>
+
+    <dialog id="materialEditDialog" class="material-catalog-dialog material-edit-dialog" aria-labelledby="materialEditTitle">
+        <section class="admin-section material-catalog-admin">
+            <div class="material-catalog-header">
+                <h2 id="materialEditTitle">Editar material SAP</h2>
+                <button type="button" id="btnCerrarEdicionMaterial" class="material-catalog-close" aria-label="Cerrar edición">&times;</button>
+            </div>
+            <form id="formEditarMaterial" class="material-edit-form">
+                <div class="form-group">
+                    <label for="materialEditCodigo">Código SAP</label>
+                    <input id="materialEditCodigo" type="text" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="materialEditDescripcion">Material</label>
+                    <input id="materialEditDescripcion" type="text" required maxlength="500" autocomplete="off">
+                </div>
+                <p id="materialEditStatus" class="material-catalog-status" role="status" aria-live="polite"></p>
+                <div class="material-edit-actions">
+                    <button type="button" id="btnCancelarEdicionMaterial" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                </div>
+            </form>
+        </section>
+    </dialog>
+
+
+
+    <footer>
+            <p>2026 Sistema de Turnos SI-3</p>
+        </footer>
+    </div>
+
+    <!-- Modal Turno Llamado -->
+    <div id="turnoModal" class="modal">
+        <div class="modal-content modal-turno">
+            <button class="close-modal">&times;</button>
+            <h2>Turno Llamado</h2>
+            <div class="modal-turn-number" id="modalTurnNumber">--</div>
+            <div class="modal-turn-info" id="modalTurnInfo"></div>
+            <button class="btn btn-secondary" onclick="AdminHandlers.revisarFormularioDespacho()">Volver al formulario</button>
+            <button class="btn btn-primary" onclick="document.getElementById('turnoModal').style.display='none'">Aceptar</button>
+        </div>
+    </div>
+
+<!-- Modal Despacho -->
+    <div id="despachoModal" class="modal no-close">
+        <div class="modal-content">
+            <h2>Informacion de Despacho</h2>
+            <div class="modal-turn-number" id="despachoTurnNumber">--</div>
+            <div class="modal-turn-info" id="despachoTurnInfo"></div>
+            <div id="despachoInfo" class="despacho-info"></div>
+            <form id="formDespacho">
+                <div class="form-group">
+                    <label>Placa:</label>
+                    <input type="text" id="despachoPlaca" placeholder="Placa del vehículo" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Destino:</label>
+                    <select id="despachoDestino">
+                        <option value="">Seleccionar...</option>
+                        <option value="ensambles">SI ENSAMBLES</option>
+                        <option value="plasticos">SI3 ZF SAS</option>
+                        <option value="ambos">AMBOS</option>
+                    </select>
+                </div>
+                <div class="form-group" id="despachoFacturaGroup">
+                    <label>Factura:</label>
+                    <input type="text" id="despachoNumFactura" placeholder="Numero de factura">
+                </div>
+                <div id="despachoFacturaAmbosGroup" style="display: none; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="form-group">
+                        <label>Factura SIE (SI ENSAMBLES):</label>
+                        <input type="text" id="despachoNumFacturaSIE" placeholder="Factura para SI ENSAMBLES">
+                    </div>
+                    <div class="form-group">
+                        <label>Factura SI3 ZF SAS:</label>
+                        <input type="text" id="despachoNumFacturaSI3" placeholder="Factura para SI3 ZF SAS">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Tipo Vehiculo:</label>
+                    <select id="despachoTipoVehiculo">
+                        <option value="">Seleccionar...</option>
+                        <option value="MULA">MULA</option>
+                        <option value="SENCILLO">SENCILLO</option>
+                        <option value="CARPADO">CARPADO</option>
+                        <option value="FURGON">FURGON</option>
+                        <option value="MOTO">MOTO</option>
+                        <option value="CONTENEDOR">CONTENEDOR</option>
+                        <option value="OTRO">OTRO</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Bultos:</label>
+                    <input type="number" id="despachoBultos" placeholder="Cantidad" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="despachoPeso">Peso:</label>
+                    <div class="peso-unidad-input">
+                        <input type="number" id="despachoPeso" placeholder="Cantidad" min="0" step="any" inputmode="decimal">
+                        <select id="despachoPesoUnidad" aria-label="Unidad del peso">
+                            <option value="kg">kg</option>
+                            <option value="gr">gr</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Responsable:</label>
+                    <div class="responsable-field">
+                        <input type="text" id="despachoResponsable" placeholder="Escribe otro nombre o elige una sugerencia">
+                        <div class="responsable-suggestions" role="group" aria-label="Responsables sugeridos">
+                            <button type="button" class="responsable-suggestion" data-responsable-target="despachoResponsable" aria-pressed="false">Anderzon Rojas</button>
+                            <button type="button" class="responsable-suggestion" data-responsable-target="despachoResponsable" aria-pressed="false">Mateo Guarin</button>
+                        </div>
+                    </div>
+                </div>
+                 <button type="button" class="btn btn-primary" onclick="AdminHandlers.guardarDespacho()">Confirmar</button>
+            </form>
+             
+             <div class="form-group" style="margin-top: 20px; padding-top: 20px; border-top: 2px dashed #e2e8f0;">
+                 <label>
+                     <input type="checkbox" id="esTransporteCheckbox" onchange="AdminHandlers.toggleEsTransporte()">
+                     Es transporte (múltiples proveedores)
+                 </label>
+                 <button type="button" id="btnEsTransporte" class="btn btn-warning" style="margin-top: 10px; display: none;" onclick="AdminHandlers.abrirModalTransportista()">
+                     [ES TRANSPORTADORA]
+                 </button>
+             </div>
+         </div>
+     </div>
+     
+     <!-- Modal Transportistas -->
+      <div id="transportistaModal" class="modal no-close">
+          <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+              <h2>Proveedores de Transporte</h2>
+              <div class="modal-turn-number" id="transportistaTurnoNumero">--</div>
+              <div class="modal-turn-info" id="transportistaTurnoInfo"></div>
+              
+               <div style="background: #f8fafc; padding: 16px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
+                   <h3 style="margin: 0 0 12px 0; font-size: 14px; color: #475569;">Agregar Proveedor</h3>
+                   <p style="font-size: 12px; color: #94a3b8; margin-top: 0;">Placa: <strong style="color: #334155;" id="transportistaPlacaInfo">--</strong> | Tipo: <strong style="color: #334155;" id="transportistaTipoInfo">--</strong></p>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                          <div class="form-group" style="margin-bottom: 0;">
+                              <label>Nombre del proveedor:</label>
+                              <input type="text" id="transportistaNombreProveedor" placeholder="Nombre del proveedor">
+                          </div>
+                          <div class="form-group" style="margin-bottom: 0;">
+                              <label>Tipo Vehiculo:</label>
+                              <select id="transportistaTipoVehiculo">
+                                  <option value="">Seleccionar...</option>
+                                  <option value="MULA">MULA</option>
+                                  <option value="SENCILLO">SENCILLO</option>
+                                  <option value="CARPADO">CARPADO</option>
+                                  <option value="FURGON">FURGON</option>
+                                  <option value="MOTO">MOTO</option>
+                                  <option value="CONTENEDOR">CONTENEDOR</option>
+                                  <option value="OTRO">OTRO</option>
+                             </select>
+                         </div>
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label>Factura:</label>
+                             <input type="text" id="transportistaFactura" placeholder="Número de factura">
+                         </div>
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label>Bultos:</label>
+                             <input type="number" id="transportistaBultos" placeholder="Cantidad" min="0">
+                         </div>
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label for="transportistaPeso">Peso:</label>
+                             <div class="peso-unidad-input">
+                                 <input type="number" id="transportistaPeso" placeholder="Cantidad" min="0" step="any" inputmode="decimal">
+                                 <select id="transportistaPesoUnidad" aria-label="Unidad del peso">
+                                     <option value="kg">kg</option>
+                                     <option value="gr">gr</option>
+                                 </select>
+                             </div>
+                         </div>
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label>Responsable:</label>
+                             <div class="responsable-field">
+                                 <input type="text" id="transportistaResponsable" placeholder="Escribe otro nombre o elige una sugerencia">
+                                 <div class="responsable-suggestions" role="group" aria-label="Responsables sugeridos">
+                                     <button type="button" class="responsable-suggestion" data-responsable-target="transportistaResponsable" aria-pressed="false">Anderzon Rojas</button>
+                                     <button type="button" class="responsable-suggestion" data-responsable-target="transportistaResponsable" aria-pressed="false">Mateo Guarin</button>
+                                 </div>
+                             </div>
+                         </div>
+                         <div class="form-group" style="margin-bottom: 0;">
+                             <label>Destino:</label>
+                             <select id="transportistaDestino">
+                                 <option value="">Seleccionar...</option>
+                                 <option value="ensambles">SI ENSAMBLES</option>
+                                 <option value="plasticos">SI3 ZF SAS</option>
+                                 <option value="ambos">AMBOS</option>
+                             </select>
+                         </div>
+                    </div>
+                  <button type="button" class="btn btn-primary" style="margin-top: 16px;" onclick="AdminHandlers.agregarProveedorTransportista()">
+                      Agregar Proveedor
+                  </button>
+              </div>
+             
+             <div>
+                 <h3 style="font-size: 14px; color: #475569; margin-top: 0;">Proveedores Agregados (<span id="contadorProveedoresTransporte">0</span>)</h3>
+                 <div id="listaProveedoresTransporte" style="max-height: 240px; overflow-y: auto;">
+                     <p class="empty-message">No hay proveedores agregados</p>
+                 </div>
+             </div>
+             
+             <div style="margin-top: 24px; padding-top: 20px; border-top: 2px solid #e2e8f0; text-align: center;">
+                 <button type="button" class="btn btn-success" style="padding: 16px 32px; font-size: 16px;" onclick="AdminHandlers.finalizarProveedores()">
+                     FINALIZAR REGISTRO DE PROVEEDORES
+                 </button>
+             </div>
+         </div>
+      </div>
+      
+     <!-- Modal Salida Autorizada (por despachador) -->
+        <div id="modalSalidaDespachador" class="modal" style="display: none;"><div class="modal-content" style="max-width: 500px; border: 3px solid #63a9df;">
+              <div style="background: linear-gradient(135deg, #3478c5 0%, #20538f 100%); padding: 20px; text-align: center; border-radius: 10px 10px 0 0; margin: -24px -24px 20px -24px;">
+                <h2 style="color: white; margin: 0; font-size: 22px;">SALIDA AUTORIZADA</h2>
+                <p style="color: #dcecff; margin: 5px 0 0 0;">El despachador ha confirmado la salida</p>
+            </div>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 64px; font-weight: 700; color: #20538f; line-height: 1;" id="salidaDespachadorNumero">---</div>
+                <div style="font-size: 16px; font-weight: 600; color: #1e293b; margin-top: 5px;" id="salidaDespachadorEmpresa">
+                    <span id="salidaDespachadorIcono" aria-hidden="true" hidden></span>
+                    <span id="salidaDespachadorNombre">Proveedor</span>
+                </div>
+            </div>
+            <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px;" id="salidaDespachadorDetalles">
+            </div>
+            <button class="btn btn-success" style="width: 100%; padding: 14px; font-size: 16px;" onclick="cerrarModalSalidaDespachador()">ACEPTAR</button>
+        </div>
+    </div>
+
+    <!-- Modal Inspeccion Solicitada -->
+    <div id="modalInspeccion" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; border: 3px solid #f59e0b;">
+            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; text-align: center; border-radius: 10px 10px 0 0; margin: -24px -24px 20px -24px;">
+                <h2 style="color: white; margin: 0; font-size: 22px;">Inspeccion fisica REQUERIDA</h2>
+                <p style="color: #fef3c7; margin: 5px 0 0 0;">El despachador ha solicitado Inspeccion fisica</p>
+            </div>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 64px; font-weight: 700; color: #d97706; line-height: 1;" id="inspeccionNumero">---</div>
+                <div style="font-size: 16px; font-weight: 600; color: #1e293b; margin-top: 5px;" id="inspeccionEmpresa">Proveedor</div>
+            </div>
+            <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px;" id="inspeccionDetalles">
+                <p style="color: #475569;">Se requiere Inspeccion fisica antes de autorizar la salida.</p>
+            </div>
+            <button class="btn btn-warning" style="width: 100%; padding: 14px; font-size: 16px;" onclick="cerrarModalInspeccion()">ACEPTAR</button>
+         </div>
+      </div>
+
+<!-- Modal Editar Historial / Proveedor -->
+      <div id="modalEditarHistorial" class="modal" style="display: none;">
+          <div class="modal-content edit-history-modal-content">
+              <h2>Editar Registro</h2>
+              <input type="hidden" id="editHistId">
+              <div class="edit-history-fields">
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Empresa:</label>
+                      <input type="text" id="editHistEmpresa" placeholder="Empresa">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Proveedor:</label>
+                      <input type="text" id="editHistProveedor" placeholder="Proveedor">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Placa:</label>
+                      <input type="text" id="editHistPlaca" placeholder="Placa">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>FMM (opcional):</label>
+                      <input type="text" id="editHistFmm" placeholder="Consecutivo de ingreso">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0; grid-column: 1 / -1;">
+                      <label>Códigos SAP (opcional):</label>
+                      <div id="editHistMaterialesSapLista" class="materiales-sap-list"></div>
+                      <button type="button" id="btnAgregarSapHistorial" class="material-sap-add">+ Agregar material</button>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;" id="editHistFacturaGroup">
+                      <label>Factura:</label>
+                      <input type="text" id="editHistFactura" placeholder="Factura">
+                  </div>
+                  <div id="editHistFacturaAmbosGroup" class="edit-history-invoices" style="display: none;">
+                      <div class="form-group" style="margin-bottom: 0;">
+                          <label>Factura SIE (SI ENSAMBLES):</label>
+                          <input type="text" id="editHistFacturaSIE" placeholder="Factura para SI ENSAMBLES">
+                      </div>
+                      <div class="form-group" style="margin-bottom: 0;">
+                          <label>Factura SI3 ZF SAS:</label>
+                          <input type="text" id="editHistFacturaSI3" placeholder="Factura para SI3 ZF SAS">
+                      </div>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Tipo Vehículo:</label>
+                      <select id="editHistTipo">
+                          <option value="">Seleccionar...</option>
+                          <option value="MULA">MULA</option>
+                          <option value="SENCILLO">SENCILLO</option>
+                          <option value="CARPADO">CARPADO</option>
+                          <option value="FURGON">FURGON</option>
+                          <option value="MOTO">MOTO</option>
+                          <option value="CONTENEDOR">CONTENEDOR</option>
+                          <option value="OTRO">OTRO</option>
+                      </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Bultos:</label>
+                      <input type="number" id="editHistBultos" placeholder="Cantidad" min="0">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label for="editHistPeso">Peso:</label>
+                      <div class="peso-unidad-input">
+                          <input type="number" id="editHistPeso" placeholder="Cantidad" min="0" step="any" inputmode="decimal">
+                          <select id="editHistPesoUnidad" aria-label="Unidad del peso">
+                              <option value="kg">kg</option>
+                              <option value="gr">gr</option>
+                          </select>
+                      </div>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Responsable:</label>
+                      <div class="responsable-field">
+                          <input type="text" id="editHistResponsable" placeholder="Escribe otro nombre o elige una sugerencia">
+                          <div class="responsable-suggestions" role="group" aria-label="Responsables sugeridos">
+                              <button type="button" class="responsable-suggestion" data-responsable-target="editHistResponsable" aria-pressed="false">Anderzon Rojas</button>
+                              <button type="button" class="responsable-suggestion" data-responsable-target="editHistResponsable" aria-pressed="false">Mateo Guarin</button>
+                          </div>
+                      </div>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                      <label>Destino:</label>
+                      <select id="editHistDestino">
+                          <option value="">Seleccionar...</option>
+                          <option value="ensambles">SI ENSAMBLES</option>
+                          <option value="plasticos">SI3 ZF SAS</option>
+                          <option value="ambos">AMBOS</option>
+                      </select>
+                  </div>
+              </div>
+              <div class="edit-history-actions">
+                  <button class="btn btn-secondary" onclick="cerrarModalEditarHistorial()">Cancelar</button>
+                  <button class="btn btn-success" onclick="AdminHandlers.guardarEdicionHistorial()">Guardar</button>
+              </div>
+           </div>
+      </div>
+
+<!-- Modal Proveedor Sin Turno -->
+        <div id="proveedorSinTurnoModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+                <button class="close-modal" onclick="AdminHandlers.cerrarModalProveedorSinTurno()">&times;</button>
+                <h2>Proveedor Sin Turno</h2>
+                <p style="font-size: 13px; color: #64748b; margin-top: 0;">Registre un proveedor que llega sin turno previo. Se generará un turno de espera automáticamente.</p>
+                <form id="formProveedorSinTurno" onsubmit="AdminHandlers.registrarProveedorSinTurno(event)">
+                    <div class="form-group">
+                        <label>Proveedor:</label>
+                        <input type="text" id="sinTurnoProveedor" placeholder="Nombre del proveedor" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label>Placa:</label>
+                        <input type="text" id="sinTurnoPlaca" placeholder="ABC123 (6 caracteres)" maxlength="6" autocomplete="off">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;" id="sinTurnoGrid1">
+                        <div class="form-group">
+                            <label>Destino:</label>
+                            <select id="sinTurnoDestino">
+                                <option value="">Seleccionar...</option>
+                                <option value="ensambles">SI ENSAMBLES</option>
+                                <option value="plasticos">SI3 ZF SAS</option>
+                                <option value="ambos">AMBOS</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="sinTurnoFacturaGroup">
+                            <label>Factura:</label>
+                            <input type="text" id="sinTurnoFactura" placeholder="Número de factura">
+                        </div>
+                    </div>
+                    <div id="sinTurnoFacturaAmbosGroup" style="display: none; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label>Factura SIE (SI ENSAMBLES):</label>
+                            <input type="text" id="sinTurnoFacturaSIE" placeholder="Factura para SI ENSAMBLES">
+                        </div>
+                        <div class="form-group">
+                            <label>Factura SI3 ZF SAS:</label>
+                            <input type="text" id="sinTurnoFacturaSI3" placeholder="Factura para SI3 ZF SAS">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;" id="sinTurnoGrid2">
+                        <div class="form-group">
+                            <label>Tipo:</label>
+                            <select id="sinTurnoTipo">
+                                <option value="">Seleccionar...</option>
+                                <option value="MULA">MULA</option>
+                                <option value="SENCILLO">SENCILLO</option>
+                                <option value="CARPADO">CARPADO</option>
+                                <option value="FURGON">FURGON</option>
+                                <option value="MOTO">MOTO</option>
+                                <option value="CONTENEDOR">CONTENEDOR</option>
+                                <option value="OTRO">OTRO</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Bultos:</label>
+                            <input type="number" id="sinTurnoBultos" placeholder="Cantidad" min="0">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;" id="sinTurnoGrid3">
+                        <div class="form-group">
+                            <label for="sinTurnoPeso">Peso:</label>
+                            <div class="sin-turno-peso-input">
+                                <input type="number" id="sinTurnoPeso" placeholder="Cantidad" min="0" step="any" inputmode="decimal">
+                                <select id="sinTurnoPesoUnidad" aria-label="Unidad del peso">
+                                    <option value="kg">kg</option>
+                                    <option value="gr">gr</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Responsable:</label>
+                            <div class="responsable-field">
+                                <input type="text" id="sinTurnoResponsable" placeholder="Escribe otro nombre o elige una sugerencia">
+                                <div class="responsable-suggestions" role="group" aria-label="Responsables sugeridos">
+                                    <button type="button" class="responsable-suggestion" data-responsable-target="sinTurnoResponsable" aria-pressed="false">Anderzon Rojas</button>
+                                    <button type="button" class="responsable-suggestion" data-responsable-target="sinTurnoResponsable" aria-pressed="false">Mateo Guarin</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
+                       <button type="button" class="btn btn-secondary" onclick="AdminHandlers.cerrarModalProveedorSinTurno()">Cancelar</button>
+                       <button type="submit" class="btn btn-success">Registrar Proveedor</button>
+                   </div>
+                </form>
+            </div>
+        </div>
+
+
+      <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+     <script src="supabase-config.js"></script>
+    <script src="materiales_sie.js"></script>
+    <script src="materiales_sip.js"></script>
+    <script src="app.js?v=36"></script>
+     <script>
+        window.salidaDespachadorAnterior = null;
+        window.inspeccionAnterior = null;
+        let modalVisible = false;
+        let modalInspeccionVisible = false;
+
+        function initSalidaDespachadorListener() {
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'salidaAutorizada' && e.newValue) {
+                    try {
+                        const datos = JSON.parse(e.newValue);
+                        if (datos.timestamp !== window.salidaDespachadorAnterior && !modalVisible) {
+                            window.salidaDespachadorAnterior = datos.timestamp;
+                            mostrarAlertaSalidaDespachador(datos);
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                    }
+                }
+                
+                if (e.key === 'inspeccionSolicitada' && e.newValue) {
+                    try {
+                        const datos = JSON.parse(e.newValue);
+                        if (datos.timestamp !== window.inspeccionAnterior && !modalInspeccionVisible) {
+                            window.inspeccionAnterior = datos.timestamp;
+                            mostrarAlertaInspeccion(datos);
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                    }
+                }
+            });
+
+            setInterval(() => {
+                if (modalVisible) return;
+                const datos = localStorage.getItem('salidaAutorizada');
+                if (datos) {
+                    try {
+                        const parsed = JSON.parse(datos);
+                        if (parsed.timestamp !== window.salidaDespachadorAnterior) {
+                            window.salidaDespachadorAnterior = parsed.timestamp;
+                            mostrarAlertaSalidaDespachador(parsed);
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                    }
+                }
+            }, 2000);
+            
+            setInterval(() => {
+                if (modalInspeccionVisible) return;
+                const datos = localStorage.getItem('inspeccionSolicitada');
+                if (datos) {
+                    try {
+                        const parsed = JSON.parse(datos);
+                        if (parsed.timestamp !== window.inspeccionAnterior) {
+                            window.inspeccionAnterior = parsed.timestamp;
+                            mostrarAlertaInspeccion(parsed);
+                        }
+                    } catch (err) {
+                        console.error('Error:', err);
+                    }
+                }
+            }, 2000);
+        }
+
+        async function mostrarAlertaSalidaDespachador(datos) {
+            const reproducirSonido = () => {
+                try {
+                    if (window.SonidoAlerta && window.SonidoAlerta.reproducir) {
+                        window.SonidoAlerta.reproducir(3);
+                    } else {
+                        const AudioContext = window.AudioContext || window.webkitAudioContext;
+                        if (!window.audioCtxSalida) {
+                            window.audioCtxSalida = new AudioContext();
+                        }
+                        const ctx = window.audioCtxSalida;
+                        for (let i = 0; i < 3; i++) {
+                            setTimeout(() => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.frequency.value = 880;
+                                osc.type = 'sine';
+                                gain.gain.setValueAtTime(0.5, ctx.currentTime);
+                                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                                osc.start(ctx.currentTime);
+                                osc.stop(ctx.currentTime + 0.5);
+                            }, i * 600);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Error sonido:', e);
+                }
+            };
+
+            reproducirSonido();
+            await new Promise(r => setTimeout(r, 800));
+            reproducirSonido();
+            await new Promise(r => setTimeout(r, 800));
+            reproducirSonido();
+
+            let tipoVehiculoSalida = datos.tipoVehiculo || datos.tipo_vehiculo || datos.datos?.tipoVehiculo || datos.datos?.tipo_vehiculo || '';
+            let detallesHTML = '<p style="color: #94a3b8; text-align: center;">Cargando detalles...</p>';
+            
+            if (window.supabaseClient && datos.numero) {
+                try {
+                    const { data, error } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .select('*')
+                        .eq('numero', datos.numero)
+                        .gte('fecha', new Date().toISOString().split('T')[0] + 'T00:00:00')
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .single();
+                    
+                    if (data && !error) {
+                        tipoVehiculoSalida = data.tipo_vehiculo || tipoVehiculoSalida;
+                        const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                        detallesHTML = `
+                            <table style="width: 100%; font-size: 13px; color: #475569;">
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Placa:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.nit || 'N/A'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Factura:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.num_factura || 'N/A'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Tipo Vehiculo:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.tipo_vehiculo || 'N/A'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Bultos:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.bultos || '0'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Peso:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${formatearPesoHistorial(data.peso) || '0 kg'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Responsable:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.responsable || 'N/A'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Destino:</strong></td>
+                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${destinoLabel[data.destino] || data.destino || 'N/A'}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 0;"><strong>Hora Salida:</strong></td>
+                                    <td style="padding: 6px 0; text-align: right;">${data.hora_finalizacion || '-'}</td>
+                                </tr>
+                            </table>
+                        `;
+                    }
+                } catch (e) {
+                    console.warn('Error cargando detalles:', e);
+                }
+            }
+
+            document.getElementById('salidaDespachadorNumero').textContent = datos.numero || '---';
+            document.getElementById('salidaDespachadorNombre').textContent = datos.nombre || datos.empresa || 'Proveedor';
+            const iconoSalida = document.getElementById('salidaDespachadorIcono');
+            iconoSalida.hidden = !tipoVehiculoSalida;
+            iconoSalida.innerHTML = tipoVehiculoSalida && window.iconoTipoVehiculoSvg
+                ? window.iconoTipoVehiculoSvg(tipoVehiculoSalida, false)
+                : '';
+            document.getElementById('salidaDespachadorDetalles').innerHTML = detallesHTML;
+            modalVisible = true;
+            document.getElementById('modalSalidaDespachador').style.display = 'flex';
+            
+            // Actualizar historial inmediatamente
+            if (window.RenderAdmin && window.RenderAdmin.historial) {
+                setTimeout(() => window.RenderAdmin.historial(), 300);
+            }
+        }
+
+        window.cerrarModalSalidaDespachador = function() {
+            document.getElementById('modalSalidaDespachador').style.display = 'none';
+            modalVisible = false;
+            try {
+                localStorage.removeItem('salidaAutorizada');
+            } catch (e) {
+                console.warn('Error limpiando localStorage:', e);
+            }
+        };
+
+        async function mostrarAlertaInspeccion(datos) {
+            const reproducirSonido = () => {
+                try {
+                    if (window.SonidoAlerta && window.SonidoAlerta.reproducir) {
+                        window.SonidoAlerta.reproducir(3);
+                    } else {
+                        const AudioContext = window.AudioContext || window.webkitAudioContext;
+                        if (!window.audioCtxInspeccion) {
+                            window.audioCtxInspeccion = new AudioContext();
+                        }
+                        const ctx = window.audioCtxInspeccion;
+                        for (let i = 0; i < 3; i++) {
+                            setTimeout(() => {
+                                const osc = ctx.createOscillator();
+                                const gain = ctx.createGain();
+                                osc.connect(gain);
+                                gain.connect(ctx.destination);
+                                osc.frequency.value = 880;
+                                osc.type = 'sine';
+                                gain.gain.setValueAtTime(0.5, ctx.currentTime);
+                                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                                osc.start(ctx.currentTime);
+                                osc.stop(ctx.currentTime + 0.5);
+                            }, i * 600);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Error sonido:', e);
+                }
+            };
+
+            reproducirSonido();
+            await new Promise(r => setTimeout(r, 800));
+            reproducirSonido();
+            await new Promise(r => setTimeout(r, 800));
+            reproducirSonido();
+
+            document.getElementById('inspeccionNumero').textContent = datos.numero || '---';
+            document.getElementById('inspeccionEmpresa').textContent = datos.nombre || datos.empresa || 'Proveedor';
+            modalInspeccionVisible = true;
+            document.getElementById('modalInspeccion').style.display = 'flex';
+            
+            if (window.RenderAdmin && window.RenderAdmin.historial) {
+                setTimeout(() => window.RenderAdmin.historial(), 300);
+            }
+        }
+
+        window.cerrarModalInspeccion = function() {
+            document.getElementById('modalInspeccion').style.display = 'none';
+            modalInspeccionVisible = false;
+            try {
+                localStorage.removeItem('inspeccionSolicitada');
+            } catch (e) {
+                console.warn('Error limpiando localStorage:', e);
+            }
+        };
+
+        window.cerrarModalEditarHistorial = function() {
+            const modal = document.getElementById('modalEditarHistorial');
+            if (modal) modal.style.display = 'none';
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                localStorage.removeItem('salidaAutorizada');
+                localStorage.removeItem('inspeccionSolicitada');
+            } catch (e) {}
+
+            let materialesCatalogoAdmin = [];
+            let catalogoAdminCargado = false;
+            const formCatalogo = document.getElementById('formCatalogoMateriales');
+            const menuCatalogo = document.querySelector('.admin-menu');
+            const dialogCatalogo = document.getElementById('materialCatalogDialog');
+            const dialogEditarMaterial = document.getElementById('materialEditDialog');
+            const formEditarMaterial = document.getElementById('formEditarMaterial');
+            const tablaCatalogo = document.getElementById('materialCatalogRows');
+            const contadorCatalogo = document.getElementById('materialCatalogCount');
+
+            function renderCatalogoAdmin() {
+                if (!tablaCatalogo) return;
+                const filtro = document.getElementById('materialCatalogFilter')?.value || 'todos';
+                const busqueda = (document.getElementById('materialCatalogSearch')?.value || '').trim().toLowerCase();
+                const filtrados = materialesCatalogoAdmin.filter(material => {
+                    const coincideCatalogo = filtro === 'todos' || material.destino === filtro;
+                    const texto = `${material.codigoSap} ${material.descripcion}`.toLowerCase();
+                    return coincideCatalogo && (!busqueda || texto.includes(busqueda));
+                });
+
+                tablaCatalogo.replaceChildren();
+                if (!filtrados.length) {
+                    const filaVacia = document.createElement('tr');
+                    const celdaVacia = document.createElement('td');
+                    celdaVacia.colSpan = 4;
+                    celdaVacia.className = 'material-catalog-empty';
+                    celdaVacia.textContent = 'No hay materiales que coincidan con la búsqueda.';
+                    filaVacia.appendChild(celdaVacia);
+                    tablaCatalogo.appendChild(filaVacia);
+                } else {
+                    const fragmento = document.createDocumentFragment();
+                    filtrados.forEach(material => {
+                        const fila = document.createElement('tr');
+                        [material.codigoSap, material.descripcion, material.etiqueta].forEach(valor => {
+                            const celda = document.createElement('td');
+                            celda.textContent = valor;
+                            fila.appendChild(celda);
+                        });
+                        const celdaAcciones = document.createElement('td');
+                        celdaAcciones.className = 'material-catalog-actions';
+                        const botonEditar = document.createElement('button');
+                        botonEditar.type = 'button';
+                        botonEditar.className = 'material-catalog-row-action';
+                        botonEditar.dataset.catalogAction = 'editar';
+                        botonEditar.dataset.codigoSap = material.codigoSap;
+                        botonEditar.dataset.destino = material.destino;
+                        botonEditar.textContent = 'Editar';
+                        const botonBorrar = document.createElement('button');
+                        botonBorrar.type = 'button';
+                        botonBorrar.className = 'material-catalog-row-action is-danger';
+                        botonBorrar.dataset.catalogAction = 'borrar';
+                        botonBorrar.dataset.codigoSap = material.codigoSap;
+                        botonBorrar.dataset.destino = material.destino;
+                        botonBorrar.textContent = 'Borrar';
+                        celdaAcciones.append(botonEditar, botonBorrar);
+                        fila.appendChild(celdaAcciones);
+                        fragmento.appendChild(fila);
+                    });
+                    tablaCatalogo.appendChild(fragmento);
+                }
+
+                if (contadorCatalogo) {
+                    contadorCatalogo.textContent = busqueda || filtro !== 'todos'
+                        ? `${filtrados.length} de ${materialesCatalogoAdmin.length} materiales`
+                        : `${materialesCatalogoAdmin.length} materiales`;
+                }
+            }
+
+            tablaCatalogo?.addEventListener('click', async event => {
+                const boton = event.target.closest('[data-catalog-action]');
+                if (!boton || !window.supabaseClient) return;
+
+                const codigoSap = boton.dataset.codigoSap;
+                const destino = boton.dataset.destino;
+                const tabla = destino === 'plasticos' ? 'materiales_sip' : 'materiales_sie';
+                const material = materialesCatalogoAdmin.find(item => item.codigoSap === codigoSap && item.destino === destino);
+                if (!material) return;
+
+                if (boton.dataset.catalogAction === 'editar') {
+                    dialogEditarMaterial.dataset.codigoOriginal = codigoSap;
+                    dialogEditarMaterial.dataset.destino = destino;
+                    document.getElementById('materialEditCodigo').value = codigoSap;
+                    document.getElementById('materialEditDescripcion').value = material.descripcion;
+                    document.getElementById('materialEditStatus').textContent = '';
+                    document.getElementById('materialEditStatus').dataset.state = '';
+                    dialogEditarMaterial.showModal();
+                    document.getElementById('materialEditCodigo').focus();
+                    return;
+                }
+
+                if (boton.dataset.catalogAction === 'borrar' && await window.ConfirmDialog.confirmar(
+                    `¿Borrar ${codigoSap} · ${material.descripcion} del catálogo ${material.etiqueta}?`,
+                    'Borrar material SAP',
+                    'Borrar material'
+                )) {
+                    boton.disabled = true;
+                    try {
+                        const { error } = await window.supabaseClient
+                            .from(tabla)
+                            .delete()
+                            .eq('codigo_sap', codigoSap);
+                        if (error) throw error;
+                        (destino === 'plasticos' ? window.CatalogoMaterialesSIP : window.CatalogoMaterialesSIE)?.delete(codigoSap);
+                        catalogoAdminCargado = false;
+                        await cargarCatalogoAdmin();
+                        const status = document.getElementById('materialCatalogStatus');
+                        status.textContent = `Material ${codigoSap} borrado del catálogo ${material.etiqueta}.`;
+                        status.dataset.state = 'success';
+                    } catch (error) {
+                        const status = document.getElementById('materialCatalogStatus');
+                        status.textContent = `No se pudo borrar ${codigoSap}: ${error.message || 'error de Supabase'}`;
+                        status.dataset.state = 'error';
+                    } finally {
+                        boton.disabled = false;
+                    }
+                }
+            });
+
+            async function cargarCatalogoAdmin() {
+                if (!window.supabaseClient) {
+                    if (contadorCatalogo) contadorCatalogo.textContent = 'Sin conexión con Supabase';
+                    return;
+                }
+
+                if (contadorCatalogo) contadorCatalogo.textContent = 'Cargando materiales...';
+                try {
+                    async function leerCatalogo(tabla) {
+                        const pageSize = 1000;
+                        const registros = [];
+                        let desde = 0;
+                        while (true) {
+                            const { data, error } = await window.supabaseClient
+                                .from(tabla)
+                                .select('codigo_sap, descripcion')
+                                .order('codigo_sap')
+                                .range(desde, desde + pageSize - 1);
+                            if (error) throw error;
+                            registros.push(...(data || []));
+                            if (!data || data.length < pageSize) break;
+                            desde += pageSize;
+                        }
+                        return registros;
+                    }
+
+                    const [sie, sip] = await Promise.all([
+                        leerCatalogo('materiales_sie'),
+                        leerCatalogo('materiales_sip')
+                    ]);
+
+                    materialesCatalogoAdmin = [
+                        ...sie.map(item => ({ ...item, destino: 'ensambles', etiqueta: 'SIE' })),
+                        ...sip.map(item => ({ ...item, destino: 'plasticos', etiqueta: 'SIP / SI3 ZF' }))
+                    ].map(item => ({
+                        codigoSap: item.codigo_sap,
+                        descripcion: item.descripcion,
+                        destino: item.destino,
+                        etiqueta: item.etiqueta
+                    })).sort((a, b) => a.codigoSap.localeCompare(b.codigoSap, 'en', { numeric: true }));
+                    catalogoAdminCargado = true;
+                    renderCatalogoAdmin();
+                } catch (error) {
+                    console.error('Error cargando catálogos SAP:', error);
+                    if (contadorCatalogo) contadorCatalogo.textContent = 'No se pudo cargar el catálogo';
+                    tablaCatalogo.replaceChildren();
+                    const filaError = document.createElement('tr');
+                    const celdaError = document.createElement('td');
+                    celdaError.colSpan = 3;
+                    celdaError.className = 'material-catalog-empty';
+                    celdaError.textContent = 'Verifica la conexión y los permisos SELECT de los catálogos.';
+                    filaError.appendChild(celdaError);
+                    tablaCatalogo.appendChild(filaError);
+                }
+            }
+
+            document.getElementById('btnAbrirCatalogoMateriales')?.addEventListener('click', () => {
+                menuCatalogo.open = false;
+                dialogCatalogo.showModal();
+                document.getElementById('materialCatalogCodigo').focus();
+                if (!catalogoAdminCargado) cargarCatalogoAdmin();
+            });
+            document.getElementById('btnCerrarCatalogoMateriales')?.addEventListener('click', () => dialogCatalogo.close());
+            document.getElementById('btnCerrarEdicionMaterial')?.addEventListener('click', () => dialogEditarMaterial.close());
+            document.getElementById('btnCancelarEdicionMaterial')?.addEventListener('click', () => dialogEditarMaterial.close());
+            document.getElementById('materialCatalogFilter')?.addEventListener('change', renderCatalogoAdmin);
+            document.getElementById('materialCatalogSearch')?.addEventListener('input', renderCatalogoAdmin);
+
+            if (formCatalogo) {
+                formCatalogo.addEventListener('submit', async event => {
+                    event.preventDefault();
+                    const destino = document.getElementById('materialCatalogDestino').value;
+                    const codigoSap = document.getElementById('materialCatalogCodigo').value.trim();
+                    const descripcion = document.getElementById('materialCatalogDescripcion').value.trim();
+                    const status = document.getElementById('materialCatalogStatus');
+                    const boton = formCatalogo.querySelector('button[type="submit"]');
+                    const tabla = destino === 'plasticos' ? 'materiales_sip' : 'materiales_sie';
+
+                    if (!window.supabaseClient) {
+                        status.textContent = 'No hay conexión con el catálogo de Supabase.';
+                        status.dataset.state = 'error';
+                        return;
+                    }
+                    boton.disabled = true;
+                    status.textContent = 'Validando y guardando material...';
+                    status.dataset.state = '';
+                    try {
+                        const catalogos = [
+                            { tabla: 'materiales_sie', etiqueta: 'SIE' },
+                            { tabla: 'materiales_sip', etiqueta: 'SIP / SI3 ZF' }
+                        ];
+                        const existentes = await Promise.all(catalogos.map(async catalogo => {
+                            const { data, error } = await window.supabaseClient
+                                .from(catalogo.tabla)
+                                .select('descripcion')
+                                .eq('codigo_sap', codigoSap)
+                                .maybeSingle();
+                            if (error) throw error;
+                            return data ? { ...catalogo, ...data } : null;
+                        }));
+                        const existente = existentes.find(Boolean);
+                        if (existente) {
+                            status.textContent = `El código ${codigoSap} ya existe en ${existente.etiqueta}: ${existente.descripcion}.`;
+                            status.dataset.state = 'error';
+                            return;
+                        }
+
+                        const { error } = await window.supabaseClient
+                            .from(tabla)
+                            .insert({ codigo_sap: codigoSap, descripcion });
+                        if (error) throw error;
+
+                        if (destino === 'plasticos') window.CatalogoMaterialesSIP?.set(codigoSap, descripcion);
+                        else window.CatalogoMaterialesSIE?.set(codigoSap, descripcion);
+                        catalogoAdminCargado = false;
+                        await cargarCatalogoAdmin();
+                        status.textContent = `Material ${codigoSap} agregado al catálogo ${destino === 'plasticos' ? 'SIP / SI3 ZF' : 'SIE'}.`;
+                        status.dataset.state = 'success';
+                        formCatalogo.reset();
+                    } catch (error) {
+                        console.error('Error agregando material al catálogo:', error);
+                        status.textContent = error.code === '23505'
+                            ? `El código SAP ${codigoSap} ya existe en este catálogo.`
+                            : `No se pudo agregar el material: ${error.message || 'error de Supabase'}`;
+                        status.dataset.state = 'error';
+                    } finally {
+                        boton.disabled = false;
+                    }
+                });
+            }
+
+            formEditarMaterial?.addEventListener('submit', async event => {
+                event.preventDefault();
+                const codigoOriginal = dialogEditarMaterial.dataset.codigoOriginal;
+                const destino = dialogEditarMaterial.dataset.destino;
+                const tabla = destino === 'plasticos' ? 'materiales_sip' : 'materiales_sie';
+                const codigoSap = document.getElementById('materialEditCodigo').value.trim();
+                const descripcion = document.getElementById('materialEditDescripcion').value.trim();
+                const status = document.getElementById('materialEditStatus');
+                const boton = formEditarMaterial.querySelector('button[type="submit"]');
+                if (!codigoSap || !descripcion) return;
+
+                boton.disabled = true;
+                status.textContent = 'Validando y guardando cambios...';
+                status.dataset.state = '';
+                try {
+                    const catalogos = [
+                        { tabla: 'materiales_sie', etiqueta: 'SIE' },
+                        { tabla: 'materiales_sip', etiqueta: 'SIP / SI3 ZF' }
+                    ];
+                    const existentes = await Promise.all(catalogos.map(async catalogo => {
+                        const { data, error } = await window.supabaseClient
+                            .from(catalogo.tabla)
+                            .select('codigo_sap, descripcion')
+                            .eq('codigo_sap', codigoSap)
+                            .maybeSingle();
+                        if (error) throw error;
+                        return data ? { ...catalogo, ...data } : null;
+                    }));
+                    const duplicado = existentes.find(existente => existente && (
+                        existente.tabla !== tabla || existente.codigo_sap !== codigoOriginal
+                    ));
+                    if (duplicado) {
+                        status.textContent = `El código ${codigoSap} ya existe en ${duplicado.etiqueta}: ${duplicado.descripcion}.`;
+                        status.dataset.state = 'error';
+                        return;
+                    }
+
+                    const { error } = await window.supabaseClient
+                        .from(tabla)
+                        .update({ codigo_sap: codigoSap, descripcion })
+                        .eq('codigo_sap', codigoOriginal);
+                    if (error) throw error;
+
+                    const catalogoLocal = destino === 'plasticos' ? window.CatalogoMaterialesSIP : window.CatalogoMaterialesSIE;
+                    catalogoLocal?.delete(codigoOriginal);
+                    catalogoLocal?.set(codigoSap, descripcion);
+                    catalogoAdminCargado = false;
+                    await cargarCatalogoAdmin();
+                    dialogEditarMaterial.close();
+                    const statusCatalogo = document.getElementById('materialCatalogStatus');
+                    statusCatalogo.textContent = `Material ${codigoSap} actualizado.`;
+                    statusCatalogo.dataset.state = 'success';
+                } catch (error) {
+                    console.error('Error editando material SAP:', error);
+                    status.textContent = error.code === '23505'
+                        ? `El código ${codigoSap} ya existe en este catálogo.`
+                        : `No se pudo editar el material: ${error.message || 'error de Supabase'}`;
+                    status.dataset.state = 'error';
+                } finally {
+                    boton.disabled = false;
+                }
+            });
+
+            setTimeout(() => {
+                initSalidaDespachadorListener();
+                console.log('Listener de salida despachador iniciado');
+            }, 2000);
+        });
+
+        async function initNotificacionesRealtime() {
+            if (!window.supabaseClient) return;
+            if (window._adminNotifChannel) {
+                window.supabaseClient.removeChannel(window._adminNotifChannel);
+            }
+            window._adminNotifChannel = window.supabaseClient
+                .channel('notificaciones-admin')
+                .on('postgres_changes',
+                    { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
+                    async (payload) => {
+                        const notif = payload.new;
+                        const esLlegadaRecepcion = notif.tipo === 'turno_confirmado' && notif.destinatario === 'admin';
+                        if (!esLlegadaRecepcion && window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(notif)) return;
+                        console.log('🔔 Notificación realtime admin:', payload);
+                        if (esLlegadaRecepcion) {
+                            window.SI3Realtime?.notificarTurnoConfirmado(notif.datos, notif.mensaje);
+                            await Turnos.cargarTurnos();
+                            await RenderAdmin.todo();
+                            await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notif.id);
+                        } else if (notif.remitente === 'despachador') {
+                            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
+                            if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
+                            if (window.SonidoAlerta) { window.SonidoAlerta.inicializar(); window.SonidoAlerta.reproducir(3); }
+                            
+                            const notif = payload.new;
+                            const datos = notif.datos || null;
+                            
+                            if (notif.tipo === 'turno_completado') {
+                                Utils.mostrarNotificacion(`Turno completado: ${datos?.numero || notif.mensaje || '---'}`, 'success');
+                                if (window.SonidoAlerta) window.SonidoAlerta.reproducir(2);
+                            } else if (notif.tipo === 'salida_autorizada') {
+                                const alertaData = {
+                                    numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                    nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
+                                    timestamp: Date.now(),
+                                    datos: datos
+                                };
+                                mostrarAlertaSalidaDespachador(alertaData);
+                            } else if (notif.tipo === 'salida_pendiente' && (notif.mensaje || '').toLowerCase().includes('inspeccion')) {
+                                const alertaData = {
+                                    numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                    nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
+                                    timestamp: Date.now(),
+                                    datos: datos
+                                };
+                                mostrarAlertaInspeccion(alertaData);
+                            } else {
+                                Utils.mostrarNotificacion(notif.mensaje, 'warning');
+                            }
+                        }
+                    }
+                )
+                .subscribe((status) => {
+                    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                        clearTimeout(window._adminNotifReconnectTimer);
+                        window._adminNotifReconnectTimer = setTimeout(() => {
+                            window._adminNotifReconnectTimer = null;
+                            initNotificacionesRealtime();
+                        }, 3000);
+                    }
+                });
+        }
+
+         initNotificacionesRealtime();
+        
+        if (window.supabaseClient) {
+            let ultimaNotifAdminTs = null;
+            setInterval(async () => {
+                if (!window.supabaseClient) return;
+                try {
+                    const { data } = await window.supabaseClient
+                        .from('notificaciones_salida')
+                        .select('*')
+                        .eq('remitente', 'despachador')
+                        .eq('leido', false)
+                        .order('created_at', { ascending: false })
+                        .limit(5);
+                    
+                    if (data && data.length > 0) {
+                        for (const notif of data) {
+                            if (window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(notif)) continue;
+                            if (ultimaNotifAdminTs !== notif.created_at) {
+                                ultimaNotifAdminTs = notif.created_at;
+                                window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
+                                if (window.SonidoSI3) { window.SonidoSI3.inicializar(); window.SonidoSI3.tocarAlerta(); }
+                                if (window.SonidoAlerta) window.SonidoAlerta.reproducir(3);
+                                
+                                const datos = notif.datos || null;
+                                if (notif.tipo === 'turno_completado') {
+                                    Utils.mostrarNotificacion(`Turno completado: ${datos?.numero || notif.mensaje || '---'}`, 'success');
+                                    if (window.SonidoAlerta) window.SonidoAlerta.reproducir(2);
+                                } else if (notif.tipo === 'salida_autorizada') {
+                                    mostrarAlertaSalidaDespachador({
+                                        numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                        nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
+                                        timestamp: Date.now(),
+                                        datos: datos
+                                    });
+                                } else if ((notif.mensaje || '').toLowerCase().includes('inspeccion')) {
+                                    mostrarAlertaInspeccion({
+                                        numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                        nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
+                                        timestamp: Date.now(),
+                                        datos: datos
+                                    });
+                                } else {
+                                    Utils.mostrarNotificacion(notif.mensaje, 'warning');
+                                }
+                                
+                                await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notif.id);
+                            }
+                        }
+                    }
+                } catch(e) {
+                    console.error('Error polling notificaciones admin:', e);
+                }
+            }, 5000);
+        }
+        
+if (window.SonidoSI3) window.SonidoSI3.inicializar();
+        if (window.SonidoAlerta) window.SonidoAlerta.inicializar();
+        
+        if (window.supabaseClient && window.SupabaseDB && typeof window.SupabaseDB.suscribirCambiosProveedoresTransporte === 'function') {
+            window.SupabaseDB.suscribirCambiosProveedoresTransporte(async () => {
+                console.log('🚛 Cambio en proveedores_transporte detectado');
+                if (AppState.proveedoresTransporte && AppState.proveedoresTransporte.length > 0) {
+                    await RenderAdmin.todo();
+                }
+            });
+        }
+        
+        // Inicializar Push Notifications solo si el manager está disponible
+        if (window.SI3PushManager && typeof window.SI3PushManager.init === 'function') {
+            window.SI3PushManager.init().catch(err => console.warn('No se pudo inicializar push:', err));
+        } else {
+            console.info('Push notifications no disponibles en esta sesión; usando avisos locales.');
+        }
+    </script>
+    <script src="sonido.js"></script>
+    <script src="push-notifications.js"></script>
+
+    <!-- Modal Certificado -->
+<div id="modalCertificado" class="modal" style="display: none;">
+        <div class="modal-content certificate-modal-content">
+            <button class="close-modal" aria-label="Cerrar certificado" onclick="document.getElementById('modalCertificado').style.display='none'">&times;</button>
+            <h2 class="certificate-modal-title">Certificado mensual</h2>
+            <div id="contenidoCertificado" class="certificate-content"></div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const claveOk = sessionStorage.getItem('accesoAdmin') === 'ok';
+            if (!claveOk) {
+                window.location.href = 'index.html';
+            }
+        })();
+    </script>
+    <script>
+        // Responsive grids for Proveedor Sin Turno modal
+        (function() {
+            function handleProveedorSinTurnoResize() {
+                const modal = document.getElementById('proveedorSinTurnoModal');
+                if (!modal) return;
+                if (window.innerWidth <= 768) {
+                    modal.style.setProperty('--modal-padding', '12px');
+                }
+            }
+            window.addEventListener('resize', handleProveedorSinTurnoResize);
+            handleProveedorSinTurnoResize();
+        })();
+    </script>
+    <script>
+        (function() {
+            const modal = document.createElement('div');
+            modal.className = 'stats-info-modal';
+            modal.id = 'adminStatsInfoModal';
+            modal.hidden = true;
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            modal.innerHTML = `<div class="stats-info-card">
+                <button type="button" class="stats-info-close" aria-label="Cerrar información">&times;</button>
+                <span class="stats-info-eyebrow">RESUMEN DE RECEPCIÓN</span>
+                <div class="stats-info-number" data-number>0</div>
+                <h2 data-title>Información</h2>
+                <p data-text>Detalle de la estadística seleccionada.</p>
+                <div class="admin-provider-search" data-provider-search hidden>
+                    <span aria-hidden="true">⌕</span>
+                    <input type="search" data-provider-input placeholder="Buscar empresa, contacto o placa..." aria-label="Buscar proveedores">
+                </div>
+                <div class="admin-provider-actions" data-provider-actions hidden>
+                    <button type="button" data-provider-expand>Mostrar todos</button>
+                    <button type="button" data-provider-collapse>Cerrar todos</button>
+                </div>
+                <p class="admin-provider-feedback" data-provider-feedback role="status" hidden></p>
+                <form class="admin-provider-editor" data-provider-editor hidden>
+                    <div class="admin-provider-editor-title">
+                        <span class="stats-info-eyebrow">EDITAR REGISTRO</span>
+                        <strong data-provider-editor-name>Proveedor</strong>
+                    </div>
+                    <div class="admin-provider-editor-grid">
+                        <label>Empresa<input data-provider-field="nombreEmpresa" required maxlength="255"></label>
+                        <label>Placa<input data-provider-field="nit" required maxlength="20"></label>
+                        <label>Contacto<input data-provider-field="contacto" maxlength="255"></label>
+                        <label>Teléfono<input data-provider-field="telefono" maxlength="50"></label>
+                        <label>Servicio
+                            <select data-provider-field="servicio">
+                                <option value="">Proveedor</option>
+                                <option value="entrega">Entrega</option>
+                                <option value="servicio">Servicio técnico</option>
+                                <option value="reunion">Reunión</option>
+                                <option value="otro">Otro</option>
+                                <option value="transporte">Transporte</option>
+                            </select>
+                        </label>
+                        <label>Consecutivo<input data-provider-field="consecutivoIngreso" maxlength="100"></label>
+                    </div>
+                    <p class="admin-provider-editor-status" data-provider-editor-status role="status"></p>
+                    <div class="admin-provider-editor-actions">
+                        <button type="button" data-provider-editor-cancel>Cancelar</button>
+                        <button type="submit">Guardar cambios</button>
+                    </div>
+                </form>
+                <div class="stats-info-list" data-content></div>
+            </div>`;
+            document.body.appendChild(modal);
+
+            const configuracion = {
+                atendidos: {
+                    title: 'Turnos atendidos',
+                    text: 'Proveedores que ya fueron atendidos durante la jornada.',
+                    value: 'totalTurnos',
+                    selector: '#listaTurnosLlegados .turn-item, #historialTurnos .history-item'
+                },
+                espera: {
+                    title: 'Turnos en espera',
+                    text: 'Proveedores que continúan esperando atención.',
+                    value: 'turnosEspera',
+                    selector: '#listaTurnosEspera .turn-item'
+                },
+                proveedores: {
+                    title: 'Proveedores registrados',
+                    text: 'Proveedores disponibles en el registro operativo.',
+                    value: 'totalProveedores'
+                }
+            };
+
+            let proveedoresRegistrados = [];
+            const normalizarProveedor = valor => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+            const escaparProveedor = valor => String(valor ?? '').replace(/[&<>"']/g, caracter => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[caracter]));
+
+            function obtenerProveedoresUnicos(lista) {
+                const claves = new Set();
+                return [...lista].sort((a, b) =>
+                    (Date.parse(b.updatedAt || b.createdAt || '') || 0) - (Date.parse(a.updatedAt || a.createdAt || '') || 0)
+                ).filter(proveedor => {
+                    const placa = normalizarProveedor(proveedor.nit).replace(/[^a-z0-9]/g, '');
+                    const clave = placa
+                        ? `placa:${placa}`
+                        : `datos:${[proveedor.nombreEmpresa, proveedor.contacto, proveedor.telefono, proveedor.consecutivoIngreso].map(normalizarProveedor).join('|')}`;
+                    if (claves.has(clave)) return false;
+                    claves.add(clave);
+                    return true;
+                });
+            }
+
+            function actualizarConteoProveedores() {
+                const total = String(obtenerProveedoresUnicos(proveedoresRegistrados).length);
+                const estadistica = document.getElementById('totalProveedores');
+                if (estadistica) estadistica.textContent = total;
+                modal.querySelector('[data-number]').textContent = total;
+            }
+
+            function renderProveedores(busqueda = '') {
+                const contenido = modal.querySelector('[data-content]');
+                const termino = busqueda.trim().toLowerCase();
+                const filtrados = proveedoresRegistrados.filter(proveedor => {
+                    const texto = [proveedor.nombreEmpresa, proveedor.contacto, proveedor.nit, proveedor.telefono, proveedor.servicio, proveedor.consecutivoIngreso]
+                        .filter(Boolean).join(' ').toLowerCase();
+                    return !termino || texto.includes(termino);
+                });
+
+                const unicos = obtenerProveedoresUnicos(filtrados);
+
+                const grupos = new Map();
+                unicos.forEach(proveedor => {
+                    const empresa = proveedor.nombreEmpresa || 'Empresa sin nombre';
+                    const claveEmpresa = normalizarProveedor(empresa);
+                    if (!grupos.has(claveEmpresa)) grupos.set(claveEmpresa, { nombre: empresa, proveedores: [] });
+                    grupos.get(claveEmpresa).proveedores.push(proveedor);
+                });
+
+                const empresas = [...grupos.values()];
+                contenido.innerHTML = empresas.length ? empresas.map(({ nombre: empresa, proveedores: lista }, index) => {
+                    const grupoId = `admin-prov-group-${index}`;
+                    const varios = lista.length > 1;
+                    const servicio = lista[0].servicio ? String(lista[0].servicio).toUpperCase() : 'Proveedor';
+                    const personas = lista.map(proveedor => {
+                        const contacto = proveedor.contacto || '—';
+                        const placa = proveedor.nit || '—';
+                        const telefono = proveedor.telefono || '—';
+                        const consecutivo = proveedor.consecutivoIngreso || '—';
+                        const id = escaparProveedor(proveedor.id);
+                        return `<div class="admin-provider-person">
+                            <div class="admin-provider-person-copy">
+                                <strong>${escaparProveedor(contacto)}</strong>
+                                <span><b>Placa</b> ${escaparProveedor(placa)} <b>Tel.</b> ${escaparProveedor(telefono)} <b>Cons.</b> ${escaparProveedor(consecutivo)}</span>
+                            </div>
+                            <div class="admin-provider-person-actions">
+                                <button type="button" data-provider-edit="${id}" aria-label="Editar ${escaparProveedor(contacto)}">Editar</button>
+                                <button type="button" data-provider-delete="${id}" aria-label="Eliminar ${escaparProveedor(contacto)}">Eliminar</button>
+                            </div>
+                        </div>`;
+                    }).join('');
+                    return `<div class="stats-info-row admin-provider-record ${varios ? 'admin-provider-group' : ''}">
+                        <button type="button" class="admin-provider-head" data-provider-toggle="${grupoId}" aria-expanded="${!varios}">
+                            <span class="admin-provider-mark">${escaparProveedor(empresa.slice(0, 2).toUpperCase())}</span>
+                            <span class="admin-provider-title"><strong>${escaparProveedor(empresa)}</strong><small>${varios ? `${lista.length} conductores` : escaparProveedor(servicio)}</small></span>
+                            ${varios ? `<span class="admin-provider-chevron" data-provider-chevron="${grupoId}">⌄</span>` : ''}
+                        </button>
+                        <div class="admin-provider-people" id="${grupoId}" ${varios ? 'hidden' : ''}>${personas}</div>
+                    </div>`;
+                }).join('') : '<div class="stats-info-empty">No se encontraron proveedores con esa búsqueda.</div>';
+
+                contenido.querySelectorAll('[data-provider-toggle]').forEach(toggle => {
+                    toggle.addEventListener('click', () => {
+                        const grupo = document.getElementById(toggle.dataset.providerToggle);
+                        const chevron = contenido.querySelector(`[data-provider-chevron="${toggle.dataset.providerToggle}"]`);
+                        if (!grupo) return;
+                        grupo.hidden = !grupo.hidden;
+                        toggle.setAttribute('aria-expanded', String(!grupo.hidden));
+                        if (chevron) chevron.classList.toggle('open', !grupo.hidden);
+                    });
+                });
+            }
+
+            async function abrir(card) {
+                const config = configuracion[card.dataset.adminStat];
+                if (!config) return;
+                modal.querySelector('[data-provider-editor]').hidden = true;
+                modal.querySelector('[data-content]').hidden = false;
+                modal.querySelector('[data-provider-feedback]').hidden = true;
+                modal.hidden = false;
+                modal.querySelector('.stats-info-close').focus();
+                modal.querySelector('[data-number]').textContent = document.getElementById(config.value)?.textContent || '0';
+                modal.querySelector('[data-title]').textContent = config.title;
+                modal.querySelector('[data-text]').textContent = config.text;
+                const buscador = modal.querySelector('[data-provider-search]');
+                if (card.dataset.adminStat === 'proveedores') {
+                    buscador.hidden = false;
+                    modal.querySelector('[data-provider-actions]').hidden = false;
+                    const input = modal.querySelector('[data-provider-input]');
+                    input.value = '';
+                    modal.querySelector('[data-content]').innerHTML = '<div class="stats-info-empty">Cargando proveedores...</div>';
+                    try {
+                        if (typeof SupabaseDB !== 'undefined' && SupabaseDB.cargarProveedores) {
+                            proveedoresRegistrados = await SupabaseDB.cargarProveedores() || [];
+                            actualizarConteoProveedores();
+                        }
+                        renderProveedores();
+                    } catch (error) {
+                        console.error('Error cargando proveedores del modal:', error);
+                        modal.querySelector('[data-content]').innerHTML = '<div class="stats-info-empty">No se pudo cargar la información de proveedores.</div>';
+                    }
+                } else {
+                    buscador.hidden = true;
+                    modal.querySelector('[data-provider-actions]').hidden = true;
+                    const registrosDisponibles = Array.from(document.querySelectorAll(config.selector));
+                    const registros = registrosDisponibles.slice(0, 8);
+                    modal.querySelector('[data-content]').innerHTML = registros.length
+                    ? registros.map(registro => {
+                        if (registro.matches('.prov-empresa-card')) {
+                            const empresa = registro.querySelector('.prov-empresa-nombre')?.textContent.trim() || 'Sin empresa';
+                            const resumen = registro.querySelector('.prov-empresa-sub')?.textContent.trim() || 'Proveedor';
+                            const conductores = Array.from(registro.querySelectorAll('.prov-proveedor')).map(proveedor => {
+                                const nombre = proveedor.querySelector('.prov-proveedor-nombre')?.textContent.trim() || 'Proveedor';
+                                const meta = proveedor.querySelector('.prov-proveedor-meta')?.textContent.trim() || 'Sin detalles';
+                                return `<div class="admin-provider-person"><strong>${nombre}</strong><span>${meta}</span></div>`;
+                            }).join('');
+                            return `<div class="stats-info-row admin-provider-record">
+                                <div class="admin-provider-head"><span class="admin-provider-mark">${empresa.slice(0, 2).toUpperCase()}</span><div><strong>${empresa}</strong><small>${resumen}</small></div></div>
+                                <div class="admin-provider-people">${conductores || '<div class="stats-info-empty">Sin contactos registrados</div>'}</div>
+                            </div>`;
+                        }
+
+                        const identificador = registro.querySelector('.turn-item-number, .history-item-number, strong')?.textContent.trim() || 'Registro';
+                        const nombre = registro.querySelector('.turn-item-company, .history-item-company, .provider-name')?.textContent.trim() || 'Proveedor';
+                        const detalles = Array.from(registro.querySelectorAll('.turn-item-detail, .turn-item-details span, .turn-item-details div, .history-item-detail, .provider-detail')).slice(0, 6).map(item => item.textContent.trim().replace(/\s+/g, ' '));
+                        if (!detalles.length) {
+                            const texto = registro.textContent.trim().replace(/\s+/g, ' ');
+                            detalles.push(texto.replace(identificador, '').replace(nombre, '').trim());
+                        }
+                        return `<div class="stats-info-row stats-queue-record">
+                            <div class="stats-record-head"><strong>${identificador}</strong><span>${nombre}</span></div>
+                            <div class="stats-record-grid">${detalles.map((detalle, index) => `<span><small>${index === 0 ? 'Información' : 'Detalle'}</small>${detalle || '-'}</span>`).join('')}</div>
+                        </div>`;
+                    }).join('')
+                    : '<div class="stats-info-empty">No hay información disponible en este momento.</div>';
+                }
+            }
+
+            function cerrar() {
+                modal.hidden = true;
+            }
+
+            document.querySelectorAll('.stat-card-action[data-admin-stat]').forEach(card => {
+                card.addEventListener('click', () => abrir(card));
+                card.addEventListener('keydown', event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        abrir(card);
+                    }
+                });
+            });
+            modal.querySelector('.stats-info-close').addEventListener('click', cerrar);
+            const editor = modal.querySelector('[data-provider-editor]');
+            const contenido = modal.querySelector('[data-content]');
+            const buscadorProveedores = modal.querySelector('[data-provider-search]');
+            const accionesProveedores = modal.querySelector('[data-provider-actions]');
+            const campoEditor = nombre => editor.querySelector(`[data-provider-field="${nombre}"]`);
+            const cerrarEditor = () => {
+                editor.hidden = true;
+                contenido.hidden = false;
+                buscadorProveedores.hidden = false;
+                accionesProveedores.hidden = false;
+            };
+
+            contenido.addEventListener('click', async event => {
+                const botonEditar = event.target.closest('[data-provider-edit]');
+                const botonEliminar = event.target.closest('[data-provider-delete]');
+                const id = (botonEditar || botonEliminar)?.dataset.providerEdit || botonEliminar?.dataset.providerDelete;
+                if (!id) return;
+                const proveedor = proveedoresRegistrados.find(item => String(item.id) === String(id));
+                if (!proveedor) return;
+
+                if (botonEditar) {
+                    editor.dataset.providerId = String(proveedor.id);
+                    campoEditor('nombreEmpresa').value = proveedor.nombreEmpresa || '';
+                    campoEditor('nit').value = proveedor.nit || '';
+                    campoEditor('contacto').value = proveedor.contacto || '';
+                    campoEditor('telefono').value = proveedor.telefono || '';
+                    campoEditor('servicio').value = String(proveedor.servicio || '').toLowerCase();
+                    campoEditor('consecutivoIngreso').value = proveedor.consecutivoIngreso || '';
+                    modal.querySelector('[data-provider-editor-name]').textContent = proveedor.nombreEmpresa || 'Proveedor';
+                    modal.querySelector('[data-provider-editor-status]').textContent = '';
+                    editor.hidden = false;
+                    contenido.hidden = true;
+                    buscadorProveedores.hidden = true;
+                    accionesProveedores.hidden = true;
+                    campoEditor('nombreEmpresa').focus();
+                    return;
+                }
+
+                if (!(await window.ConfirmDialog.confirmar(
+                    `¿Eliminar a ${proveedor.contacto || proveedor.nombreEmpresa} del registro activo? Su historial se conservará.`,
+                    'Eliminar proveedor',
+                    'Eliminar proveedor'
+                ))) return;
+                botonEliminar.disabled = true;
+                try {
+                    const eliminado = await SupabaseDB.eliminarProveedor(proveedor.id);
+                    if (!eliminado) throw new Error('No se pudo eliminar el proveedor.');
+                    proveedoresRegistrados = await SupabaseDB.cargarProveedores() || [];
+                    actualizarConteoProveedores();
+                    renderProveedores(modal.querySelector('[data-provider-input]').value);
+                    const feedback = modal.querySelector('[data-provider-feedback]');
+                    feedback.textContent = 'Proveedor eliminado del registro activo. El historial se conservó.';
+                    feedback.hidden = false;
+                } catch (error) {
+                    botonEliminar.disabled = false;
+                    console.error('Error eliminando proveedor desde el resumen:', error);
+                    modal.querySelector('[data-provider-feedback]').textContent = error.message || 'No se pudo eliminar el proveedor.';
+                    modal.querySelector('[data-provider-feedback]').hidden = false;
+                }
+            });
+
+            editor.addEventListener('submit', async event => {
+                event.preventDefault();
+                const id = editor.dataset.providerId;
+                const original = proveedoresRegistrados.find(item => String(item.id) === id);
+                if (!original) return;
+                const nit = campoEditor('nit').value.trim();
+                const claveNit = normalizarProveedor(nit);
+                const duplicado = proveedoresRegistrados.some(item => String(item.id) !== id && normalizarProveedor(item.nit) === claveNit);
+                const estado = modal.querySelector('[data-provider-editor-status]');
+                if (duplicado) {
+                    estado.textContent = 'Ya existe un proveedor registrado con esa placa.';
+                    return;
+                }
+
+                const botonGuardar = editor.querySelector('[type="submit"]');
+                botonGuardar.disabled = true;
+                estado.textContent = 'Guardando cambios...';
+                try {
+                    const actualizado = await SupabaseDB.guardarProveedor({
+                        ...original,
+                        nombreEmpresa: campoEditor('nombreEmpresa').value.trim(),
+                        nit,
+                        contacto: campoEditor('contacto').value.trim(),
+                        telefono: campoEditor('telefono').value.trim(),
+                        servicio: campoEditor('servicio').value,
+                        consecutivoIngreso: campoEditor('consecutivoIngreso').value.trim()
+                    });
+                    if (!actualizado) throw new Error('No se pudieron guardar los cambios.');
+                    proveedoresRegistrados = await SupabaseDB.cargarProveedores() || [];
+                    actualizarConteoProveedores();
+                    const filtro = modal.querySelector('[data-provider-input]').value;
+                    cerrarEditor();
+                    renderProveedores(filtro);
+                    modal.querySelector('[data-provider-feedback]').textContent = 'Cambios guardados.';
+                    modal.querySelector('[data-provider-feedback]').hidden = false;
+                } catch (error) {
+                    console.error('Error editando proveedor desde el resumen:', error);
+                    estado.textContent = error.message || 'No se pudieron guardar los cambios.';
+                } finally {
+                    botonGuardar.disabled = false;
+                }
+            });
+            modal.querySelector('[data-provider-editor-cancel]').addEventListener('click', cerrarEditor);
+            modal.querySelector('[data-provider-input]').addEventListener('input', event => renderProveedores(event.target.value));
+            modal.querySelector('[data-provider-expand]').addEventListener('click', () => {
+                modal.querySelectorAll('[data-provider-toggle]').forEach(toggle => {
+                    const grupo = document.getElementById(toggle.dataset.providerToggle);
+                    const chevron = modal.querySelector(`[data-provider-chevron="${toggle.dataset.providerToggle}"]`);
+                    if (grupo) grupo.hidden = false;
+                    toggle.setAttribute('aria-expanded', 'true');
+                    chevron?.classList.add('open');
+                });
+            });
+            modal.querySelector('[data-provider-collapse]').addEventListener('click', () => {
+                modal.querySelectorAll('[data-provider-toggle]').forEach(toggle => {
+                    const grupo = document.getElementById(toggle.dataset.providerToggle);
+                    const chevron = modal.querySelector(`[data-provider-chevron="${toggle.dataset.providerToggle}"]`);
+                    if (grupo && toggle.querySelector('.admin-provider-chevron')) grupo.hidden = true;
+                    if (toggle.querySelector('.admin-provider-chevron')) toggle.setAttribute('aria-expanded', 'false');
+                    chevron?.classList.remove('open');
+                });
+            });
+            modal.addEventListener('click', event => { if (event.target === modal) cerrar(); });
+            document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) cerrar(); });
+        })();
+    </script>
+</body>
+</html>

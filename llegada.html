@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmar Llegada - SI-3</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="styles.css?v=16">
+    <style>
+        .llegada-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .llegada-box {
+            background: var(--bg-primary);
+            border-radius: var(--radius-2xl);
+            padding: var(--space-8);
+            max-width: 400px;
+            width: 100%;
+            box-shadow: var(--shadow-xl);
+        }
+        .llegada-title {
+            color: var(--primary-700);
+            text-align: left;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: var(--space-2);
+        }
+        .llegada-subtitle {
+            color: var(--text-secondary);
+            text-align: left;
+            margin-bottom: var(--space-6);
+        }
+        .llegada-form {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+        .llegada-input {
+            width: 100%;
+            padding: var(--space-4);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-lg);
+            font-size: 16px;
+            text-transform: uppercase;
+            transition: border-color 0.2s;
+        }
+        .llegada-input:focus {
+            border-color: var(--primary-500);
+            outline: none;
+        }
+        .llegada-success {
+            display: none;
+            text-align: center;
+        }
+        .llegada-badge {
+            background: var(--success-500);
+            color: white;
+            padding: var(--space-4) var(--space-6);
+            font-size: 28px;
+            font-weight: 700;
+            border-radius: var(--radius-xl);
+            display: inline-block;
+            margin: var(--space-4) 0;
+        }
+        .llegada-status {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: var(--space-4);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="llegada-container">
+        <div class="llegada-box">
+            <div class="llegada-brand">
+                <img src="Logo-Web-SI3.png" alt="">
+                <div class="llegada-brand-copy">
+                    <strong>SI-3</strong>
+                    <span>Control de acceso</span>
+                </div>
+            </div>
+            <div id="formSection">
+                <h1 class="llegada-title">Confirmar Llegada</h1>
+                <p class="llegada-subtitle">Ingrese sus datos</p>
+                <form id="llegadaForm" class="llegada-form">
+                    <div class="form-group">
+                        <label style="font-weight: 600; margin-bottom: 8px; display: block;">Turno:</label>
+                        <input type="text" id="turnoInput" class="llegada-input" placeholder="T001" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="placaInput" style="font-weight: 600; margin-bottom: 8px; display: block;">Placa o cédula:</label>
+                        <input type="text" id="placaInput" class="llegada-input" placeholder="ABC123 o número de cédula" maxlength="15" required>
+                    </div>
+                    <button type="submit" class="btn btn-success" style="width: 100%;">Confirmar</button>
+                </form>
+                <div id="status" class="llegada-status"></div>
+            </div>
+            <div id="successSection" class="llegada-success">
+                <h2 style="color: var(--success-600); font-size: 22px; font-weight: 700;">✓ LLEGADA CONFIRMADA</h2>
+                <div class="llegada-badge" id="turnoDisplay">--</div>
+                <p style="color: var(--text-secondary);">Aguarde su turno</p>
+                <button type="button" id="volverFormularioBtn" class="btn btn-secondary" style="width: 100%; margin-top: 16px;">Volver al formulario</button>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script>
+        const formSection = document.getElementById('formSection');
+        const successSection = document.getElementById('successSection');
+        const volverFormularioBtn = document.getElementById('volverFormularioBtn');
+
+        volverFormularioBtn.addEventListener('click', () => {
+            successSection.style.display = 'none';
+            formSection.style.display = 'block';
+            document.getElementById('turnoInput').value = '';
+            document.getElementById('placaInput').value = '';
+            document.getElementById('status').textContent = '';
+        });
+
+        document.getElementById('llegadaForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const status = document.getElementById('status');
+            const numero = document.getElementById('turnoInput').value.trim().toUpperCase();
+            const placa = document.getElementById('placaInput').value.trim().toUpperCase();
+            
+            status.innerHTML = 'Buscando ' + numero + '...';
+            
+            if (!window.supabaseClient) {
+                status.innerHTML = 'Sin conexión';
+                return;
+            }
+            
+            const { data: turno, error: err1 } = await window.supabaseClient
+                .from('turnos')
+                .select('*')
+                .eq('numero', numero)
+                .single();
+            
+            if (err1 || !turno) {
+                status.innerHTML = 'Turno no encontrado';
+                alert('Turno no encontrado. Verifique el número.');
+                return;
+            }
+            
+            if ((turno.nit || '').trim().toUpperCase() !== placa) {
+                status.innerHTML = 'La placa o cédula no coincide con el turno';
+                alert('La placa o cédula ingresada no coincide con la registrada para este turno.');
+                return;
+            }
+            
+            const ahora = new Date();
+            const horaLlegada = ahora.toTimeString().split(' ')[0];
+            const fechaLlegada = new Date(ahora.getTime() - ahora.getTimezoneOffset() * 60000).toISOString();
+            
+            const { error: err2 } = await window.supabaseClient
+                .from('turnos')
+                .update({ 
+                    hora_llegada: horaLlegada,
+                    estado: 'llegado',
+                    fecha_llegada: fechaLlegada
+                })
+                .eq('numero', numero);
+            
+            if (err2) {
+                status.innerHTML = 'Error al confirmar: ' + err2.message;
+                return;
+            }
+            
+            document.getElementById('formSection').style.display = 'none';
+            document.getElementById('successSection').style.display = 'block';
+            document.getElementById('turnoDisplay').textContent = numero;
+            
+            setTimeout(() => {
+                window.location.href = 'user.html';
+            }, 3000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Solicite su turno en el Sistema de Turnos SI-3">
+    <meta name="keywords" content="turnos, proveedores, solicitar, cola">
+    <title>Solicitar Turno - Sistema de Turnos SI-3</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="styles.css?v=16">
+    <style>
+        .user-content {
+            padding: 30px 20px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        
+        .welcome-banner {
+            background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+            border-radius: 16px;
+            padding: 35px 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .welcome-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: shimmer 3s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translate(-30%, -30%); }
+            100% { transform: translate(30%, 30%); }
+        }
+        
+        .welcome-banner h2 {
+            font-size: 28px;
+            color: white;
+            margin-bottom: 8px;
+            font-weight: 700;
+            position: relative;
+        }
+        
+        .welcome-banner p {
+            font-size: 14px;
+            color: rgba(255,255,255,0.9);
+            position: relative;
+        }
+        
+        .user-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+        
+        .user-section {
+            background: #fff;
+            border-radius: 14px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.07);
+            border: 1px solid #e2e8f0;
+        }
+        
+        .user-section h2 {
+            font-size: 18px;
+            color: #1e293b;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 3px solid #3b82f6;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .turn-form .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .turn-form label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        
+        .turn-form input,
+        .turn-form select,
+        .turn-form textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.2s;
+            background: #f8fafc;
+            font-family: inherit;
+        }
+        
+        .turn-form input:focus,
+        .turn-form select:focus,
+        .turn-form textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        
+        .turn-form .btn-large {
+            width: 100%;
+            padding: 14px 20px;
+            font-size: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-weight: 600;
+        }
+        
+        .my-turn-number {
+            font-size: 64px;
+            font-weight: 800;
+            color: #2563eb;
+            text-align: center;
+            padding: 25px;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-radius: 14px;
+            border: 3px solid #2563eb;
+            margin: 15px 0;
+        }
+        
+        .my-turn-info {
+            background: #f8fafc;
+            padding: 18px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        
+        .my-turn-info p {
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 13px;
+            color: #475569;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .my-turn-info p:last-child {
+            border-bottom: none;
+        }
+        
+        .my-turn-info strong {
+            color: #1e293b;
+        }
+        
+        .turn-status {
+            padding: 14px 18px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+            margin: 15px 0;
+        }
+        
+        .turn-status.en-cola {
+            background: #fef3c7;
+            color: #92400e;
+            border: 2px solid #f59e0b;
+        }
+        
+        .turn-status.llamado {
+            background: #dcecff;
+            color: #173f70;
+            border: 2px solid #63a9df;
+        }
+        
+        .form-hint {
+            display: block;
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        
+        .no-turn-message {
+            text-align: center;
+            padding: 30px 20px;
+            color: #64748b;
+        }
+        
+        .no-turn-message svg {
+            width: 50px;
+            height: 50px;
+            stroke: #cbd5e1;
+            margin-bottom: 15px;
+        }
+        
+        .no-turn-message p {
+            font-size: 14px;
+        }
+        
+        .no-turn-message .hint {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+        
+        .queue-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        
+        .queue-stat {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .queue-stat .queue-label {
+            display: block;
+            font-size: 11px;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+        
+        .queue-stat .queue-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+        
+        @media (max-width: 900px) {
+            .user-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .welcome-banner { padding: 25px 20px; }
+            .welcome-banner h2 { font-size: 22px; }
+            .user-section { padding: 20px; }
+        }
+        
+        @media (max-width: 480px) {
+            .user-grid { gap: 15px; }
+            .welcome-banner { padding: 20px 15px; }
+            .welcome-banner h2 { font-size: 18px; }
+            .welcome-banner p { font-size: 14px; }
+            .user-section { padding: 15px; }
+            .form-group { margin-bottom: 15px; }
+            .form-group label { font-size: 14px; }
+            input, select, textarea { padding: 10px 12px; font-size: 14px; }
+            .btn { padding: 12px 16px; font-size: 14px; width: 100%; }
+            .turn-number-display { font-size: 60px; }
+            .turn-info { font-size: 14px; }
+            .main-nav { padding: 8px; }
+            .nav-link { padding: 12px 16px; font-size: 15px; text-align: center; width: 100%; }
+        }
+
+        /* ============================================================
+           SELECTOR DE HORAS POR SLOTS DE 15 MINUTOS
+        ============================================================ */
+        .datetime-separate {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .time-slots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .time-slot-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 9px 6px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 2px solid #e2e8f0;
+            border-radius: 9px;
+            background: #f8fafc;
+            color: #2563eb;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            font-family: inherit;
+            user-select: none;
+            min-height: 42px;
+        }
+
+        .time-slot-btn:hover:not(.time-slot-ocupado):not(:disabled) {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(59, 130, 246, 0.18);
+        }
+
+        .time-slot-btn:active:not(.time-slot-ocupado):not(:disabled) {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+
+        /* Slot libre y seleccionado */
+        .time-slot-btn.time-slot-selected {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+        }
+
+        /* Slot bloqueado — sin diferenciación por defecto (se sobreescribe en JS) */
+        .time-slot-btn.time-slot-ocupado,
+        .time-slot-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.8;
+            text-decoration: line-through;
+            text-decoration-thickness: 1.5px;
+            pointer-events: none;
+        }
+
+        /* ── HORARIO PASADO  (hoy, hora < ahora) ── */
+        .time-slot-pasado {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+            color: #94a3b8;
+        }
+
+        /* ── RESERVADO POR OTRO PROVEEDOR ── */
+        .time-slot-reservado {
+            background: #fef2f2;
+            border-color: #fca5a5;
+            color: #dc2626;
+            text-decoration-color: #dc2626;
+        }
+
+        /* ── RESERVADO POR MI MISMO (edición) ── */
+        .time-slot-mio {
+            background: #fffbeb;
+            border-color: #fcd34d;
+            color: #b45309;
+        }
+
+        .user-content .welcome-banner {
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            box-shadow: 0 22px 46px rgba(16, 45, 82, 0.2), inset 0 1px rgba(255, 255, 255, 0.16);
+        }
+
+        .user-content .welcome-banner h2 {
+            animation: user-title-enter 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+        }
+
+        .user-content .welcome-banner p {
+            line-height: 1.65;
+        }
+
+        .user-content .user-grid > .user-section {
+            border-radius: 12px;
+            transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+            animation: user-section-enter 480ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+        }
+
+        .user-content .user-grid > .request-turn { animation-delay: 60ms; }
+        .user-content .user-grid > .my-turn { animation-delay: 130ms; }
+        .user-content .user-grid > .queue-status { animation-delay: 200ms; }
+        .user-content .user-grid > .available-turns { animation-delay: 270ms; }
+        .user-content .user-grid > .instructions { animation-delay: 340ms; }
+
+        .user-content .user-grid > .user-section:hover {
+            transform: translateY(-2px);
+            border-color: #9bcaf0 !important;
+            box-shadow: 0 16px 32px rgba(23, 63, 112, 0.13), inset 0 1px rgba(255, 255, 255, 0.9) !important;
+        }
+
+        .user-content .time-slot-btn {
+            transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+        }
+
+        .user-content .time-slot-btn.time-slot-selected {
+            animation: user-slot-select 220ms ease-out;
+        }
+
+        .user-content .turn-item-user {
+            min-height: 76px;
+            padding: 12px 14px;
+            gap: 14px;
+            flex-wrap: nowrap;
+            border: 1px solid #d8e7f5;
+            border-left: 3px solid #8bbde9;
+            border-radius: 10px;
+            background: linear-gradient(120deg, #ffffff 0%, #f4f9fe 100%);
+            transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+        }
+
+        .user-content .turn-item-user:hover {
+            transform: translateX(3px);
+            border-color: #8bbde9;
+            background: #ffffff;
+            box-shadow: 0 8px 18px rgba(23, 63, 112, 0.1);
+        }
+
+        .user-content .turn-item-user .turn-item-number {
+            display: grid;
+            place-items: center;
+            min-width: 60px;
+            min-height: 40px;
+            padding: 0 8px;
+            border-radius: 8px;
+            background: #eaf4ff;
+            color: #20538f;
+            font-size: 1rem;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .user-content .turn-item-user .turn-item-info {
+            min-width: 0;
+        }
+
+        .user-content .turn-item-user .turn-item-company {
+            margin-bottom: 3px;
+            color: #193452;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .user-content .turn-item-user .turn-item-time {
+            color: #667f96;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .user-content .turn-item-user .turn-item-time {
+            display: inline-flex;
+            width: fit-content;
+            margin-top: 3px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: #eaf4ff;
+            color: #315e84;
+            font-size: 0.72rem;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .user-content .user-grid > .my-turn {
+            align-self: start;
+            height: fit-content;
+        }
+
+        .user-content .my-turn .my-turn-display {
+            min-height: 170px;
+            padding: 18px !important;
+        }
+
+        .user-content .my-turn .no-turn-message {
+            padding: 20px 12px;
+        }
+
+        .user-content .request-turn {
+            border-color: #bad3e8 !important;
+            border-top-color: #63a9df !important;
+            background: linear-gradient(155deg, #ffffff 0%, #f7fbff 100%) !important;
+            box-shadow: 0 14px 32px rgba(16, 45, 82, 0.1), inset 0 1px #ffffff !important;
+            align-self: start;
+        }
+
+        .user-content .request-turn h2 {
+            justify-content: flex-start !important;
+            text-align: left;
+            color: #173f70;
+            padding-bottom: 13px;
+            border-bottom: 1px solid #d7e6f3 !important;
+        }
+
+        .user-content .request-turn h2::before {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #d2e6f8;
+            background: linear-gradient(145deg, #e5f2ff, #f5faff);
+            color: #20538f;
+        }
+
+        .user-content .turn-form label {
+            margin-bottom: 7px;
+            color: #294c6a;
+            font-size: 0.78rem;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .user-content .turn-form input:not([type="hidden"]),
+        .user-content .turn-form select,
+        .user-content .turn-form textarea {
+            min-height: 44px;
+            border: 1px solid #bfd1e2 !important;
+            border-radius: 8px !important;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%) !important;
+            color: #193e60;
+            box-shadow: inset 0 1px 2px rgba(16, 45, 82, 0.035);
+            transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+        }
+
+        .user-content .turn-form input:not([type="hidden"]):hover:not(:focus):not(:disabled),
+        .user-content .turn-form select:hover:not(:focus):not(:disabled),
+        .user-content .turn-form textarea:hover:not(:focus):not(:disabled) {
+            border-color: #91b9dc !important;
+        }
+
+        .user-content .turn-form input:not([type="hidden"]):focus,
+        .user-content .turn-form select:focus,
+        .user-content .turn-form textarea:focus {
+            border-color: #3478c5 !important;
+            background: #ffffff !important;
+            box-shadow: 0 0 0 3px rgba(52, 120, 197, 0.14) !important;
+        }
+
+        .user-content .turn-form .form-hint,
+        .user-content .turn-form .optional-field-note {
+            color: #60788f;
+            font-size: 0.72rem;
+            line-height: 1.45;
+        }
+
+        .user-content #btnSolicitar {
+            min-height: 50px;
+            border: 1px solid #20538f !important;
+            border-radius: 8px !important;
+            background: linear-gradient(110deg, #3478c5 0%, #20538f 100%) !important;
+            box-shadow: 0 8px 18px rgba(32, 83, 143, 0.2), inset 0 1px rgba(255, 255, 255, 0.2) !important;
+            transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+        }
+
+        .user-content #btnSolicitar:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 11px 22px rgba(32, 83, 143, 0.25), inset 0 1px rgba(255, 255, 255, 0.2) !important;
+            filter: brightness(1.04);
+        }
+
+        .user-content .turn-form label {
+            color: #244867;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .user-content .turn-form input:not([type="hidden"]),
+        .user-content .turn-form select,
+        .user-content .turn-form textarea {
+            min-height: 46px;
+            border-color: #b8cde0 !important;
+            background: #ffffff !important;
+            box-shadow: 0 1px 2px rgba(16, 45, 82, 0.04);
+        }
+
+        .user-content .turn-form .form-group:has(#fechaCitaDate) {
+            padding: 14px;
+            border: 1px solid #d3e4f3;
+            border-radius: 10px;
+            background: linear-gradient(145deg, #f7fbff 0%, #eef6fd 100%);
+        }
+
+        .user-content .turn-form .form-group:has(#fechaCitaDate) > label {
+            color: #173f70;
+            font-size: 0.84rem;
+        }
+
+        .user-content .time-slots-grid {
+            gap: 7px;
+            margin-top: 10px;
+        }
+
+        .user-content .time-slot-btn {
+            min-height: 44px;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #245b8e;
+            font-weight: 700;
+        }
+
+        .user-content .time-slot-btn:hover:not(.time-slot-ocupado):not(:disabled) {
+            border-color: #63a9df;
+            background: #f4f9ff;
+            box-shadow: 0 4px 10px rgba(32, 83, 143, 0.12);
+        }
+
+        .user-content .time-slot-btn.time-slot-selected {
+            background: linear-gradient(135deg, #3478c5, #20538f);
+            border-color: #20538f;
+            color: #ffffff;
+        }
+
+        .user-content #horaHint {
+            margin-top: 10px;
+            color: #526f89;
+            font-size: 0.73rem;
+        }
+
+        @media (max-width: 480px) {
+            .user-content .turn-form .form-group:has(#fechaCitaDate) {
+                padding: 10px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .user-content #btnSolicitar {
+                transition: none;
+            }
+        }
+
+        .user-content .waiting-icon {
+            display: grid;
+            place-items: center;
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 12px;
+            border: 0;
+            border-radius: 12px;
+            background: #eaf4ff;
+            color: #3478c5;
+        }
+
+        .user-content .waiting-icon::before,
+        .user-content .waiting-icon::after {
+            content: none;
+            animation: none;
+        }
+
+        .user-content .waiting-icon svg {
+            width: 23px;
+            height: 23px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .user-content .queue-stat {
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1fr);
+            align-items: center;
+            gap: 4px 9px;
+            padding: 12px;
+            border: 1px solid #e1edf7;
+            border-radius: 9px;
+            background: #f7fbff;
+            text-align: left;
+        }
+
+        .user-content .queue-stat-icon {
+            display: grid;
+            grid-row: 1 / span 2;
+            place-items: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            background: #eaf4ff;
+            color: #3478c5;
+        }
+
+        .user-content .queue-stat-icon svg {
+            width: 17px;
+            height: 17px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .user-content .queue-stat .queue-label {
+            margin: 0;
+            font-size: 0.66rem;
+            font-weight: 700;
+            line-height: 1.25;
+        }
+
+        .user-content .queue-stat .queue-value {
+            align-self: start;
+            font-size: 1.05rem;
+            line-height: 1.15;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .user-content .request-turn { grid-row: 1 / span 4; }
+        .user-content .queue-status { align-self: start; }
+
+        @media (max-width: 820px) {
+            .user-content .request-turn { grid-row: auto; }
+            .user-content .queue-status { align-self: stretch; }
+        }
+
+        .user-content .instructions-content ol {
+            display: grid;
+            gap: 12px;
+            margin: 0 0 18px;
+            padding: 0;
+            list-style: none;
+            counter-reset: arrival-step;
+        }
+
+        .user-content .instructions-content li {
+            position: relative;
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1fr);
+            align-items: start;
+            gap: 2px 10px;
+            margin: 0;
+            color: #526b83;
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+
+        .user-content .instructions-content li::before {
+            grid-row: 1 / span 2;
+            display: grid;
+            place-items: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            background: #eaf4ff;
+            color: #20538f;
+            content: counter(arrival-step, decimal-leading-zero);
+            counter-increment: arrival-step;
+            font-size: 0.66rem;
+            font-weight: 800;
+        }
+
+        .user-content .instructions-content li strong {
+            color: #193452;
+            font-size: 0.8rem;
+            font-weight: 800;
+        }
+
+        .user-content .instructions-content li span {
+            color: #6b8095;
+            font-size: 0.74rem;
+        }
+
+        .user-content .instructions-content .important-note {
+            border-radius: 8px;
+            line-height: 1.55;
+        }
+
+        @media (max-width: 480px) {
+            .user-content .turn-item-user {
+                padding: 10px;
+                gap: 10px;
+            }
+
+            .user-content .turn-item-user .turn-item-number {
+                min-width: 52px;
+            }
+        }
+
+        @keyframes user-title-enter {
+            from { transform: translateY(8px); }
+            to { transform: translateY(0); }
+        }
+
+        @keyframes user-section-enter {
+            from { transform: translateY(12px); }
+            to { transform: translateY(0); }
+        }
+
+        @keyframes user-slot-select {
+            50% { transform: scale(1.04); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .user-content .welcome-banner h2,
+            .user-content .user-grid > .user-section,
+            .user-content .time-slot-btn.time-slot-selected {
+                animation: none;
+            }
+
+            .user-content .user-grid > .user-section,
+            .user-content .time-slot-btn {
+                transition: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo" id="logoClick">
+            <h1>Solicitar Turno</h1>
+        </header>
+        
+        <nav class="main-nav" role="navigation" aria-label="Navegación principal">
+            <a href="index.html" class="nav-link">Inicio</a>
+            <a href="user.html" class="nav-link active" aria-current="page">Solicitar Turno</a>
+        </nav>
+
+        <main class="user-content" role="main">
+            <div class="welcome-banner">
+                <h2>Solicitar Turno</h2>
+                <p>Ingrese sus datos para obtener su número de atención</p>
+            </div>
+            
+            <div class="user-grid">
+                <!-- Solicitar Turno -->
+                <section class="user-section request-turn" aria-labelledby="request-turn-title">
+                    <h2 id="request-turn-title">Solicitar Turno</h2>
+                    <form id="formSolicitarTurno" class="turn-form" novalidate>
+                        <div class="form-group">
+                            <label for="nombreEmpresa">Nombre de la Empresa: <span aria-hidden="true">*</span></label>
+                            <input 
+                                type="text" 
+                                id="nombreEmpresa" 
+                                required 
+                                placeholder="Ingrese el nombre de su empresa"
+                                autocomplete="organization"
+                                aria-required="true"
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label for="nit">Placa del vehículo o cédula: <span aria-hidden="true">*</span></label>
+                            <input 
+                                type="text"
+                                id="nit"
+                                required
+                                placeholder="Placa (ABC123) o cédula (solo números)"
+                                maxlength="15"
+                                pattern="(?:[A-Za-z0-9]{6}|[0-9]{5,15})"
+                                title="Ingrese una placa de 6 caracteres o una cédula de 5 a 15 dígitos"
+                                autocomplete="off"
+                                aria-required="true"
+                                aria-describedby="nit-hint"
+                            >
+                            <small id="nit-hint" class="form-hint">Ejemplo: ABC123 o su número de cédula</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="contacto">Persona de Contacto: <span aria-hidden="true">*</span></label>
+                            <input 
+                                type="text" 
+                                id="contacto" 
+                                required 
+                                placeholder="Nombre del contacto"
+                                autocomplete="name"
+                                aria-required="true"
+                            >
+                        </div>
+                         <div class="form-group">
+                             <label for="telefono">Teléfono: <span aria-hidden="true">*</span></label>
+                             <input 
+                                 type="tel" 
+                                 id="telefono" 
+                                 required 
+                                 placeholder="Número de teléfono"
+                                 autocomplete="tel"
+                                 aria-required="true"
+                             >
+                         </div>
+<div class="form-group">
+                              <label for="consecutivoIngreso">Consecutivo de Ingreso (FMM, opcional):</label>
+                              <input 
+                                  type="text" 
+                                  id="consecutivoIngreso" 
+                                  placeholder="Consecutivo de ingreso"
+                                  autocomplete="off"
+                              >
+                              <small class="optional-field-note">Si no dispone del FMM, puede dejar este campo vacío.</small>
+                          </div>
+                          <div class="form-group">
+                              <label for="numFacturas">Numero de Facturas:</label>
+                              <input 
+                                  type="number" 
+                                  id="numFacturas" 
+                                  placeholder="Cantidad de facturas"
+                                  min="0"
+                                  autocomplete="off"
+                              >
+                          </div>
+                        <div class="form-group materiales-sap-group">
+                            <label>Materiales a entregar (opcional):</label>
+                            <div id="materialesSapLista" class="materiales-sap-list" aria-live="polite"></div>
+                            <small class="optional-field-note">Si no dispone de los códigos SAP, puede dejar este campo vacío.</small>
+                            <button type="button" id="btnAgregarMaterialSap" class="material-sap-add">+ Agregar material</button>
+                        </div>
+                        <div class="form-group">
+                            <label for="servicio">Tipo de Servicio: <span aria-hidden="true">*</span></label>
+                            <select id="servicio" required aria-required="true">
+                                <option value="">Seleccione...</option>
+                                <option value="entrega">Entrega de Mercancía</option>
+                                <option value="servicio">Servicio Técnico</option>
+                                <option value="reunion">Reunión</option>
+                                <option value="otro">Otro</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="destino">Destino: <span aria-hidden="true">*</span></label>
+                            <select id="destino" required aria-required="true">
+                                <option value="">Seleccione...</option>
+                                <option value="ensambles">SI ENSAMBLES</option>
+                                <option value="plasticos">SI3 ZF SAS</option>
+                                <option value="ambos">AMBOS</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha y Hora de la Cita: <span aria-hidden="true">*</span></label>
+                            <div class="datetime-separate">
+                                <input
+                                    type="date"
+                                    id="fechaCitaDate"
+                                    required
+                                    aria-required="true"
+                                >
+                            </div>
+                            <div id="selectorHora" class="time-slots-grid" role="group" aria-label="Seleccione una hora">
+                                <!-- Los slots de hora se generan dinámicamente vía JS -->
+                            </div>
+                            <input type="hidden" id="fechaCitaSlot" value="">
+                            <small class="form-hint" id="horaHint">Seleccione una fecha para ver horarios disponibles (08:00 AM – 05:00 PM, intervalos de 15 min)</small>
+                        </div>
+                        <div class="form-group" id="motivoGroup" style="display: none;">
+                            <label for="motivoVisita">Motivo de la Visita: <span aria-hidden="true">*</span></label>
+                            <textarea 
+                                id="motivoVisita" 
+                                rows="3" 
+                                placeholder="Describa brevemente el motivo de su visita..."
+                                aria-required="true"
+                            ></textarea>
+                        </div>
+                        <button type="submit" id="btnSolicitar" class="btn btn-primary btn-large">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M12 5v14M5 12h14"></path>
+                            </svg>
+                            Solicitar Turno
+                        </button>
+                    </form>
+                </section>
+
+                <!-- Mi Turno Actual -->
+                <section class="user-section my-turn" aria-labelledby="my-turn-title">
+                    <h2 id="my-turn-title">Mi Turno</h2>
+                    <div id="miTurnoContainer" class="my-turn-display">
+                        <div class="no-turn-message">
+                            <div class="waiting-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="M4 5h16a1 1 0 0 1 1 1v3a3 3 0 0 0 0 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a3 3 0 0 0 0-6V6a1 1 0 0 1 1-1Z"></path><path d="M13 5v14M8 9h.01M8 15h.01"></path></svg>
+                            </div>
+                            <p>No tienes un turno activo</p>
+                            <p class="hint">Solicita un turno usando el formulario</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Modo de Espera -->
+                <section class="user-section waiting-mode" id="waitingModeSection" style="display: none;" aria-labelledby="waiting-mode-title">
+                    <h2 id="waiting-mode-title">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        Modo de Espera
+                    </h2>
+                    <div class="waiting-mode-content">
+                        <div class="waiting-turn-display">
+                            <div class="waiting-turn-number" id="waitingTurnNumber">--</div>
+                            <div class="waiting-turn-status" id="waitingTurnStatus">En espera</div>
+                        </div>
+                        <!-- Barra de progreso mejorada -->
+                        <div style="margin: 14px 0;">
+                            <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;margin-bottom:6px;">
+                                <span id="textoPosicion">Calculando posición...</span>
+                                <span id="waitingTime">--</span>
+                            </div>
+                            <div class="barra-progreso-wrap">
+                                <div id="barraProgreso" style="width:5%"></div>
+                            </div>
+                        </div>
+                        <div class="waiting-progress">
+                            <div class="progress-bar" style="display:none;">
+                                <div class="progress-fill" id="progressFill"></div>
+                            </div>
+                            <div class="progress-info">
+                                <span id="waitingPosition">Posición: --</span>
+                            </div>
+                        </div>
+                        <div class="waiting-actions">
+                            <button class="btn btn-secondary" id="btnCancelarEspera">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                                Cancelar Turno
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Estado de la Cola -->
+                <section class="user-section queue-status" aria-labelledby="queue-status-title">
+                    <h2 id="queue-status-title">Estado de la Cola</h2>
+                    <div class="queue-info">
+                        <div class="queue-stat">
+                            <span class="queue-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h16a1 1 0 0 1 1 1v3a3 3 0 0 0 0 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a3 3 0 0 0 0-6V6a1 1 0 0 1 1-1Z"></path><path d="M13 5v14"></path></svg></span>
+                            <span class="queue-label">Turno Actual:</span>
+                            <span id="turnoActualUsuario" class="queue-value" aria-live="polite">--</span>
+                        </div>
+                        <div class="queue-stat">
+                            <span class="queue-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"></circle><path d="M3 19a6 6 0 0 1 12 0M16 5.5a3 3 0 0 1 0 5.8M18 14a5 5 0 0 1 3 4.6"></path></svg></span>
+                            <span class="queue-label">Turnos en Espera:</span>
+                            <span id="turnosEnEsperaUsuario" class="queue-value" aria-live="polite">0</span>
+                        </div>
+                        <div class="queue-stat">
+                            <span class="queue-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg></span>
+                            <span class="queue-label">Tu Posición:</span>
+                            <span id="miPosicion" class="queue-value" aria-live="polite">--</span>
+                        </div>
+                        <div class="queue-stat">
+                            <span class="queue-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span>
+                            <span class="queue-label">Tiempo Estimado:</span>
+                            <span id="tiempoEstimado" class="queue-value" aria-live="polite">--</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Turnos Disponibles -->
+                <section class="user-section available-turns" aria-labelledby="available-turns-title">
+                    <h2 id="available-turns-title">Turnos en Espera</h2>
+                    <div id="listaTurnosUsuario" class="turn-list-user" aria-live="polite">
+                        <p class="empty-message">No hay turnos en espera</p>
+                    </div>
+                </section>
+
+                <!-- Instrucciones -->
+                <section class="user-section instructions" aria-labelledby="instructions-title">
+                    <h2 id="instructions-title">Instrucciones</h2>
+                    <div class="instructions-content">
+                        <ol>
+                            <li><strong>Datos de ingreso</strong><span>Empresa, placa y contacto para identificar la visita.</span></li>
+                            <li><strong>Servicio y destino</strong><span>Indica qué atención necesitas y la sede correspondiente.</span></li>
+                            <li><strong>Fecha y horario</strong><span>Los horarios libres se muestran en intervalos de 15 minutos.</span></li>
+                            <li><strong>Conserva tu turno</strong><span>Guarda el número asignado para consultar su estado.</span></li>
+                            <li><strong>Al llegar a planta</strong><span>Confirma tu asistencia escaneando el código QR.</span></li>
+                        </ol>
+                        <div class="important-note">
+                            <strong>Nota importante:</strong> Los turnos se atienden por orden de llegada. 
+                            Manténgase atento a la pantalla de turnos y a las notificaciones del sistema.
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <footer role="contentinfo">
+            <p>&copy; 2026 Sistema de Turnos SI-3 - Todos los derechos reservados</p>
+        </footer>
+    </div>
+
+    <!-- Modal de confirmación de turno -->
+    <div id="confirmacionModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+        <div class="modal-content">
+            <button class="close-modal" aria-label="Cerrar modal">&times;</button>
+            <h2 id="confirm-modal-title">Turno Solicitado</h2>
+            <div class="modal-turn-number" id="modalMiTurno">--</div>
+            <div class="modal-turn-info" id="modalTurnoInfo"></div>
+            <p class="modal-message">Por favor, espere a que su número sea llamado. Al llegar confirme su turno en el QR.</p>
+            <button class="btn btn-primary" onclick="document.getElementById('confirmacionModal').style.display='none'">
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal Acceso Admin -->
+    <div id="adminAccessModal" class="modal">
+        <div class="modal-content">
+            <button class="close-modal" onclick="sessionStorage.removeItem('accesoAdmin')">&times;</button>
+            <h2>Acceso</h2>
+            <form id="adminLoginForm">
+                <div class="form-group">
+                    <label for="accessType">Tipo de acceso:</label>
+                    <select id="accessType" class="form-control">
+                        <option value="admin">Administrador</option>
+                        <option value="despachador">Despachador</option>
+                        <option value="facturas">Facturas</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="adminPassword">Contraseña:</label>
+                    <input type="password" id="adminPassword" required>
+                </div>
+                <p id="loginError" class="error-message" style="display: none;"></p>
+                <button type="submit" class="btn btn-primary">Ingresar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="materiales_sie.js"></script>
+    <script src="materiales_sip.js"></script>
+    <script src="app.js?v=17"></script>
+    <script src="sonido.js"></script>
+    <script src="push-notifications.js"></script>
+</body>
+</html>

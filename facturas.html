@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Panel de Facturas - Sistema de Turnos SI-3">
+    <title>Panel de Facturas - Sistema de Turnos SI-3</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="styles.css?v=27">
+    <style>
+        :root {
+            --facturas-primary: #20538f;
+            --facturas-accent: #63a9df;
+            --facturas-bg: linear-gradient(135deg, #f5faff 0%, #e4f2ff 100%);
+            --facturas-card: rgba(255, 255, 255, 0.94);
+        }
+
+        .admin-grid { 
+            grid-template-columns: 1fr; 
+            gap: 24px;
+            padding: 28px;
+        }
+        .admin-section {
+            background: var(--facturas-card);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 28px;
+            box-shadow: 0 10px 30px rgba(37, 99, 235, 0.08), 0 4px 12px rgba(0,0,0,0.04);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            margin-bottom: 0;
+            transition: all 0.4s ease;
+        }
+        
+        .admin-section:hover {
+            box-shadow: 0 20px 40px rgba(37, 99, 235, 0.12), 0 8px 16px rgba(0,0,0,0.06);
+            transform: translateY(-3px);
+        }
+
+        .admin-section h2 {
+            font-size: 22px;
+            font-weight: 800;
+            background: linear-gradient(115deg, #173f70 0%, #3478c5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0 0 6px 0;
+        }
+
+        .admin-section > p {
+            color: #64748b;
+            margin: 0 0 20px 0;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .facturas-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 0.9rem;
+            overflow: hidden;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .facturas-table thead th {
+            background: linear-gradient(135deg, #eaf4ff 0%, #dceeff 100%);
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 2px solid #63a9df;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: #475569;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            white-space: nowrap;
+        }
+        
+        .facturas-table tbody tr {
+            transition: all 0.3s ease;
+        }
+
+        .facturas-table tbody tr:nth-child(even) {
+            background: rgba(248, 250, 252, 0.6);
+        }
+        
+        .facturas-table tbody tr:hover {
+            background: linear-gradient(135deg, #eaf4ff 0%, #d7eaff 100%);
+            transform: scale(1.005);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+        }
+        
+        .facturas-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #1e293b;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+
+        .facturas-table td:first-child {
+            font-weight: 700;
+            color: #20538f;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.5px;
+        }
+
+        .empty-message {
+            text-align: center;
+            padding: 32px;
+            color: #94a3b8;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .facturas-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .facturas-trash-menu { position: relative; margin-left: auto; }
+        .facturas-trash-menu > summary { list-style: none; }
+        .facturas-trash-menu > summary::-webkit-details-marker { display: none; }
+        .facturas-trash-menu .admin-menu-trigger {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 42px;
+            padding: 9px 14px;
+            border: 1px solid #cbd8e5;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #ffffff 0%, #f3f9ff 100%);
+            color: #285b8e;
+            font: inherit;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            cursor: pointer;
+            box-shadow: 0 8px 16px rgba(32, 83, 143, 0.08);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+        .facturas-trash-menu .admin-menu-trigger:hover,
+        .facturas-trash-menu .admin-menu-trigger:focus-visible {
+            transform: translateY(-1px);
+            border-color: #9bbbd7;
+            background: linear-gradient(180deg, #eef7ff 0%, #ffffff 100%);
+            box-shadow: 0 12px 18px rgba(32, 83, 143, 0.12);
+            outline: none;
+        }
+        .facturas-trash-menu .admin-menu-panel {
+            position: absolute;
+            z-index: 50;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 220px;
+            padding: 8px;
+            border: 1px solid #d9e3ed;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 16px 30px rgba(31, 56, 85, 0.18);
+            backdrop-filter: blur(4px);
+        }
+        .facturas-trash-menu .admin-menu-panel button {
+            width: 100%;
+            padding: 10px 12px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #20538f;
+            font: inherit;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.15s ease, color 0.15s ease;
+        }
+        .facturas-trash-menu .admin-menu-panel button:hover,
+        .facturas-trash-menu .admin-menu-panel button:focus-visible {
+            background: linear-gradient(180deg, #eff7ff 0%, #e7f0fa 100%);
+            color: #173f70;
+            outline: none;
+            transform: translateX(1px);
+        }
+
+        .deleted-turns-dialog {
+            position: fixed;
+            inset: 0;
+            display: none;
+            place-items: center;
+            width: 100vw;
+            max-width: none;
+            height: 100vh;
+            height: 100dvh;
+            max-height: none;
+            margin: 0;
+            padding: clamp(12px, 3vw, 24px);
+            border: 0;
+            background: transparent;
+            overflow: auto;
+        }
+        .deleted-turns-dialog[open] { display: grid; }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo">
+            <h1>Panel de Facturas</h1>
+        </header>
+        
+        <nav class="main-nav">
+            <a href="index.html" class="nav-link">Inicio</a>
+            <a href="facturas.html" class="nav-link active">Panel de Facturas</a>
+            <details class="facturas-trash-menu">
+                <summary class="admin-menu-trigger" aria-label="Abrir menú de facturas">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    <span>Menú</span>
+                </summary>
+                <div class="admin-menu-panel">
+                    <button type="button" id="btnTurnosEliminados">Turnos eliminados</button>
+                </div>
+            </details>
+        </nav>
+
+        <main>
+            <div class="admin-grid">
+        <section class="admin-section">
+            <h2>Panel de Facturas</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">Solo lectura - Visualización de facturas registradas</p>
+            <div style="overflow-x: auto;">
+                <div style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <label for="fechaFacturas" style="font-weight: 600; color: #334155;">Día:</label>
+                    <input type="date" id="fechaFacturas" title="Filtrar por día" style="padding: 10px 12px; border: 2px solid #cbd5e1; border-radius: 10px; font-size: 14px;">
+                    <label for="buscadorFacturas" style="font-weight: 600; color: #334155;">Buscar:</label>
+                    <div class="facturas-search">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
+                        <input type="search" id="buscadorFacturas" placeholder="Factura, proveedor o destino" aria-label="Buscar facturas por número, proveedor o destino">
+                    </div>
+                    <button id="btnMostrarTodas" class="btn btn-secondary" style="padding: 10px 16px; border-radius: 10px; font-size: 14px; white-space: nowrap;">Mostrar todas las facturas</button>
+                </div>
+                <table class="facturas-table">
+<thead>
+                     <tr>
+                          <th>Factura</th>
+                          <th>Proveedor</th>
+                          <th>Destino</th>
+                          <th>Bultos</th>
+                          <th>Peso</th>
+                          <th>Consecutivo de Ingreso</th>
+                          <th>Hora Inicio</th>
+                          <th>Hora Fin</th>
+                          <th>Fecha</th>
+                          <th>Turno</th>
+                     </tr>
+                </thead>
+                    <tbody id="facturasBody">
+                        <tr><td colspan="10" class="empty-message">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <dialog id="turnosEliminadosSection" class="deleted-turns-dialog" aria-labelledby="turnosEliminadosTitle">
+        <section class="deleted-turns-panel">
+            <div class="deleted-turns-header">
+                <div>
+                    <h2 id="turnosEliminadosTitle">Turnos eliminados</h2>
+                    <p>Los turnos restaurados conservan la fecha, hora y datos originales.</p>
+                </div>
+                <button type="button" class="close-modal" id="btnCerrarTurnosEliminados" aria-label="Cerrar turnos eliminados">&times;</button>
+            </div>
+            <div class="deleted-turns-list" id="listaTurnosEliminados" aria-live="polite">
+                <label class="deleted-turns-search">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
+                    <input type="search" id="buscadorTurnosEliminados" placeholder="Buscar por turno, proveedor, placa o factura..." aria-label="Buscar en turnos cancelados e historial reciente">
+                </label>
+                <section class="deleted-turns-group" aria-labelledby="turnosCanceladosTitle">
+                    <h3 id="turnosCanceladosTitle">Turnos cancelados</h3>
+                    <div class="deleted-turns-group-list" id="listaTurnosCancelados">
+                        <p class="empty-message">Abre esta sección para consultar los turnos cancelados.</p>
+                    </div>
+                </section>
+                <section class="deleted-turns-group is-history" aria-labelledby="historialRecienteTitle">
+                    <h3 id="historialRecienteTitle">Historial reciente</h3>
+                    <div class="deleted-turns-group-list" id="listaHistorialReciente">
+                        <p class="empty-message">Abre esta sección para consultar el historial reciente.</p>
+                    </div>
+                </section>
+            </div>
+        </section>
+    </dialog>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js?v=23"></script>
+    <script>
+        let todasLasFacturas = [];
+        let mostrandoTodas = false;
+        let nombresTransportadoras = new Set();
+
+        function normalizarNombreFactura(nombre) {
+            return (nombre || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase();
+        }
+
+        function obtenerProveedorFactura(factura) {
+            const proveedor = (factura.nombre_proveedor || '').trim();
+            if (proveedor) return proveedor;
+
+            const empresa = (factura.nombre_empresa || '').trim();
+            const esTransportadora = factura.es_transporte || nombresTransportadoras.has(normalizarNombreFactura(empresa));
+            return esTransportadora ? 'Proveedor no asociado' : empresa || '-';
+        }
+
+        async function cargarFacturas() {
+            const tbody = document.getElementById('facturasBody');
+            if (!tbody) return;
+            
+            if (!window.supabaseClient) {
+                tbody.innerHTML = '<tr><td colspan="10" class="empty-message">Sin conexión a Supabase</td></tr>';
+                return;
+            }
+            
+            try {
+                const consultaTransportadoras = window.supabaseClient
+                    .from('proveedores_transporte')
+                    .select('nombre_empresa');
+                let query = window.supabaseClient
+                     .from('historial_turnos')
+                     .select('num_factura, nombre_empresa, nombre_proveedor, es_transporte, destino, bultos, peso, consecutivo_ingreso, hora_llamada, hora_finalizacion, fecha, estado, fecha_cita, hora_solicitud')
+                    .order('fecha', { ascending: false });
+                
+                if (!mostrandoTodas) {
+                    query = query.limit(1000);
+                }
+                
+                const [resultadoFacturas, resultadoTransportadoras] = await Promise.all([query, consultaTransportadoras]);
+                const { data, error } = resultadoFacturas;
+                
+                if (error) throw error;
+
+                if (resultadoTransportadoras.error) {
+                    console.warn('No se pudo cargar el catálogo de transportadoras:', resultadoTransportadoras.error);
+                    nombresTransportadoras = new Set();
+                } else {
+                    nombresTransportadoras = new Set((resultadoTransportadoras.data || [])
+                        .map(transportadora => normalizarNombreFactura(transportadora.nombre_empresa))
+                        .filter(Boolean));
+                }
+                
+                todasLasFacturas = data || [];
+                aplicarFiltroFacturas();
+            } catch (error) {
+                console.error('Error al cargar facturas:', error);
+                tbody.innerHTML = '<tr><td colspan="10" class="empty-message">Error al cargar</td></tr>';
+            }
+        }
+
+        function aplicarFiltroFacturas() {
+            const tbody = document.getElementById('facturasBody');
+            if (!tbody) return;
+
+            const buscador = document.getElementById('buscadorFacturas');
+            const query = (buscador?.value || '').trim().toLowerCase();
+            const fechaInput = document.getElementById('fechaFacturas');
+            const fechaFiltro = (fechaInput && fechaInput.value) ? fechaInput.value : '';
+
+            const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+
+            const filtradas = todasLasFacturas.filter(f => {
+                const fechaFactura = (f.fecha || '').split('T')[0];
+
+                if (mostrandoTodas && !query) return true;
+
+                if (query) {
+                    const factura = (f.num_factura || '').toLowerCase();
+                    const proveedor = obtenerProveedorFactura(f).toLowerCase();
+                    const destino = (destinoLabel[f.destino] || f.destino || '').toLowerCase();
+                    const consecutivo = (f.consecutivo_ingreso || '').toLowerCase();
+                    return factura.includes(query) || proveedor.includes(query) || destino.includes(query) || consecutivo.includes(query);
+                }
+
+                return !fechaFiltro || fechaFactura === fechaFiltro;
+            });
+
+            if (filtradas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="empty-message">No hay facturas registradas</td></tr>';
+            } else {
+                tbody.innerHTML = filtradas.map(f => `
+                    <tr>
+                        <td>${f.num_factura || '-'}</td>
+                        <td>${obtenerProveedorFactura(f)}</td>
+                        <td>${destinoLabel[f.destino] || f.destino || '-'}</td>
+                        <td>${f.bultos || '-'}</td>
+                        <td>${f.peso ? window.formatearPesoHistorial(f.peso) : '-'}</td>
+                        <td>${f.consecutivo_ingreso || '-'}</td>
+                        <td>${typeof Utils !== 'undefined' ? Utils.formatearHora(f.hora_llamada) : (f.hora_llamada || '-')}</td>
+                        <td>${typeof Utils !== 'undefined' ? Utils.formatearHora(f.hora_finalizacion) : (f.hora_finalizacion || '-')}</td>
+                        <td>${f.fecha ? f.fecha.split('T')[0] : '-'}</td>
+                        <td>${f.estado === 'llegado' || !f.fecha_cita || (f.hora_solicitud && f.hora_llamada && f.hora_solicitud === f.hora_llamada) ? '<span style="color: #dc2626; font-weight: 600;">Sin turno</span>' : '<span style="color: #20538f; font-weight: 600;">Con turno</span>'}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const buscador = document.getElementById('buscadorFacturas');
+            if (buscador) {
+                buscador.addEventListener('input', aplicarFiltroFacturas);
+            }
+            const fechaInput = document.getElementById('fechaFacturas');
+            if (fechaInput) {
+                fechaInput.value = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                fechaInput.addEventListener('change', aplicarFiltroFacturas);
+            }
+
+            const btnMostrarTodas = document.getElementById('btnMostrarTodas');
+            if (btnMostrarTodas) {
+                btnMostrarTodas.addEventListener('click', () => {
+                    mostrandoTodas = !mostrandoTodas;
+                    btnMostrarTodas.textContent = mostrandoTodas ? 'Mostrar solo del día' : 'Mostrar todas las facturas';
+                    if (mostrandoTodas) {
+                        cargarFacturas();
+                    } else {
+                        aplicarFiltroFacturas();
+                    }
+                });
+            }
+
+            cargarFacturas();
+        });
+
+        (function() {
+            const claveOk = sessionStorage.getItem('accesoAdmin') === 'ok';
+            if (!claveOk) {
+                window.location.href = 'index.html';
+            }
+        })();
+    </script>
+</body>
+</html>

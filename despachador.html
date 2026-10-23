@@ -1,0 +1,3086 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Despachador - Sistema de Turnos SI-3</title>
+    <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
+    <link rel="manifest" href="manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="styles.css?v=20">
+    <style>
+        .admin-grid { 
+            grid-template-columns: 320px 1fr; 
+            grid-template-rows: auto auto auto auto 1fr auto auto; 
+            gap: 20px;
+            padding: 20px;
+        }
+        .control-panel { grid-column: 1; grid-row: 1 / 3; }
+        .statistics { grid-column: 2; grid-row: 1; }
+        .despacho-actual { grid-column: 2; grid-row: 2; }
+        .pending-exit { grid-column: 1 / 3; grid-row: 3; }
+        .cited-list { grid-column: 1 / 3; grid-row: 4 / 6; }
+        .turnos-confirmados { grid-column: 1 / 3; grid-row: 6; }
+        .despachador-historial { grid-column: 1 / 3; grid-row: 7; }
+        
+        .turnos-confirmados .turn-item { border-left: 4px solid #63a9df; }
+        .turnos-confirmados .turn-item-number { background: #3478c5; }
+        .turnos-confirmados .turn-item-time { color: #20538f; }
+        .pending-exit .turn-item { border-left: 4px solid #20538f; background: #eef6ff; }
+        .pending-exit .turn-item:hover { border-color: #173f70; }
+        
+        .admin-section {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        
+        .admin-section:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.06);
+            transform: translateY(-2px);
+        }
+        
+        .current-turn-display { 
+            background: linear-gradient(135deg, #20538f 0%, #3478c5 100%); 
+            border-radius: 16px; 
+            padding: 36px 28px; 
+            text-align: center; 
+            border: 2px solid #63a9df; 
+            margin-bottom: 24px;
+            box-shadow: 0 8px 24px rgba(52, 120, 197, 0.25);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .current-turn-display::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: rotate 15s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .current-turn-display h3 { 
+            font-size: 13px; 
+            color: rgba(255,255,255,0.9); 
+            margin-bottom: 16px; 
+            text-transform: uppercase; 
+            letter-spacing: 2px;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+        .turno-listo .turn-number-large { 
+            font-size: 72px; 
+            font-weight: 800; 
+            color: white; 
+            text-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            position: relative;
+            z-index: 1;
+        }
+        .turno-listo .turn-empresa { 
+            font-size: 16px; 
+            color: rgba(255,255,255,0.95); 
+            margin-top: 12px; 
+            line-height: 1.5;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+        .turno-listo .turn-badge { 
+            display: inline-block; 
+            background: rgba(255,255,255,0.2); 
+            backdrop-filter: blur(10px);
+            color: white; 
+            padding: 10px 24px; 
+            border-radius: 20px; 
+            font-size: 12px; 
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.3);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+        .stat-card { 
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); 
+            padding: 24px 18px; 
+            border-radius: 14px; 
+            text-align: center; 
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #2563eb, #60a5fa);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+        }
+        
+        .stat-card .stat-number { 
+            font-size: 36px; 
+            font-weight: 800; 
+            color: #2563eb;
+            text-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+        }
+        .stat-card .stat-label { 
+            font-size: 13px; 
+            color: #64748b; 
+            margin-top: 10px; 
+            text-transform: uppercase; 
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        
+        .pending-exit-list { 
+            max-height: 280px; 
+            overflow-y: auto; 
+            padding-right: 10px;
+        }
+        
+        .pending-exit-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .pending-exit-list::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        
+        .pending-exit-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        
+        .pending-exit-list::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        .pending-exit-item { 
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); 
+            border: 2px solid #f59e0b; 
+            border-radius: 14px; 
+            padding: 20px; 
+            margin-bottom: 16px; 
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+        }
+        .pending-exit-item:hover { 
+            box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
+            transform: translateY(-2px);
+        }
+        .pending-exit-header { 
+            display: flex; 
+            align-items: center; 
+            gap: 14px; 
+            margin-bottom: 14px; 
+        }
+        .pending-exit-number { 
+            font-size: 28px; 
+            font-weight: 800; 
+            color: #d97706; 
+            text-shadow: 0 2px 4px rgba(217, 119, 6, 0.2);
+        }
+        .pending-exit-company { 
+            flex: 1; 
+            font-weight: 700; 
+            font-size: 15px; 
+            color: #1e293b;
+        }
+        .pending-exit-status { 
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); 
+            color: white; 
+            padding: 6px 16px; 
+            border-radius: 20px; 
+            font-size: 11px; 
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .pending-exit-details { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 12px; 
+            font-size: 13px; 
+            color: #475569; 
+            margin-bottom: 14px; 
+        }
+        .pending-exit-item .btn-authorize { 
+            padding: 14px; 
+            border-radius: 10px; 
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .pending-exit-item .btn-authorize:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+        }
+
+        .despacho-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 14px;
+        }
+        .despacho-actions .btn {
+            min-width: 0;
+            min-height: 42px;
+            padding: 9px 12px;
+            border-radius: 8px;
+            font-size: 0.76rem;
+            font-weight: 800;
+            box-shadow: 0 4px 10px rgba(31, 56, 85, 0.12);
+        }
+        .despacho-actions .btn-success {
+            background: linear-gradient(135deg, #35a87b, #19744f);
+            box-shadow: 0 4px 9px rgba(25, 116, 79, 0.2);
+        }
+        .despacho-actions .btn-warning {
+            background: linear-gradient(135deg, #e7a53b, #c87516);
+            box-shadow: 0 4px 9px rgba(151, 91, 20, 0.18);
+        }
+        .despacho-actions .btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            filter: brightness(1.04);
+        }
+
+        .pending-exit-list .pending-exit-item {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 180px;
+            grid-template-areas: "header actions" "details actions";
+            align-items: stretch;
+            gap: 8px 14px;
+            padding: 14px;
+        }
+        .pending-exit-list .pending-exit-header {
+            grid-area: header;
+            min-width: 0;
+            margin: 0;
+        }
+        .pending-exit-list .pending-exit-details {
+            grid-area: details;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 7px;
+            margin: 0;
+        }
+        .pending-exit-list .pending-exit-actions {
+            grid-area: actions;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: stretch;
+            gap: 8px;
+            min-width: 0;
+            margin: 0;
+            padding: 8px;
+            border: 1px solid rgba(245, 158, 11, 0.32);
+            border-radius: 9px;
+            background: rgba(255, 251, 235, 0.82);
+        }
+        .pending-exit-list .pending-exit-actions .btn {
+            flex: 1 1 0;
+            width: 100%;
+            min-height: 38px;
+            padding: 7px 10px;
+            border-radius: 7px;
+            font-size: 0.76rem;
+            font-weight: 800;
+        }
+        .pending-exit-list .pending-exit-actions .btn-success {
+            background: linear-gradient(135deg, #35a87b, #19744f);
+            box-shadow: 0 4px 9px rgba(25, 116, 79, 0.2);
+        }
+        .pending-exit-list .pending-exit-actions .btn-warning {
+            background: linear-gradient(135deg, #e7a53b, #c87516);
+            box-shadow: 0 4px 9px rgba(151, 91, 20, 0.18);
+        }
+        
+        .despacho-detail { 
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); 
+            padding: 20px; 
+            border-radius: 12px; 
+            font-size: 13px; 
+            line-height: 1.8;
+            border: 1px solid #e2e8f0;
+        }
+        .despacho-detail p { 
+            margin: 6px 0; 
+            color: #475569; 
+            padding: 4px 0;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        .despacho-detail p:last-child {
+            border-bottom: none;
+        }
+        
+        .turn-list { 
+            max-height: 220px; 
+            overflow-y: auto; 
+            padding-right: 10px;
+        }
+        
+        .turn-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .turn-list::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        
+        .turn-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        
+        .turn-list::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        .turn-item { 
+            display: flex; 
+            align-items: center; 
+            gap: 14px; 
+            padding: 16px; 
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); 
+            border-radius: 12px; 
+            margin-bottom: 12px; 
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .turn-item:hover { 
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); 
+            border-color: #2563eb; 
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+        }
+        .turn-item-number { 
+            font-size: 24px; 
+            font-weight: 800; 
+            color: #2563eb; 
+            min-width: 60px;
+            text-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+        }
+        .turn-item-info { 
+            flex: 1; 
+            min-width: 0; 
+        }
+        .turn-item-company { 
+            font-weight: 700; 
+            font-size: 14px; 
+            color: #1e293b; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap;
+        }
+        .turn-item-time { 
+            font-size: 12px; 
+            color: #64748b; 
+            margin-top: 6px; 
+            white-space: normal; 
+            overflow: visible; 
+            text-overflow: clip;
+            font-weight: 500;
+        }
+        .turn-item-details { 
+            display: flex; 
+            gap: 10px; 
+            font-size: 12px; 
+            color: #64748b; 
+            margin-top: 6px; 
+            flex-wrap: wrap; 
+        }
+        
+        .turn-item-detail {
+            font-size: 11px;
+            color: #475569;
+            margin-top: 2px;
+        }
+        
+        .admin-section h2 { 
+            font-size: 18px; 
+            color: #1e293b; 
+            border-bottom: 3px solid #2563eb; 
+            padding-bottom: 14px; 
+            margin-bottom: 20px; 
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            position: relative;
+        }
+        
+        .admin-section h2::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            left: 0;
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(90deg, #2563eb, transparent);
+        }
+        
+        .history-list { 
+            max-height: 300px; 
+            overflow-y: auto;
+        }
+        
+        .history-table-desp { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 12px;
+        }
+        .history-table-desp th { 
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            padding: 12px; 
+            text-align: left; 
+            border-bottom: 3px solid #2563eb; 
+            font-size: 11px; 
+            text-transform: uppercase; 
+            color: #475569;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .history-table-desp td { 
+            padding: 10px; 
+            border-bottom: 1px solid #e2e8f0;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+        .history-table-desp tr {
+            transition: all 0.3s ease;
+        }
+        .history-table-desp tr:hover { 
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            transform: scale(1.01);
+        }
+        
+        .estado-ok { 
+            color: #20538f; 
+            font-weight: 700; 
+        }
+        .estado-pend { 
+            color: #d97706; 
+            font-weight: 700; 
+        }
+        
+        .modal-proveedor-content {
+            max-width: 500px;
+            border: 3px solid #63a9df;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .modal-proveedor-header {
+            background: linear-gradient(135deg, #3478c5 0%, #20538f 100%);
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+            margin: -24px -24px 20px -24px;
+        }
+        
+        .modal-proveedor-header h2 {
+            color: white;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .modal-proveedor-header p {
+            color: #dcecff;
+            margin: 5px 0 0 0;
+            font-size: 14px;
+        }
+        
+        .modal-proveedor-body {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-proveedor-numero {
+            font-size: 72px;
+            font-weight: 700;
+            color: #20538f;
+            line-height: 1;
+            text-shadow: 0 4px 12px rgba(52, 120, 197, 0.3);
+        }
+        
+        .modal-proveedor-nombre {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-top: 5px;
+        }
+        
+        .modal-proveedor-detalles {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .modal-proveedor-detalles table {
+            width: 100%;
+            font-size: 13px;
+            color: #475569;
+            border-collapse: collapse;
+        }
+        
+        .modal-proveedor-detalles td {
+            padding: 6px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .modal-proveedor-detalles td:last-child {
+            text-align: right;
+            font-weight: 600;
+        }
+        
+        .modal-proveedor-detalles tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .modal-proveedor-detalles-table {
+            width: 100%;
+            font-size: 13px;
+            color: #475569;
+            border-collapse: collapse;
+        }
+        
+        .modal-proveedor-detalles-table td {
+            padding: 6px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .modal-proveedor-detalles-table td:last-child {
+            text-align: right;
+            font-weight: 600;
+        }
+        
+        .modal-proveedor-detalles-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .error-message {
+            color: #dc2626;
+        }
+        
+        @media (max-width: 1000px) {
+            .admin-grid { grid-template-columns: 1fr; }
+            .control-panel { grid-column: 1; grid-row: auto; }
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 1100px) {
+            .cited-list .pending-exit-list { grid-template-columns: 1fr !important; }
+        }
+        
+        @media (max-width: 768px) {
+            .admin-grid { grid-template-columns: 1fr; gap: 15px; padding: 15px; }
+            .control-panel, .statistics, .despacho-actual, .pending-exit, .cited-list, .turnos-confirmados, .despachador-historial { grid-column: 1; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .admin-section { padding: 20px; }
+            .turn-number-large { font-size: 48px; }
+            .turn-item { flex-direction: column; align-items: flex-start; }
+            .pending-exit-details { grid-template-columns: 1fr; }
+            .pending-exit-list .pending-exit-item {
+                grid-template-columns: minmax(0, 1fr);
+                grid-template-areas: "header" "details" "actions";
+                gap: 10px;
+            }
+            .pending-exit-list .pending-exit-details {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .pending-exit-list .pending-exit-actions {
+                flex-direction: row;
+                padding: 0;
+                border: 0;
+                background: transparent;
+            }
+            .pending-exit-list .pending-exit-actions .btn {
+                min-height: 34px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .admin-grid { padding: 10px; gap: 10px; }
+            .admin-section { padding: 16px; }
+            .current-turn-display { padding: 24px 18px; }
+            .stats-grid { grid-template-columns: 1fr; gap: 10px; }
+            .stat-card { padding: 18px 14px; }
+            .stat-card .stat-number { font-size: 28px; }
+            .pending-exit-header { flex-direction: column; align-items: flex-start; }
+            .pending-exit-list .pending-exit-details { grid-template-columns: 1fr; }
+            .pending-exit-details { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="Logo-Web-SI3.png" alt="Logo SI-3" class="logo">
+            <div class="admin-header-content">
+                <h1>Panel Despachador</h1>
+                <section class="reception-greeting dispatch-greeting" aria-label="Saludo del equipo de despacho">
+                    <div class="reception-greeting-icon" aria-hidden="true">
+                        <svg data-dispatch-icon="morning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 18h18M5 18a7 7 0 0 1 14 0M12 2v3m-7 1 2 2m12-2-2 2M2 12h3m14 0h3"></path>
+                        </svg>
+                        <svg data-dispatch-icon="afternoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden>
+                            <circle cx="12" cy="12" r="4"></circle>
+                            <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+                        </svg>
+                        <svg data-dispatch-icon="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden>
+                            <path d="M20.9 13.1A8.5 8.5 0 0 1 10.9 3.1 8.5 8.5 0 1 0 20.9 13.1Z"></path>
+                            <path d="m17 3 .6 1.4L19 5l-1.4.6L17 7l-.6-1.4L15 5l1.4-.6L17 3Z"></path>
+                        </svg>
+                    </div>
+                    <div class="reception-greeting-copy">
+                        <span class="reception-greeting-eyebrow">Equipo de despacho · SI-3</span>
+                        <h2><span id="despachoSaludoTexto">¡Muy buenos días,</span> <strong>Paula</strong>!</h2>
+                        <p id="despachoSaludoDetalle">Que tu jornada empiece con buena energía.</p>
+                    </div>
+                    <div class="reception-greeting-info">
+                        <time class="reception-greeting-clock" id="despachoLiveClock" aria-label="Hora actual">--:--:--</time>
+                    </div>
+                </section>
+            </div>
+        </header>
+        
+        <nav class="main-nav">
+            <a href="index.html" class="nav-link">Inicio</a>
+            <a href="despachador.html" class="nav-link active">Panel Despachador</a>
+        </nav>
+
+        <main>
+            <div class="admin-grid despacho-dashboard">
+                <!-- Proveedor Listo para Salir -->
+                <section class="admin-section control-panel">
+                    <h2>Proveedor listo para salir</h2>
+                    <div class="current-turn-display">
+                        <div id="turnoListoSalir" class="turno-listo">
+                            <div class="esperando-mensaje">Esperando que completen un turno...</div>
+                        </div>
+                    </div>
+                    <div class="despacho-actions" role="group" aria-label="Acciones del despacho">
+                        <button id="btnAutorizarSalida" class="btn btn-success" type="button" disabled aria-describedby="turnoListoSalir">Autorizar Salida</button>
+                        <button id="btnSolicitarInspeccion" class="btn btn-warning" type="button" disabled aria-describedby="turnoListoSalir">Solicitar Inspección</button>
+                    </div>
+                </section>
+
+                <!-- Estadisticas del Dia -->
+                <section class="admin-section statistics">
+                    <h2>Estadísticas del Día</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card stat-card-action" data-stat="autorizados" tabindex="0" role="button" aria-label="Ver salidas autorizadas">
+                            <div class="stat-number" id="totalAutorizados">0</div>
+                            <div class="stat-label">Salidas OK</div>
+                        </div>
+                        <div class="stat-card stat-card-action" data-stat="pendientes" tabindex="0" role="button" aria-label="Ver turnos pendientes">
+                            <div class="stat-number" id="totalPendientes">0</div>
+                            <div class="stat-label">Pendientes</div>
+                        </div>
+                        <div class="stat-card stat-card-action" data-stat="reservadas" tabindex="0" role="button" aria-label="Ver citas reservadas">
+                            <div class="stat-number" id="totalReservadas">0</div>
+                            <div class="stat-label">Reservadas</div>
+                        </div>
+                    </div>
+                    <div id="statsDetailDespachador" class="stats-detail" aria-live="polite">
+                        <span class="stats-detail-icon">i</span>
+                        <span>Seleccione una estadística para ver su información.</span>
+                    </div>
+                </section>
+
+                <!-- Seguimiento de salida -->
+                <section class="admin-section despacho-actual">
+                    <h2>Seguimiento de Salida</h2>
+                    <div id="infoDespachoActual" class="despacho-detail dispatch-followup" aria-live="polite">
+                        <p class="dispatch-followup-empty">Sin proveedor esperando salida</p>
+                    </div>
+                </section>
+
+                <!-- Citas Reservadas -->
+                <section class="admin-section pending-exit cited-list">
+                    <h2>Citas Reservadas (<span id="contadorTurnosCitadosDespachador">0</span>)</h2>
+                    <div class="toolbar-spaced">
+                        <button id="btnActualizarCitas" class="btn btn-secondary btn-small">Actualizar</button>
+                    </div>
+                    <div id="listaTurnosCitadosDespachador" class="turn-list">
+                        <p class="empty-message">Sin citas</p>
+                    </div>
+                </section>
+
+                <!-- Turnos Pendientes de Salida -->
+                <section class="admin-section cited-list">
+                    <h2>Turnos del Día</h2>
+                    <div class="despachador-filters">
+                        <input type="text" id="busquedaTurnos" class="filter-input" placeholder="Buscar por placa o empresa...">
+                        <select id="filtroEstado" class="filter-select">
+                            <option value="todos">Todos</option>
+                            <option value="pendiente">Pendientes</option>
+                            <option value="autorizado">Autorizados</option>
+                        </select>
+                        <button id="btnActualizarPendientes" class="btn btn-secondary btn-small">Actualizar</button>
+                    </div>
+                    <div id="listaTurnosPendientesSalida" class="pending-exit-list">
+                        <p class="empty-message">Cargando...</p>
+                    </div>
+                </section>
+
+                <!-- Historial de Turnos -->
+                <section class="admin-section despachador-historial">
+                    <h2>Historial Reciente</h2>
+                    <div class="historial-despachador-toolbar">
+                        <input type="date" id="fechaHistorialDesp" title="Filtrar por día" aria-label="Filtrar historial por día">
+                        <input type="search" id="busquedaHistorialDesp" placeholder="Buscar empresa, proveedor, placa o factura..." aria-label="Buscar en el historial">
+                        <button type="button" id="btnExportarHistorialDesp" class="btn btn-secondary btn-small">↓ CSV Día</button>
+                    </div>
+                    <div id="historialDespachador" class="history-list historial-scroll">
+                        <p class="empty-message">Cargando...</p>
+                    </div>
+                    <p id="historialDespachadorSinResultados" class="empty-message" hidden>No se encontraron registros con esa búsqueda.</p>
+                </section>
+            </div>
+        </main>
+
+        <footer>
+            <p>2026 Sistema de Turnos SI-3 - Panel Despachador</p>
+        </footer>
+    </div>
+
+    <div id="statsInfoModal" class="stats-info-modal" role="dialog" aria-modal="true" aria-labelledby="statsInfoTitle" hidden>
+        <div class="stats-info-card">
+            <button type="button" class="stats-info-close" id="statsInfoClose" aria-label="Cerrar información">&times;</button>
+            <span class="stats-info-eyebrow">RESUMEN OPERATIVO</span>
+            <div class="stats-info-number" id="statsInfoNumber">0</div>
+            <h2 id="statsInfoTitle">Información</h2>
+            <p id="statsInfoText">Detalle de la estadística seleccionada.</p>
+            <div id="statsInfoContent" class="stats-info-list"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="materiales_sie.js"></script>
+    <script src="materiales_sip.js"></script>
+    <script src="app.js?v=21"></script>
+    <script src="sonido.js?v=2"></script>
+    <script src="push-notifications.js"></script>
+    <script>
+        function esperarClienteSupabase(callback, intentosMax = 100) {
+            let intentos = 0;
+            const intervalo = setInterval(() => {
+                intentos++;
+                const clienteListo = window.supabaseClient && typeof window.supabaseClient.from === 'function';
+                if (clienteListo) {
+                    clearInterval(intervalo);
+                    console.log('✅ Supabase cliente listo en intento', intentos);
+                    callback();
+                } else if (intentos >= intentosMax) {
+                    clearInterval(intervalo);
+                    console.warn('⚠️ Supabase no disponible después de ' + intentosMax + ' intentos, ejecutando callback de todas formas');
+                    callback();
+                }
+            }, 100);
+        }
+
+        let turnosDelDia = [];
+
+        function cargarHistorialDespachador() {
+            return window._cargarHistorialDespachador
+                ? window._cargarHistorialDespachador()
+                : Promise.resolve();
+        }
+
+        function fechaDespSeleccionada() {
+            const inp = document.getElementById('fechaHistorialDesp');
+            const val = (inp && inp.value) ? inp.value : '';
+            if (val) return val;
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        }
+
+        function filtrarHistorialDespachador() {
+            const consulta = (document.getElementById('busquedaHistorialDesp')?.value || '')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+            const lista = document.getElementById('historialDespachador');
+            const filas = Array.from(lista?.querySelectorAll('tbody tr') || []);
+            let visibles = 0;
+            filas.forEach(fila => {
+                const texto = (fila.textContent || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                const coincide = !consulta || texto.includes(consulta);
+                fila.hidden = !coincide;
+                if (coincide) visibles++;
+            });
+            const vacio = document.getElementById('historialDespachadorSinResultados');
+            if (vacio) vacio.hidden = !filas.length || visibles > 0;
+        }
+
+        function exportarHistorialDespachador() {
+            const tabla = document.querySelector('#historialDespachador table');
+            const filas = Array.from(tabla?.querySelectorAll('tr') || [])
+                .filter(fila => fila.querySelector('th') || !fila.hidden);
+            if (!tabla || filas.length <= 1) {
+                if (typeof Utils !== 'undefined') Utils.mostrarNotificacion('No hay registros visibles para exportar', 'warning');
+                return;
+            }
+            const csv = filas.map(fila => Array.from(fila.querySelectorAll('th, td'))
+                .map(celda => `"${(celda.innerText || celda.textContent || '').trim().replace(/"/g, '""')}"`)
+                .join(',')).join('\r\n');
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement('a');
+            enlace.href = url;
+            enlace.download = `historial_despachador_${fechaDespSeleccionada()}.csv`;
+            enlace.click();
+            URL.revokeObjectURL(url);
+            if (typeof Utils !== 'undefined') Utils.mostrarNotificacion(`${filas.length - 1} registros exportados`, 'success');
+        }
+
+        async function cargarTurnosPendientesSalida() {
+            const listaDiv = document.getElementById('listaTurnosPendientesSalida');
+            if (!listaDiv) return;
+            
+            if (!window.supabaseClient) {
+                listaDiv.innerHTML = '<p class="empty-message">Sin conexion</p>';
+                return;
+            }
+            
+            try {
+                const today = fechaDespSeleccionada();
+                
+                const [historialRes, proveedoresRes, turnosConfirmadosRes] = await Promise.all([
+                    window.supabaseClient
+                        .from('historial_turnos')
+                        .select('*')
+                        .gte('fecha', `${today}T00:00:00`)
+                        .lte('fecha', `${today}T23:59:59`)
+                        .order('hora_finalizacion', { ascending: false }),
+                    
+                            window.supabaseClient
+                                .from('proveedores_transporte')
+                                .select('*'),
+
+                            window.supabaseClient
+                                .from('turnos')
+                                .select('*')
+                                .not('fecha_llegada', 'is', null)
+                                .gte('fecha_llegada', `${today}T00:00:00`)
+                                .lte('fecha_llegada', `${today}T23:59:59`)
+                                .in('estado', ['llegado', 'atendiendo'])
+                                .order('fecha_llegada', { ascending: false })
+                        ]);
+
+                        if (historialRes.error) throw historialRes.error;
+                        if (proveedoresRes.error) throw proveedoresRes.error;
+                        if (turnosConfirmadosRes.error) throw turnosConfirmadosRes.error;
+                
+                const historial = historialRes.data || [];
+                const proveedoresTransporte = proveedoresRes.data || [];
+                        const numerosEnHistorial = new Set(historial.map(h => String(h.numero)));
+                        const turnosConfirmados = (turnosConfirmadosRes.data || [])
+                            .filter(turno => !numerosEnHistorial.has(String(turno.numero)))
+                            .map(turno => ({
+                                ...turno,
+                                fecha: turno.fecha_llegada || turno.fecha_solicitud,
+                                esProveedorTransporte: turno.es_transporte === true || (turno.servicio || '').toLowerCase() === 'transporte',
+                                turnoActivo: true,
+                                autorizado_salida: turno.autorizado_salida ?? false
+                            }));
+
+                        const historialDelDia = historial.map(h => {
+                    if (h.proveedor_transporte_id) {
+                        const pt = proveedoresTransporte.find(p => String(p.id) === String(h.proveedor_transporte_id));
+                        if (pt) {
+                            return {
+                                ...h,
+                                esProveedorTransporte: true,
+                                proveedorTransporte: pt,
+                                nit: pt.nit,
+                                nombre_proveedor: pt.nombre_proveedor,
+                                num_factura: pt.num_factura,
+                                tipo_vehiculo: pt.tipo_vehiculo,
+                                bultos: pt.bultos,
+                                peso: pt.peso,
+                                responsable: pt.responsable,
+                                nombre_empresa: pt.nombre_empresa || h.nombre_empresa,
+                                motivo: pt.motivo || h.motivo,
+                                destino: pt.destino || h.destino,
+                                contacto: pt.contacto || h.contacto,
+                                telefono: pt.telefono || h.telefono,
+                                servicio: pt.servicio || h.servicio,
+                                consecutivo_ingreso: pt.consecutivo_ingreso || h.consecutivo_ingreso
+                            };
+                        }
+                    }
+                    return {
+                        ...h,
+                        esProveedorTransporte: (h.servicio || '').toLowerCase() === 'transporte'
+                    };
+                });
+
+                turnosDelDia = [...turnosConfirmados, ...historialDelDia];
+                const panelDetalles = document.getElementById('infoDespachoActual');
+                if (turnosConfirmados.length && panelDetalles?.querySelector('.dispatch-followup-empty, .dispatch-followup-status.is-empty')) {
+                    window.mostrarDetallesTurnoConfirmado(turnosConfirmados[0]);
+                }
+                
+                filtrarYMostrarTurnos();
+                const proveedorListo = completarDatosTransportadora(
+                    normalizarDatosNotificacion(localStorage.getItem('proveedorListoSalir'))
+                );
+                if (proveedorListo?.esTransporte) {
+                    localStorage.setItem('proveedorListoSalir', JSON.stringify(proveedorListo));
+                    window.mostrarProveedorListo?.(proveedorListo);
+                }
+                const materialesSapProveedor = obtenerMaterialesSapDespachador(proveedorListo);
+                if (materialesSapProveedor.length) {
+                    if (!proveedorListo?.esTransporte) window.mostrarProveedorListo?.(proveedorListo);
+                    const listaModal = document.querySelector('#modal-proveedor-listo .modal-proveedor-detalles-table .dispatch-sap-list');
+                    renderizarMaterialesSapDespachador(listaModal, materialesSapProveedor);
+                }
+            } catch (e) {
+                console.error('Error:', e);
+                listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
+            }
+        }
+
+        window.actualizarTurnosDiaDespachador = cargarTurnosPendientesSalida;
+
+        window.mostrarDetallesTurnoConfirmado = function(turno) {
+            const panel = document.getElementById('infoDespachoActual');
+            if (!panel || !turno) return;
+            panel.dataset.turnoConfirmadoId = String(turno.turnoId || turno.id || turno.numero || '');
+            renderizarSeguimientoSalida(turno, false);
+        };
+
+        window.notificarTurnoConfirmadoDespachador = function(datos, mensaje = '') {
+            const numero = String(datos?.numero || '').trim();
+            if (!numero) return;
+            const evento = { eventType: 'CONFIRMED', new: { id: numero } };
+            if (window.SI3Realtime && !window.SI3Realtime.reclamarEvento('despachador-confirmacion', evento)) return;
+            Utils.mostrarNotificacion(mensaje || `Llegada confirmada: turno ${numero}`, 'success');
+            window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_llamado' } }));
+        };
+
+        function normalizarDatosNotificacion(datos) {
+            if (!datos) return null;
+            if (typeof datos === 'string') {
+                try { return JSON.parse(datos); } catch (error) { return null; }
+            }
+            return datos;
+        }
+
+        function combinarMaterialesSapDespachador(grupos) {
+            const vistos = new Set();
+            return grupos.flatMap(grupo => Array.isArray(grupo) ? grupo : []).filter(material => {
+                const codigo = typeof material === 'string'
+                    ? material
+                    : material?.codigoSap || material?.codigo_sap || material?.codigo || JSON.stringify(material);
+                const clave = String(codigo || '').trim();
+                if (!clave || vistos.has(clave)) return false;
+                vistos.add(clave);
+                return true;
+            });
+        }
+
+        function completarDatosTransportadora(proveedor) {
+            if (!(proveedor?.esTransporte || proveedor?.es_transporte) || !Array.isArray(proveedor.proveedores)) return proveedor;
+            proveedor.esTransporte = true;
+            const filasTransporte = turnosDelDia.filter(registro => registro.proveedor_transporte_id);
+            const filaPrincipal = filasTransporte.find(registro =>
+                proveedor.proveedores.some(item => String(item.id) === String(registro.proveedor_transporte_id))
+            );
+            if (!filaPrincipal) return proveedor;
+            const idsProveedores = new Set(proveedor.proveedores.map(item => String(item.id)));
+            const filasRelacionadas = filasTransporte.filter(registro => idsProveedores.has(String(registro.proveedor_transporte_id)));
+
+            const actualizarValor = (destino, campo, valor) => {
+                if (valor !== undefined && valor !== null && valor !== '' && (!Array.isArray(valor) || valor.length)) {
+                    destino[campo] = valor;
+                }
+            };
+            [
+                ['nombreEmpresa', 'nombre_empresa'],
+                ['nit', 'nit'],
+                ['motivo', 'motivo'],
+                ['contacto', 'contacto'],
+                ['telefono', 'telefono'],
+                ['servicio', 'servicio'],
+                ['destino', 'destino'],
+                ['horaSolicitud', 'hora_solicitud'],
+                ['horaLlamada', 'hora_llamada'],
+                ['horaFinalizacion', 'hora_finalizacion']
+            ].forEach(([campo, origen]) => actualizarValor(proveedor, campo, filaPrincipal[campo] ?? filaPrincipal[origen]));
+            actualizarValor(proveedor, 'materialesSap', combinarMaterialesSapDespachador([
+                proveedor.materialesSap,
+                proveedor.materiales_sap,
+                ...filasRelacionadas.map(fila => fila.materialesSap || fila.materiales_sap)
+            ]));
+
+            const camposProveedor = [
+                ['nombreProveedor', 'nombre_proveedor'],
+                ['nombreEmpresa', 'nombre_empresa'],
+                ['nit', 'nit'],
+                ['motivo', 'motivo'],
+                ['contacto', 'contacto'],
+                ['telefono', 'telefono'],
+                ['servicio', 'servicio'],
+                ['numFactura', 'num_factura'],
+                ['consecutivoIngreso', 'consecutivo_ingreso'],
+                ['tipoVehiculo', 'tipo_vehiculo'],
+                ['bultos', 'bultos'],
+                ['peso', 'peso'],
+                ['responsable', 'responsable'],
+                ['destino', 'destino'],
+                ['horaSolicitud', 'hora_solicitud'],
+                ['horaLlamada', 'hora_llamada'],
+                ['horaFinalizacion', 'hora_finalizacion'],
+                ['estado', 'estado'],
+                ['autorizadoSalida', 'autorizado_salida'],
+                ['inspeccionFisica', 'inspeccion_fisica'],
+                ['materialesSap', 'materiales_sap']
+            ];
+            proveedor.proveedores.forEach(item => {
+                const fila = filasTransporte.find(registro => String(registro.proveedor_transporte_id) === String(item.id));
+                if (!fila) return;
+                camposProveedor.forEach(([campo, origen]) => {
+                    actualizarValor(item, campo, fila[campo] ?? fila[origen]);
+                });
+            });
+            return proveedor;
+        }
+
+        function obtenerMaterialesSapDespachador(turno) {
+            if (!turno) return [];
+            const numero = String(turno.numero || '').trim();
+            const esTransporte = turno.esTransporte === true || turno.es_transporte === true || Array.isArray(turno.proveedores);
+            const idsProveedores = new Set((turno.proveedores || []).map(item => String(item.id)));
+            const registros = numero
+                ? turnosDelDia.filter(registro => esTransporte
+                    ? registro.proveedor_transporte_id && idsProveedores.has(String(registro.proveedor_transporte_id))
+                    : String(registro.numero) === numero)
+                : [];
+            return combinarMaterialesSapDespachador([
+                turno.materialesSap,
+                turno.materiales_sap,
+                ...(turno.proveedores || []).flatMap(item => [item.materialesSap, item.materiales_sap]),
+                ...registros.flatMap(registro => [registro.materialesSap, registro.materiales_sap])
+            ]);
+        }
+
+        function formatearHoraSeguimiento(valor) {
+            if (!valor) return '';
+            const texto = String(valor);
+            const hora = texto.match(/(?:T|\s)?(\d{1,2}):(\d{2})/);
+            if (hora) return `${hora[1].padStart(2, '0')}:${hora[2]}`;
+            const fecha = new Date(valor);
+            return Number.isNaN(fecha.getTime())
+                ? ''
+                : fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+
+        function obtenerVisualVehiculoSeguimiento(tipoVehiculo) {
+            const tipo = String(tipoVehiculo || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+            if (tipo.includes('OTRO')) return { clave: 'otro', etiqueta: 'OTRO' };
+            if (tipo.includes('CONTEN')) return { clave: 'contenedor', etiqueta: 'Camión contenedor' };
+            if (tipo.includes('MOTO')) return { clave: 'moto', etiqueta: 'Motocicleta' };
+            if (tipo.includes('CARPADO')) return { clave: 'carpado', etiqueta: 'Camión carpado' };
+            if (tipo.includes('MULA')) return { clave: 'mula', etiqueta: 'Tractomula' };
+            if (tipo.includes('FURGON')) return { clave: 'furgon', etiqueta: 'Furgón' };
+            if (tipo.includes('PARTICULAR')) return { clave: 'particular', etiqueta: 'Vehículo particular' };
+            return { clave: 'sencillo', etiqueta: tipo && tipo !== 'SENCILLO' ? 'Vehículo de carga' : 'SENCILLO' };
+        }
+
+        function ilustracionVehiculoSeguimiento(tipo) {
+            return window.iconoTipoVehiculoSvg(tipo);
+        }
+
+        function formatearPesoDespachador(peso) {
+            const valor = String(peso ?? '').trim();
+            if (!valor || /^n\/?a$/i.test(valor)) return 'N/A';
+            return window.formatearPesoHistorial
+                ? window.formatearPesoHistorial(valor)
+                : `${valor} kg`;
+        }
+
+        function renderizarSeguimientoSalida(turno, listoParaSalida = false) {
+            const panel = document.getElementById('infoDespachoActual');
+            if (!panel) return;
+
+            panel.classList.remove('has-transport-providers');
+            const materialesSap = obtenerMaterialesSapDespachador(turno);
+            const autorizado = Boolean(turno?.autorizadoSalida || turno?.autorizado_salida);
+            const despachado = Boolean(turno?.despachado || turno?.horaSalida || turno?.hora_salida || turno?.fecha_despacho);
+            const horaRegistro = formatearHoraSeguimiento(turno?.horaSolicitud || turno?.hora_solicitud || turno?.fecha_solicitud || turno?.created_at);
+            const horaIngreso = formatearHoraSeguimiento(turno?.horaLlegada || turno?.hora_llegada || turno?.horaLlamada || turno?.hora_llamada);
+            const horaMaterial = formatearHoraSeguimiento(turno?.horaFinalizacion || turno?.hora_finalizacion);
+            const horaAutorizacion = formatearHoraSeguimiento(turno?.horaAutorizacion || turno?.hora_autorizacion);
+            const horaDespacho = formatearHoraSeguimiento(turno?.horaSalida || turno?.hora_salida || turno?.fecha_despacho);
+            const turnoCompletado = Boolean(turno?.horaFinalizacion || turno?.hora_finalizacion || listoParaSalida);
+            const indiceActual = !turno ? -1 : despachado ? 5 : autorizado ? 3 : turnoCompletado ? 2 : materialesSap.length ? 1 : 0;
+            const etapaVisual = Math.min(4, Math.max(0, indiceActual));
+            const turnoIdSeguimiento = turno
+                ? String(turno.turnoId || turno.id || turno.numero || turno.nit || 'actual')
+                : '';
+            const turnoIdAnterior = panel.dataset.seguimientoTurnoId || '';
+            const etapaAnterior = Number(panel.dataset.seguimientoEtapa);
+            const nuevoTurno = Boolean(turno && turnoIdSeguimiento !== turnoIdAnterior);
+            if (nuevoTurno) delete panel.dataset.seguimientoSalidaAnimadaId;
+            const avanceEtapa = Boolean(
+                turno && !nuevoTurno && Number.isInteger(etapaAnterior) && etapaVisual > etapaAnterior
+            );
+            const posicionEtapa = 4 + etapaVisual * 23;
+            const posicionAnterior = Number.isInteger(etapaAnterior) ? 4 + etapaAnterior * 23 : posicionEtapa;
+            const animarSalida = Boolean(
+                turno && (autorizado || despachado) && panel.dataset.seguimientoSalidaAnimadaId !== turnoIdSeguimiento
+            );
+            if (animarSalida && turnoIdSeguimiento) {
+                panel.dataset.seguimientoSalidaAnimadaId = turnoIdSeguimiento;
+            }
+            const salidaAnimada = Boolean(
+                turno && (autorizado || despachado) && !animarSalida
+            );
+            if (turno) {
+                panel.dataset.seguimientoTurnoId = turnoIdSeguimiento;
+                panel.dataset.seguimientoEtapa = String(etapaVisual);
+            } else {
+                delete panel.dataset.seguimientoTurnoId;
+                delete panel.dataset.seguimientoEtapa;
+                delete panel.dataset.seguimientoSalidaAnimadaId;
+            }
+            const avanceVisual = etapaVisual * 23;
+            const avanceAnterior = Number.isInteger(etapaAnterior) ? etapaAnterior * 23 : avanceVisual;
+            const tipoVisual = obtenerVisualVehiculoSeguimiento(turno?.tipoVehiculo || turno?.tipo_vehiculo);
+            const nombreTurno = String(turno?.nombreEmpresa || turno?.nombre_empresa || turno?.nombre || '').trim();
+            const numeroTurno = String(turno?.numero || '').trim();
+            const placaTurno = String(turno?.nit || '').trim();
+            const destinoTurno = { ensambles: 'SIE / Ensambles', plasticos: 'SI3 ZF / Plásticos', ambos: 'Ambos' }[turno?.destino] || turno?.destino;
+            const datosTransportadora = [
+                ['Empresa', nombreTurno],
+                ['NIT / Placa', placaTurno],
+                ['Motivo', turno?.motivo],
+                ['Contacto', turno?.contacto],
+                ['Teléfono', turno?.telefono],
+                ['Servicio', turno?.servicio],
+                ['Destino', destinoTurno],
+                ['Hora de solicitud', formatearHoraSeguimiento(turno?.horaSolicitud || turno?.hora_solicitud)]
+            ].filter(([, valor]) => valor);
+            const resumenTurnoHtml = turno ? `
+                <div class="dispatch-followup-turn">
+                    ${numeroTurno ? `<strong>Turno ${escaparHtmlDespachador(numeroTurno)}</strong>` : ''}
+                    ${nombreTurno ? `<span>${escaparHtmlDespachador(nombreTurno)}</span>` : ''}
+                    ${placaTurno ? `<span>Placa: ${escaparHtmlDespachador(placaTurno)}</span>` : ''}
+                </div>
+            ` : '';
+            const datosTransportadoraHtml = (turno?.esTransporte || turno?.es_transporte)
+                ? `<section class="dispatch-transport-company"><h3 class="dispatch-followup-section-title">Datos de la transportadora</h3><dl>${datosTransportadora.map(([etiqueta, valor]) => `<div><dt>${etiqueta}</dt><dd>${escaparHtmlDespachador(valor)}</dd></div>`).join('')}</dl></section>`
+                : '';
+            const etapas = [
+                'Registro creado',
+                'Material preparado',
+                'Esperando autorización',
+                'Salida autorizada',
+                'Vehículo despachado'
+            ];
+            const tiempos = [horaRegistro, horaMaterial, listoParaSalida && !autorizado ? 'Ahora' : '', horaAutorizacion, horaDespacho];
+            const estado = !turno
+                ? 'Sin proveedor esperando'
+                : despachado
+                    ? 'Vehículo despachado'
+                    : autorizado
+                        ? 'Salida autorizada'
+                        : turnoCompletado
+                            ? 'Esperando autorización'
+                            : 'En preparación';
+
+            const actividades = [];
+            const agregarActividad = (hora, texto) => actividades.push({ hora: hora || '—', texto });
+            if (horaRegistro) agregarActividad(horaRegistro, 'Registro creado');
+            if (horaIngreso) agregarActividad(horaIngreso, 'Proveedor ingresó al área de despacho');
+            if (turno?.documentacionRevisada || turno?.documentacion_revisada) {
+                agregarActividad(formatearHoraSeguimiento(turno.horaDocumentacion || turno.hora_documentacion), 'Documentación revisada');
+            } else if (turno?.numFactura || turno?.num_factura || turno?.consecutivoIngreso || turno?.consecutivo_ingreso) {
+                agregarActividad('', 'Documentación registrada');
+            }
+            if (turnoCompletado) {
+                agregarActividad(horaMaterial || 'Ahora', listoParaSalida ? 'Material SAP verificado' : 'Turno completado');
+            } else if (materialesSap.length) {
+                agregarActividad('', `${materialesSap.length} materiales SAP registrados`);
+            }
+            if (turno?.inspeccionSolicitada) {
+                agregarActividad(formatearHoraSeguimiento(turno.horaInspeccion), 'Inspección solicitada');
+            }
+            if (autorizado) agregarActividad(horaAutorizacion, 'Salida autorizada');
+            if (despachado) agregarActividad(horaDespacho, 'Vehículo despachado');
+            if (listoParaSalida && !autorizado && !despachado) agregarActividad('Ahora', 'Pendiente de autorización');
+
+            const etapasHtml = etapas.map((nombre, indice) => {
+                const completada = despachado || indice < indiceActual;
+                const actual = !despachado && indice === indiceActual;
+                const recientementeCompletada = avanceEtapa && indice >= etapaAnterior && completada;
+                const clase = `${completada ? 'is-done' : actual ? 'is-current' : 'is-pending'}${recientementeCompletada ? ' is-recently-done' : ''}`;
+                const marca = completada ? '✓' : actual ? '●' : '○';
+                const tiempo = tiempos[indice];
+                return `
+                    <li class="dispatch-timeline-step ${clase}" ${actual ? 'aria-current="step"' : ''}>
+                        <span class="dispatch-timeline-marker" aria-hidden="true">${marca}</span>
+                        <span class="dispatch-timeline-copy">${nombre}</span>
+                        <span class="dispatch-timeline-time">${tiempo ? escaparHtmlDespachador(tiempo) : ''}</span>
+                    </li>
+                `;
+            }).join('');
+            const actividadesHtml = actividades.slice(-4).reverse().map(actividad => `
+                <li class="dispatch-activity-item">
+                    <time class="dispatch-activity-time">${escaparHtmlDespachador(actividad.hora)}</time>
+                    <span>${escaparHtmlDespachador(actividad.texto)}</span>
+                </li>
+            `).join('');
+            const materialesButton = materialesSap.length
+                ? window.botonMostrarMaterialesSapHtml(materialesSap, 'Ver materiales', false)
+                : '<span class="sap-code-empty">Sin materiales</span>';
+            const hitosVehiculoHtml = etapas.map((nombre, indice) => {
+                const completada = despachado || indice < indiceActual;
+                const actual = !despachado && indice === indiceActual;
+                return `<span class="dispatch-vehicle-stop ${completada ? 'is-done' : actual ? 'is-current' : ''}" style="left:${4 + indice * 23}%" aria-label="${nombre}"></span>`;
+            }).join('');
+            const vehiculoHtml = turno
+                ? `
+                    <div class="dispatch-vehicle-journey" data-vehicle-type="${tipoVisual.clave}">
+                        <div class="dispatch-vehicle-journey-head">
+                            <span>Vehículo</span>
+                            <strong>${tipoVisual.etiqueta}</strong>
+                        </div>
+                        <div class="dispatch-vehicle-track" aria-label="Vehículo en etapa ${etapaVisual + 1} de 5">
+                            <div class="dispatch-vehicle-track-inner">
+                                <span class="dispatch-vehicle-route-base"></span>
+                                <span class="dispatch-vehicle-route-progress ${avanceEtapa ? 'is-advancing' : ''}" style="--dispatch-route-from:${avanceAnterior}%; --dispatch-route-to:${avanceVisual}%; width:${avanceVisual}%"></span>
+                                ${hitosVehiculoHtml}
+                                <span class="dispatch-vehicle-marker ${animarSalida ? 'is-departing' : salidaAnimada ? 'is-departed' : avanceEtapa ? 'is-advancing' : ''}" style="--dispatch-marker-from:${posicionAnterior}%; --dispatch-marker-to:${posicionEtapa}%; left:${posicionEtapa}%">${ilustracionVehiculoSeguimiento(tipoVisual.clave)}</span>
+                            </div>
+                        </div>
+                        <div class="dispatch-vehicle-stage-caption">Etapa ${etapaVisual + 1} de 5 · ${etapas[etapaVisual]}</div>
+                    </div>
+                `
+                : '';
+
+            panel.innerHTML = `
+                <div class="dispatch-followup-progress ${nuevoTurno ? 'is-entering' : ''}">
+                    <h3 class="dispatch-followup-section-title">Progreso del despacho</h3>
+                    ${resumenTurnoHtml}
+                    ${datosTransportadoraHtml}
+                    <div class="dispatch-followup-status ${autorizado || despachado ? 'is-complete' : !turno ? 'is-empty' : ''}">${estado}</div>
+                    ${vehiculoHtml}
+                    <ol class="dispatch-timeline">${etapasHtml}</ol>
+                </div>
+                <section class="dispatch-activity-panel">
+                    <h3 class="dispatch-followup-section-title">Actividad reciente</h3>
+                    ${actividadesHtml
+                        ? `<ol class="dispatch-activity-list">${actividadesHtml}</ol>`
+                        : '<p class="dispatch-activity-empty">Sin actividad registrada.</p>'}
+                </section>
+                <section class="dispatch-followup-materials">
+                    <div class="dispatch-followup-materials-copy">
+                        <strong>Materiales SAP</strong>
+                        <span>${materialesSap.length} registrados</span>
+                    </div>
+                    ${materialesButton}
+                </section>
+                <section class="dispatch-transport-providers" hidden></section>
+            `;
+        }
+
+        window.renderizarSeguimientoSalida = renderizarSeguimientoSalida;
+
+        function tarjetaMaterialSapHtmlDespachador(material, claseAdicional = '') {
+            const codigo = typeof material === 'string'
+                ? material
+                : material?.codigoSap || material?.codigo_sap || '';
+            const descripcion = window.CatalogoMaterialesSIE?.get(String(codigo))
+                || window.CatalogoMaterialesSIP?.get(String(codigo));
+            const clases = `dispatch-sap-item${claseAdicional ? ` ${claseAdicional}` : ''}`;
+            return `<span class="${clases}"><strong>${escaparHtmlDespachador(codigo || 'Código no disponible')}</strong><span>${escaparHtmlDespachador(descripcion || 'Descripción no disponible')}</span></span>`;
+        }
+
+        function materialesSapCitaHtml(materiales) {
+            const lista = Array.isArray(materiales) ? materiales : [];
+            if (!lista.length) return '';
+            return `<div class="admin-sap-materials"><strong>Materiales SAP</strong>${window.botonMostrarMaterialesSapHtml(lista)}</div>`;
+        }
+
+        function renderizarMaterialesSapDespachador(lista, materiales) {
+            if (!lista) return;
+            lista.replaceChildren();
+            if (!materiales.length) {
+                const vacio = document.createElement('span');
+                vacio.className = 'sap-code-empty';
+                vacio.textContent = 'Sin materiales';
+                lista.appendChild(vacio);
+                return;
+            }
+            lista.innerHTML = materiales.map(material => tarjetaMaterialSapHtmlDespachador(material)).join('');
+        }
+
+        function escaparHtmlDespachador(valor) {
+            return String(valor).replace(/[&<>"']/g, caracter => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[caracter]));
+        }
+
+        function filtrarYMostrarTurnos() {
+            const listaDiv = document.getElementById('listaTurnosPendientesSalida');
+            const busqueda = document.getElementById('busquedaTurnos')?.value?.toLowerCase() || '';
+            const filtroEstado = document.getElementById('filtroEstado')?.value || 'todos';
+            
+            let filtrados = turnosDelDia.filter(h => {
+                const coincideBusqueda = !busqueda || 
+                    (h.nit && h.nit.toLowerCase().includes(busqueda)) ||
+                    (h.nombre_empresa && h.nombre_empresa.toLowerCase().includes(busqueda)) ||
+                    (h.numero && h.numero.toLowerCase().includes(busqueda)) ||
+                    (h.nombre_proveedor && h.nombre_proveedor.toLowerCase().includes(busqueda));
+                
+                let coincideEstado = true;
+                if (filtroEstado === 'pendiente') coincideEstado = h.autorizado_salida !== true;
+                else if (filtroEstado === 'autorizado') coincideEstado = h.autorizado_salida === true;
+                
+                return coincideBusqueda && coincideEstado;
+            });
+
+            listaDiv.classList.toggle('has-one-item', filtrados.length === 1);
+            listaDiv.classList.toggle('has-multiple-items', filtrados.length > 1);
+            
+            if (filtrados.length === 0) {
+                listaDiv.innerHTML = '<p class="empty-message">No hay turnos que coincidan</p>';
+            } else {
+                listaDiv.innerHTML = filtrados.map(h => {
+                        const nit = h.nit || '-';
+                        const proveedor = h.nombre_proveedor || h.nombre_empresa || '-';
+                        const factura = typeof window.formatearFacturasHistorial === 'function'
+                            ? window.formatearFacturasHistorial(h)
+                            : escaparHtmlDespachador(h.num_factura || '-');
+                        const fmm = h.consecutivo_ingreso || '-';
+                        const destino = h.destino === 'ensambles' ? 'SIE' : h.destino === 'plasticos' ? 'SI3 ZF' : h.destino || '-';
+                        const peso = h.peso ? formatearPesoDespachador(h.peso) : '-';
+                        const bultos = h.bultos || '-';
+                        const vehiculo = h.tipo_vehiculo || '-';
+                        const responsable = h.responsable || '-';
+                        const materialesSap = Array.isArray(h.materiales_sap || h.materialesSap)
+                            ? (h.materiales_sap || h.materialesSap)
+                            : [];
+                        const horaInicio = Utils.formatearHora(h.hora_llamada);
+                        const horaFin = Utils.formatearHora(h.hora_finalizacion);
+                        
+                        return `
+                    <div class="pending-exit-item ${h.autorizado_salida === true ? 'autorizado' : ''}" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-consecutivo="${h.consecutivo_ingreso || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos || ''}" data-peso="${h.peso || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}" data-proveedortransporteid="${h.esProveedorTransporte ? h.proveedorTransporte?.id || '' : ''}" data-estransporte="${h.esProveedorTransporte ? 'true' : 'false'}" data-nombreproveedor="${h.nombre_proveedor || ''}" data-inspeccion="${h.inspeccion_fisica ? 'true' : 'false'}" data-turnoactivo="${h.turnoActivo ? 'true' : 'false'}" data-estado="${h.autorizado_salida ? 'autorizado' : 'pendiente'}">
+                        <div class="pending-exit-header">
+                            <span class="pending-exit-number">${h.numero}</span>
+                            <span class="pending-exit-company">${h.nombre_empresa}${h.esProveedorTransporte ? ' (' + (h.nombre_proveedor || 'Proveedor') + ')' : ''}</span>
+                            <span class="pending-exit-status">${h.turnoActivo ? 'LLEGADA CONFIRMADA' : (h.autorizado_salida === true ? 'AUTORIZADO' : (h.inspeccion_fisica ? 'INSPEC. OK' : 'PENDIENTE'))}${h.esProveedorTransporte ? ' (Transporte)' : ''}</span>
+                        </div>
+                        <div class="pending-exit-details">
+                            <span><strong>Placa:</strong> ${nit}</span>
+                            <span><strong>Proveedor:</strong> ${proveedor}</span>
+                            <div class="pending-exit-invoices"><strong>Fact:</strong>${factura}</div>
+                            <span><strong>FMM:</strong> ${fmm}</span>
+                            <span><strong>Destino:</strong> ${destino}</span>
+                            <span><strong>Peso:</strong> ${peso}</span>
+                            <span><strong>Bultos:</strong> ${bultos}</span>
+                            <span><strong>Vehículo:</strong> ${vehiculo}</span>
+                            <span><strong>Responsable:</strong> ${responsable}</span>
+                            ${materialesSap.length ? `<div class="pending-exit-materials"><strong>Materiales SAP</strong>${window.botonMostrarMaterialesSapHtml(materialesSap)}</div>` : ''}
+                            <span><strong>Hora inicio:</strong> ${horaInicio}</span>
+                            <span><strong>Hora fin:</strong> ${horaFin}</span>
+                        </div>
+                         <div class="pending-exit-actions">
+                            ${h.turnoActivo ? '<span class="autorizado-badge">En recepción</span>' : (h.autorizado_salida !== true ? '<button class="btn btn-success btn-authorize btn-large" onclick="autorizarSalidaDesdeLista(this)">Autorizar Salida</button>' : '<span class="autorizado-badge" style="margin-right: 8px;">✓ Autorizado</span>')}
+                            ${!h.turnoActivo ? (h.inspeccion_fisica ? '<span class="autorizado-badge" style="margin-left: 8px;">Inspección: SI</span>' : (h.autorizado_salida !== true ? '<button class="btn btn-warning btn-authorize btn-large" onclick="solicitarInspeccionDesdeLista(this)">Solicitar Inspección</button>' : '<span class="autorizado-badge" style="margin-left: 8px;">Inspección: NO</span>')) : ''}
+                        </div>
+                    </div>
+                        `;
+            }).join('');
+        }
+        }
+
+        document.getElementById('busquedaTurnos')?.addEventListener('input', filtrarYMostrarTurnos);
+        document.getElementById('filtroEstado')?.addEventListener('change', filtrarYMostrarTurnos);
+
+        async function cargarEstadisticasDespachador() {
+            const totalDiaEl = document.getElementById('totalTurnosDia');
+            const totalAutorizadosEl = document.getElementById('totalAutorizados');
+            const totalPendientesEl = document.getElementById('totalPendientes');
+            
+            if (!window.supabaseClient) return;
+            
+            try {
+                const hoy = fechaDespSeleccionada();
+                const { data, error } = await window.supabaseClient
+                    .from('historial_turnos')
+                    .select('autorizado_salida, es_transporte, proveedor_transporte_id')
+                    .gte('fecha', `${hoy}T00:00:00`)
+                    .lte('fecha', `${hoy}T23:59:59`);
+                
+                if (error) throw error;
+                
+                const registrosValidos = data || [];
+                const total = registrosValidos.length;
+                const autorizados = registrosValidos.filter(h => h.autorizado_salida === true).length;
+                const pendientes = total - autorizados;
+                
+                if (totalDiaEl) totalDiaEl.textContent = total;
+                if (totalAutorizadosEl) totalAutorizadosEl.textContent = autorizados;
+                if (totalPendientesEl) totalPendientesEl.textContent = pendientes;
+            } catch (e) {
+                console.error('Error:', e);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('🔄 Iniciando despachador...');
+            
+            const fechaDespHoy = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+            const fechaDespInput = document.getElementById('fechaHistorialDesp');
+            if (fechaDespInput) fechaDespInput.value = fechaDespHoy;
+            
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'proveedorListoSalir' && e.newValue) {
+                    console.log('📥 Cambio detectado en localStorage desde otra pestaña');
+                    try {
+                        const proveedor = JSON.parse(e.newValue);
+                        console.log('📋 Proveedor recibido:', proveedor);
+                        window.mostrarProveedorListo?.(proveedor);
+                    } catch (err) {
+                        console.error('❌ Error al parsear:', err);
+                    }
+                } else if (e.key === 'proveedorListoSalir' && !e.newValue) {
+                    window.limpiarProveedorListo?.();
+                }
+            });
+            
+            esperarClienteSupabase(() => {
+                console.log('✅ Supabase listo, iniciando carga del despachador...');
+                // Timeout de seguridad: si no carga en 12s, mostrar error
+                const timeoutId = setTimeout(() => {
+                    const elementos = document.querySelectorAll('.empty-message');
+                    elementos.forEach(el => {
+                        if (el.textContent === 'Cargando...') {
+                            el.textContent = 'Error: Timeout de carga';
+                            el.style.color = '#dc2626';
+                        }
+                    });
+                    console.error('❌ Timeout: Las consultas a Supabase no respondieron en 12s');
+                }, 12000);
+                
+                cargarTodoDespachador().then(() => clearTimeout(timeoutId)).catch(() => clearTimeout(timeoutId));
+                cargarHistorialDespachador().catch(e => console.error('Error cargando historial:', e));
+                suscribirRealtime();
+
+                if (!window._despachadorRefreshInterval) {
+                    window._despachadorRefreshInterval = setInterval(() => {
+                        cargarTodoDespachador().catch(e => console.error('Error actualizando despachador:', e));
+                        cargarHistorialDespachador().catch(e => console.error('Error actualizando historial:', e));
+                    }, 15000);
+                }
+            });
+            
+            async function cargarTodoDespachador() {
+                console.log('📦 Cargando datos para despachador...');
+                const ahora = new Date();
+                const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth()+1).padStart(2,'0')}-${String(ahora.getDate()).padStart(2,'0')}`;
+                console.log('📅 Fecha de hoy:', hoy);
+                
+                const contenedores = {
+                    listaTurnosPendientesSalida: 'Cargando...',
+                    historialDespachador: 'Cargando...',
+                    listaTurnosCitadosDespachador: 'Cargando...',
+                    listaSalidasPendientesDesp: 'Cargando...'
+                };
+                
+                Object.entries(contenedores).forEach(([id, msg]) => {
+                    const el = document.getElementById(id);
+                    if (el && !el.textContent.includes('Sin conexión') && !el.textContent.includes('Error')) {
+                        el.innerHTML = `<p class="empty-message">${msg}</p>`;
+                    }
+                });
+                
+                if (!window.supabaseClient) {
+                    Object.values(contenedores).forEach((_, i) => {
+                        const ids = Object.keys(contenedores);
+                        const el = document.getElementById(ids[i]);
+                        if (el)                             el.innerHTML = '<p class="empty-message error-message">⚠️ Sin conexión a Supabase</p>';
+                    });
+                    return;
+                }
+                
+                try {
+                    console.log('🔄 Ejecutando consultas a Supabase...');
+                    
+                    const [resultadoPendientes, resultadoStats, resultadoCitas] = await Promise.all([
+                        consultarPendientesSalida(fechaDespSeleccionada()),
+                        consultarEstadisticas(fechaDespSeleccionada()),
+                        consultarCitas()
+                    ]);
+                    
+                    console.log('✅ Resultado pendientes:', resultadoPendientes ? resultadoPendientes.length : 0, 'registros');
+                    console.log('✅ Resultado citas:', resultadoCitas ? resultadoCitas.length : 0, 'registros');
+                    
+                    console.log('✅ Datos cargados correctamente');
+                } catch (e) {
+                    console.error('❌ Error general al cargar:', e);
+                    Object.entries(contenedores).forEach(([id]) => {
+                        const el = document.getElementById(id);
+                        if (el && el.querySelector('.empty-message')?.textContent === 'Cargando...') {
+                            el.innerHTML = '<p class="empty-message error-message">Error al cargar datos</p>';
+                        }
+                    });
+                }
+            }
+            
+            async function consultarPendientesSalida(hoy) {
+                const listaDiv = document.getElementById('listaTurnosPendientesSalida');
+                if (!listaDiv || !window.supabaseClient) return [];
+                
+                try {
+                    const [historialRes, proveedoresRes] = await Promise.all([
+                        window.supabaseClient
+                            .from('historial_turnos')
+                            .select('*')
+                            .gte('fecha', `${hoy}T00:00:00`)
+                            .lte('fecha', `${hoy}T23:59:59`)
+                            .order('hora_finalizacion', { ascending: false }),
+                        
+                        window.supabaseClient
+                            .from('proveedores_transporte')
+                            .select('*')
+                    ]);
+                    
+                    const historial = historialRes.data || [];
+                    const proveedoresTransporte = proveedoresRes.data || [];
+                    
+                    turnosDelDia = historial.map(h => {
+                        if (h.proveedor_transporte_id) {
+                            const pt = proveedoresTransporte.find(p => String(p.id) === String(h.proveedor_transporte_id));
+                            if (pt) {
+                                return {
+                                    ...h,
+                                    esProveedorTransporte: true,
+                                    proveedorTransporte: pt,
+                                    nit: pt.nit,
+                                    nombre_proveedor: pt.nombre_proveedor,
+                                    num_factura: pt.num_factura,
+                                    tipo_vehiculo: pt.tipo_vehiculo,
+                                    bultos: pt.bultos,
+                                    peso: pt.peso,
+                                    responsable: pt.responsable,
+                                    nombre_empresa: pt.nombre_empresa || h.nombre_empresa,
+                                    motivo: pt.motivo || h.motivo,
+                                    destino: pt.destino || h.destino,
+                                    contacto: pt.contacto || h.contacto,
+                                    telefono: pt.telefono || h.telefono,
+                                    servicio: pt.servicio || h.servicio,
+                                    consecutivo_ingreso: pt.consecutivo_ingreso || h.consecutivo_ingreso
+                                };
+                            }
+                        }
+                        return { ...h, esProveedorTransporte: false };
+                    });
+                    
+                    filtrarYMostrarTurnos();
+                    return historial || [];
+                } catch (e) {
+                    console.error('Error consultando pendientes:', e);
+                    if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
+                    return [];
+                }
+            }
+            
+            async function consultarEstadisticas(hoy) {
+                if (!window.supabaseClient) return;
+                try {
+                    const { data, error } = await window.supabaseClient
+                        .from('historial_turnos')
+                        .select('autorizado_salida, es_transporte, proveedor_transporte_id')
+                        .gte('fecha', `${hoy}T00:00:00`)
+                        .lte('fecha', `${hoy}T23:59:59`);
+                    
+                    if (error) throw error;
+                    
+                    const registrosValidos = data || [];
+                    const total = registrosValidos.length;
+                    const autorizados = registrosValidos.filter(h => h.autorizado_salida === true).length;
+                    const pendientes = total - autorizados;
+                    
+                    const totalDiaEl = document.getElementById('totalTurnosDia');
+                    const totalAutorizadosEl = document.getElementById('totalAutorizados');
+                    const totalPendientesEl = document.getElementById('totalPendientes');
+                    
+                    if (totalDiaEl) totalDiaEl.textContent = total;
+                    if (totalAutorizadosEl) totalAutorizadosEl.textContent = autorizados;
+                    if (totalPendientesEl) totalPendientesEl.textContent = pendientes;
+                } catch (e) {
+                    console.error('Error consultando estadísticas:', e);
+                }
+            }
+            
+            async function consultarHistorial() {
+                const listaDiv = document.getElementById('historialDespachador');
+                if (!listaDiv || !window.supabaseClient) return [];
+                
+                    try {
+            const fechaInput = document.getElementById('fechaHistorialDesp');
+            const fechaFiltro = (fechaInput && fechaInput.value) ? fechaInput.value : (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                         
+                        const [historialRes, proveedoresRes] = await Promise.all([
+                            window.supabaseClient
+                                .from('historial_turnos')
+                                .select('*')
+                                .gte('fecha', `${fechaFiltro}T00:00:00`)
+                                .lte('fecha', `${fechaFiltro}T23:59:59`)
+                                .order('hora_finalizacion', { ascending: false })
+                                .limit(50),
+                            
+                            window.supabaseClient
+                                .from('proveedores_transporte')
+                                .select('*'),
+
+                            ]);
+                    
+                    const data = historialRes.data || [];
+                    const proveedoresTransporte = proveedoresRes.data || [];
+                    if (historialRes.error) throw historialRes.error;
+                    if (proveedoresRes.error) throw proveedoresRes.error;
+
+                    const historialConProveedores = data.map(h => {
+                        if (h.proveedor_transporte_id) {
+                            const pt = proveedoresTransporte.find(p => String(p.id) === String(h.proveedor_transporte_id));
+                            if (pt) {
+                                return {
+                                    ...h,
+                                    es_transporte: true,
+                                    nombre_empresa: pt.nombre_empresa || h.nombre_empresa,
+                                    nombre_proveedor: pt.nombre_proveedor || h.nombre_proveedor,
+                                    proveedor_destino: pt.destino || h.destino
+                                };
+                            }
+                        }
+                        return {
+                            ...h,
+                            es_transporte: h.es_transporte === true || Boolean(h.nombre_proveedor),
+                            nombre_proveedor: h.nombre_proveedor || null
+                        };
+                    });
+                    
+                    if (!historialConProveedores || historialConProveedores.length === 0) {
+                        listaDiv.innerHTML = '<p class="empty-message">Sin historial</p>';
+                        const sinResultados = document.getElementById('historialDespachadorSinResultados');
+                        if (sinResultados) sinResultados.hidden = true;
+                    } else {
+                        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                        listaDiv.innerHTML = `
+                                    <table class="history-table-desp">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Empresa transportadora</th>
+                                            <th>Proveedor</th>
+                                            <th>Placa</th>
+                                            <th>Factura</th>
+                                            <th>Tipo</th>
+                                            <th>Bultos</th>
+                                            <th>Peso</th>
+                                            <th>Responsable</th>
+                                            <th>Hora Inicio</th>
+                                            <th>Hora Fin</th>
+                                            <th>Consecutivo</th>
+                                            <th>Materiales SAP</th>
+                                            <th>Inspeccion</th>
+                                            <th>Estado</th>
+                                            <th>Destino</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+${historialConProveedores.map(h => {
+                        const horaInicio = Utils.formatearHora(h.hora_llamada);
+                        const horaFin = Utils.formatearHora(h.hora_finalizacion);
+                        const consecutivo = h.consecutivo_ingreso || '-';
+                        const codigosMaterialSap = Array.isArray(h.materiales_sap) ? h.materiales_sap : [];
+                        const materialesSap = codigosMaterialSap.length
+                            ? window.botonMostrarMaterialesSapHtml(codigosMaterialSap)
+                            : '<span class="history-sap-empty">—</span>';
+                        const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
+                        const displayDestino = h.proveedor_destino && h.proveedor_destino !== h.destino 
+                            ? (destinoLabel[h.proveedor_destino] || h.proveedor_destino) 
+                            : (destinoLabel[h.destino] || h.destino || '-');
+                        return `
+                        <tr>
+                        <td><strong>${h.numero}</strong></td>
+                        <td>${(h.es_transporte || h.proveedor_transporte_id || h.nombre_proveedor) ? (h.nombre_empresa || '-') : ''}</td>
+                        <td>${h.nombre_proveedor || (h.es_transporte ? '-' : h.nombre_empresa || '-')}</td>
+                        <td>${h.nit || '-'}</td>
+                        <td>${window.formatearFacturasHistorial(h)}</td>
+                        <td>${h.tipo_vehiculo || '-'}</td>
+                        <td>${h.bultos || '-'}</td>
+                        <td>${h.peso ? formatearPesoDespachador(h.peso) : '-'}</td>
+                        <td>${h.responsable || '-'}</td>
+                        <td>${horaInicio}</td>
+                        <td>${horaFin}</td>
+                        <td>${consecutivo}</td>
+                        <td>${materialesSap}</td>
+                        <td>${h.inspeccion_fisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
+                        <td>${h.autorizado_salida ? '<span class="estado-ok">✓ OK</span>' : '<span class="estado-pend">PEND</span>'}</td>
+                        <td>${displayDestino}</td>
+                    </tr>
+                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        `;
+                    }
+                    return historialConProveedores || [];
+                } catch (e) {
+                    console.error('Error consultando historial:', e);
+                    if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
+                    return [];
+                }
+            }
+            
+            async function consultarCitas() {
+                const listaDiv = document.getElementById('listaTurnosCitadosDespachador');
+                const contadorDiv = document.getElementById('contadorTurnosCitadosDespachador');
+                if (!listaDiv || !window.supabaseClient) return [];
+                
+                try {
+                    const ahora = new Date().toISOString();
+                    const { data, error } = await window.supabaseClient
+                        .from('turnos')
+                        .select('*')
+                        .eq('estado', 'citado')
+                        .gte('fecha_cita', ahora)
+                        .order('fecha_cita', { ascending: true })
+                        .limit(10);
+                    
+                    if (error) throw error;
+                    
+                    if (contadorDiv) contadorDiv.textContent = data?.length || 0;
+                    
+                    if (!data || data.length === 0) {
+                        listaDiv.innerHTML = '<p class="empty-message">Sin citas reservadas</p>';
+                    } else {
+                        const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
+                        const gruposPorFecha = {};
+                        data.forEach(turno => {
+                            const fecha = turno.fecha_cita ? turno.fecha_cita.split('T')[0] : 'Sin fecha';
+                            if (!gruposPorFecha[fecha]) gruposPorFecha[fecha] = [];
+                            gruposPorFecha[fecha].push(turno);
+                        });
+                        
+                        let html = '';
+                        for (const [fecha, turnos] of Object.entries(gruposPorFecha)) {
+                            const nombreDia = new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO', { 
+                                weekday: 'long', day: 'numeric', month: 'long' 
+                            });
+                            html += `<div class="cited-day-header">${nombreDia}</div>`;
+                            html += turnos.map(turno => {
+                                let horaCita = '';
+                                if (turno.fecha_cita) {
+                                    const partes = turno.fecha_cita.split('T');
+                                    if (partes.length >= 2) {
+                                        const [horas, minSeg] = partes[1].split(':');
+                                        const h = parseInt(horas);
+                                        const min = minSeg.split('.')[0];
+                                        const ampm = h >= 12 ? 'PM' : 'AM';
+                                        const h12 = h % 12 || 12;
+                                        horaCita = `${h12}:${min} ${ampm}`;
+                                    }
+                                }
+return `
+                                     <div class="turn-item turn-item-citado">
+                                         <span class="turn-item-number">${turno.numero}</span>
+                                         <div class="turn-item-info">
+                                             <div class="turn-item-company">${turno.nombre_empresa || '-'}</div>
+                                             <div class="turn-item-time">${horaCita}</div>
+                                             <div class="turn-item-details">
+                                                 <div>Destino: ${destinoLabel[turno.destino] || turno.destino}</div>
+                                                 ${turno.consecutivo_ingreso ? `<div>Cons: ${turno.consecutivo_ingreso}</div>` : ''}
+                                                 ${materialesSapCitaHtml(turno.materiales_sap || turno.materialesSap)}
+                                             </div>
+                                         </div>
+                                     </div>
+                                 `;
+                            }).join('');
+                        }
+                        listaDiv.innerHTML = html;
+                    }
+                    return data || [];
+                } catch (e) {
+                    console.error('Error consultando citas:', e);
+                    if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
+                    return [];
+                }
+            }
+            
+            function suscribirRealtime() {
+                if (!window.supabaseClient) return;
+                try {
+                    if (window._despRealtimeReconnectTimer) {
+                        clearTimeout(window._despRealtimeReconnectTimer);
+                        window._despRealtimeReconnectTimer = null;
+                    }
+                    if (window._despChannel) {
+                        window.supabaseClient.removeChannel(window._despChannel);
+                        window._despChannel = null;
+                    }
+                    const ch = window.supabaseClient.channel('desp-realtime-' + Date.now())
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'historial_turnos' }, (payload) => {
+                            console.log('📊 Cambio en historial detectado, recargando...');
+                            if (payload.eventType === 'DELETE' && payload.old) {
+                                const proveedorActivo = normalizarDatosNotificacion(
+                                    JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null')
+                                );
+                                const esProveedorBorrado = proveedorActivo && (
+                                    String(proveedorActivo.numero) === String(payload.old.numero) ||
+                                    (proveedorActivo.esTransporte && proveedorActivo.proveedores?.some(item =>
+                                        String(item.id) === String(payload.old.proveedor_transporte_id)
+                                    ))
+                                );
+                                if (esProveedorBorrado) window.limpiarProveedorListo?.();
+                            }
+                            cargarTodoDespachador();
+                            cargarHistorialDespachador();
+                        })
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos' }, (payload) => {
+                            console.log('📋 Cambio en turnos detectado, recargando...');
+                            if (payload.new?.estado === 'llegado') {
+                                window.mostrarDetallesTurnoConfirmado(payload.new);
+                                window.notificarTurnoConfirmadoDespachador(payload.new);
+                            }
+                            cargarTodoDespachador();
+                            cargarHistorialDespachador();
+                        })
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'proveedores_transporte' }, (payload) => {
+                            console.log('🚛 Cambio en proveedores_transporte detectado, recargando...');
+                            cargarTurnosPendientesSalida();
+                            cargarEstadisticasDespachador();
+                            cargarHistorialDespachador();
+                        })
+                        .on('postgres_changes', { event: '*', schema: 'public', table: 'notificaciones_salida' }, async (payload) => {
+                            if (window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(payload.new)) return;
+                            console.log('🔔 Notificación salida detectada desde Supabase, actualizando proveedor...');
+                            const notif = payload.new;
+                            const datos = notif && notif.datos ? normalizarDatosNotificacion(notif.datos) : null;
+
+                            if (notif && notif.tipo === 'turno_completado') {
+                                Utils.mostrarNotificacion(`Turno completado: ${datos?.numero || notif.mensaje || '---'}`, 'success');
+                                if (window.SonidoAlerta) window.SonidoAlerta.reproducir(2);
+                            }
+
+                            if (notif && notif.tipo === 'salida_pendiente' && datos) {
+                                if ((notif.mensaje || '').toLowerCase().includes('inspeccion')) {
+                                    localStorage.setItem('inspeccionSolicitada', JSON.stringify({
+                                        numero: datos.numero || '---',
+                                        nombre: datos.nombre || datos.nombreEmpresa || notif.mensaje || 'Proveedor',
+                                        timestamp: Date.now(),
+                                        datos: datos
+                                    }));
+                                } else {
+                                    const pendiente = await window.validarProveedorPendienteSalida?.(datos);
+                                    if (pendiente !== false) {
+                                        mostrarProveedorListo(datos);
+                                    } else {
+                                        window.limpiarProveedorListo?.();
+                                    }
+                                }
+                            }
+
+                            if (notif && notif.tipo === 'salida_autorizada') {
+                                const numero = datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---';
+                                const nombre = datos?.nombre || datos?.nombreEmpresa || notif.mensaje || 'Proveedor';
+                                localStorage.setItem('salidaAutorizada', JSON.stringify({
+                                    numero,
+                                    nombre,
+                                    timestamp: Date.now(),
+                                    datos: datos
+                                }));
+                                setTimeout(() => {
+                                    cargarTurnosPendientesSalida();
+                                    cargarEstadisticasDespachador();
+                                    cargarHistorialDespachador();
+                                }, 300);
+                            }
+
+                            if (notif && notif.tipo === 'salida_pendiente' && (notif.mensaje || '').toLowerCase().includes('inspeccion')) {
+                                const numero = datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---';
+                                const nombre = datos?.nombre || datos?.nombreEmpresa || notif.mensaje || 'Proveedor';
+                                localStorage.setItem('inspeccionSolicitada', JSON.stringify({
+                                    numero,
+                                    nombre,
+                                    timestamp: Date.now(),
+                                    datos: datos
+                                }));
+                            }
+
+                            cargarTodoDespachador();
+                        })
+                        .subscribe(status => {
+                            console.log('📡 Estado suscripción:', status);
+                            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                                console.warn('⚠️ Reconectando en 3s...');
+                                if (!window._despRealtimeReconnectTimer) {
+                                    window._despRealtimeReconnectTimer = setTimeout(() => {
+                                        window._despRealtimeReconnectTimer = null;
+                                        suscribirRealtime();
+                                    }, 3000);
+                                }
+                            } else if (status === 'SUBSCRIBED') {
+                                console.log('✅ Suscripción activa');
+                            }
+                        });
+                    window._despChannel = ch;
+                } catch (e) {
+                    console.error('❌ Error en suscripción realtime:', e);
+                }
+            }
+            
+            let inicializado = false;
+            
+            const checkInterval = setInterval(() => {
+                if (window.AppState && window.RenderAdmin && window.DespachadorHandlers && !inicializado) {
+                    clearInterval(checkInterval);
+                    inicializado = true;
+                    inicializarDespachador();
+                }
+            }, 200);
+            setTimeout(() => {
+                clearInterval(checkInterval);
+                if (!inicializado) {
+                    inicializado = true;
+                    inicializarDespachador();
+                }
+            }, 10000);
+            
+            document.addEventListener('storage', (e) => {
+                if (e.key === 'proveedorListoSalir') {
+                    if (e.newValue) {
+                        try {
+                            const proveedor = JSON.parse(e.newValue);
+                            window.mostrarProveedorListo?.(proveedor);
+                        } catch (err) {}
+                    } else {
+                        window.limpiarProveedorListo?.();
+                    }
+                }
+            });
+            
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'salidaAutorizada' && e.newValue) {
+                    console.log('📥 Salida autorizada detectada');
+                    setTimeout(() => {
+                        cargarTurnosPendientesSalida();
+                        cargarEstadisticasDespachador();
+                        cargarHistorialDespachador();
+                    }, 500);
+                }
+            });
+            
+            async function inicializarDespachador() {
+                console.log('Inicializando panel de despachador...');
+                
+                if (window.InputConfig) {
+                    window.InputConfig.configurarMayusculas();
+                    window.InputConfig.configurarTelefono();
+                }
+                
+                if (window.RenderAdmin) {
+                    await window.RenderAdmin.todo();
+}
+                cargarCitasDespachador();
+                cargarEstadisticasDespachador();
+                cargarTurnosPendientesSalida();
+                cargarHistorialDespachador();
+
+                if (!window._despachadorRefreshInterval) {
+                    window._despachadorRefreshInterval = setInterval(() => {
+                        cargarCitasDespachador();
+                        cargarTurnosPendientesSalida();
+                        cargarEstadisticasDespachador();
+                        cargarHistorialDespachador();
+                        verificarProveedorListo();
+                    }, 15000);
+                }
+                
+                const fechaHistorialDespInput = document.getElementById('fechaHistorialDesp');
+                if (fechaHistorialDespInput) {
+                    fechaHistorialDespInput.value = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                    fechaHistorialDespInput.addEventListener('change', () => {
+                        cargarHistorialDespachador();
+                        cargarTurnosPendientesSalida();
+                        cargarEstadisticasDespachador();
+                    });
+                }
+                document.getElementById('busquedaHistorialDesp')?.addEventListener('input', filtrarHistorialDespachador);
+                document.getElementById('btnExportarHistorialDesp')?.addEventListener('click', exportarHistorialDespachador);
+                
+                const btnActualizarCitas = document.getElementById('btnActualizarCitas');
+                if (btnActualizarCitas) {
+                    btnActualizarCitas.addEventListener('click', () => {
+                        cargarCitasDespachador();
+                    });
+                }
+                
+                let conteo = 0;
+                let proveedorListoActual = null;
+                const intervaloVerificacion = setInterval(() => {
+                    conteo++;
+                    verificarProveedorListo();
+                    if (conteo % 10 === 0) {
+                        console.log(`🔄 Verificación #${conteo} - Buscando proveedorListoSalir...`);
+                        const datos = localStorage.getItem('proveedorListoSalir');
+                        if (datos) {
+                            console.log('📦 Datos encontrados en localStorage');
+                        }
+                    }
+                }, 5000);
+                
+                async function cargarProveedorListoDesdeSupabase() {
+                    if (!window.supabaseClient) return null;
+                    try {
+                        const { data, error } = await window.supabaseClient
+                            .from('notificaciones_salida')
+                            .select('*')
+                            .eq('tipo', 'salida_pendiente')
+                            .eq('remitente', 'admin')
+                            .order('created_at', { ascending: false })
+                            .limit(50);
+
+                        if (error) throw error;
+
+                        for (const notificacion of data || []) {
+                            const datos = normalizarDatosNotificacion(notificacion.datos);
+                            if (!datos) continue;
+
+                            const pendiente = await proveedorTieneSalidaPendiente(datos);
+                            if (pendiente === false) continue;
+
+                            console.log('📡 Proveedor pendiente cargado desde Supabase:', datos);
+                            window.mostrarProveedorListo?.(datos);
+                            return datos;
+                        }
+                        window.limpiarProveedorListo?.();
+                        return null;
+                    } catch (e) {
+                        console.warn('No se pudo cargar proveedor listo desde Supabase:', e);
+                        return null;
+                    }
+                }
+
+                async function proveedorTieneSalidaPendiente(proveedor) {
+                    if (!window.supabaseClient || !proveedor?.numero) return null;
+                    try {
+                        let consulta = window.supabaseClient
+                            .from('historial_turnos')
+                            .select('numero, autorizado_salida, proveedor_transporte_id');
+
+                        const idsProveedores = proveedor.esTransporte && Array.isArray(proveedor.proveedores)
+                            ? proveedor.proveedores.map(item => item.id).filter(Boolean)
+                            : [];
+
+                        if (idsProveedores.length) {
+                            consulta = consulta.in('proveedor_transporte_id', idsProveedores);
+                        } else {
+                            consulta = consulta.eq('numero', String(proveedor.numero));
+                        }
+
+                        const { data, error } = await consulta.limit(50);
+                        if (error) throw error;
+                        return (data || []).some(item => item.autorizado_salida !== true);
+                    } catch (error) {
+                        console.warn('No se pudo validar el turno pendiente:', error.message);
+                        return null;
+                    }
+                }
+                window.validarProveedorPendienteSalida = proveedorTieneSalidaPendiente;
+
+                function verificarProveedorListo() {
+                    console.log('🔍 Verificando proveedorListoSalir...');
+                    const datosLocales = localStorage.getItem('proveedorListoSalir');
+                    if (datosLocales) {
+                        try {
+                            const proveedor = normalizarDatosNotificacion(JSON.parse(datosLocales));
+                            if (proveedor) {
+                                proveedorTieneSalidaPendiente(proveedor).then(pendiente => {
+                                    if (pendiente === false) {
+                                        const proveedorActual = normalizarDatosNotificacion(
+                                            JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null')
+                                        );
+                                        if (proveedorActual?.numero === proveedor.numero) {
+                                            window.limpiarProveedorListo?.();
+                                        }
+                                        return;
+                                    }
+                                    window.mostrarProveedorListo?.(proveedor);
+                                });
+                                return;
+                            }
+                        } catch (error) {
+                            console.error('No se pudo leer proveedorListoSalir:', error);
+                        }
+                    }
+
+                    if (window.supabaseClient) {
+                        cargarProveedorListoDesdeSupabase().then((datosDesdeSupabase) => {
+                            if (datosDesdeSupabase) return;
+                        });
+                        return;
+                    }
+                }
+
+                // Repinta el detalle aunque la notificación realtime haya llegado antes
+                // de que el resto del panel terminara de inicializarse.
+                window.sincronizarProveedorListo = verificarProveedorListo;
+                
+                let proveedorListoAnterior = null;
+                
+                function mostrarProveedorListo(proveedor) {
+                    proveedor = normalizarDatosNotificacion(proveedor);
+                    if (!proveedor) return;
+                    proveedorListoActual = proveedor;
+                    const turnoListoDiv = document.getElementById('turnoListoSalir');
+                    const btnAutorizar = document.getElementById('btnAutorizarSalida');
+                    const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
+                    if (!turnoListoDiv) return;
+                    const materialesSapResueltos = obtenerMaterialesSapDespachador(proveedor);
+                    if (materialesSapResueltos.length) {
+                        proveedor = { ...proveedor, materialesSap: materialesSapResueltos };
+                    }
+                    const proveedorFirma = JSON.stringify(proveedor);
+                    if (turnoListoDiv.dataset.proveedorFirma === proveedorFirma) return;
+                    turnoListoDiv.dataset.proveedorFirma = proveedorFirma;
+                    renderizarSeguimientoSalida(proveedor, true);
+                    
+                    if (proveedor.esTransporte && (!Array.isArray(proveedor.proveedores) || proveedor.proveedores.length === 0)) {
+                        turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Todos los proveedores autorizados</div>';
+                        renderizarSeguimientoSalida(null, false);
+                        if (btnAutorizar) btnAutorizar.disabled = true;
+                        if (btnInspeccion) btnInspeccion.disabled = true;
+                        return;
+                    }
+                    
+                    if (proveedor.esTransporte && Array.isArray(proveedor.proveedores) && proveedor.proveedores.length > 0) {
+                        const total = proveedor.proveedores.length;
+                        const proveedoresPendientes = proveedor.proveedores.filter(p => !p.autorizadoSalida);
+                        
+                        turnoListoDiv.innerHTML = `
+                            <div class="turn-number-large">${proveedor.numero}</div>
+                            <div class="turn-empresa">TRANSPORTADORA</div>
+                            <div class="turn-badge">${total} PROVEEDOR(ES) RECIBIDOS DE RECEPCIÓN</div>
+                        `;
+                        if (btnAutorizar) btnAutorizar.disabled = true;
+                        if (btnInspeccion) btnInspeccion.disabled = true;
+                        
+                        renderizarProveedoresPendientes(proveedor.proveedores, proveedor.numero);
+                    } else {
+                        const destinoLabels = { ensambles: 'SIE', plasticos: 'SI3 ZF SAS', ambos: 'AMBOS' };
+                        const peso = proveedor.peso ? formatearPesoDespachador(proveedor.peso) : '-';
+                        const materialesSap = obtenerMaterialesSapDespachador(proveedor);
+                        const horaInicio = proveedor.horaLlamada || proveedor.hora_llamada || proveedor.horaLlegada || proveedor.hora_llegada;
+                        const numFactura = proveedor.numFactura || proveedor.num_factura || '';
+                        const esDestinoAmbos = String(proveedor.destino || '').toLowerCase() === 'ambos';
+                        const facturasHtml = typeof window.formatearFacturasHistorial === 'function'
+                            ? window.formatearFacturasHistorial({ destino: proveedor.destino, numFactura })
+                            : escaparHtmlDespachador(numFactura || '-');
+                        const facturaFieldHtml = esDestinoAmbos
+                            ? `<div class="ready-turn-field ready-turn-invoices"><span>Facturas</span>${facturasHtml}</div>`
+                            : `<div class="ready-turn-field"><span>Factura</span><strong>${escaparHtmlDespachador(numFactura || '-')}</strong></div>`;
+                        const campos = [
+                            ['Placa', proveedor.nit],
+                            ['Vehículo', proveedor.tipoVehiculo],
+                            ['Bultos', proveedor.bultos],
+                            ['Peso', peso],
+                            ['Responsable', proveedor.responsable],
+                            ['Destino', destinoLabels[proveedor.destino] || proveedor.destino],
+                            ['Hora de inicio', horaInicio],
+                            ['Materiales SAP', materialesSap.length]
+                        ];
+                        turnoListoDiv.innerHTML = `
+                            <div class="ready-turn-overview">
+                                <div class="ready-turn-code">
+                                    <span>Código del proveedor</span>
+                                    <strong>${proveedor.numero || '-'}</strong>
+                                </div>
+                                <div class="ready-turn-heading">
+                                    <div class="ready-turn-name">${proveedor.nombre || proveedor.nombreEmpresa || 'Proveedor'}</div>
+                                    <div class="ready-turn-status">Listo para autorización de salida</div>
+                                </div>
+                            </div>
+                            <div class="ready-turn-details">
+                                ${facturaFieldHtml}
+                                ${campos.map(([label, value]) => `<div class="ready-turn-field"><span>${label}</span><strong>${value || '-'}</strong></div>`).join('')}
+                            </div>
+                        `;
+                        if (btnAutorizar) btnAutorizar.disabled = false;
+                        if (btnInspeccion) btnInspeccion.disabled = false;
+                    }
+                    
+                    if (proveedorListoAnterior !== proveedor.timestamp) {
+                        proveedorListoAnterior = proveedor.timestamp;
+                        reproducirAlertaSalida(proveedor);
+                        // Push notification
+                        if (window.SI3PushManager) {
+                            window.SI3PushManager.notifyProveedorListo(proveedor);
+                        }
+                    }
+                }
+                
+                function renderizarProveedoresPendientes(proveedores, turnoNumero) {
+                    const infoDiv = document.querySelector('#infoDespachoActual .dispatch-transport-providers');
+                    if (!infoDiv) return;
+                    infoDiv.hidden = false;
+                    infoDiv.closest('.dispatch-followup')?.classList.toggle('has-transport-providers', proveedores.length > 0);
+                    
+                    const html = proveedores.map((p) => {
+                        const autorizado = p.autorizadoSalida === true || p.autorizado_salida === true;
+                        const inspeccionSolicitada = p.inspeccionFisica === true || p.inspeccion_fisica === true;
+                        const horaSolicitudProveedor = formatearHoraSeguimiento(p.horaSolicitud || p.hora_solicitud);
+                        const horaLlamadaProveedor = formatearHoraSeguimiento(p.horaLlamada || p.hora_llamada);
+                        const horaFinProveedor = formatearHoraSeguimiento(p.horaFinalizacion || p.hora_finalizacion);
+                        const detallesProveedor = [
+                            ['Empresa transportadora', p.nombreEmpresa || p.nombre_empresa],
+                            ['NIT / Placa', p.nit],
+                            ['Motivo', p.motivo],
+                            ['Contacto', p.contacto],
+                            ['Teléfono', p.telefono],
+                            ['Servicio', p.servicio],
+                            ['Consecutivo', p.consecutivoIngreso || p.consecutivo_ingreso],
+                            ['Factura', p.numFactura || p.num_factura],
+                            ['Vehículo', p.tipoVehiculo || p.tipo_vehiculo],
+                            ['Bultos', p.bultos],
+                            ['Peso', formatearPesoDespachador(p.peso)],
+                            ['Destino', p.destino],
+                            ['Hora de solicitud', horaSolicitudProveedor],
+                            ['Hora de llamada', horaLlamadaProveedor],
+                            ['Hora de finalización', horaFinProveedor],
+                            ['Estado', p.estado || (autorizado ? 'Autorizado' : 'Pendiente')],
+                            ['Inspección', inspeccionSolicitada ? 'Solicitada' : 'No solicitada']
+                        ].filter(([, valor]) => valor !== null && valor !== undefined && String(valor).trim() !== '');
+                        const estadoBadge = autorizado
+                            ? '<span style="color:#20538f;font-weight:700;margin-left:8px;">✓ AUTORIZADO</span>'
+                            : '<span style="color:#d97706;font-weight:700;margin-left:8px;">PENDIENTE</span>';
+                        const acciones = autorizado
+                            ? '<span class="autorizado-badge" style="margin-right:8px;">✓ Autorizado</span>'
+                            : `<button class="btn btn-success btn-small" style="margin-right: 6px;" onclick="DespachadorHandlers.autorizarProveedorTransporteIndividual(${p.id}, '${turnoNumero || ''}', '${p.nombreProveedor || ''}'); setTimeout(() => { const d = JSON.parse(localStorage.getItem('proveedorListoSalir')||'{}'); if(d.proveedores){ d.proveedores = d.proveedores.filter(p2 => p2.id !== ${p.id}); if(d.proveedores.length) localStorage.setItem('proveedorListoSalir', JSON.stringify(d)); else localStorage.removeItem('proveedorListoSalir'); } mostrarProveedorListo(d); cargarTurnosPendientesSalida(); cargarEstadisticasDespachador(); }, 800);">Autorizar</button>`;
+                        const inspeccion = autorizado
+                            ? '<span class="autorizado-badge" style="margin-left:8px;">Inspección: NO</span>'
+                            : `<button class="btn btn-secondary btn-small" onclick="DespachadorHandlers.solicitarInspeccionProveedorTransporteIndividual(${p.id}, '${p.nombreProveedor || ''}'); setTimeout(() => { cargarTurnosPendientesSalida(); }, 800);">Inspección</button>`;
+                        return `
+                            <div class="dispatch-transport-provider">
+                                <div class="dispatch-transport-provider-head">${escaparHtmlDespachador(p.nombreProveedor || p.nombre_proveedor || p.nit || 'N/A')}${estadoBadge}</div>
+                                <div class="dispatch-transport-provider-facts">
+                                    ${detallesProveedor.map(([etiqueta, valor]) => `<span><strong>${etiqueta}</strong><span>${escaparHtmlDespachador(etiqueta === 'Peso' ? formatearPesoDespachador(valor) : valor)}</span></span>`).join('')}
+                                </div>
+                                <div class="dispatch-transport-provider-actions">
+                                    ${acciones}${inspeccion}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    const btnTodos = `<button class="btn btn-success btn-small" style="margin-bottom: 10px;" onclick="DespachadorHandlers.autorizarTodaTransportadora('${turnoNumero || ''}'); setTimeout(() => { const d = JSON.parse(localStorage.getItem('proveedorListoSalir')||'{}'); if (d.proveedores && d.proveedores.length && d.proveedores.every(p => p.autorizadoSalida)) { localStorage.removeItem('proveedorListoSalir'); if (window.limpiarProveedorListo) window.limpiarProveedorListo(); } else if (window.mostrarProveedorListo) { window.mostrarProveedorListo(d); } cargarTurnosPendientesSalida(); cargarEstadisticasDespachador(); }, 1000);">Autorizar toda la transportadora</button>`;
+                    
+                    infoDiv.innerHTML = `<h3 class="dispatch-followup-section-title">Proveedores de la transportadora (${proveedores.length})</h3>${btnTodos}${html}`;
+                }
+                
+                async function reproducirAlertaSalida(proveedor) {
+                    window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'proveedor_listo' } }));
+                    
+                    mostrarModalProveedorListo(proveedor);
+                }
+                
+                function mostrarModalProveedorListo(proveedor) {
+                    const modalExistente = document.getElementById('modal-proveedor-listo');
+                    if (modalExistente) modalExistente.remove();
+                    
+                    const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                    const materialesSap = obtenerMaterialesSapDespachador(proveedor);
+                    const materialesSapHtml = materialesSap.length
+                        ? window.botonMostrarMaterialesSapHtml(materialesSap)
+                        : '<span class="sap-code-empty">Sin materiales</span>';
+
+                    if ((proveedor.esTransporte || proveedor.es_transporte) && Array.isArray(proveedor.proveedores) && proveedor.proveedores.length > 0) {
+                        const total = proveedor.proveedores.length;
+                        const pendientes = proveedor.proveedores.filter(p => p.autorizadoSalida !== true && p.autorizado_salida !== true).length;
+                        const datosTransportadora = [
+                            ['Empresa', proveedor.nombreEmpresa || proveedor.nombre_empresa || proveedor.nombre],
+                            ['NIT / Placa', proveedor.nit],
+                            ['Motivo', proveedor.motivo],
+                            ['Contacto', proveedor.contacto],
+                            ['Teléfono', proveedor.telefono],
+                            ['Servicio', proveedor.servicio],
+                            ['Destino', destinoLabel[proveedor.destino] || proveedor.destino],
+                            ['Hora de solicitud', formatearHoraSeguimiento(proveedor.horaSolicitud || proveedor.hora_solicitud)],
+                            ['Hora de llamada', formatearHoraSeguimiento(proveedor.horaLlamada || proveedor.hora_llamada)],
+                            ['Hora de finalización', formatearHoraSeguimiento(proveedor.horaFinalizacion || proveedor.hora_finalizacion)],
+                            ['Materiales SAP', materialesSap.length]
+                        ].filter(([, valor]) => valor !== null && valor !== undefined && String(valor).trim() !== '');
+                        const datosTransportadoraHtml = `
+                            <section class="modal-transport-company-info">
+                                <h3>Datos de la transportadora</h3>
+                                <dl>${datosTransportadora.map(([etiqueta, valor]) => `<div><dt>${etiqueta}</dt><dd>${escaparHtmlDespachador(valor)}</dd></div>`).join('')}</dl>
+                            </section>
+                        `;
+                        const proveedoresHtml = proveedor.proveedores.map(p => {
+                            const autorizado = p.autorizadoSalida === true || p.autorizado_salida === true;
+                            const inspeccion = p.inspeccionFisica === true || p.inspeccion_fisica === true;
+                            const datosProveedor = [
+                                ['NIT / Placa', p.nit],
+                                ['Motivo', p.motivo],
+                                ['Contacto', p.contacto],
+                                ['Teléfono', p.telefono],
+                                ['Servicio', p.servicio],
+                                ['Consecutivo', p.consecutivoIngreso || p.consecutivo_ingreso],
+                                ['Factura', p.numFactura || p.num_factura],
+                                ['Vehículo', p.tipoVehiculo || p.tipo_vehiculo],
+                                ['Bultos', p.bultos],
+                                ['Peso', formatearPesoDespachador(p.peso)],
+                                ['Responsable', p.responsable],
+                                ['Destino', destinoLabel[p.destino] || p.destino],
+                                ['Hora de solicitud', formatearHoraSeguimiento(p.horaSolicitud || p.hora_solicitud)],
+                                ['Hora de llamada', formatearHoraSeguimiento(p.horaLlamada || p.hora_llamada)],
+                                ['Hora de finalización', formatearHoraSeguimiento(p.horaFinalizacion || p.hora_finalizacion)],
+                                ['Estado', p.estado || (autorizado ? 'Autorizado' : 'Pendiente')],
+                                ['Inspección', inspeccion ? 'Solicitada' : 'No solicitada']
+                            ].filter(([, valor]) => valor !== null && valor !== undefined && String(valor).trim() !== '');
+                            return `
+                                <article class="modal-transport-provider ${autorizado ? 'is-authorized' : ''}">
+                                    <div class="modal-transport-provider-head">
+                                        <strong>${escaparHtmlDespachador(p.nombreProveedor || p.nombre_proveedor || p.nit || 'N/A')}</strong>
+                                        <span class="modal-transport-provider-status ${autorizado ? 'is-authorized' : ''}">${autorizado ? '✓ Autorizado' : 'Pendiente'}</span>
+                                    </div>
+                                    <dl class="modal-transport-provider-facts">
+                                        ${datosProveedor.map(([etiqueta, valor]) => `<div><dt>${etiqueta}</dt><dd>${escaparHtmlDespachador(etiqueta === 'Peso' ? formatearPesoDespachador(valor) : valor)}</dd></div>`).join('')}
+                                    </dl>
+                                </article>
+                            `;
+                        }).join('');
+
+                        const modal = document.createElement('div');
+                        modal.id = 'modal-proveedor-listo';
+                        modal.className = 'modal-overlay';
+                        modal.innerHTML = `
+                            <div class="modal-content modal-proveedor-content modal-proveedor-transportadora" style="max-width: 560px;">
+                                <div class="modal-proveedor-header" style="background: linear-gradient(135deg, #3478c5 0%, #173f70 100%);">
+                                    <h2>TRANSPORTADORA - TURNO ${proveedor.numero}</h2>
+                                    <p>${total} proveedor(es) recibidos de recepción - ${pendientes} pendientes</p>
+                                </div>
+                                <div class="modal-proveedor-body modal-proveedor-transportadora-overview">
+                                    <div class="modal-proveedor-numero" style="color: #2866ad;">${proveedor.numero}</div>
+                                    <div class="modal-proveedor-nombre">Listo para autorización de salida</div>
+                                </div>
+                                <div class="modal-proveedor-detalles modal-proveedor-transportadora-list">
+                                    ${datosTransportadoraHtml}
+                                    ${proveedoresHtml}
+                                </div>
+                                <div class="pending-exit-actions">
+                                    <button class="btn btn-success" onclick="DespachadorHandlers.autorizarTodaTransportadora('${proveedor.numero}'); setTimeout(() => { const d = JSON.parse(localStorage.getItem('proveedorListoSalir')||'{}'); if (d.proveedores && d.proveedores.length && d.proveedores.every(p => p.autorizadoSalida)) { localStorage.removeItem('proveedorListoSalir'); if (window.limpiarProveedorListo) window.limpiarProveedorListo(); } else if (window.mostrarProveedorListo) { window.mostrarProveedorListo(d); } cargarTurnosPendientesSalida(); cargarEstadisticasDespachador(); cerrarModalProveedorListo(); }, 1000);">Autorizar toda la transportadora</button>
+                                    <button class="btn btn-secondary" onclick="cerrarModalProveedorListo()">CERRAR</button>
+                                </div>
+                            </div>
+                        `;
+                        document.body.appendChild(modal);
+                        setTimeout(() => { modal.style.opacity = '1'; }, 10);
+                        return;
+                    }
+                    
+                    const modal = document.createElement('div');
+                    modal.id = 'modal-proveedor-listo';
+                    modal.className = 'modal-overlay';
+                    modal.innerHTML = `
+                        <div class="modal-content modal-proveedor-content">
+                            <div class="modal-proveedor-header">
+                                <h2>PROVEEDOR COMPLETÓ ATENCIÓN</h2>
+                                <p>Listo para autorización de salida</p>
+                            </div>
+                            <div class="modal-proveedor-body">
+                                <div class="modal-proveedor-numero">${proveedor.numero}</div>
+                                <div class="modal-proveedor-nombre">${proveedor.nombre || 'Proveedor'}</div>
+                            </div>
+                            <div class="modal-proveedor-detalles">
+                                <table class="modal-proveedor-detalles-table">
+                                    <tr>
+                                        <td><strong>Placa:</strong></td>
+                                        <td>${proveedor.nit || 'N/A'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Factura:</strong></td>
+                                        <td>${proveedor.numFactura || 'N/A'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Tipo Vehículo:</strong></td>
+                                        <td>${proveedor.tipoVehiculo || 'N/A'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Bultos:</strong></td>
+                                        <td>${proveedor.bultos || 'N/A'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Peso:</strong></td>
+                                        <td>${formatearPesoDespachador(proveedor.peso)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Responsable:</strong></td>
+                                        <td>${proveedor.responsable || 'N/A'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Destino:</strong></td>
+                                        <td>${destinoLabel[proveedor.destino] || proveedor.destino || 'N/A'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Materiales SAP:</strong></td>
+                                        <td>${materialesSapHtml}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Contacto:</strong></td>
+                                        <td>${proveedor.contacto || 'N/A'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Teléfono:</strong></td>
+                                        <td>${proveedor.telefono || 'N/A'}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="pending-exit-actions">
+                                <button class="btn btn-success" onclick="cerrarModalProveedorListo()">CERRAR</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.body.appendChild(modal);
+                    
+                    setTimeout(() => {
+                        modal.style.opacity = '1';
+                    }, 10);
+                }
+                
+                window.cerrarModalProveedorListo = function() {
+                    const modal = document.getElementById('modal-proveedor-listo');
+                    if (modal) {
+                        modal.remove();
+                    }
+                };
+
+                window.mostrarProveedorListo = mostrarProveedorListo;
+                window.limpiarProveedorListo = limpiarProveedorListo;
+                verificarProveedorListo();
+                
+                function limpiarProveedorListo() {
+                    proveedorListoActual = null;
+                    localStorage.removeItem('proveedorListoSalir');
+                    document.getElementById('modal-proveedor-listo')?.remove();
+                    const turnoListoDiv = document.getElementById('turnoListoSalir');
+                    const infoDespachoDiv = document.getElementById('infoDespachoActual');
+                    const btnAutorizar = document.getElementById('btnAutorizarSalida');
+                    const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
+                    if (turnoListoDiv) {
+                        turnoListoDiv.innerHTML = '<div class="esperando-mensaje">Esperando que completen un turno...</div>';
+                        delete turnoListoDiv.dataset.proveedorFirma;
+                    }
+                    if (infoDespachoDiv) {
+                        const turnoConfirmado = turnosDelDia.find(turno => turno.turnoActivo);
+                        if (turnoConfirmado) {
+                            window.mostrarDetallesTurnoConfirmado(turnoConfirmado);
+                        } else {
+                            renderizarSeguimientoSalida(null, false);
+                        }
+                    }
+                    if (btnAutorizar) btnAutorizar.disabled = true;
+                    if (btnInspeccion) btnInspeccion.disabled = true;
+                }
+                
+                function mostrarCampo(valor) {
+                    return valor || 'N/A';
+                }
+                
+                async function cargarCitasDespachador() {
+                    const listaDiv = document.getElementById('listaTurnosCitadosDespachador');
+                    const contadorDiv = document.getElementById('contadorTurnosCitadosDespachador');
+                    
+                    if (!window.supabaseClient) {
+                        if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Sin conexion</p>';
+                        return;
+                    }
+                    
+                    try {
+                        const ahora = new Date().toISOString();
+                        const { data, error } = await window.supabaseClient
+                            .from('turnos')
+                            .select('*')
+                            .eq('estado', 'citado')
+                            .gte('fecha_cita', ahora)
+                            .order('fecha_cita', { ascending: true })
+                            .limit(10);
+                        
+                        if (error) throw error;
+                        
+                        if (contadorDiv) contadorDiv.textContent = data?.length || 0;
+                        
+                        if (!data || data.length === 0) {
+                            if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Sin citas reservadas</p>';
+                        } else {
+                            const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                            
+                            // Agrupar por fecha
+                            const gruposPorFecha = {};
+                            data.forEach(turno => {
+                                const fecha = turno.fecha_cita ? turno.fecha_cita.split('T')[0] : 'Sin fecha';
+                                if (!gruposPorFecha[fecha]) gruposPorFecha[fecha] = [];
+                                gruposPorFecha[fecha].push(turno);
+                            });
+                            
+                            let html = '';
+                            for (const [fecha, turnos] of Object.entries(gruposPorFecha)) {
+                                const nombreDia = new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO', { 
+                                    weekday: 'long', 
+                                    day: 'numeric', 
+                                    month: 'long' 
+                                });
+                                html += `<div class="cited-day-header">${nombreDia}</div>`;
+                                html += turnos.map(turno => {
+                                    let horaCita = '';
+                                    if (turno.fecha_cita) {
+                                        const partes = turno.fecha_cita.split('T');
+                                        if (partes.length >= 2) {
+                                            const [horas, minSeg] = partes[1].split(':');
+                                            const h = parseInt(horas);
+                                            const min = minSeg.split('.')[0];
+                                            const ampm = h >= 12 ? 'PM' : 'AM';
+                                            const h12 = h % 12 || 12;
+                                            horaCita = `${h12}:${min} ${ampm}`;
+                                        }
+                                    }
+                                    
+                                    return `
+                                        <div class="turn-item turn-item-citado">
+                                            <span class="turn-item-number">${turno.numero}</span>
+                                            <div class="turn-item-info">
+                                                <div class="turn-item-company">${turno.nombre_empresa || '-'}</div>
+                                                <div class="turn-item-time">${horaCita}${turno.motivo ? ` - ${turno.motivo}` : ''}</div>
+                                                <div class="turn-item-details">
+                                                    ${turno.nit ? `<div>Placa: ${turno.nit}</div>` : ''}
+                                                    ${turno.nombre_empresa ? `<div>Contacto: ${turno.nombre_empresa}</div>` : ''}
+                                                    ${turno.telefono ? `<div>Tel: ${turno.telefono}</div>` : ''}
+                                                    ${turno.destino ? `<div>Destino: ${destinoLabel[turno.destino] || turno.destino}</div>` : ''}
+                                                    ${turno.consecutivo_ingreso ? `<div><strong>Consecutivo:</strong> ${turno.consecutivo_ingreso}</div>` : ''}
+                                                    ${materialesSapCitaHtml(turno.materiales_sap || turno.materialesSap)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('');
+                            }
+                            
+                            if (listaDiv) listaDiv.innerHTML = html;
+                        }
+                    } catch (e) {
+                        console.error('Error:', e);
+                        if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Error al cargar</p>';
+                    }
+                }
+                
+                async function cargarHistorialDespachador() {
+                    const listaDiv = document.getElementById('historialDespachador');
+                    if (!listaDiv) return;
+                    
+                    if (!window.supabaseClient) {
+                        listaDiv.innerHTML = '<p class="empty-message">Sin conexion</p>';
+                        return;
+                    }
+                    
+                    try {
+            const fechaInput = document.getElementById('fechaHistorialDesp');
+            const fechaFiltro = (fechaInput && fechaInput.value) ? fechaInput.value : (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                         
+                        const [historialRes, proveedoresRes] = await Promise.all([
+                            window.supabaseClient
+                                .from('historial_turnos')
+                                .select('*')
+                                .gte('fecha', `${fechaFiltro}T00:00:00`)
+                                .lte('fecha', `${fechaFiltro}T23:59:59`)
+                                .order('hora_finalizacion', { ascending: false })
+                                .limit(50),
+                            
+                            window.supabaseClient
+                                .from('proveedores_transporte')
+                                .select('*')
+                            ]);
+                        
+                        const data = historialRes.data || [];
+                        const proveedoresTransporte = proveedoresRes.data || [];
+                        if (historialRes.error) throw historialRes.error;
+
+                        let proveedorActivo = null;
+                        try {
+                            proveedorActivo = JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null');
+                        } catch (e) {
+                            proveedorActivo = null;
+                        }
+                        
+                        const historialConProveedores = data.map(h => {
+                            const esTurnoActivo = proveedorActivo && proveedorActivo.numero === h.numero && proveedorActivo.nit === h.nit;
+                            if (h.proveedor_transporte_id) {
+                                const pt = proveedoresTransporte.find(p => String(p.id) === String(h.proveedor_transporte_id));
+                                if (pt) {
+                                    return {
+                                        ...h,
+                                        es_transporte: h.es_transporte === true || Boolean(h.proveedor_transporte_id) || Boolean(h.nombre_proveedor),
+                                        nombre_empresa: pt.nombre_empresa || h.nombre_empresa,
+                                        nombre_proveedor: pt.nombre_proveedor || h.nombre_proveedor,
+                                        proveedor_destino: pt.destino || h.destino,
+                                        consecutivo_ingreso: pt.consecutivo_ingreso || h.consecutivo_ingreso,
+                                        num_factura: pt.num_factura || h.num_factura
+                                    };
+                                }
+                            }
+                            return {
+                                ...h,
+                                es_transporte: h.es_transporte === true || Boolean(h.nombre_proveedor),
+                                nombre_proveedor: h.nombre_proveedor || null,
+                                consecutivo_ingreso: esTurnoActivo
+                                    ? (proveedorActivo.consecutivoIngreso || h.consecutivo_ingreso || null)
+                                    : (h.consecutivo_ingreso || null),
+                                num_factura: h.num_factura || null
+                            };
+                        });
+                        
+                        if (!historialConProveedores || historialConProveedores.length === 0) {
+                            listaDiv.innerHTML = '<p class="empty-message">Sin historial</p>';
+                        } else {
+const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
+                            listaDiv.innerHTML = `
+                                <table class="history-table-desp">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Empresa transportadora</th>
+                                            <th>Proveedor</th>
+                                            <th>Placa</th>
+                                            <th>Factura</th>
+                                            <th>Tipo</th>
+                                            <th>Bultos</th>
+                                            <th>Peso</th>
+                                            <th>Responsable</th>
+                                            <th>Hora Inicio</th>
+                                            <th>Hora Fin</th>
+                                            <th>Consecutivo</th>
+                                            <th>Materiales SAP</th>
+                                            <th>Inspeccion</th>
+                                            <th>Estado</th>
+                                            <th>Destino</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${historialConProveedores.map(h => {
+                                            const horaInicio = Utils.formatearHora(h.hora_llamada);
+                                            const horaFin = Utils.formatearHora(h.hora_finalizacion);
+                                            const displayDestino = h.proveedor_destino && h.proveedor_destino !== h.destino 
+                                                ? (destinoLabel[h.proveedor_destino] || h.proveedor_destino) 
+                                                : (destinoLabel[h.destino] || h.destino || '-');
+                                            const consecutivo = h.consecutivo_ingreso || '-';
+                                            const codigosMaterialSap = Array.isArray(h.materiales_sap) ? h.materiales_sap : [];
+                                            const materialesSap = codigosMaterialSap.length
+                                                ? window.botonMostrarMaterialesSapHtml(codigosMaterialSap)
+                                                : '<span class="history-sap-empty">—</span>';
+                                            return `
+                                            <tr>
+                                                <td><strong>${h.numero}</strong></td>
+                                                <td>${(h.es_transporte || h.proveedor_transporte_id || h.nombre_proveedor) ? (h.nombre_empresa || '-') : ''}</td>
+                                                <td>${h.nombre_proveedor || (h.es_transporte ? '-' : h.nombre_empresa || '-')}</td>
+                                                <td>${h.nit || '-'}</td>
+                                                <td>${window.formatearFacturasHistorial(h)}</td>
+                                                <td>${h.tipo_vehiculo || '-'}</td>
+                                                <td>${h.bultos || '-'}</td>
+                                                <td>${h.peso ? formatearPesoDespachador(h.peso) : '-'}</td>
+                                                <td>${h.responsable || '-'}</td>
+                                                <td>${horaInicio}</td>
+                                                <td>${horaFin}</td>
+                                                <td>${consecutivo}</td>
+                                                <td>${materialesSap}</td>
+                                                <td>${h.inspeccion_fisica ? '<span style="color:#dc2626;font-weight:600;">SI</span>' : '<span style="color:#64748b;">NO</span>'}</td>
+                                                <td>${h.autorizado_salida ? '<span class="estado-ok">✓ OK</span>' : '<span class="estado-pend">PEND</span>'}</td>
+                                                <td>${displayDestino}</td>
+                                            </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            `;
+                            filtrarHistorialDespachador();
+                        }
+                    } catch (e) {
+                        console.error('Error:', e);
+                        if (!listaDiv.querySelector('table')) {
+                            listaDiv.innerHTML = '<p class="empty-message">Cargando historial...</p>';
+                        }
+                        setTimeout(() => cargarHistorialDespachador(), 1000);
+                    }
+                }
+                
+                window._cargarHistorialDespachador = cargarHistorialDespachador;
+
+                window.autorizarSalidaDesdeLista = async function(btn) {
+                    const item = btn.closest('.pending-exit-item');
+                    const turno = {
+                        numero: item.dataset.numero,
+                        nombre: item.dataset.nombre,
+                        nit: item.dataset.nit,
+                        motivo: item.dataset.motivo,
+                        destino: item.dataset.destino,
+                        contacto: item.dataset.contacto,
+                        telefono: item.dataset.telefono,
+                        servicio: item.dataset.servicio,
+                        numFactura: item.dataset.numfactura,
+                        consecutivoIngreso: item.dataset.consecutivo || null,
+                        tipoVehiculo: item.dataset.tipovehiculo,
+                        bultos: item.dataset.bultos,
+                        peso: item.dataset.peso,
+                        responsable: item.dataset.responsable,
+                        horaSolicitud: item.dataset.horasolicitud,
+                        horaLlamada: item.dataset.horallamada
+                    };
+
+                    try {
+                        const proveedorActivo = JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null');
+                        if (proveedorActivo && proveedorActivo.numero === turno.numero && proveedorActivo.nit === turno.nit) {
+                            turno.consecutivoIngreso = proveedorActivo.consecutivoIngreso || turno.consecutivoIngreso;
+                            turno.numFactura = proveedorActivo.numFactura || turno.numFactura;
+                        }
+                    } catch (e) {
+                        console.warn('No se pudo recuperar el consecutivo del turno activo:', e);
+                    }
+                    
+                     if (item.dataset.estransporte === 'true' && item.dataset.proveedortransporteid) {
+                         if (!(await window.ConfirmDialog.confirmar(
+                             `¿Autorizar la salida del proveedor ${item.dataset.nombreproveedor || item.dataset.nit || turno.numero}?`,
+                             'Autorizar salida',
+                             'Autorizar salida'
+                         ))) return;
+                         turno.proveedorTransporteId = parseInt(item.dataset.proveedortransporteid);
+                         turno.esTransporte = true;
+                         turno.nombreProveedor = item.dataset.nombreproveedor || '';
+                         await window.DespachadorHandlers._autorizarProveedorTransporteIndividual(turno);
+                         if (window.supabaseClient) {
+                             try {
+                                 await window.supabaseClient.from('notificaciones_salida').insert({
+                                     mensaje: `Salida autorizada para proveedor ${item.dataset.nombreproveedor || item.dataset.nit || turno.numero}`,
+                                     remitente: 'despachador',
+                                     leido: false,
+                                     tipo: 'salida_autorizada',
+                                     proveedor_nit: item.dataset.nit || null,
+                                     nombre_empresa: item.dataset.nombreproveedor || null,
+                                     datos: JSON.parse(JSON.stringify({
+                                         numero: turno.numero,
+                                         nombreEmpresa: item.dataset.nombreproveedor || '',
+                                         proveedorId: turno.proveedorTransporteId,
+                                         nit: item.dataset.nit || '',
+                                         autorizadoSalida: true,
+                                         timestamp: Date.now()
+                                     }))
+                                 });
+                             } catch(e) { console.warn('Error notificación:', e); }
+                         }
+                     } else {
+                         await window.DespachadorHandlers.autorizarSalida(turno);
+                     }
+                    setTimeout(() => {
+                        cargarTurnosPendientesSalida();
+                        cargarEstadisticasDespachador();
+                        cargarHistorialDespachador();
+                    }, 500);
+                };
+                
+                window.solicitarInspeccionDesdeLista = async function(btn) {
+                    const item = btn.closest('.pending-exit-item');
+                    const turno = {
+                        numero: item.dataset.numero,
+                        nombre: item.dataset.nombre,
+                        nombreProveedor: item.dataset.nombreproveedor || '',
+                        nit: item.dataset.nit,
+                        motivo: item.dataset.motivo,
+                        destino: item.dataset.destino,
+                        contacto: item.dataset.contacto,
+                        telefono: item.dataset.telefono,
+                        servicio: item.dataset.servicio,
+                        numFactura: item.dataset.numfactura,
+                        tipoVehiculo: item.dataset.tipovehiculo,
+                        bultos: item.dataset.bultos,
+                        peso: item.dataset.peso,
+                        responsable: item.dataset.responsable,
+                        horaSolicitud: item.dataset.horasolicitud,
+                        horaLlamada: item.dataset.horallamada,
+                        inspeccionFisica: item.dataset.inspeccion === 'true'
+                    };
+                    
+                    if (item.dataset.estransporte === 'true' && item.dataset.proveedortransporteid) {
+                        turno.proveedorTransporteId = parseInt(item.dataset.proveedortransporteid);
+                        await window.DespachadorHandlers.solicitarInspeccion(turno);
+                    } else {
+                        await window.DespachadorHandlers.solicitarInspeccion(turno);
+                    }
+                };
+                
+                const btnActualizarPendientes = document.getElementById('btnActualizarPendientes');
+                if (btnActualizarPendientes) {
+                    btnActualizarPendientes.addEventListener('click', () => {
+                        cargarTurnosPendientesSalida();
+                        cargarEstadisticasDespachador();
+                    });
+                }
+
+                const btnAutorizarSalida = document.getElementById('btnAutorizarSalida');
+                btnAutorizarSalida?.addEventListener('click', async () => {
+                    try {
+                        const proveedor = proveedorListoActual || normalizarDatosNotificacion(
+                            JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null')
+                        );
+                        if (!proveedor) return;
+                        await window.DespachadorHandlers.autorizarSalida(proveedor);
+                        setTimeout(() => {
+                            cargarTurnosPendientesSalida();
+                            cargarEstadisticasDespachador();
+                            cargarHistorialDespachador();
+                        }, 500);
+                    } catch (error) {
+                        console.error('Error al autorizar salida:', error);
+                    }
+                });
+
+                const btnSolicitarInspeccion = document.getElementById('btnSolicitarInspeccion');
+                btnSolicitarInspeccion?.addEventListener('click', async () => {
+                    try {
+                        const proveedor = proveedorListoActual || normalizarDatosNotificacion(
+                            JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null')
+                        );
+                        if (!proveedor) return;
+                        await window.DespachadorHandlers.solicitarInspeccion(proveedor);
+                        window.renderizarSeguimientoSalida?.({
+                            ...proveedor,
+                            inspeccionSolicitada: true,
+                            horaInspeccion: new Date().toISOString()
+                        }, true);
+                    } catch (error) {
+                        console.error('Error al solicitar inspección:', error);
+                    }
+                });
+                
+                // Modal auto-cierra si se autoriza la salida desde admin (viene del modal del proveedor)
+                const modalProveedor = document.getElementById('modal-proveedor-listo');
+                if (modalProveedor) {
+                    const observer = new MutationObserver(() => {
+                        if (localStorage.getItem('proveedorListoSalir') === null) {
+                            modalProveedor.remove();
+                        }
+                    });
+                    observer.observe(document.body, { childList: true, subtree: true });
+                }
+            }
+        });
+
+        async function initNotificacionesRealtimeDespachador() {
+            if (!window.supabaseClient) return;
+            if (window._despNotifChannel) {
+                window.supabaseClient.removeChannel(window._despNotifChannel);
+            }
+            window._despNotifChannel = window.supabaseClient
+                .channel('notificaciones-despachador')
+                .on('postgres_changes',
+                    { event: 'INSERT', schema: 'public', table: 'notificaciones_salida' },
+                    async (payload) => {
+                        if (window.SI3Realtime && !window.SI3Realtime.reclamarNotificacion(payload.new)) return;
+                        console.log('🔔 Notificación realtime despachador:', payload);
+                        const notif = payload.new;
+
+                        if (notif.tipo === 'turno_confirmado' && notif.destinatario === 'despachador') {
+                            const datos = normalizarDatosNotificacion(notif.datos);
+                            if (datos) {
+                                window.mostrarDetallesTurnoConfirmado(datos);
+                                window.notificarTurnoConfirmadoDespachador(datos, notif.mensaje);
+                                await window.actualizarTurnosDiaDespachador();
+                            }
+                            await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notif.id);
+                            return;
+                        }
+                        
+                        if (notif.remitente === 'admin') {
+                            const datosNotificacion = normalizarDatosNotificacion(notif.datos);
+                            if (notif.tipo === 'salida_pendiente' && datosNotificacion) {
+                                if (typeof window.mostrarProveedorListo === 'function') {
+                                    try {
+                                        window.mostrarProveedorListo(datosNotificacion);
+                                        window.sincronizarProveedorListo?.();
+                                        cargarTurnosPendientesSalida();
+                                        cargarEstadisticasDespachador();
+                                        cargarHistorialDespachador();
+                                    } catch (e) {
+                                        console.warn('Error al mostrar proveedor:', e);
+                                        Utils.mostrarNotificacion(notif.mensaje, 'warning');
+                                    }
+                                } else {
+                                    Utils.mostrarNotificacion(notif.mensaje, 'warning');
+                                }
+                            } else {
+                                Utils.mostrarNotificacion(notif.mensaje, 'warning');
+                            }
+                            
+                            await window.supabaseClient.from('notificaciones_salida').update({ leido: true }).eq('id', notif.id);
+                        }
+                    }
+                )
+                .subscribe((status) => {
+                    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                        clearTimeout(window._despNotifReconnectTimer);
+                        window._despNotifReconnectTimer = setTimeout(() => {
+                            window._despNotifReconnectTimer = null;
+                            initNotificacionesRealtimeDespachador();
+                        }, 3000);
+                    }
+                });
+        }
+
+        const detalleEstadisticas = {
+            autorizados: {
+                titulo: 'Salidas autorizadas',
+                texto: 'Vehículos que completaron correctamente el proceso de salida.',
+                selector: '.despachador-historial .history-table-desp tbody tr',
+                filter: registro => (registro.querySelectorAll('td')[13]?.textContent || '').includes('OK')
+            },
+            pendientes: {
+                titulo: 'Salidas pendientes',
+                texto: 'Vehículos que todavía requieren autorización o inspección.',
+                selector: '.cited-list .pending-exit-item',
+                filter: registro => registro.dataset.estado !== 'autorizado'
+            },
+            reservadas: {
+                titulo: 'Citas reservadas',
+                texto: 'Turnos programados que esperan atención del equipo despachador.',
+                selector: '.pending-exit .turn-item',
+                filter: () => true
+            }
+        };
+
+        function mostrarDetalleEstadistica(card) {
+            const detalle = detalleEstadisticas[card.dataset.stat];
+            const panel = document.getElementById('statsDetailDespachador');
+            const modal = document.getElementById('statsInfoModal');
+            const modalNumber = document.getElementById('statsInfoNumber');
+            const modalTitle = document.getElementById('statsInfoTitle');
+            const modalText = document.getElementById('statsInfoText');
+            const modalContent = document.getElementById('statsInfoContent');
+            if (!detalle || !panel || !modal) return;
+
+            document.querySelectorAll('.stat-card-action').forEach(item => item.classList.remove('is-selected'));
+            card.classList.add('is-selected');
+            if (modalNumber) modalNumber.textContent = card.querySelector('.stat-number')?.textContent || '0';
+            if (modalTitle) modalTitle.textContent = detalle.titulo;
+            if (modalText) modalText.textContent = detalle.texto;
+            if (modalContent) {
+                const registros = Array.from(document.querySelectorAll(detalle.selector)).filter(detalle.filter).slice(0, 8);
+                modalContent.innerHTML = registros.length ? registros.map(registro => {
+                    if (registro.matches('tr')) {
+                        const cells = Array.from(registro.querySelectorAll('td')).map(cell => cell.textContent.trim().replace(/\s+/g, ' '));
+                        return `<div class="stats-info-row stats-history-record">
+                            <div class="stats-record-head"><strong>${cells[0] || 'Turno'}</strong><span>${cells[1] || cells[2] || 'Proveedor'}</span><em>${cells[13] || cells[14] || 'Registro'}</em></div>
+                            <div class="stats-record-grid">
+                                <span><small>Placa</small>${cells[3] || '-'}</span>
+                                <span><small>Factura</small>${cells[4] || '-'}</span>
+                                <span><small>Tipo</small>${cells[5] || '-'}</span>
+                                <span><small>Horario</small>${cells[9] || '-'} - ${cells[10] || '-'}</span>
+                            </div>
+                        </div>`;
+                    }
+
+                    const numero = registro.querySelector('.turn-item-number, .pending-exit-number')?.textContent.trim() || 'Turno';
+                    const empresa = registro.querySelector('.turn-item-company, .pending-exit-company')?.textContent.trim() || 'Proveedor';
+                    const detalles = Array.from(registro.querySelectorAll('.turn-item-detail, .pending-exit-detail, .pending-exit-details span')).slice(0, 4).map(item => item.textContent.trim().replace(/\s+/g, ' '));
+                    return `<div class="stats-info-row stats-queue-record">
+                        <div class="stats-record-head"><strong>${numero}</strong><span>${empresa}</span></div>
+                        <div class="stats-record-grid">${detalles.map((detalle, index) => `<span><small>${index === 0 ? 'Información' : 'Detalle'}</small>${detalle}</span>`).join('')}</div>
+                    </div>`;
+                }).join('') : '<div class="stats-info-empty">No hay información disponible en este momento.</div>';
+            }
+            modal.hidden = false;
+            document.getElementById('statsInfoClose')?.focus();
+        }
+
+        document.querySelectorAll('.stat-card-action').forEach(card => {
+            card.addEventListener('click', () => mostrarDetalleEstadistica(card));
+            card.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    mostrarDetalleEstadistica(card);
+                }
+            });
+        });
+
+        const statsInfoModal = document.getElementById('statsInfoModal');
+        const statsInfoClose = document.getElementById('statsInfoClose');
+        const cerrarStatsInfo = () => {
+            if (statsInfoModal) statsInfoModal.hidden = true;
+            document.querySelector('.stat-card-action.is-selected')?.focus();
+        };
+        statsInfoClose?.addEventListener('click', cerrarStatsInfo);
+        statsInfoModal?.addEventListener('click', event => {
+            if (event.target === statsInfoModal) cerrarStatsInfo();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && statsInfoModal && !statsInfoModal.hidden) cerrarStatsInfo();
+        });
+
+        const reservadasEl = document.getElementById('totalReservadas');
+        const contadorReservadasEl = document.getElementById('contadorTurnosCitadosDespachador');
+        if (reservadasEl && contadorReservadasEl) {
+            const sincronizarReservadas = () => { reservadasEl.textContent = contadorReservadasEl.textContent || '0'; };
+            sincronizarReservadas();
+            new MutationObserver(sincronizarReservadas).observe(contadorReservadasEl, { childList: true, characterData: true, subtree: true });
+        }
+
+        initNotificacionesRealtimeDespachador();
+
+        const desbloquearAudio = () => {
+            if (window.SonidoAlerta) window.SonidoAlerta.inicializar();
+        };
+        ['click', 'keydown', 'touchstart'].forEach(ev =>
+            document.addEventListener(ev, desbloquearAudio, { once: true })
+        );
+
+        (function() {
+            const claveOk = sessionStorage.getItem('accesoAdmin') === 'ok';
+            if (!claveOk) {
+                window.location.href = 'index.html';
+            }
+        })();
+    </script>
+</body>
+</html>
