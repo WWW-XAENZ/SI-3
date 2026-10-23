@@ -1,5 +1,4 @@
-// Push Notification Manager - SI-3 v2
-// Mejoras: sonido automático, BroadcastChannel, fiabilidad
+// Local notification manager - SI-3
 class PushNotificationManager {
     constructor() {
         this.isSupported = typeof window !== 'undefined' && 'Notification' in window;
@@ -193,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             Promise.resolve(window.SI3PushManager.init()).then(success => {
                 if (success) {
-                    console.log('Push Manager inicializado correctamente');
+                    console.log('Notificaciones locales inicializadas correctamente');
                 }
             }).catch(err => console.warn('No se pudo inicializar SI3PushManager:', err));
         }, 1000);

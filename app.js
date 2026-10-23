@@ -6996,6 +6996,7 @@ window.RenderUsuario = RenderUsuario;
 window.RenderAdmin = RenderAdmin;
 window.ModoEspera = ModoEspera;
 window.SonidoAlerta = SonidoAlerta;
+window.SupabaseDB = SupabaseDB;
 
 window.toggleProveedoresEmpresa = function(detallesId, chevronId) {
     const det = document.getElementById(detallesId);

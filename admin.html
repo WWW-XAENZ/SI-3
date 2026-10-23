@@ -2362,11 +2362,11 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
             });
         }
         
-        // Inicializar Push Notifications solo si el manager está disponible
+        // Inicializar notificaciones locales si el manager está disponible
         if (window.SI3PushManager && typeof window.SI3PushManager.init === 'function') {
-            window.SI3PushManager.init().catch(err => console.warn('No se pudo inicializar push:', err));
+            window.SI3PushManager.init().catch(err => console.warn('No se pudieron inicializar las notificaciones locales:', err));
         } else {
-            console.info('Push notifications no disponibles en esta sesión; usando avisos locales.');
+            console.info('Notificaciones locales no disponibles en esta sesión.');
         }
     </script>
     <script src="sonido.js"></script>

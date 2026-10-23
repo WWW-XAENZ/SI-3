@@ -202,11 +202,7 @@ El sistema se adapta automáticamente a:
 
 ## 🔄 Modo Offline
 
-El sistema funciona sin conexión a internet:
-- Los turnos se guardan en localStorage
-- Los datos se sincronizan cuando hay conexión
-- Indicador visual del estado de conexión
-- Las pantallas consultan Supabase directamente, sin caché de datos; las instalaciones antiguas del service worker se retiran automáticamente.
+Si Supabase no está disponible, un turno puede guardarse solo en localStorage de ese dispositivo. No se comparte ni se sincroniza automáticamente; la pantalla ahora lo advierte. Al recuperar la conexión, las pantallas consultan Supabase directamente, sin caché de datos. Las instalaciones antiguas del service worker se retiran automáticamente.
 
 ## 🐛 Solución de Problemas
 
