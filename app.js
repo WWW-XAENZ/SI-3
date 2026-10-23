@@ -1273,6 +1273,40 @@ const SupabaseDB = {
         }
     },
 
+    async cargarTurnosActivos() {
+        if (!window.supabaseClient) {
+            throw new Error('Supabase no está disponible para cargar los turnos activos.');
+        }
+
+        try {
+            const pageSize = 1000;
+            const turnos = [];
+            let offset = 0;
+
+            while (true) {
+                const { data, error } = await window.supabaseClient
+                    .from('turnos')
+                    .select('*')
+                    .in('estado', ['espera', 'citado', 'llegado', 'atendiendo'])
+                    .order('fecha_solicitud', { ascending: true })
+                    .order('id', { ascending: true })
+                    .range(offset, offset + pageSize - 1);
+
+                if (error) throw error;
+
+                const pagina = data || [];
+                turnos.push(...pagina);
+                if (pagina.length < pageSize) break;
+                offset += pageSize;
+            }
+
+            return turnos.map(turno => this._mapearTurno(turno));
+        } catch (error) {
+            console.error('Error al cargar turnos activos:', error);
+            throw error;
+        }
+    },
+
     /**
      * Verifica qué slots de 15 min están ocupados/bloqueados en una fecha
      * Horario laboral: 08:00 a 17:00 (5 PM), intervalos de 15 min
@@ -1753,8 +1787,7 @@ const SupabaseDB = {
 
     async cargarHistorial(limite = 100, fecha = null) {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return [];
+            throw new Error('Supabase no está disponible para cargar el historial.');
         }
         
         try {
@@ -1770,6 +1803,7 @@ const SupabaseDB = {
             
             const { data, error } = await query
                 .order('fecha', { ascending: false })
+                .order('id', { ascending: false })
                 .limit(limite);
             
             if (error) throw error;
@@ -1809,7 +1843,7 @@ const SupabaseDB = {
             }));
         } catch (error) {
             console.error('Error al cargar historial:', error);
-            return [];
+            throw error;
         }
     },
 
@@ -2641,6 +2675,9 @@ window.Conectividad = Conectividad;
 // ============================================
 
 const Turnos = {
+    _cargaVersion: 0,
+    _sincronizadoDesdeSupabase: false,
+
     async solicitar(datosProveedor, motivo = '', signal = null, estadoOverride = null) {
         console.log('=== CREANDO TURNO ===');
         console.log('📌 Datos recibidos:', datosProveedor);
@@ -2796,7 +2833,7 @@ const Turnos = {
             return null;
         }
         
-        const todosLosTurnos = await SupabaseDB.cargarTurnos();
+        const todosLosTurnos = await SupabaseDB.cargarTurnosActivos();
         const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado');
         
         console.log('Turnos en espera/citados cargados:', turnosEnEspera.length);
@@ -2915,21 +2952,20 @@ const Turnos = {
 
     async cargarTurnos() {
         console.log('=== CARGANDO TURNOS ===');
+        const versionCarga = ++this._cargaVersion;
         
         try {
             if (window.supabaseClient) {
-                const todosLosTurnos = await SupabaseDB.cargarTurnos();
-                console.log('Turnos cargados de Supabase:', todosLosTurnos);
-                
+                const todosLosTurnos = await SupabaseDB.cargarTurnosActivos();
+                if (versionCarga !== this._cargaVersion) return;
+
                 if (todosLosTurnos && Array.isArray(todosLosTurnos)) {
                     const turnosEnEspera = todosLosTurnos.filter(t => t.estado === 'espera' || t.estado === 'citado' || t.estado === 'llegado');
                     const turnoAtendiendo = todosLosTurnos.find(t => t.estado === 'atendiendo');
                     
-                    console.log('Turnos en espera:', turnosEnEspera.length);
-                    console.log('Turno atendiendo:', turnoAtendiendo);
-                    
                     AppState.turnos = turnosEnEspera;
                     AppState.turnoActual = turnoAtendiendo || null;
+                    this._sincronizadoDesdeSupabase = true;
                     
                     LocalStorage.guardarTurnos(turnosEnEspera);
                     if (turnoAtendiendo) {
@@ -2938,7 +2974,7 @@ const Turnos = {
                         LocalStorage.guardarTurnoActual(null);
                     }
                     
-                    console.log(`✅ Turnos sincronizados: ${todosLosTurnos.length} total`);
+                    console.log(`✅ Turnos activos sincronizados: ${todosLosTurnos.length} total`);
                     
                     const fechaReinicioContador = await SupabaseDB.obtenerFechaReinicioContador();
                     const { maxT, maxC } = SupabaseDB.obtenerMaximosTurnos(todosLosTurnos, fechaReinicioContador);
@@ -2947,6 +2983,7 @@ const Turnos = {
                         SupabaseDB.obtenerContadorTurnos('T'),
                         SupabaseDB.obtenerContadorTurnos('C')
                     ]);
+                    if (versionCarga !== this._cargaVersion) return;
                     
                     const nuevoMaxT = Math.max(contadorT, maxT);
                     const nuevoMaxC = Math.max(contadorC, maxC);
@@ -2968,15 +3005,20 @@ const Turnos = {
                 }
             }
             
-            AppState.turnos = LocalStorage.obtenerTurnos();
-            AppState.turnoActual = LocalStorage.obtenerTurnoActual();
+            if (!this._sincronizadoDesdeSupabase) {
+                AppState.turnos = LocalStorage.obtenerTurnos();
+                AppState.turnoActual = LocalStorage.obtenerTurnoActual();
+            }
             
         } catch (error) {
+            if (versionCarga !== this._cargaVersion) return;
             console.error('❌ Error al cargar turnos:', error);
             ConnectionStatus.actualizar('disconnected', 'Mostrando datos locales');
             Utils.mostrarNotificacion('No se pudo actualizar la cola desde Supabase. Se muestran los datos guardados en este dispositivo.', 'warning');
-            AppState.turnos = LocalStorage.obtenerTurnos();
-            AppState.turnoActual = LocalStorage.obtenerTurnoActual();
+            if (!this._sincronizadoDesdeSupabase) {
+                AppState.turnos = LocalStorage.obtenerTurnos();
+                AppState.turnoActual = LocalStorage.obtenerTurnoActual();
+            }
         }
     },
 
@@ -3621,17 +3663,19 @@ const RenderAdmin = {
         // Debounce no bloqueante: evita recargas bruscas del historial cuando
         // polling/realtime disparan varios renderizados seguidos.
         if (!document.getElementById('historialTurnos')) return;
+        this._historialVersion = (this._historialVersion || 0) + 1;
+        const versionHistorial = this._historialVersion;
         this._historialParams = historialParam;
         if (this._historialTimer) {
             clearTimeout(this._historialTimer);
         }
         this._historialTimer = setTimeout(() => {
             this._historialTimer = null;
-            this._renderHistorial(this._historialParams).catch(e => console.error('Error historial:', e));
+            this._renderHistorial(this._historialParams, versionHistorial).catch(e => console.error('Error historial:', e));
         }, 600);
     },
 
-    async _renderHistorial(historialParam) {
+    async _renderHistorial(historialParam, versionHistorial = this._historialVersion) {
         const historialDiv = document.getElementById('historialTurnos');
         if (!historialDiv) return;
 
@@ -3665,6 +3709,7 @@ const RenderAdmin = {
             const fechaFiltro = fechaInput && fechaInput.value ? fechaInput.value : null;
             historial = await SupabaseDB.cargarHistorial(100, fechaFiltro);
         }
+        if (versionHistorial !== this._historialVersion) return;
         AppState.historial = historial;
         if (window.BusquedaHistorial) BusquedaHistorial.setHistorial(historial || []);
         console.log('Historial cargado:', historial.length, 'registros');
@@ -6723,9 +6768,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (window.supabaseClient) {
                 console.log('Configurando suscripción a tiempo real para usuario...');
                 AppState.subscription = RenderUsuario.suscribirCambios();
+                let actualizacionTurnosEnCurso = false;
                 
                 setInterval(async () => {
-                    if (document.hidden) return;
+                    if (document.hidden || actualizacionTurnosEnCurso) return;
+                    actualizacionTurnosEnCurso = true;
                     try {
                         await Turnos.cargarTurnos();
                         await RenderUsuario.todo();
@@ -6734,8 +6781,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     } catch (e) {
                         console.error('Error en actualización periódica de turnos:', e);
+                    } finally {
+                        actualizacionTurnosEnCurso = false;
                     }
-                }, 5000);
+                }, 15000);
             } else {
                 console.warn('Supabase no disponible - verifica tu conexión y credenciales');
             }
@@ -6886,14 +6935,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.warn('Supabase no disponible');
         }
         
+        let actualizacionAdminEnCurso = false;
         setInterval(async () => {
+            if (document.hidden || actualizacionAdminEnCurso) return;
+            actualizacionAdminEnCurso = true;
             try {
                 await Turnos.cargarTurnos();
                 await RenderAdmin.todo();
             } catch (e) {
                 console.error('Error en actualización periódica admin:', e);
+            } finally {
+                actualizacionAdminEnCurso = false;
             }
-        }, 5000);
+        }, 15000);
         
         if (window.NotificacionesPolling && typeof window.NotificacionesPolling.iniciar === 'function') {
             window.NotificacionesPolling.iniciar();
@@ -6904,7 +6958,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('Inicializando despachador desde app.js...');
                 const hoy = getLocalDate();
                 const [turnos, historial, stats] = await Promise.all([
-                    (window.SupabaseDB && window.SupabaseDB.cargarTurnos ? window.SupabaseDB.cargarTurnos() : Promise.resolve([])),
+                    (window.SupabaseDB && window.SupabaseDB.cargarTurnosActivos ? window.SupabaseDB.cargarTurnosActivos() : Promise.resolve([])),
                     (window.SupabaseDB && window.SupabaseDB.cargarHistorial ? window.SupabaseDB.cargarHistorial(100) : Promise.resolve([])),
                     (window.SupabaseDB && window.SupabaseDB.cargarEstadisticas ? window.SupabaseDB.cargarEstadisticas() : Promise.resolve(null))
                 ]);

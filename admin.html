@@ -1652,10 +1652,10 @@
 
       <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
      <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-     <script src="supabase-config.js"></script>
+     <script src="supabase-config.js?v=2"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-    <script src="app.js?v=40"></script>
+    <script src="app.js?v=42"></script>
      <script>
         window.salidaDespachadorAnterior = null;
         window.inspeccionAnterior = null;
@@ -2298,8 +2298,10 @@
         
         if (window.supabaseClient) {
             let ultimaNotifAdminTs = null;
+            let consultaNotifAdminEnCurso = false;
             setInterval(async () => {
-                if (!window.supabaseClient) return;
+                if (!window.supabaseClient || document.hidden || consultaNotifAdminEnCurso) return;
+                consultaNotifAdminEnCurso = true;
                 try {
                     const { data } = await window.supabaseClient
                         .from('notificaciones_salida')
@@ -2346,8 +2348,10 @@
                     }
                 } catch(e) {
                     console.error('Error polling notificaciones admin:', e);
+                } finally {
+                    consultaNotifAdminEnCurso = false;
                 }
-            }, 5000);
+            }, 10000);
         }
         
 if (window.SonidoSI3) window.SonidoSI3.inicializar();

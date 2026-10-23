@@ -10,6 +10,12 @@ let supabaseClient = null;
 
 try {
     if (typeof supabase !== 'undefined') {
+        const fetchSupabaseSinCache = (input, init = {}) => {
+            const headers = new Headers(init.headers || {});
+            headers.set('Cache-Control', 'no-cache');
+            return window.fetch(input, { ...init, headers, cache: 'no-store' });
+        };
+
         supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             realtime: {
                 params: {
@@ -20,7 +26,7 @@ try {
             db: {
                 schema: 'public'
             },
-            fetch: window.fetch.bind(window)
+            fetch: fetchSupabaseSinCache
         });
 
         // Hacer disponible globalmente
