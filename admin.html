@@ -1572,8 +1572,8 @@
                         <input type="text" id="sinTurnoProveedor" placeholder="Nombre del proveedor" autocomplete="off">
                     </div>
                     <div class="form-group">
-                        <label>Placa:</label>
-                        <input type="text" id="sinTurnoPlaca" placeholder="ABC123 (6 caracteres)" maxlength="6" autocomplete="off">
+                        <label for="sinTurnoPlaca">Placa o cédula:</label>
+                        <input type="text" id="sinTurnoPlaca" placeholder="Placa (6 caracteres) o cédula (5 a 15 dígitos)" maxlength="15" pattern="(?:[A-Za-z0-9]{6}|[0-9]{5,15})" title="Ingrese una placa de 6 caracteres o una cédula de 5 a 15 dígitos" autocomplete="off">
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;" id="sinTurnoGrid1">
                         <div class="form-group">
@@ -1655,7 +1655,7 @@
      <script src="supabase-config.js"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-    <script src="app.js?v=37"></script>
+    <script src="app.js?v=39"></script>
      <script>
         window.salidaDespachadorAnterior = null;
         window.inspeccionAnterior = null;

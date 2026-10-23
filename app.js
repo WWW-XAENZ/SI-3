@@ -1030,11 +1030,10 @@ const SupabaseDB = {
                     }
                 } catch (retryError) {
                     console.error('❌ Reintento de proveedor también falló:', retryError);
-                    return null;
+                    throw retryError;
                 }
             }
-            console.log('🔄 Fallback a localStorage para proveedor');
-            return null; // Señal para usar fallback
+            throw error;
         }
     },
 
@@ -1243,20 +1242,32 @@ const SupabaseDB = {
         }
         
         try {
-            let query = window.supabaseClient
-                .from('turnos')
-                .select('*')
-                .order('fecha_solicitud', { ascending: true });
-            
-            if (estado) {
-                query = query.eq('estado', estado);
+            const pageSize = 1000;
+            const turnos = [];
+            let offset = 0;
+
+            while (true) {
+                let query = window.supabaseClient
+                    .from('turnos')
+                    .select('*')
+                    .order('fecha_solicitud', { ascending: true })
+                    .order('id', { ascending: true })
+                    .range(offset, offset + pageSize - 1);
+
+                if (estado) {
+                    query = query.eq('estado', estado);
+                }
+
+                const { data, error } = await query;
+                if (error) throw error;
+
+                const pagina = data || [];
+                turnos.push(...pagina);
+                if (pagina.length < pageSize) break;
+                offset += pageSize;
             }
-            
-            const { data, error } = await query;
-            
-            if (error) throw error;
-            
-            return (data || []).map(t => this._mapearTurno(t));
+
+            return turnos.map(t => this._mapearTurno(t));
         } catch (error) {
             console.error('Error al cargar turnos:', error);
             throw error;
@@ -2048,31 +2059,32 @@ const SupabaseDB = {
             console.error('Supabase no está disponible para proveedor transporte');
             return null;
         }
-        
+
+        const proveedorData = {
+            numero_turno: proveedor.numeroTurno,
+            nombre_empresa: proveedor.nombreEmpresa,
+            nit: proveedor.nit.toUpperCase(),
+            motivo: proveedor.motivo || null,
+            num_factura: proveedor.numFactura || null,
+            tipo_vehiculo: proveedor.tipoVehiculo || null,
+            bultos: proveedor.bultos ? parseInt(proveedor.bultos) : null,
+            peso: proveedor.peso || null,
+            responsable: proveedor.responsable || null,
+            contacto: proveedor.contacto || null,
+            telefono: proveedor.telefono || null,
+            servicio: proveedor.servicio || null,
+            destino: proveedor.destino || null,
+            nombre_proveedor: proveedor.nombreProveedor || null,
+            estado: 'pendiente',
+            autorizado_salida: false,
+            inspeccion_fisica: false,
+            consecutivo_ingreso: proveedor.consecutivoIngreso || null,
+            num_facturas: proveedor.numFacturas ?? null,
+            hora_solicitud: proveedor.horaSolicitud || null,
+            updated_at: new Date().toISOString()
+        };
+
         try {
-            const proveedorData = {
-                numero_turno: proveedor.numeroTurno,
-                nombre_empresa: proveedor.nombreEmpresa,
-                nit: proveedor.nit.toUpperCase(),
-                motivo: proveedor.motivo || null,
-                num_factura: proveedor.numFactura || null,
-                tipo_vehiculo: proveedor.tipoVehiculo || null,
-                bultos: proveedor.bultos ? parseInt(proveedor.bultos) : null,
-                peso: proveedor.peso || null,
-                responsable: proveedor.responsable || null,
-                contacto: proveedor.contacto || null,
-                telefono: proveedor.telefono || null,
-                servicio: proveedor.servicio || null,
-                destino: proveedor.destino || null,
-                nombre_proveedor: proveedor.nombreProveedor || null,
-                estado: 'pendiente',
-                autorizado_salida: false,
-                inspeccion_fisica: false,
-                consecutivo_ingreso: proveedor.consecutivoIngreso || null,
-                num_facturas: proveedor.numFacturas ?? null,
-                hora_solicitud: proveedor.horaSolicitud || null,
-                updated_at: new Date().toISOString()
-            };
             
             const timeoutPromise = new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('Timeout Supabase (proveedor transporte)')), 5000)
@@ -2112,10 +2124,10 @@ const SupabaseDB = {
                     return this._mapearProveedorTransporte(retryData);
                 } catch (retryErr) {
                     console.error('❌ Reintento de proveedor transporte también falló:', retryErr);
-                    return null;
+                    throw retryErr;
                 }
             }
-            return null;
+            throw error;
         }
     },
 
@@ -4606,9 +4618,8 @@ const AdminHandlers = {
                 }
 
                 const proveedorConId = await SupabaseDB.guardarProveedorTransporte(proveedor);
-                if (proveedorConId) {
-                    proveedor.id = proveedorConId.id;
-                }
+                if (!proveedorConId) throw new Error(`No se pudo guardar el proveedor ${proveedor.nombreProveedor || proveedor.nit}.`);
+                proveedor.id = proveedorConId.id;
                 proveedoresListos.push(proveedor);
             }
 
@@ -5352,8 +5363,8 @@ const proveedorData = {
             Utils.mostrarNotificacion('El nombre del proveedor es requerido', 'error');
             return;
         }
-        if (!placa || placa.length !== 6) {
-            Utils.mostrarNotificacion('La placa debe tener exactamente 6 caracteres', 'error');
+        if (!/^(?:[A-Z0-9]{6}|[0-9]{5,15})$/.test(placa)) {
+            Utils.mostrarNotificacion('Ingrese una placa de 6 caracteres o una cédula de 5 a 15 dígitos', 'error');
             return;
         }
         if (!destino) {
