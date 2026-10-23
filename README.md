@@ -206,8 +206,7 @@ El sistema funciona sin conexión a internet:
 - Los turnos se guardan en localStorage
 - Los datos se sincronizan cuando hay conexión
 - Indicador visual del estado de conexión
-- El service worker almacena los archivos de la interfaz; las respuestas de Supabase y otras API nunca se sirven desde la caché.
-- Al recuperar la conexión, las consultas se realizan de nuevo contra Supabase para evitar mostrar datos antiguos.
+- Las pantallas consultan Supabase directamente, sin caché de datos; las instalaciones antiguas del service worker se retiran automáticamente.
 
 ## 🐛 Solución de Problemas
 

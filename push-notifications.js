@@ -2,15 +2,33 @@
 // Mejoras: sonido automático, BroadcastChannel, fiabilidad
 class PushNotificationManager {
     constructor() {
-        this.swRegistration = null;
-        this.subscription = null;
-        this.isSupported = !!(navigator && 'serviceWorker' in navigator && window && 'PushManager' in window);
-        this.serverUrl = window.location.origin;
-        this.publicVapidKey = window.SI3_VAPID_PUBLIC_KEY || '';
+        this.isSupported = typeof window !== 'undefined' && 'Notification' in window;
         this._canalesBC = [];
-        this._useServiceWorker = this.isSupported && window.location.protocol !== 'file:';
         this._initInProgress = false;
         this._initBroadcastChannel();
+    }
+
+    async desregistrarServiceWorkers() {
+        if (!('serviceWorker' in navigator)) return;
+
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(async registration => {
+            try {
+                await registration.update();
+            } catch (error) {
+                console.warn('No se pudo actualizar el registro antiguo del service worker:', error);
+                await registration.unregister();
+            }
+        }));
+
+        if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(
+                cacheNames
+                    .filter(cacheName => cacheName.startsWith('si3-v'))
+                    .map(cacheName => caches.delete(cacheName))
+            );
+        }
     }
 
     _initBroadcastChannel() {
@@ -18,9 +36,6 @@ class PushNotificationManager {
             const bc = new BroadcastChannel('si3-notificaciones');
             bc.onmessage = (event) => {
                 const msg = event.data;
-                if (msg.type === 'notificacion-click') {
-                    this._manejarClickNotificacion(msg);
-                }
                 if (msg.type === 'reproducir-sonido') {
                     this._reproducirSonido(msg.tipo);
                 }
@@ -41,10 +56,6 @@ class PushNotificationManager {
         } catch(e) {}
     }
 
-    _manejarClickNotificacion(msg) {
-        // Puede ser expandido para manejar clicks entre pestañas
-    }
-
     async init() {
         if (this._initInProgress) {
             return false;
@@ -53,67 +64,24 @@ class PushNotificationManager {
         this._initInProgress = true;
 
         try {
+            await this.desregistrarServiceWorkers();
+
             if (!this.isSupported) {
-                console.warn('Push notifications no soportadas');
+                console.warn('Notificaciones del navegador no soportadas');
                 return false;
             }
 
-            if (!this._useServiceWorker) {
-                console.log('Service Worker deshabilitado en file://, usando notificaciones locales');
-                return true;
+            if (Notification.permission === 'default') {
+                await this.requestPermission();
             }
-
-            for (let intento = 0; intento < 3; intento++) {
-                try {
-                    this.swRegistration = await navigator.serviceWorker.register('/sw.js');
-                    console.log('Service Worker registrado:', this.swRegistration.scope);
-
-                    this.swRegistration.addEventListener('updatefound', () => {
-                        const newWorker = this.swRegistration.installing;
-                        if (!newWorker) return;
-                        newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                console.log('Nueva versión disponible');
-                                newWorker.postMessage('skipWaiting');
-                            }
-                        });
-                    });
-
-                    const permission = await this.requestPermission();
-                    if (permission === 'granted') {
-                        const subscription = await this.subscribe();
-                        if (subscription) {
-                            console.log('Suscripcion push activa');
-                        }
-                    }
-
-                    this._escucharMensajesSW();
-                    return true;
-                } catch (error) {
-                    console.error(`Error inicializando push (intento ${intento + 1}):`, error);
-                    if (intento < 2) {
-                        await new Promise(r => setTimeout(r, 1000));
-                    }
-                }
-            }
+            console.info('Service worker desactivado; se usarán notificaciones locales.');
+            return true;
+        } catch (error) {
+            console.error('No se pudo desregistrar el service worker:', error);
             return false;
         } finally {
             this._initInProgress = false;
         }
-    }
-
-    _escucharMensajesSW() {
-        if (!this.swRegistration) return;
-        navigator.serviceWorker.addEventListener('message', (event) => {
-            const data = event.data || {};
-            if (data.type === 'notificacion-click') {
-                this._reproducirSonido(data.tipo);
-                this._manejarClickNotificacion(data);
-            }
-            if (data.type === 'reproducir-sonido') {
-                this._reproducirSonido(data.tipo);
-            }
-        });
     }
 
     async requestPermission() {
@@ -121,65 +89,6 @@ class PushNotificationManager {
         const permission = await Notification.requestPermission();
         console.log('Permiso notificaciones:', permission);
         return permission;
-    }
-
-    async subscribe() {
-        if (!this.publicVapidKey || this.publicVapidKey.length < 20) {
-            console.info('Push deshabilitado: no hay clave VAPID válida configurada. Usando avisos locales.');
-            return null;
-        }
-
-        try {
-            const applicationServerKey = this.urlB64ToUint8Array(this.publicVapidKey);
-            if (!applicationServerKey || applicationServerKey.length === 0) {
-                console.warn('Clave VAPID inválida; no se suscribe a push.');
-                return null;
-            }
-
-            this.subscription = await this.swRegistration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey
-            });
-
-            console.log('Suscrito a push:', this.subscription.endpoint ? '✓' : '?');
-            await this.sendSubscriptionToServer(this.subscription);
-            return this.subscription;
-        } catch (error) {
-            console.warn('Push no disponible o no configurado; usando avisos locales:', error.message || error);
-            return null;
-        }
-    }
-
-    async sendSubscriptionToServer(subscription) {
-        try {
-            await fetch('/api/push/subscribe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ subscription })
-            });
-        } catch (error) {
-            console.warn('No se pudo enviar suscripción al servidor:', error);
-        }
-    }
-
-    urlB64ToUint8Array(base64String) {
-        if (!base64String || typeof base64String !== 'string' || base64String.length < 20) {
-            return new Uint8Array();
-        }
-
-        try {
-            const padding = '='.repeat((4 - base64String.length % 4) % 4);
-            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-            const rawData = window.atob(base64);
-            const outputArray = new Uint8Array(rawData.length);
-            for (let i = 0; i < rawData.length; ++i) {
-                outputArray[i] = rawData.charCodeAt(i);
-            }
-            return outputArray;
-        } catch (error) {
-            console.warn('Clave VAPID no válida:', error.message || error);
-            return new Uint8Array();
-        }
     }
 
     // Mostrar notificación local CON SONIDO
@@ -202,10 +111,7 @@ class PushNotificationManager {
             silent: false
         };
 
-        if (this.swRegistration) {
-            this.swRegistration.showNotification(title, defaultOptions);
-        } else if (Notification.permission === 'granted') {
-            // Fallback: usar Notification API directa sin Service Worker
+        if (this.isSupported && Notification.permission === 'granted') {
             new Notification(title, defaultOptions);
         }
 
@@ -274,6 +180,10 @@ class PushNotificationManager {
 }
 
 window.SI3PushManager = new PushNotificationManager();
+
+window.SI3PushManager.desregistrarServiceWorkers().catch(error => {
+    console.error('No se pudo desactivar el service worker:', error);
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     const isDespachador = window.location.pathname.includes('despachador');

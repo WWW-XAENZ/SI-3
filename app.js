@@ -1109,6 +1109,7 @@ const SupabaseDB = {
         if (!window.supabaseClient) {
             console.error('❌ Supabase no está disponible - guardando en localStorage');
             turno.id = Date.now();
+            turno.soloLocal = true;
             AppState.turnos.push(turno);
             LocalStorage.guardarTurnos(AppState.turnos);
             return turno;
@@ -1149,8 +1150,10 @@ const SupabaseDB = {
                 .eq('numero', turno.numero)
                 .eq('fecha_solicitud', getLocalDate())
                 .maybeSingle();
+
+            if (errorExistente) throw errorExistente;
             
-            if (existente && !errorExistente) {
+            if (existente) {
                 console.warn('⚠️ Turno duplicado detectado:', turno.numero);
                 throw new Error(`El turno ${turno.numero} ya fue registrado hoy.`);
             }
@@ -1166,14 +1169,16 @@ const SupabaseDB = {
                 .in('estado', ['espera', 'citado', 'atendiendo'])
                 .limit(1)
                 .maybeSingle();
+
+            if (errorPlaca) throw errorPlaca;
             
-            if (turnoPlaca && !errorPlaca) {
+            if (turnoPlaca) {
                 console.warn('⚠️ Placa con turno activo:', turno.nit, 'Turno:', turnoPlaca.numero);
                 throw new Error(`La placa ${turno.nit} ya tiene un turno activo (${turnoPlaca.numero}). Complete o cancele ese turno antes de solicitar uno nuevo.`);
             }
             
             const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Timeout Supabase (turno)')), 5000)
+                setTimeout(() => reject(new Error('Timeout Supabase (turno)')), 15000)
             );
             
             const insertPromise = window.supabaseClient
@@ -1198,7 +1203,7 @@ const SupabaseDB = {
                     if (turnoData.consecutivo_ingreso !== undefined) delete turnoData.consecutivo_ingreso;
                     if (turnoData.num_facturas !== undefined) delete turnoData.num_facturas;
                     const retryTimeout = new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('Timeout Supabase (turno retry)')), 5000)
+                        setTimeout(() => reject(new Error('Timeout Supabase (turno retry)')), 15000)
                     );
                     const retryPromise = window.supabaseClient
                         .from('turnos')
@@ -1227,11 +1232,7 @@ const SupabaseDB = {
             return turnoGuardado;
         } catch (error) {
             console.error('❌ Error al guardar turno:', error);
-            console.log('🔄 Fallback a localStorage para turno');
-            turno.id = Date.now();
-            AppState.turnos.push(turno);
-            LocalStorage.guardarTurnos(AppState.turnos);
-            return turno;
+            throw error;
         }
     },
 
@@ -1255,10 +1256,10 @@ const SupabaseDB = {
             
             if (error) throw error;
             
-            return data.map(t => this._mapearTurno(t));
+            return (data || []).map(t => this._mapearTurno(t));
         } catch (error) {
             console.error('Error al cargar turnos:', error);
-            return [];
+            throw error;
         }
     },
 
@@ -2961,6 +2962,8 @@ const Turnos = {
             
         } catch (error) {
             console.error('❌ Error al cargar turnos:', error);
+            ConnectionStatus.actualizar('disconnected', 'Mostrando datos locales');
+            Utils.mostrarNotificacion('No se pudo actualizar la cola desde Supabase. Se muestran los datos guardados en este dispositivo.', 'warning');
             AppState.turnos = LocalStorage.obtenerTurnos();
             AppState.turnoActual = LocalStorage.obtenerTurnoActual();
         }
@@ -3108,7 +3111,7 @@ const RenderUsuario = {
         const turnosEsperaEl = document.getElementById('turnosEnEsperaUsuario');
         
         if (turnoActualEl) turnoActualEl.textContent = AppState.turnoActual ? AppState.turnoActual.numero : '--';
-        if (turnosEsperaEl) turnosEsperaEl.textContent = AppState.turnos.length;
+        if (turnosEsperaEl) turnosEsperaEl.textContent = this.turnosVisiblesHoy().length;
         
         const miTurno = LocalStorage.obtenerMiTurno();
         if (miTurno) {
@@ -3124,18 +3127,21 @@ const RenderUsuario = {
         }
     },
 
+    turnosVisiblesHoy() {
+        const hoy = getLocalDate();
+        return AppState.turnos.filter(turno => {
+            if (turno.estado === 'citado') {
+                return turno.fechaCita?.split('T')[0] === hoy;
+            }
+            return turno.estado === 'espera' || turno.estado === 'llegado';
+        });
+    },
+
     turnosEnEspera() {
         const listaDiv = document.getElementById('listaTurnosUsuario');
         if (!listaDiv) return;
 
-        const hoy = getLocalDate();
-        const turnosHoy = AppState.turnos.filter(t => {
-            if (t.estado === 'citado' && t.fechaCita) {
-                const fechaCitaDia = t.fechaCita.split('T')[0];
-                return fechaCitaDia === hoy;
-            }
-            return t.estado === 'espera';
-        });
+        const turnosHoy = this.turnosVisiblesHoy();
 
         if (turnosHoy.length === 0) {
             listaDiv.innerHTML = '<p class="empty-message">No hay turnos en espera</p>';
@@ -3808,7 +3814,7 @@ const UsuarioHandlers = {
         console.log('✅ Iniciando solicitud de turno');
         Utils.setLoading(true);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos timeout
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
         try {
             console.log('📝 Paso 0: Validando formulario...');
@@ -3898,7 +3904,12 @@ const UsuarioHandlers = {
                 modal.style.display = 'flex';
             }
 
-            Utils.mostrarNotificacion(`Turno ${turno.numero} solicitado`, 'success');
+            Utils.mostrarNotificacion(
+                turno.soloLocal
+                    ? `Turno ${turno.numero} guardado solo en este dispositivo; no aparece en otros paneles hasta conectarse a Supabase.`
+                    : `Turno ${turno.numero} solicitado`,
+                turno.soloLocal ? 'warning' : 'success'
+            );
             
             if (typeof ModoEspera !== 'undefined') {
                 ModoEspera.activar(turno);
@@ -3919,30 +3930,10 @@ const UsuarioHandlers = {
             console.error('❌ Error name:', error.name);
             console.error('❌ Error message:', error.message);
             
-            if (error.name === 'AbortError' || error.message.includes('Timeout') || error.message.includes('Tiempo')) {
-                // Si fue timeout, aún podemos tener éxito con localStorage fallback
-                console.warn('⚠︝ Timeout detectado, verficando si turno se guardó en localStorage...');
-                // El turno puede haberse guardado en localStorage por el fallback
-                // Intentamos recuperar el último turno de localStorage
-                const miTurno = LocalStorage.obtenerMiTurno();
-                if (miTurno) {
-                    Utils.mostrarNotificacion(`Turno ${miTurno.numero} solicitado (modo sin conexión)`, 'success');
-                    if (typeof ModoEspera !== 'undefined') {
-                        ModoEspera.activar(miTurno);
-                    }
-                    e.target.reset();
-                    InputConfig.configurarFechaCita();
-                    InputConfig.resetearMaterialesSap();
-                    InputConfig.resetearSelectorHora();
-                    const motivoGroup = document.getElementById('motivoGroup');
-                    if (motivoGroup) motivoGroup.style.display = 'none';
-                    RenderUsuario.todo();
-                    return;
-                } else {
-                    Utils.mostrarNotificacion('No se pudo guardar el turno. Intente nuevamente.', 'error');
-                }
+            if (error.name === 'AbortError') {
+                Utils.mostrarNotificacion('La conexión tardó demasiado. No se confirmó el guardado del turno; actualice la página y verifique antes de volver a solicitarlo.', 'error');
             } else {
-                Utils.mostrarNotificacion(error.message, 'error');
+                Utils.mostrarNotificacion(error.message || 'No se pudo guardar el turno en Supabase.', 'error');
             }
         } finally {
             clearTimeout(timeoutId);
@@ -6724,16 +6715,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 AppState.subscription = RenderUsuario.suscribirCambios();
                 
                 setInterval(async () => {
-                    if (typeof ModoEspera !== 'undefined' && ModoEspera.activo) {
-                        try {
-                            await Turnos.cargarTurnos();
-                            await RenderUsuario.todo();
+                    if (document.hidden) return;
+                    try {
+                        await Turnos.cargarTurnos();
+                        await RenderUsuario.todo();
+                        if (typeof ModoEspera !== 'undefined' && ModoEspera.activo) {
                             ModoEspera.actualizar();
-                        } catch (e) {
-                            console.error('Error en actualización:', e);
                         }
+                    } catch (e) {
+                        console.error('Error en actualización periódica de turnos:', e);
                     }
-                }, 3000);
+                }, 5000);
             } else {
                 console.warn('Supabase no disponible - verifica tu conexión y credenciales');
             }
