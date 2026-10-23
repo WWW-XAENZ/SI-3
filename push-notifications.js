@@ -10,15 +10,61 @@ class PushNotificationManager {
 
         this._canalesBC = [];
         this._initInProgress = false;
+        this._cleanupPromise = null;
         this._initBroadcastChannel();
     }
 
-    // Desactivado: no modificar los Service Workers existentes.
     async desregistrarServiceWorkers() {
-        console.info(
-            'Desregistración de Service Workers desactivada.'
-        );
-        return false;
+        if (!this._cleanupPromise) {
+            this._cleanupPromise = (async () => {
+                let controladorSI3 = false;
+
+                if ('serviceWorker' in navigator) {
+                    const rutaServiceWorker = new URL('sw.js', document.baseURI).pathname;
+                    const registros = await navigator.serviceWorker.getRegistrations();
+                    const controlador = navigator.serviceWorker.controller;
+
+                    for (const registro of registros) {
+                        const workers = [registro.active, registro.waiting, registro.installing].filter(Boolean);
+                        const esServiceWorkerSI3 = workers.some(worker => {
+                            const url = new URL(worker.scriptURL, document.baseURI);
+                            return url.origin === window.location.origin && url.pathname === rutaServiceWorker;
+                        });
+
+                        if (!esServiceWorkerSI3) continue;
+
+                        if (controlador) {
+                            const urlControlador = new URL(controlador.scriptURL, document.baseURI);
+                            controladorSI3 = urlControlador.origin === window.location.origin
+                                && urlControlador.pathname === rutaServiceWorker;
+                        }
+
+                        await registro.unregister();
+                    }
+                }
+
+                if ('caches' in window) {
+                    const nombresCache = await caches.keys();
+                    await Promise.all(
+                        nombresCache
+                            .filter(nombre => nombre.startsWith('si3-v'))
+                            .map(nombre => caches.delete(nombre))
+                    );
+                }
+
+                const claveRecarga = 'si3-service-worker-cleanup-reloaded';
+                if (controladorSI3 && sessionStorage.getItem(claveRecarga) !== '1') {
+                    sessionStorage.setItem(claveRecarga, '1');
+                    window.location.reload();
+                    return true;
+                }
+
+                if (!controladorSI3) sessionStorage.removeItem(claveRecarga);
+                return true;
+            })();
+        }
+
+        return this._cleanupPromise;
     }
 
     _initBroadcastChannel() {
@@ -70,9 +116,7 @@ class PushNotificationManager {
     // Inicialización desactivada.
     // No solicita permisos ni registra Service Workers.
     async init() {
-        console.info(
-            'Notificaciones SI-3 desactivadas temporalmente.'
-        );
+        await this.desregistrarServiceWorkers();
         return false;
     }
 
@@ -148,10 +192,10 @@ class PushNotificationManager {
 // Instancia global conservada para compatibilidad.
 window.SI3PushManager = new PushNotificationManager();
 
-// IMPORTANTE:
-// No se registra ni se desregistra ningún Service Worker.
-// No se solicitan permisos.
-// No se inicializan notificaciones automáticamente.
+// Elimina workers y cachés antiguos de SI-3 al abrir la aplicación.
+window.SI3PushManager.desregistrarServiceWorkers().catch(error => {
+    console.error('No se pudieron limpiar los recursos antiguos de SI-3:', error);
+});
 
 // Se conserva el evento storage sin mostrar notificaciones.
 window.addEventListener('storage', (e) => {

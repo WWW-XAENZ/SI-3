@@ -1065,8 +1065,7 @@ const SupabaseDB = {
 
     async cargarProveedores() {
         if (!window.supabaseClient) {
-            console.error('Supabase no está disponible');
-            return [];
+            throw new Error('Supabase no está disponible para cargar proveedores.');
         }
         
         try {
@@ -1081,7 +1080,7 @@ const SupabaseDB = {
             return data.map(p => this._mapearProveedor(p));
         } catch (error) {
             console.error('Error al cargar proveedores:', error);
-            return [];
+            throw error;
         }
     },
 
