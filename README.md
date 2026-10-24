@@ -29,6 +29,8 @@ Sistema de gestión de turnos profesional para proveedores con sincronización e
 - Prevención de sincronizaciones múltiples simultáneas
 - Sincronización bidireccional (nube ↔ local)
 - Indicador visual de estado de sincronización
+- Las cancelaciones se confirman en Supabase y luego se vuelve a cargar la cola activa desde la base de datos
+- Los turnos cancelados se conservan en la papelera recuperable durante 30 días
 
 #### 3. Interfaz de Usuario Profesional
 - Diseño moderno con gradientes y sombras
@@ -37,6 +39,9 @@ Sistema de gestión de turnos profesional para proveedores con sincronización e
 - Totalmente responsive (móvil, tablet, desktop)
 - Modales mejorados con backdrop blur
 - Scrollbar personalizado
+
+#### Actualización de archivos
+- Al publicar cambios en JavaScript, actualizar el parámetro `v` de los scripts locales en todas las páginas que los cargan. Esto evita que el navegador reutilice una versión anterior en caché.
 
 #### 4. Accesibilidad
 - Atributos ARIA para lectores de pantalla
