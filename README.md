@@ -31,6 +31,7 @@ Sistema de gestión de turnos profesional para proveedores con sincronización e
 - Indicador visual de estado de sincronización
 - Las cancelaciones se confirman en Supabase y luego se vuelve a cargar la cola activa desde la base de datos
 - Los turnos cancelados se conservan en la papelera recuperable durante 30 días
+- La cola operativa excluye turnos con fecha anterior a hoy sin borrar esos registros de Supabase
 
 #### 3. Interfaz de Usuario Profesional
 - Diseño moderno con gradientes y sombras

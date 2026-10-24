@@ -1300,7 +1300,13 @@ const SupabaseDB = {
                 offset += pageSize;
             }
 
-            return turnos.map(turno => this._mapearTurno(turno));
+            const hoy = getLocalDate();
+            return turnos
+                .filter(turno => {
+                    const fechaTurno = String(turno.fecha_cita || turno.fecha_solicitud || '').split('T')[0];
+                    return !fechaTurno || fechaTurno >= hoy;
+                })
+                .map(turno => this._mapearTurno(turno));
         } catch (error) {
             console.error('Error al cargar turnos activos:', error);
             throw error;
@@ -1603,7 +1609,7 @@ const SupabaseDB = {
             : null;
         if (!turno && numeroTurno) turno = await cargarTurnoActivo('numero', numeroTurno);
         if (!turno) {
-            throw new Error('Supabase no encontró un turno activo con ese ID o número. Recargue la página para sincronizar sus turnos.');
+            throw new Error('El turno ya no está activo en Supabase. Se actualizará la lista; verifica que aún aparezca antes de volver a intentarlo.');
         }
 
         const { data: respaldo, error: errorRespaldo } = await window.supabaseClient
@@ -2931,7 +2937,7 @@ const Turnos = {
             }
 
             for (const turno of AppState.turnos) {
-                await SupabaseDB.cancelarTurno(turno.id);
+                await SupabaseDB.cancelarTurno(turno.id, turno.numero);
             }
 
             AppState.turnos = [];
@@ -4937,13 +4943,23 @@ const proveedorData = {
     },
 
     async cancelarTurno(id) {
+        const turno = AppState.turnos.find(item => String(item.id) === String(id));
+        if (!turno) {
+            await Turnos.cargarTurnos();
+            await RenderAdmin.todo();
+            Utils.mostrarNotificacion('La lista estaba desactualizada y ya se actualizó. Verifica si el turno todavía aparece.', 'info');
+            return;
+        }
+
         if (await ConfirmDialog.confirmar('¿Cancelar turno?', 'Cancelar turno', 'Cancelar turno')) {
             try {
-                await Turnos.cancelar(id);
+                await Turnos.cancelar(id, turno.numero);
                 await RenderAdmin.todo();
                 Utils.mostrarNotificacion('Turno cancelado', 'success');
             } catch (error) {
                 console.error('Error al cancelar turno:', error);
+                await Turnos.cargarTurnos();
+                await RenderAdmin.todo();
                 Utils.mostrarNotificacion(error.message || 'Error al cancelar turno', 'error');
             }
         }
