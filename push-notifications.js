@@ -18,9 +18,12 @@ class PushNotificationManager {
         if (!this._cleanupPromise) {
             this._cleanupPromise = (async () => {
                 let controladorSI3 = false;
+                const rutasServiceWorker = new Set([
+                    new URL('sw.js', document.baseURI).pathname,
+                    new URL('/sw.js', window.location.origin).pathname
+                ]);
 
                 if ('serviceWorker' in navigator) {
-                    const rutaServiceWorker = new URL('sw.js', document.baseURI).pathname;
                     const registros = await navigator.serviceWorker.getRegistrations();
                     const controlador = navigator.serviceWorker.controller;
 
@@ -28,7 +31,7 @@ class PushNotificationManager {
                         const workers = [registro.active, registro.waiting, registro.installing].filter(Boolean);
                         const esServiceWorkerSI3 = workers.some(worker => {
                             const url = new URL(worker.scriptURL, document.baseURI);
-                            return url.origin === window.location.origin && url.pathname === rutaServiceWorker;
+                            return url.origin === window.location.origin && rutasServiceWorker.has(url.pathname);
                         });
 
                         if (!esServiceWorkerSI3) continue;
@@ -36,7 +39,7 @@ class PushNotificationManager {
                         if (controlador) {
                             const urlControlador = new URL(controlador.scriptURL, document.baseURI);
                             controladorSI3 = urlControlador.origin === window.location.origin
-                                && urlControlador.pathname === rutaServiceWorker;
+                                && rutasServiceWorker.has(urlControlador.pathname);
                         }
 
                         await registro.unregister();
@@ -193,6 +196,7 @@ class PushNotificationManager {
 window.SI3PushManager = new PushNotificationManager();
 
 // Elimina workers y cachés antiguos de SI-3 al abrir la aplicación.
+// Incluye el registro /sw.js que usaban versiones anteriores en GitHub Pages.
 window.SI3PushManager.desregistrarServiceWorkers().catch(error => {
     console.error('No se pudieron limpiar los recursos antiguos de SI-3:', error);
 });
