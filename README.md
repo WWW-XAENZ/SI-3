@@ -8,7 +8,7 @@ Sistema de gestión de turnos profesional para proveedores con sincronización e
 
 ### Funcionalidades Principales
 - ✅ **Sincronización en tiempo real** con Supabase
-- ✅ **Modo offline** - Funciona sin conexión a internet
+- ✅ **Sincronización con Supabase** - Requiere conexión a internet para consultar y actualizar turnos
 - ✅ **Interfaz moderna y responsive** - Se adapta a cualquier dispositivo
 - ✅ **Notificaciones instantáneas** - Alertas visuales para el usuario
 - ✅ **Acceso seguro al panel admin** - Contraseña protegida
@@ -190,7 +190,7 @@ SI-3/
 - Contraseña de administrador: `12345` (cambiar en producción)
 - Acceso al panel protegido por contraseña
 - Validación de datos en cliente y servidor
-- Modo offline seguro (datos solo en el navegador)
+- El sistema no registra Service Workers ni ofrece soporte offline
 
 ## 🌐 Navegadores Soportados
 

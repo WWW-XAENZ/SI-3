@@ -1223,8 +1223,8 @@ const SupabaseDB = {
             const turnoGuardado = this._mapearTurno(data);
             
             // Push notification - Nuevo turno
-            if (window.PushManager) {
-                window.PushManager.notifyNuevoTurno(turnoGuardado);
+            if (typeof window.SI3PushManager?.notifyNuevoTurno === 'function') {
+                window.SI3PushManager.notifyNuevoTurno(turnoGuardado);
             }
             
             return turnoGuardado;
@@ -1469,8 +1469,8 @@ const SupabaseDB = {
             // Push notification - Turno llamado (con sonido garantizado)
             window.dispatchEvent(new CustomEvent('notificacion-sonido', { detail: { tipo: 'turno_llamado' } }));
             if (window.SonidoAlerta) SonidoAlerta.reproducir(3);
-            if (window.PushManager) {
-                window.PushManager.notifyTurnoLlamado(turnoActualizado);
+            if (typeof window.SI3PushManager?.notifyTurnoLlamado === 'function') {
+                window.SI3PushManager.notifyTurnoLlamado(turnoActualizado);
             }
             
             return updateData;
@@ -7534,8 +7534,8 @@ const DespachadorHandlers = {
             }
             
             // Push notification - Inspección requerida
-            if (window.PushManager) {
-                window.PushManager.notifyInspeccionRequerida(turno);
+            if (typeof window.SI3PushManager?.notifyInspeccionRequerida === 'function') {
+                window.SI3PushManager.notifyInspeccionRequerida(turno);
             }
             
             const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
