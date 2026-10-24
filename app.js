@@ -1642,7 +1642,7 @@ const SupabaseDB = {
             throw new Error('El turno cambió antes de cancelarlo. Recargue la página e intente de nuevo.');
         }
 
-        return true;
+        return eliminado.id;
     },
 
     async respaldarRegistrosEliminados(registros, origen) {
@@ -2868,10 +2868,11 @@ const Turnos = {
     },
 
     async cancelar(turnoId, numeroTurno = null) {
-        const cancelado = await SupabaseDB.cancelarTurno(turnoId, numeroTurno);
-        AppState.turnos = AppState.turnos.filter(t => String(t.id) !== String(turnoId));
+        const turnoEliminadoId = await SupabaseDB.cancelarTurno(turnoId, numeroTurno);
+        AppState.turnos = AppState.turnos.filter(t => String(t.id) !== String(turnoEliminadoId));
         LocalStorage.guardarTurnos(AppState.turnos);
-        return cancelado;
+        await this.cargarTurnos();
+        return true;
     },
 
     async completarTurnoActual() {
