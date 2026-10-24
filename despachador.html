@@ -789,7 +789,7 @@
     <script src="supabase-config.js?v=4"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-    <script src="app.js?v=44"></script>
+    <script src="app.js?v=45"></script>
     <script src="sonido.js?v=2"></script>
     <script>
         function esperarClienteSupabase(callback, intentosMax = 100) {
@@ -810,6 +810,14 @@
         }
 
         let turnosDelDia = [];
+
+        function esNotificacionDeInspeccion(notificacion) {
+            return String(notificacion?.mensaje || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .includes('inspeccion');
+        }
 
         function cargarHistorialDespachador() {
             return window._cargarHistorialDespachador
@@ -1903,7 +1911,7 @@ return `
                             }
 
                             if (notif && notif.tipo === 'salida_pendiente' && datos) {
-                                if ((notif.mensaje || '').toLowerCase().includes('inspeccion')) {
+                                if (esNotificacionDeInspeccion(notif)) {
                                     localStorage.setItem('inspeccionSolicitada', JSON.stringify({
                                         numero: datos.numero || '---',
                                         nombre: datos.nombre || datos.nombreEmpresa || notif.mensaje || 'Proveedor',
@@ -1936,7 +1944,7 @@ return `
                                 }, 300);
                             }
 
-                            if (notif && notif.tipo === 'salida_pendiente' && (notif.mensaje || '').toLowerCase().includes('inspeccion')) {
+                            if (notif && notif.tipo === 'salida_pendiente' && esNotificacionDeInspeccion(notif)) {
                                 const numero = datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---';
                                 const nombre = datos?.nombre || datos?.nombreEmpresa || notif.mensaje || 'Proveedor';
                                 localStorage.setItem('inspeccionSolicitada', JSON.stringify({
@@ -2806,8 +2814,20 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                                      datos: JSON.parse(JSON.stringify({
                                          numero: turno.numero,
                                          nombreEmpresa: item.dataset.nombreproveedor || '',
+                                         nombreProveedor: item.dataset.nombreproveedor || '',
                                          proveedorId: turno.proveedorTransporteId,
+                                         turnoNumero: turno.numero,
                                          nit: item.dataset.nit || '',
+                                         destino: turno.destino || '',
+                                         numFactura: turno.numFactura || '',
+                                         consecutivoIngreso: turno.consecutivoIngreso || '',
+                                         tipoVehiculo: turno.tipoVehiculo || '',
+                                         bultos: turno.bultos || null,
+                                         peso: turno.peso || '',
+                                         responsable: turno.responsable || '',
+                                         contacto: turno.contacto || '',
+                                         telefono: turno.telefono || '',
+                                         servicio: turno.servicio || '',
                                          autorizadoSalida: true,
                                          timestamp: Date.now()
                                      }))

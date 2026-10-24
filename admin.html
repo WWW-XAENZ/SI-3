@@ -1659,12 +1659,20 @@
      <script src="supabase-config.js?v=4"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-    <script src="app.js?v=44"></script>
+    <script src="app.js?v=45"></script>
      <script>
         window.salidaDespachadorAnterior = null;
         window.inspeccionAnterior = null;
         let modalVisible = false;
         let modalInspeccionVisible = false;
+
+        function esNotificacionDeInspeccion(notificacion) {
+            return String(notificacion?.mensaje || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .includes('inspeccion');
+        }
 
         function initSalidaDespachadorListener() {
             window.addEventListener('storage', (e) => {
@@ -1726,6 +1734,112 @@
             }, 2000);
         }
 
+        async function cargarDetallesNotificacionDespachador(alerta) {
+            const datosNotificacion = alerta?.datos && typeof alerta.datos === 'object'
+                ? alerta.datos
+                : alerta || {};
+            let datosHistorial = {};
+
+            if (window.supabaseClient) {
+                try {
+                    let consulta = window.supabaseClient
+                        .from('historial_turnos')
+                        .select('*');
+                    const proveedorId = datosNotificacion.proveedorId
+                        || datosNotificacion.proveedor_transporte_id;
+
+                    if (proveedorId) {
+                        consulta = consulta.eq('proveedor_transporte_id', proveedorId);
+                    } else if (datosNotificacion.numero || datosNotificacion.turnoNumero) {
+                        consulta = consulta.eq('numero', datosNotificacion.numero || datosNotificacion.turnoNumero);
+                    }
+
+                    if (proveedorId || datosNotificacion.numero || datosNotificacion.turnoNumero) {
+                        const { data, error } = await consulta
+                            .order('created_at', { ascending: false })
+                            .limit(1)
+                            .maybeSingle();
+                        if (error) throw error;
+                        datosHistorial = data || {};
+                    }
+                } catch (error) {
+                    console.warn('No se pudieron completar los datos de la notificación:', error);
+                }
+            }
+
+            const resultado = { ...datosHistorial };
+            Object.entries(datosNotificacion).forEach(([clave, valor]) => {
+                if (valor !== null && valor !== undefined && valor !== '') resultado[clave] = valor;
+            });
+            return resultado;
+        }
+
+        function renderDetallesNotificacionDespachador(elementId, datos, tipo) {
+            const contenedor = document.getElementById(elementId);
+            if (!contenedor) return;
+
+            const destinoLabel = { ensambles: 'ENSAMBLES', plasticos: 'SI3 ZF SAS', ambos: 'AMBOS' };
+            const campos = [
+                ['Empresa', datos.nombreEmpresa || datos.nombre_empresa || datos.empresa],
+                ['Proveedor', datos.nombreProveedor || datos.nombre_proveedor],
+                ['Placa', datos.nit],
+                ['Factura', datos.numFactura || datos.num_factura],
+                ['Consecutivo', datos.consecutivoIngreso || datos.consecutivo_ingreso],
+                ['Servicio', datos.servicio],
+                ['Vehículo', datos.tipoVehiculo || datos.tipo_vehiculo],
+                ['Bultos', datos.bultos],
+                ['Peso', datos.peso ? formatearPesoHistorial(datos.peso) : ''],
+                ['Responsable', datos.responsable],
+                ['Contacto', datos.contacto],
+                ['Teléfono', datos.telefono],
+                ['Destino', destinoLabel[datos.destino] || datos.destino],
+                ['Hora de salida', datos.horaFinalizacion || datos.hora_finalizacion],
+                ['Estado de inspección', tipo === 'inspeccion' ? 'Inspección física solicitada' : 'No solicitada']
+            ].filter(([, valor]) => valor !== null && valor !== undefined && String(valor).trim() !== '');
+
+            contenedor.replaceChildren();
+            const tabla = document.createElement('table');
+            tabla.style.cssText = 'width:100%;font-size:13px;color:#475569;border-collapse:collapse;';
+            campos.forEach(([etiqueta, valor]) => {
+                const fila = document.createElement('tr');
+                const titulo = document.createElement('th');
+                const contenido = document.createElement('td');
+                titulo.textContent = etiqueta;
+                contenido.textContent = String(valor);
+                titulo.style.cssText = 'padding:6px 8px 6px 0;text-align:left;border-bottom:1px solid #e2e8f0;';
+                contenido.style.cssText = 'padding:6px 0;text-align:right;border-bottom:1px solid #e2e8f0;';
+                fila.append(titulo, contenido);
+                tabla.appendChild(fila);
+            });
+
+            (Array.isArray(datos.proveedores) ? datos.proveedores : []).forEach((proveedor, indice) => {
+                const fila = document.createElement('tr');
+                const titulo = document.createElement('th');
+                const contenido = document.createElement('td');
+                titulo.textContent = `Proveedor ${indice + 1}`;
+                contenido.textContent = [
+                    proveedor.nombreProveedor || proveedor.nombre_proveedor,
+                    proveedor.numFactura || proveedor.num_factura,
+                    proveedor.tipoVehiculo || proveedor.tipo_vehiculo,
+                    proveedor.peso ? formatearPesoHistorial(proveedor.peso) : ''
+                ].filter(Boolean).join(' · ') || 'Sin detalles adicionales';
+                titulo.style.cssText = 'padding:6px 8px 6px 0;text-align:left;border-bottom:1px solid #e2e8f0;';
+                contenido.style.cssText = 'padding:6px 0;text-align:right;border-bottom:1px solid #e2e8f0;';
+                fila.append(titulo, contenido);
+                tabla.appendChild(fila);
+            });
+
+            if (!tabla.rows.length) {
+                const mensaje = document.createElement('p');
+                mensaje.textContent = tipo === 'inspeccion'
+                    ? 'Se requiere inspección física antes de autorizar la salida.'
+                    : 'No hay detalles adicionales registrados para esta salida.';
+                contenedor.appendChild(mensaje);
+                return;
+            }
+            contenedor.appendChild(tabla);
+        }
+
         async function mostrarAlertaSalidaDespachador(datos) {
             const reproducirSonido = () => {
                 try {
@@ -1763,73 +1877,19 @@
             await new Promise(r => setTimeout(r, 800));
             reproducirSonido();
 
-            let tipoVehiculoSalida = datos.tipoVehiculo || datos.tipo_vehiculo || datos.datos?.tipoVehiculo || datos.datos?.tipo_vehiculo || '';
-            let detallesHTML = '<p style="color: #94a3b8; text-align: center;">Cargando detalles...</p>';
-            
-            if (window.supabaseClient && datos.numero) {
-                try {
-                    const { data, error } = await window.supabaseClient
-                        .from('historial_turnos')
-                        .select('*')
-                        .eq('numero', datos.numero)
-                        .gte('fecha', new Date().toISOString().split('T')[0] + 'T00:00:00')
-                        .order('created_at', { ascending: false })
-                        .limit(1)
-                        .single();
-                    
-                    if (data && !error) {
-                        tipoVehiculoSalida = data.tipo_vehiculo || tipoVehiculoSalida;
-                        const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
-                        detallesHTML = `
-                            <table style="width: 100%; font-size: 13px; color: #475569;">
-                                <tr>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Placa:</strong></td>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.nit || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Factura:</strong></td>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.num_factura || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Tipo Vehiculo:</strong></td>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.tipo_vehiculo || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Bultos:</strong></td>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.bultos || '0'}</td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Peso:</strong></td>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${formatearPesoHistorial(data.peso) || '0 kg'}</td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Responsable:</strong></td>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${data.responsable || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;"><strong>Destino:</strong></td>
-                                    <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">${destinoLabel[data.destino] || data.destino || 'N/A'}</td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 6px 0;"><strong>Hora Salida:</strong></td>
-                                    <td style="padding: 6px 0; text-align: right;">${data.hora_finalizacion || '-'}</td>
-                                </tr>
-                            </table>
-                        `;
-                    }
-                } catch (e) {
-                    console.warn('Error cargando detalles:', e);
-                }
-            }
+            const detalles = await cargarDetallesNotificacionDespachador(datos);
+            const tipoVehiculoSalida = detalles.tipoVehiculo || detalles.tipo_vehiculo || '';
 
-            document.getElementById('salidaDespachadorNumero').textContent = datos.numero || '---';
-            document.getElementById('salidaDespachadorNombre').textContent = datos.nombre || datos.empresa || 'Proveedor';
+            document.getElementById('salidaDespachadorNumero').textContent = datos.numero || datos.turnoNumero || detalles.numero || '---';
+            document.getElementById('salidaDespachadorNombre').textContent = datos.nombre || datos.empresa
+                || detalles.nombreProveedor || detalles.nombre_proveedor
+                || detalles.nombreEmpresa || detalles.nombre_empresa || 'Proveedor';
             const iconoSalida = document.getElementById('salidaDespachadorIcono');
             iconoSalida.hidden = !tipoVehiculoSalida;
             iconoSalida.innerHTML = tipoVehiculoSalida && window.iconoTipoVehiculoSvg
                 ? window.iconoTipoVehiculoSvg(tipoVehiculoSalida, false)
                 : '';
-            document.getElementById('salidaDespachadorDetalles').innerHTML = detallesHTML;
+            renderDetallesNotificacionDespachador('salidaDespachadorDetalles', detalles, 'salida');
             modalVisible = true;
             document.getElementById('modalSalidaDespachador').style.display = 'flex';
             
@@ -1886,8 +1946,12 @@
             await new Promise(r => setTimeout(r, 800));
             reproducirSonido();
 
-            document.getElementById('inspeccionNumero').textContent = datos.numero || '---';
-            document.getElementById('inspeccionEmpresa').textContent = datos.nombre || datos.empresa || 'Proveedor';
+            const detalles = await cargarDetallesNotificacionDespachador(datos);
+            document.getElementById('inspeccionNumero').textContent = datos.numero || datos.turnoNumero || '---';
+            document.getElementById('inspeccionEmpresa').textContent = datos.nombre || datos.empresa
+                || detalles.nombreProveedor || detalles.nombre_proveedor
+                || detalles.nombreEmpresa || detalles.nombre_empresa || 'Proveedor';
+            renderDetallesNotificacionDespachador('inspeccionDetalles', detalles, 'inspeccion');
             modalInspeccionVisible = true;
             document.getElementById('modalInspeccion').style.display = 'flex';
             
@@ -2267,15 +2331,15 @@
                                 if (window.SonidoAlerta) window.SonidoAlerta.reproducir(2);
                             } else if (notif.tipo === 'salida_autorizada') {
                                 const alertaData = {
-                                    numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                    numero: datos?.numero || datos?.turnoNumero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
                                     nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
                                     timestamp: Date.now(),
                                     datos: datos
                                 };
                                 mostrarAlertaSalidaDespachador(alertaData);
-                            } else if (notif.tipo === 'salida_pendiente' && (notif.mensaje || '').toLowerCase().includes('inspeccion')) {
+                            } else if (notif.tipo === 'salida_pendiente' && esNotificacionDeInspeccion(notif)) {
                                 const alertaData = {
-                                    numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                    numero: datos?.numero || datos?.turnoNumero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
                                     nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
                                     timestamp: Date.now(),
                                     datos: datos
@@ -2330,14 +2394,14 @@
                                     if (window.SonidoAlerta) window.SonidoAlerta.reproducir(2);
                                 } else if (notif.tipo === 'salida_autorizada') {
                                     mostrarAlertaSalidaDespachador({
-                                        numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                        numero: datos?.numero || datos?.turnoNumero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
                                         nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
                                         timestamp: Date.now(),
                                         datos: datos
                                     });
-                                } else if ((notif.mensaje || '').toLowerCase().includes('inspeccion')) {
+                                } else if (notif.tipo === 'salida_pendiente' && esNotificacionDeInspeccion(notif)) {
                                     mostrarAlertaInspeccion({
-                                        numero: datos?.numero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
+                                        numero: datos?.numero || datos?.turnoNumero || notif.mensaje?.match(/Turno\s+([A-Za-z0-9]+)/)?.[1] || '---',
                                         nombre: datos?.nombreEmpresa || datos?.nombre || notif.mensaje || 'Proveedor',
                                         timestamp: Date.now(),
                                         datos: datos

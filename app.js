@@ -7146,10 +7146,12 @@ const DespachadorHandlers = {
                         bultos: turno.bultos || null,
                         peso: turno.peso || '',
                         responsable: turno.responsable || '',
+                        consecutivoIngreso: turno.consecutivoIngreso || '',
                         contacto: turno.contacto || '',
                         telefono: turno.telefono || '',
                         servicio: turno.servicio || '',
                         fechaCita: turno.fechaCita || '',
+                        horaFinalizacion: turno.horaFinalizacion || '',
                         autorizadoSalida: true
                     }))
                 });
@@ -7345,8 +7347,11 @@ const DespachadorHandlers = {
                     nombre_empresa: nombreEmpresa || null,
                     datos: JSON.parse(JSON.stringify({
                         nombreEmpresa: nombreEmpresa || '',
+                        nombreProveedor: nombreEmpresa || '',
                         proveedorId: proveedorId,
-                        turnoNumero: turnoNumero || ''
+                        numero: turnoNumero || '',
+                        turnoNumero: turnoNumero || '',
+                        autorizadoSalida: true
                     }))
                 });
             }
@@ -7524,11 +7529,20 @@ const DespachadorHandlers = {
                     datos: JSON.parse(JSON.stringify({
                         numero: turno.numero,
                         nombreEmpresa: turno.nombreEmpresa,
+                        nombre: turno.nombre || turno.nombreEmpresa || '',
                         nit: turno.nit || '',
+                        destino: turno.destino || '',
+                        numFactura: turno.numFactura || '',
+                        consecutivoIngreso: turno.consecutivoIngreso || '',
+                        contacto: turno.contacto || '',
+                        telefono: turno.telefono || '',
+                        servicio: turno.servicio || '',
                         tipoVehiculo: turno.tipoVehiculo || '',
                         bultos: turno.bultos || null,
                         peso: turno.peso || '',
-                        responsable: turno.responsable || ''
+                        responsable: turno.responsable || '',
+                        proveedorId: turno.proveedorTransporteId || null,
+                        turnoNumero: turno.numero || ''
                     }))
                 });
             }
@@ -7624,7 +7638,10 @@ const DespachadorHandlers = {
                     nombre_empresa: nombreEmpresa || null,
                     datos: JSON.parse(JSON.stringify({
                         nombreEmpresa: nombreEmpresa || '',
-                        proveedorId: proveedorId
+                        nombreProveedor: nombreEmpresa || '',
+                        proveedorId: proveedorId,
+                        numero: '',
+                        turnoNumero: ''
                     }))
                 });
             }
