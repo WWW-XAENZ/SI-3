@@ -12,7 +12,7 @@
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="styles.css?v=33">
+        <link rel="stylesheet" href="styles.css?v=40">
     <style>
     .admin-grid { 
             grid-template-columns: 300px 1fr 1fr; 
@@ -1607,6 +1607,36 @@
                           </select>
                       </div>
                   </div>
+                  <div id="editHistCargaAmbosGroup" class="edit-history-invoices" style="display: none;">
+                      <div class="form-group" style="margin-bottom: 0;">
+                          <label for="editHistBultosSIE">Bultos SIE:</label>
+                          <input type="number" id="editHistBultosSIE" placeholder="Cantidad" min="0">
+                      </div>
+                      <div class="form-group" style="margin-bottom: 0;">
+                          <label for="editHistPesoSIE">Peso SIE:</label>
+                          <div class="peso-unidad-input">
+                              <input type="number" id="editHistPesoSIE" placeholder="Cantidad" min="0" step="any" inputmode="decimal">
+                              <select id="editHistPesoSIEUnidad" aria-label="Unidad del peso SIE">
+                                  <option value="kg">kg</option>
+                                  <option value="gr">gr</option>
+                              </select>
+                          </div>
+                      </div>
+                      <div class="form-group" style="margin-bottom: 0;">
+                          <label for="editHistBultosSI3">Bultos SI3 ZF:</label>
+                          <input type="number" id="editHistBultosSI3" placeholder="Cantidad" min="0">
+                      </div>
+                      <div class="form-group" style="margin-bottom: 0;">
+                          <label for="editHistPesoSI3">Peso SI3 ZF:</label>
+                          <div class="peso-unidad-input">
+                              <input type="number" id="editHistPesoSI3" placeholder="Cantidad" min="0" step="any" inputmode="decimal">
+                              <select id="editHistPesoSI3Unidad" aria-label="Unidad del peso SI3 ZF">
+                                  <option value="kg">kg</option>
+                                  <option value="gr">gr</option>
+                              </select>
+                          </div>
+                      </div>
+                  </div>
                   <div class="form-group" style="margin-bottom: 0;">
                       <label>Responsable:</label>
                       <div class="responsable-field">
@@ -1759,7 +1789,7 @@
      <script src="supabase-config.js?v=4"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-    <script src="app.js?v=48"></script>
+    <script src="app.js?v=54"></script>
      <script>
         window.salidaDespachadorAnterior = null;
         window.inspeccionAnterior = null;

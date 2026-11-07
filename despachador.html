@@ -11,7 +11,7 @@
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="styles.css?v=33">
+        <link rel="stylesheet" href="styles.css?v=39">
     <style>
         .admin-grid { 
             grid-template-columns: 320px 1fr; 
@@ -789,7 +789,7 @@
     <script src="supabase-config.js?v=4"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-    <script src="app.js?v=48"></script>
+    <script src="app.js?v=53"></script>
     <script src="sonido.js?v=2"></script>
     <script>
         function esperarClienteSupabase(callback, intentosMax = 100) {
@@ -935,6 +935,10 @@
                                 tipo_vehiculo: pt.tipo_vehiculo,
                                 bultos: pt.bultos,
                                 peso: pt.peso,
+                                bultos_sie: pt.bultos_sie ?? h.bultos_sie,
+                                peso_sie: pt.peso_sie ?? h.peso_sie,
+                                bultos_si3: pt.bultos_si3 ?? h.bultos_si3,
+                                peso_si3: pt.peso_si3 ?? h.peso_si3,
                                 responsable: pt.responsable,
                                 nombre_empresa: pt.nombre_empresa || h.nombre_empresa,
                                 motivo: pt.motivo || h.motivo,
@@ -959,7 +963,7 @@
                 }
                 
                 filtrarYMostrarTurnos();
-                let proveedorListo = completarDatosTransportadora(
+                let proveedorListo = completarDatosProveedor(
                     normalizarDatosNotificacion(localStorage.getItem('proveedorListoSalir'))
                 );
                 if (proveedorListo) {
@@ -1024,8 +1028,51 @@
             });
         }
 
-        function completarDatosTransportadora(proveedor) {
-            if (!(proveedor?.esTransporte || proveedor?.es_transporte) || !Array.isArray(proveedor.proveedores)) return proveedor;
+        function completarDatosProveedor(proveedor) {
+            if (!proveedor) return proveedor;
+            const actualizarValor = (destino, campo, valor) => {
+                const valorActual = destino[campo];
+                const datoFaltante = dato => dato === undefined || dato === null || String(dato).trim() === '' || /^n\/?a$/i.test(String(dato).trim());
+                if (!datoFaltante(valorActual) || datoFaltante(valor) || (Array.isArray(valor) && !valor.length)) return;
+                destino[campo] = valor;
+            };
+            const normalizarClave = valor => String(valor ?? '').trim().toUpperCase();
+            const numeroProveedor = normalizarClave(proveedor.numero);
+            const nitProveedor = normalizarClave(proveedor.nit);
+            const mismoNumero = turnosDelDia.filter(registro => normalizarClave(registro.numero) === numeroProveedor);
+            const numeroYNit = nitProveedor
+                ? mismoNumero.filter(registro => normalizarClave(registro.nit) === nitProveedor)
+                : [];
+            const mismoNit = nitProveedor
+                ? turnosDelDia.filter(registro => normalizarClave(registro.nit) === nitProveedor)
+                : [];
+            let registrosRelacionados = numeroYNit.length ? numeroYNit : mismoNumero.length === 1 ? mismoNumero : mismoNumero.length ? [] : mismoNit;
+            if (!mismoNumero.length && registrosRelacionados.length > 1) {
+                const facturaProveedor = normalizarClave(proveedor.numFactura || proveedor.num_factura);
+                const porFactura = facturaProveedor
+                    ? registrosRelacionados.filter(registro => normalizarClave(registro.num_factura || registro.numFactura) === facturaProveedor)
+                    : [];
+                registrosRelacionados = porFactura.length === 1 ? porFactura : [];
+            }
+            if (registrosRelacionados.length) {
+                [
+                    ['bultos', 'bultos'],
+                    ['peso', 'peso'],
+                    ['bultosSIE', 'bultos_sie'],
+                    ['pesoSIE', 'peso_sie'],
+                    ['bultosSI3', 'bultos_si3'],
+                    ['pesoSI3', 'peso_si3'],
+                    ['destino', 'destino']
+                ].forEach(([campo, origen]) => {
+                    const registro = registrosRelacionados.find(fila => {
+                        const valor = fila[campo] ?? fila[origen];
+                        return valor !== undefined && valor !== null && String(valor).trim() !== '' && !/^n\/?a$/i.test(String(valor).trim());
+                    });
+                    if (registro) actualizarValor(proveedor, campo, registro[campo] ?? registro[origen]);
+                });
+            }
+
+            if (!(proveedor.esTransporte || proveedor.es_transporte) || !Array.isArray(proveedor.proveedores)) return proveedor;
             proveedor.esTransporte = true;
             const filasTransporte = turnosDelDia.filter(registro => registro.proveedor_transporte_id);
             const filaPrincipal = filasTransporte.find(registro =>
@@ -1035,11 +1082,6 @@
             const idsProveedores = new Set(proveedor.proveedores.map(item => String(item.id)));
             const filasRelacionadas = filasTransporte.filter(registro => idsProveedores.has(String(registro.proveedor_transporte_id)));
 
-            const actualizarValor = (destino, campo, valor) => {
-                if (valor !== undefined && valor !== null && valor !== '' && (!Array.isArray(valor) || valor.length)) {
-                    destino[campo] = valor;
-                }
-            };
             [
                 ['nombreEmpresa', 'nombre_empresa'],
                 ['nit', 'nit'],
@@ -1142,10 +1184,51 @@
 
         function formatearPesoDespachador(peso) {
             const valor = String(peso ?? '').trim();
-            if (!valor || /^n\/?a$/i.test(valor)) return 'N/A';
+            if (!valor || /^n\/?a$/i.test(valor)) return '-';
             return window.formatearPesoHistorial
                 ? window.formatearPesoHistorial(valor)
-                : `${valor} kg`;
+                : escaparHtmlDespachador(`${valor} kg`);
+        }
+
+        function formatearBultosValorDespachador(valor) {
+            const texto = String(valor ?? '').trim();
+            return !texto || /^n\/?a$/i.test(texto) ? '-' : escaparHtmlDespachador(texto);
+        }
+
+        function crearResumenCargaDespachador(valorSIE, valorSI3, tipo = 'bultos') {
+            const formatear = tipo === 'peso' ? formatearPesoDespachador : formatearBultosValorDespachador;
+            return `<span class="dispatch-load-pair"><span class="dispatch-load-pair-value"><small>SIE</small><strong>${formatear(valorSIE)}</strong></span><i aria-hidden="true">/</i><span class="dispatch-load-pair-value"><small>SI3 ZF</small><strong>${formatear(valorSI3)}</strong></span></span>`;
+        }
+
+        function crearCargaTablaDespachador(turno, tipo = 'bultos') {
+            if (String(turno.destino || '').toLowerCase() === 'ambos') {
+                const esPeso = tipo === 'peso';
+                return crearResumenCargaDespachador(
+                    turno[esPeso ? 'peso_sie' : 'bultos_sie'] ?? turno[esPeso ? 'pesoSIE' : 'bultosSIE'],
+                    turno[esPeso ? 'peso_si3' : 'bultos_si3'] ?? turno[esPeso ? 'pesoSI3' : 'bultosSI3'],
+                    tipo
+                );
+            }
+            return crearChipCargaDespachador(tipo === 'peso' ? 'Peso' : 'Bultos', turno[tipo], tipo);
+        }
+
+        function crearChipCargaDespachador(etiqueta, valor, tipo = 'bultos') {
+            const valorHtml = tipo === 'peso'
+                ? formatearPesoDespachador(valor)
+                : formatearBultosValorDespachador(valor);
+            return `<span class="dispatch-load-chip"><small>${escaparHtmlDespachador(etiqueta)}</small><strong>${valorHtml}</strong></span>`;
+        }
+
+        function formatearBultosDespachador(turno) {
+            return window.formatearBultosPorDestino
+                ? window.formatearBultosPorDestino(turno)
+                : escaparHtmlDespachador(turno.bultos ?? '-');
+        }
+
+        function formatearPesoPorDestinoDespachador(turno) {
+            return window.formatearPesoPorDestino
+                ? window.formatearPesoPorDestino(turno)
+                : formatearPesoDespachador(turno.peso);
         }
 
         function renderizarSeguimientoSalida(turno, listoParaSalida = false) {
@@ -1407,11 +1490,18 @@
                             ? window.formatearFacturasHistorial(h)
                             : escaparHtmlDespachador(h.num_factura || '-');
                         const fmm = h.consecutivo_ingreso || '-';
-                        const destino = h.destino === 'ensambles' ? 'SIE' : h.destino === 'plasticos' ? 'SI3 ZF' : h.destino || '-';
-                        const peso = h.peso ? formatearPesoDespachador(h.peso) : '-';
-                        const bultos = h.bultos || '-';
+                        const destinoClave = String(h.destino || '').trim().toLowerCase();
+                        const destino = ({ ensambles: 'SIE', plasticos: 'SI3 ZF', ambos: 'AMBOS' })[destinoClave]
+                            || String(h.destino || '-').toUpperCase();
+                        const peso = formatearPesoPorDestinoDespachador(h);
+                        const bultos = formatearBultosDespachador(h);
                         const vehiculo = h.tipo_vehiculo || '-';
                         const responsable = h.responsable || '-';
+                        const destinoAmbos = String(h.destino || '').toLowerCase() === 'ambos';
+                        const cargaDetallesHtml = destinoAmbos
+                            ? `<div class="pending-exit-load"><strong>Bultos:</strong>${crearResumenCargaDespachador(h.bultos_sie ?? h.bultosSIE, h.bultos_si3 ?? h.bultosSI3)}</div>
+                               <div class="pending-exit-load"><strong>Peso:</strong>${crearResumenCargaDespachador(h.peso_sie ?? h.pesoSIE, h.peso_si3 ?? h.pesoSI3, 'peso')}</div>`
+                            : `<span><strong>Peso:</strong> ${peso}</span><span><strong>Bultos:</strong> ${bultos}</span>`;
                         const materialesSap = Array.isArray(h.materiales_sap || h.materialesSap)
                             ? (h.materiales_sap || h.materialesSap)
                             : [];
@@ -1419,7 +1509,7 @@
                         const horaFin = Utils.formatearHora(h.hora_finalizacion);
                         
                         return `
-                    <div class="pending-exit-item ${h.autorizado_salida === true ? 'autorizado' : ''}" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-consecutivo="${h.consecutivo_ingreso || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos || ''}" data-peso="${h.peso || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}" data-proveedortransporteid="${h.esProveedorTransporte ? h.proveedorTransporte?.id || '' : ''}" data-estransporte="${h.esProveedorTransporte ? 'true' : 'false'}" data-nombreproveedor="${h.nombre_proveedor || ''}" data-inspeccion="${h.inspeccion_fisica ? 'true' : 'false'}" data-turnoactivo="${h.turnoActivo ? 'true' : 'false'}" data-estado="${h.autorizado_salida ? 'autorizado' : 'pendiente'}">
+                    <div class="pending-exit-item ${h.autorizado_salida === true ? 'autorizado' : ''}" data-numero="${h.numero}" data-nombre="${h.nombre_empresa}" data-nit="${h.nit || ''}" data-motivo="${h.motivo || ''}" data-destino="${h.destino || ''}" data-contacto="${h.contacto || ''}" data-telefono="${h.telefono || ''}" data-servicio="${h.servicio || ''}" data-numfactura="${h.num_factura || ''}" data-consecutivo="${h.consecutivo_ingreso || ''}" data-tipovehiculo="${h.tipo_vehiculo || ''}" data-bultos="${h.bultos ?? ''}" data-peso="${h.peso || ''}" data-bultos-sie="${h.bultos_sie ?? ''}" data-peso-sie="${h.peso_sie || ''}" data-bultos-si3="${h.bultos_si3 ?? ''}" data-peso-si3="${h.peso_si3 || ''}" data-responsable="${h.responsable || ''}" data-horasolicitud="${h.hora_solicitud || ''}" data-horallamada="${h.hora_llamada || ''}" data-proveedortransporteid="${h.esProveedorTransporte ? h.proveedorTransporte?.id || '' : ''}" data-estransporte="${h.esProveedorTransporte ? 'true' : 'false'}" data-nombreproveedor="${h.nombre_proveedor || ''}" data-inspeccion="${h.inspeccion_fisica ? 'true' : 'false'}" data-turnoactivo="${h.turnoActivo ? 'true' : 'false'}" data-estado="${h.autorizado_salida ? 'autorizado' : 'pendiente'}">
                         <div class="pending-exit-header">
                             <span class="pending-exit-number">${h.numero}</span>
                             <span class="pending-exit-company">${h.nombre_empresa}${h.esProveedorTransporte ? ' (' + (h.nombre_proveedor || 'Proveedor') + ')' : ''}</span>
@@ -1431,8 +1521,7 @@
                             <div class="pending-exit-invoices"><strong>Fact:</strong>${factura}</div>
                             <span><strong>FMM:</strong> ${fmm}</span>
                             <span><strong>Destino:</strong> ${destino}</span>
-                            <span><strong>Peso:</strong> ${peso}</span>
-                            <span><strong>Bultos:</strong> ${bultos}</span>
+                            ${cargaDetallesHtml}
                             <span><strong>Vehículo:</strong> ${vehiculo}</span>
                             <span><strong>Responsable:</strong> ${responsable}</span>
                             ${materialesSap.length ? `<div class="pending-exit-materials"><strong>Materiales SAP</strong>${window.botonMostrarMaterialesSapHtml(materialesSap)}</div>` : ''}
@@ -1612,6 +1701,10 @@
                                     tipo_vehiculo: pt.tipo_vehiculo,
                                     bultos: pt.bultos,
                                     peso: pt.peso,
+                                    bultos_sie: pt.bultos_sie ?? h.bultos_sie,
+                                    peso_sie: pt.peso_sie ?? h.peso_sie,
+                                    bultos_si3: pt.bultos_si3 ?? h.bultos_si3,
+                                    peso_si3: pt.peso_si3 ?? h.peso_si3,
                                     responsable: pt.responsable,
                                     nombre_empresa: pt.nombre_empresa || h.nombre_empresa,
                                     motivo: pt.motivo || h.motivo,
@@ -1760,8 +1853,8 @@ ${historialConProveedores.map(h => {
                         <td>${h.nit || '-'}</td>
                         <td>${window.formatearFacturasHistorial(h)}</td>
                         <td>${h.tipo_vehiculo || '-'}</td>
-                        <td>${h.bultos || '-'}</td>
-                        <td>${h.peso ? formatearPesoDespachador(h.peso) : '-'}</td>
+                        <td>${crearCargaTablaDespachador(h)}</td>
+                        <td>${crearCargaTablaDespachador(h, 'peso')}</td>
                         <td>${h.responsable || '-'}</td>
                         <td>${horaInicio}</td>
                         <td>${horaFin}</td>
@@ -2213,9 +2306,16 @@ return `
                 let proveedorListoAnterior = null;
                 
                 function mostrarProveedorListo(proveedor) {
-                    proveedor = normalizarDatosNotificacion(proveedor);
+                    proveedor = completarDatosProveedor(normalizarDatosNotificacion(proveedor));
                     if (!proveedor) return;
                     proveedorListoActual = proveedor;
+                    try {
+                        if (localStorage.getItem('proveedorListoSalir')) {
+                            localStorage.setItem('proveedorListoSalir', JSON.stringify(proveedor));
+                        }
+                    } catch (error) {
+                        console.error('No se pudieron actualizar los datos locales del proveedor listo:', error);
+                    }
                     const turnoListoDiv = document.getElementById('turnoListoSalir');
                     const btnAutorizar = document.getElementById('btnAutorizarSalida');
                     const btnInspeccion = document.getElementById('btnSolicitarInspeccion');
@@ -2252,6 +2352,7 @@ return `
                         renderizarProveedoresPendientes(proveedor.proveedores, proveedor.numero);
                     } else {
                         const destinoLabels = { ensambles: 'SIE', plasticos: 'SI3 ZF', ambos: 'AMBOS' };
+                        const destinoAmbos = String(proveedor.destino || '').toLowerCase() === 'ambos';
                         const peso = proveedor.peso ? formatearPesoDespachador(proveedor.peso) : '-';
                         const materialesSap = obtenerMaterialesSapDespachador(proveedor);
                         const horaInicio = proveedor.horaLlamada || proveedor.hora_llamada || proveedor.horaLlegada || proveedor.hora_llegada;
@@ -2266,8 +2367,13 @@ return `
                         const campos = [
                             ['Placa', proveedor.nit],
                             ['Vehículo', proveedor.tipoVehiculo],
-                            ['Bultos', proveedor.bultos],
-                            ['Peso', peso],
+                            ...(destinoAmbos ? [
+                                ['Bultos', crearResumenCargaDespachador(proveedor.bultosSIE ?? proveedor.bultos_sie, proveedor.bultosSI3 ?? proveedor.bultos_si3), 'html'],
+                                ['Peso', crearResumenCargaDespachador(proveedor.pesoSIE ?? proveedor.peso_sie, proveedor.pesoSI3 ?? proveedor.peso_si3, 'peso'), 'html']
+                            ] : [
+                                ['Bultos', proveedor.bultos, 'bultos'],
+                                ['Peso', proveedor.peso, 'peso']
+                            ]),
                             ['Responsable', proveedor.responsable],
                             ['Destino', destinoLabels[proveedor.destino] || proveedor.destino],
                             ['Hora de inicio', horaInicio],
@@ -2286,7 +2392,11 @@ return `
                             </div>
                             <div class="ready-turn-details">
                                 ${facturaFieldHtml}
-                                ${campos.map(([label, value]) => `<div class="ready-turn-field"><span>${label}</span><strong>${value || '-'}</strong></div>`).join('')}
+                                ${campos.map(([label, value, tipo]) => tipo === 'html'
+                                    ? `<div class="ready-turn-field ready-turn-load-field"><span>${escaparHtmlDespachador(label)}</span>${value}</div>`
+                                    : tipo
+                                    ? `<div class="ready-turn-field ready-turn-load-field">${crearChipCargaDespachador(label, value, tipo)}</div>`
+                                    : `<div class="ready-turn-field"><span>${escaparHtmlDespachador(label)}</span><strong>${escaparHtmlDespachador(value ?? '-')}</strong></div>`).join('')}
                             </div>
                         `;
                         if (btnAutorizar) btnAutorizar.disabled = false;
@@ -2315,6 +2425,7 @@ return `
                         const horaSolicitudProveedor = formatearHoraSeguimiento(p.horaSolicitud || p.hora_solicitud);
                         const horaLlamadaProveedor = formatearHoraSeguimiento(p.horaLlamada || p.hora_llamada);
                         const horaFinProveedor = formatearHoraSeguimiento(p.horaFinalizacion || p.hora_finalizacion);
+                        const destinoAmbos = String(p.destino || '').toLowerCase() === 'ambos';
                         const detallesProveedor = [
                             ['Empresa transportadora', p.nombreEmpresa || p.nombre_empresa],
                             ['NIT / Placa', p.nit],
@@ -2325,12 +2436,15 @@ return `
                             ['Consecutivo', p.consecutivoIngreso || p.consecutivo_ingreso],
                             ['Factura', p.numFactura || p.num_factura],
                             ['Vehículo', p.tipoVehiculo || p.tipo_vehiculo],
-                            ['Bultos', p.bultos],
-                            ['Peso', formatearPesoDespachador(p.peso)],
-                            ['Bultos SI3 ZF', p.bultosSI3 ?? p.bultos_si3],
-                            ['Peso SI3 ZF', formatearPesoDespachador(p.pesoSI3 ?? p.peso_si3)],
-                            ['Bultos SIE', p.bultosSIE ?? p.bultos_sie],
-                            ['Peso SIE', formatearPesoDespachador(p.pesoSIE ?? p.peso_sie)],
+                            ...(destinoAmbos ? [
+                                ['Bultos SIE', p.bultosSIE ?? p.bultos_sie],
+                                ['Peso SIE', formatearPesoDespachador(p.pesoSIE ?? p.peso_sie)],
+                                ['Bultos SI3 ZF', p.bultosSI3 ?? p.bultos_si3],
+                                ['Peso SI3 ZF', formatearPesoDespachador(p.pesoSI3 ?? p.peso_si3)]
+                            ] : [
+                                ['Bultos', p.bultos],
+                                ['Peso', formatearPesoDespachador(p.peso)]
+                            ]),
                             ['Destino', p.destino],
                             ['Hora de solicitud', horaSolicitudProveedor],
                             ['Hora de llamada', horaLlamadaProveedor],
@@ -2351,7 +2465,7 @@ return `
                             <div class="dispatch-transport-provider">
                                 <div class="dispatch-transport-provider-head">${escaparHtmlDespachador(p.nombreProveedor || p.nombre_proveedor || p.nit || 'N/A')}${estadoBadge}</div>
                                 <div class="dispatch-transport-provider-facts">
-                                    ${detallesProveedor.map(([etiqueta, valor]) => `<span><strong>${etiqueta}</strong><span>${escaparHtmlDespachador(etiqueta === 'Peso' ? formatearPesoDespachador(valor) : valor)}</span></span>`).join('')}
+                                    ${detallesProveedor.map(([etiqueta, valor]) => `<span><strong>${escaparHtmlDespachador(etiqueta)}</strong><span>${escaparHtmlDespachador(valor ?? 'N/A')}</span></span>`).join('')}
                                 </div>
                                 <div class="dispatch-transport-provider-actions">
                                     ${acciones}${inspeccion}
@@ -2415,7 +2529,7 @@ return `
                                 ['Consecutivo', p.consecutivoIngreso || p.consecutivo_ingreso],
                                 ['Factura', p.numFactura || p.num_factura],
                                 ['Vehículo', p.tipoVehiculo || p.tipo_vehiculo],
-                                ...(p.destino === 'ambos' ? [
+                                ...(String(p.destino || '').toLowerCase() === 'ambos' ? [
                                     ['Bultos SIE', p.bultosSIE ?? p.bultos_sie],
                                     ['Peso SIE', formatearPesoDespachador(p.pesoSIE || p.peso_sie)],
                                     ['Bultos SI3 ZF', p.bultosSI3 ?? p.bultos_si3],
@@ -2476,6 +2590,15 @@ return `
                     const modal = document.createElement('div');
                     modal.id = 'modal-proveedor-listo';
                     modal.className = 'modal-overlay';
+                    const facturasHtml = typeof window.formatearFacturasHistorial === 'function'
+                        ? window.formatearFacturasHistorial({
+                            destino: proveedor.destino,
+                            numFactura: proveedor.numFactura || proveedor.num_factura
+                        })
+                        : escaparHtmlDespachador(proveedor.numFactura || proveedor.num_factura || '-');
+                    const vehiculoIconoHtml = proveedor.tipoVehiculo && typeof window.iconoTipoVehiculoSvg === 'function'
+                        ? window.iconoTipoVehiculoSvg(proveedor.tipoVehiculo, false)
+                        : '';
                     modal.innerHTML = `
                         <div class="modal-content modal-proveedor-content">
                             <div class="modal-proveedor-header">
@@ -2494,24 +2617,22 @@ return `
                                     </tr>
                                     <tr>
                                         <td><strong>Factura:</strong></td>
-                                        <td>${proveedor.numFactura || 'N/A'}</td>
+                                        <td class="modal-proveedor-facturas">${facturasHtml}</td>
                                     </tr>
                                     <tr>
                                         <td><strong>Tipo Vehículo:</strong></td>
-                                        <td>${proveedor.tipoVehiculo || 'N/A'}</td>
+                                        <td class="modal-proveedor-vehiculo">
+                                            ${vehiculoIconoHtml ? `<span class="modal-proveedor-vehiculo-icon">${vehiculoIconoHtml}</span>` : ''}
+                                            <strong>${escaparHtmlDespachador(proveedor.tipoVehiculo || 'N/A')}</strong>
+                                        </td>
                                     </tr>
-                                    <tr>
-                                        <td><strong>Bultos:</strong></td>
-                                        <td>${proveedor.destino === 'ambos'
-                                            ? `SIE: ${proveedor.bultosSIE ?? proveedor.bultos_sie ?? 'N/A'} · SI3 ZF: ${proveedor.bultosSI3 ?? proveedor.bultos_si3 ?? 'N/A'}`
-                                            : proveedor.bultos || 'N/A'}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Peso:</strong></td>
-                                        <td>${proveedor.destino === 'ambos'
-                                            ? `SIE: ${formatearPesoDespachador(proveedor.pesoSIE || proveedor.peso_sie) || 'N/A'} · SI3 ZF: ${formatearPesoDespachador(proveedor.pesoSI3 || proveedor.peso_si3) || 'N/A'}`
-                                            : formatearPesoDespachador(proveedor.peso)}</td>
-                                    </tr>
+                                    ${String(proveedor.destino || '').toLowerCase() === 'ambos' ? `
+                                    <tr><td><strong>Bultos:</strong></td><td>${crearResumenCargaDespachador(proveedor.bultosSIE ?? proveedor.bultos_sie, proveedor.bultosSI3 ?? proveedor.bultos_si3)}</td></tr>
+                                    <tr><td><strong>Peso:</strong></td><td>${crearResumenCargaDespachador(proveedor.pesoSIE ?? proveedor.peso_sie, proveedor.pesoSI3 ?? proveedor.peso_si3, 'peso')}</td></tr>
+                                    ` : `
+                                    <tr><td><strong>Bultos:</strong></td><td>${crearChipCargaDespachador('Bultos', proveedor.bultos)}</td></tr>
+                                    <tr><td><strong>Peso:</strong></td><td>${crearChipCargaDespachador('Peso', proveedor.peso, 'peso')}</td></tr>
+                                    `}
                                     <tr>
                                         <td><strong>Responsable:</strong></td>
                                         <td>${proveedor.responsable || 'N/A'}</td>
@@ -2722,7 +2843,11 @@ return `
                                         nombre_proveedor: pt.nombre_proveedor || h.nombre_proveedor,
                                         proveedor_destino: pt.destino || h.destino,
                                         consecutivo_ingreso: pt.consecutivo_ingreso || h.consecutivo_ingreso,
-                                        num_factura: pt.num_factura || h.num_factura
+                                        num_factura: pt.num_factura || h.num_factura,
+                                        bultos_sie: pt.bultos_sie ?? h.bultos_sie,
+                                        peso_sie: pt.peso_sie ?? h.peso_sie,
+                                        bultos_si3: pt.bultos_si3 ?? h.bultos_si3,
+                                        peso_si3: pt.peso_si3 ?? h.peso_si3
                                     };
                                 }
                             }
@@ -2783,8 +2908,8 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                                                 <td>${h.nit || '-'}</td>
                                                 <td>${window.formatearFacturasHistorial(h)}</td>
                                                 <td>${h.tipo_vehiculo || '-'}</td>
-                                                <td>${h.bultos || '-'}</td>
-                                                <td>${h.peso ? formatearPesoDespachador(h.peso) : '-'}</td>
+                                                <td>${crearCargaTablaDespachador(h)}</td>
+                                                <td>${crearCargaTablaDespachador(h, 'peso')}</td>
                                                 <td>${h.responsable || '-'}</td>
                                                 <td>${horaInicio}</td>
                                                 <td>${horaFin}</td>
@@ -2828,6 +2953,10 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                         tipoVehiculo: item.dataset.tipovehiculo,
                         bultos: item.dataset.bultos,
                         peso: item.dataset.peso,
+                        bultosSIE: item.dataset.bultosSie,
+                        pesoSIE: item.dataset.pesoSie,
+                        bultosSI3: item.dataset.bultosSi3,
+                        pesoSI3: item.dataset.pesoSi3,
                         responsable: item.dataset.responsable,
                         horaSolicitud: item.dataset.horasolicitud,
                         horaLlamada: item.dataset.horallamada
@@ -2875,6 +3004,10 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                                          tipoVehiculo: turno.tipoVehiculo || '',
                                          bultos: turno.bultos || null,
                                          peso: turno.peso || '',
+                                         bultosSIE: turno.bultosSIE || null,
+                                         pesoSIE: turno.pesoSIE || '',
+                                         bultosSI3: turno.bultosSI3 || null,
+                                         pesoSI3: turno.pesoSI3 || '',
                                          responsable: turno.responsable || '',
                                          contacto: turno.contacto || '',
                                          telefono: turno.telefono || '',
@@ -2911,6 +3044,10 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                         tipoVehiculo: item.dataset.tipovehiculo,
                         bultos: item.dataset.bultos,
                         peso: item.dataset.peso,
+                        bultosSIE: item.dataset.bultosSie,
+                        pesoSIE: item.dataset.pesoSie,
+                        bultosSI3: item.dataset.bultosSi3,
+                        pesoSI3: item.dataset.pesoSi3,
                         responsable: item.dataset.responsable,
                         horaSolicitud: item.dataset.horasolicitud,
                         horaLlamada: item.dataset.horallamada,

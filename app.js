@@ -31,6 +31,12 @@ const normalizarTipoVehiculo = valor => String(valor || '')
     .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase();
 
+const esProveedorCoordinadora = valor => String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .includes('COORDINADORA');
+
 const desglosarPeso = valor => {
     const texto = String(valor ?? '').trim();
     const coincidencia = texto.match(/^(-?(?:\d+(?:[.,]\d*)?|[.,]\d+))\s*(kg|kgs|gr|g|gramos?|kilogramos?)?$/i);
@@ -52,6 +58,41 @@ const formatearPesoHistorial = valor => {
         : escaparHtml(texto);
 };
 
+const formatearBultosPorDestino = turno => {
+    const destino = String(turno?.destino || turno?.destino_vehiculo || '').toLowerCase();
+    const bultos = valor => valor === null || valor === undefined || String(valor).trim() === ''
+        ? '-'
+        : escaparHtml(String(valor));
+    if (destino === 'ambos') {
+        const bultosSIE = turno.bultosSIE ?? turno.bultos_sie;
+        const bultosSI3 = turno.bultosSI3 ?? turno.bultos_si3;
+        if ([bultosSIE, bultosSI3].every(valor => valor === null || valor === undefined || String(valor).trim() === '')
+            && turno.bultos !== null && turno.bultos !== undefined && String(turno.bultos).trim() !== '') {
+            return `Total (sin desglose): ${bultos(turno.bultos)}`;
+        }
+        return `SIE: ${bultos(bultosSIE)} · SI3 ZF: ${bultos(bultosSI3)}`;
+    }
+    return bultos(turno?.bultos);
+};
+
+const formatearPesoPorDestino = turno => {
+    const destino = String(turno?.destino || turno?.destino_vehiculo || '').toLowerCase();
+    const peso = valor => formatearPesoHistorial(valor) || '-';
+    if (destino === 'ambos') {
+        const pesoSIE = turno.pesoSIE ?? turno.peso_sie;
+        const pesoSI3 = turno.pesoSI3 ?? turno.peso_si3;
+        if ([pesoSIE, pesoSI3].every(valor => valor === null || valor === undefined || String(valor).trim() === '')
+            && turno.peso !== null && turno.peso !== undefined && String(turno.peso).trim() !== '') {
+            return `Total (sin desglose): ${peso(turno.peso)}`;
+        }
+        return `SIE: ${peso(pesoSIE)} · SI3 ZF: ${peso(pesoSI3)}`;
+    }
+    return peso(turno?.peso);
+};
+
+window.formatearBultosPorDestino = formatearBultosPorDestino;
+window.formatearPesoPorDestino = formatearPesoPorDestino;
+
 const cargarPesoEnFormulario = (inputId, unidadId, valor) => {
     const peso = desglosarPeso(valor);
     const entrada = document.getElementById(inputId);
@@ -65,6 +106,30 @@ const convertirPesoAKg = valor => {
     if (!peso) return 0;
     const cantidad = Number(peso.cantidad);
     return Number.isFinite(cantidad) ? cantidad / (peso.unidad === 'gr' ? 1000 : 1) : 0;
+};
+
+const pesoTotalTurnoEnKg = turno => {
+    if (String(turno?.destino || turno?.destino_vehiculo || '').toLowerCase() !== 'ambos') {
+        return convertirPesoAKg(turno?.peso);
+    }
+    const pesoSIE = turno.pesoSIE ?? turno.peso_sie;
+    const pesoSI3 = turno.pesoSI3 ?? turno.peso_si3;
+    if ([pesoSIE, pesoSI3].every(valor => valor === null || valor === undefined || String(valor).trim() === '')) {
+        return convertirPesoAKg(turno.peso);
+    }
+    return convertirPesoAKg(pesoSIE) + convertirPesoAKg(pesoSI3);
+};
+
+const bultosTotalesTurno = turno => {
+    if (String(turno?.destino || turno?.destino_vehiculo || '').toLowerCase() !== 'ambos') {
+        return parseInt(turno?.bultos, 10) || 0;
+    }
+    const bultosSIE = turno.bultosSIE ?? turno.bultos_sie;
+    const bultosSI3 = turno.bultosSI3 ?? turno.bultos_si3;
+    if ([bultosSIE, bultosSI3].every(valor => valor === null || valor === undefined || String(valor).trim() === '')) {
+        return parseInt(turno.bultos, 10) || 0;
+    }
+    return (Number(bultosSIE) || 0) + (Number(bultosSI3) || 0);
 };
 
 window.formatearPesoHistorial = formatearPesoHistorial;
@@ -955,7 +1020,7 @@ const SupabaseDB = {
                 const telefono = normalizar(proveedor.telefono);
                 const selectPromise = window.supabaseClient
                     .from('proveedores')
-                    .select('id, nombre_empresa, nit, contacto, telefono, activo, created_at, updated_at')
+                    .select('id, nombre_empresa, nit, contacto, telefono, activo, updated_at')
                     .eq('activo', true)
                     .abortSignal(signal);
                 
@@ -992,7 +1057,7 @@ const SupabaseDB = {
                     if (error.code === '23505') {
                         const { data: repetido, error: errorReconsulta } = await window.supabaseClient
                             .from('proveedores')
-                            .select('id, nombre_empresa, nit, contacto, telefono, activo, created_at, updated_at')
+                            .select('id, nombre_empresa, nit, contacto, telefono, activo, updated_at')
                             .eq('nit', proveedor.nit)
                             .eq('activo', true)
                             .limit(1)
@@ -1503,6 +1568,9 @@ const SupabaseDB = {
             
             if (window.supabaseClient) {
                 try {
+                    const detalleCargaNotificacion = String(turnoMapeado.destino || '').toLowerCase() === 'ambos'
+                        ? ` · Bultos SIE: ${turnoMapeado.bultosSIE ?? '-'}, Peso SIE: ${turnoMapeado.pesoSIE || '-'} · Bultos SI3 ZF: ${turnoMapeado.bultosSI3 ?? '-'}, Peso SI3 ZF: ${turnoMapeado.pesoSI3 || '-'}`
+                        : '';
                     const datosNotificacion = {
                         numero: turnoMapeado.numero,
                         nombreEmpresa: turnoMapeado.nombreEmpresa,
@@ -1518,6 +1586,10 @@ const SupabaseDB = {
                         tipoVehiculo: turnoMapeado.tipoVehiculo || '',
                         bultos: turnoMapeado.bultos || null,
                         peso: turnoMapeado.peso || '',
+                        bultosSIE: turnoMapeado.bultosSIE ?? null,
+                        pesoSIE: turnoMapeado.pesoSIE || '',
+                        bultosSI3: turnoMapeado.bultosSI3 ?? null,
+                        pesoSI3: turnoMapeado.pesoSI3 || '',
                         responsable: turnoMapeado.responsable || '',
                         consecutivoIngreso: turnoMapeado.consecutivoIngreso || '',
                         inspeccionFisica: turnoMapeado.inspeccionFisica || false,
@@ -1527,7 +1599,7 @@ const SupabaseDB = {
                         timestamp: Date.now()
                     };
                     await window.supabaseClient.from('notificaciones_salida').insert({
-                        mensaje: `Turno ${turnoMapeado.numero} completado por recepción`,
+                        mensaje: `Turno ${turnoMapeado.numero} completado por recepción${detalleCargaNotificacion}`,
                         remitente: 'admin',
                         leido: false,
                         tipo: 'salida_pendiente',
@@ -3352,10 +3424,16 @@ const RenderAdmin = {
         if (despachoDetail) {
             if (AppState.turnoActual) {
                 const lines = [];
+                const esDestinoAmbos = String(AppState.turnoActual.destino || '').toLowerCase() === 'ambos';
                 if (AppState.turnoActual.numFactura) lines.push(`Factura: ${AppState.turnoActual.numFactura}`);
                 if (AppState.turnoActual.tipoVehiculo) lines.push(`Tipo Vehículo: ${AppState.turnoActual.tipoVehiculo}`);
-                if (AppState.turnoActual.bultos) lines.push(`Bultos: ${AppState.turnoActual.bultos}`);
-                if (AppState.turnoActual.peso) lines.push(`Peso: ${formatearPesoHistorial(AppState.turnoActual.peso)}`);
+                if (esDestinoAmbos) {
+                    lines.push(`Bultos SIE / SI3 ZF: ${formatearBultosPorDestino(AppState.turnoActual)}`);
+                    lines.push(`Peso SIE / SI3 ZF: ${formatearPesoPorDestino(AppState.turnoActual)}`);
+                } else {
+                    if (AppState.turnoActual.bultos) lines.push(`Bultos: ${AppState.turnoActual.bultos}`);
+                    if (AppState.turnoActual.peso) lines.push(`Peso: ${formatearPesoHistorial(AppState.turnoActual.peso)}`);
+                }
                 if (AppState.turnoActual.responsable) lines.push(`Responsable: ${AppState.turnoActual.responsable}`);
                 if (AppState.turnoActual.destino) lines.push(`Destino: ${AppState.turnoActual.destino}`);
                 if (AppState.turnoActual.materialesSap?.length) {
@@ -3417,8 +3495,9 @@ const RenderAdmin = {
                             ${turno.destino ? `<span>Destino: ${turno.destino === 'ensambles' ? 'SIE' : turno.destino === 'plasticos' ? 'SI3 ZF' : turno.destino}</span>` : ''}
                             ${turno.numFactura ? `<span>Fact: ${turno.numFactura}</span>` : ''}
                             ${turno.tipoVehiculo ? `<span>Tipo: ${turno.tipoVehiculo}</span>` : ''}
-                            ${turno.bultos ? `<span>Bultos: ${turno.bultos}</span>` : ''}
-                            ${turno.peso ? `<span>Peso: ${formatearPesoHistorial(turno.peso)}</span>` : ''}
+                            ${String(turno.destino || '').toLowerCase() === 'ambos'
+                                ? `<span>Bultos SIE: ${turno.bultosSIE ?? turno.bultos_sie ?? '-'}</span><span>Peso SIE: ${formatearPesoHistorial(turno.pesoSIE ?? turno.peso_sie) || '-'}</span><span>Bultos SI3 ZF: ${turno.bultosSI3 ?? turno.bultos_si3 ?? '-'}</span><span>Peso SI3 ZF: ${formatearPesoHistorial(turno.pesoSI3 ?? turno.peso_si3) || '-'}</span>`
+                                : `${turno.bultos ? `<span>Bultos: ${turno.bultos}</span>` : ''}${turno.peso ? `<span>Peso: ${formatearPesoHistorial(turno.peso)}</span>` : ''}`}
                             ${turno.responsable ? `<span>Resp: ${turno.responsable}</span>` : ''}
                             ${turno.consecutivoIngreso ? `<span>FMM: ${turno.consecutivoIngreso}</span>` : ''}
                             ${turno.materialesSap?.length ? bloqueMaterialesSapAdminHtml(turno.materialesSap) : ''}
@@ -3483,8 +3562,9 @@ const RenderAdmin = {
                             ${turno.destino ? `<span>Destino: ${turno.destino === 'ensambles' ? 'SIE' : turno.destino === 'plasticos' ? 'SI3 ZF' : turno.destino}</span>` : ''}
                             ${turno.numFactura ? `<span>Fact: ${turno.numFactura}</span>` : ''}
                             ${turno.tipoVehiculo ? `<span>Tipo: ${turno.tipoVehiculo}</span>` : ''}
-                            ${turno.bultos ? `<span>Bultos: ${turno.bultos}</span>` : ''}
-                            ${turno.peso ? `<span>Peso: ${formatearPesoHistorial(turno.peso)}</span>` : ''}
+                            ${String(turno.destino || '').toLowerCase() === 'ambos'
+                                ? `<span>Bultos SIE: ${turno.bultosSIE ?? turno.bultos_sie ?? '-'}</span><span>Peso SIE: ${formatearPesoHistorial(turno.pesoSIE ?? turno.peso_sie) || '-'}</span><span>Bultos SI3 ZF: ${turno.bultosSI3 ?? turno.bultos_si3 ?? '-'}</span><span>Peso SI3 ZF: ${formatearPesoHistorial(turno.pesoSI3 ?? turno.peso_si3) || '-'}</span>`
+                                : `${turno.bultos ? `<span>Bultos: ${turno.bultos}</span>` : ''}${turno.peso ? `<span>Peso: ${formatearPesoHistorial(turno.peso)}</span>` : ''}`}
                             ${turno.responsable ? `<span>Resp: ${turno.responsable}</span>` : ''}
                             ${turno.consecutivoIngreso ? `<span>Cons: ${turno.consecutivoIngreso}</span>` : ''}
                             ${turno.materialesSap?.length ? bloqueMaterialesSapAdminHtml(turno.materialesSap) : ''}
@@ -3812,12 +3892,12 @@ const RenderAdmin = {
                                     <td>${h.nit || '-'}</td>
                                     <td>${formatearFacturasHistorial(h)}</td>
                                     <td>${h.tipoVehiculo || '-'}</td>
-                                    <td>${h.destino === 'ambos'
-                                        ? `SIE: ${h.bultosSIE ?? '-'} · SI3 ZF: ${h.bultosSI3 ?? '-'}`
-                                        : h.bultos || '-'}</td>
-                                    <td>${h.destino === 'ambos'
-                                        ? `SIE: ${formatearPesoHistorial(h.pesoSIE) || '-'} · SI3 ZF: ${formatearPesoHistorial(h.pesoSI3) || '-'}`
-                                        : formatearPesoHistorial(h.peso) || '-'}</td>
+                                    <td>${String(h.destino || '').toLowerCase() === 'ambos'
+                                        ? `<span class="dispatch-load-pair"><span class="dispatch-load-pair-value"><small>SIE</small><strong>${h.bultosSIE ?? h.bultos_sie ?? '-'}</strong></span><i aria-hidden="true">/</i><span class="dispatch-load-pair-value"><small>SI3 ZF</small><strong>${h.bultosSI3 ?? h.bultos_si3 ?? '-'}</strong></span></span>`
+                                        : formatearBultosPorDestino(h)}</td>
+                                    <td>${String(h.destino || '').toLowerCase() === 'ambos'
+                                        ? `<span class="dispatch-load-pair"><span class="dispatch-load-pair-value"><small>SIE</small><strong>${formatearPesoHistorial(h.pesoSIE ?? h.peso_sie) || '-'}</strong></span><i aria-hidden="true">/</i><span class="dispatch-load-pair-value"><small>SI3 ZF</small><strong>${formatearPesoHistorial(h.pesoSI3 ?? h.peso_si3) || '-'}</strong></span></span>`
+                                        : formatearPesoPorDestino(h)}</td>
                                     <td>${h.responsable || '-'}</td>
                                     <td>${Utils.formatearHora(h.horaLlamada)}</td>
                                     <td>${Utils.formatearHora(h.horaFinalizacion)}</td>
@@ -4224,13 +4304,14 @@ const AdminHandlers = {
         if (modalTurnNumber) modalTurnNumber.textContent = turno.numero;
         if (modalTurnInfo) modalTurnInfo.textContent = `${turno.nombreEmpresa}${turno.nit ? ' - ' + turno.nit : ''}`;
 
-        if (turno.numFactura || turno.tipoVehiculo || turno.bultos || turno.peso || turno.responsable) {
+        const esDestinoAmbos = String(turno.destino || '').toLowerCase() === 'ambos';
+        if (turno.numFactura || turno.tipoVehiculo || turno.bultos || turno.peso || turno.responsable || (esDestinoAmbos && (turno.bultosSIE != null || turno.pesoSIE || turno.bultosSI3 != null || turno.pesoSI3))) {
             if (infoDespachoDiv) {
                 infoDespachoDiv.innerHTML = `
                     ${turno.numFactura ? `<p><strong>Factura:</strong> ${turno.numFactura}</p>` : ''}
                     ${turno.tipoVehiculo ? `<p><strong>Tipo Vehículo:</strong> ${turno.tipoVehiculo}</p>` : ''}
-                    ${turno.bultos ? `<p><strong>Bultos:</strong> ${turno.bultos}</p>` : ''}
-                    ${turno.peso ? `<p><strong>Peso:</strong> ${formatearPesoHistorial(turno.peso)}</p>` : ''}
+                    ${(esDestinoAmbos || turno.bultos) ? `<p><strong>${esDestinoAmbos ? 'Bultos SIE · SI3 ZF:' : 'Bultos:'}</strong> ${formatearBultosPorDestino(turno)}</p>` : ''}
+                    ${(esDestinoAmbos || turno.peso) ? `<p><strong>${esDestinoAmbos ? 'Peso SIE · SI3 ZF:' : 'Peso:'}</strong> ${formatearPesoPorDestino(turno)}</p>` : ''}
                     ${turno.responsable ? `<p><strong>Responsable:</strong> ${turno.responsable}</p>` : ''}
                 `;
             }
@@ -4277,8 +4358,12 @@ const AdminHandlers = {
         
         const esTransporteCheckbox = document.getElementById('esTransporteCheckbox');
         const btnEsTransporte = document.getElementById('btnEsTransporte');
-        if (esTransporteCheckbox) esTransporteCheckbox.checked = false;
-        if (btnEsTransporte) btnEsTransporte.style.display = 'none';
+        const esCoordinadora = esProveedorCoordinadora(turno.nombreEmpresa || turno.nombre_empresa || turno.nombre);
+        if (esTransporteCheckbox) {
+            esTransporteCheckbox.checked = esCoordinadora;
+            esTransporteCheckbox.disabled = esCoordinadora;
+        }
+        if (btnEsTransporte) btnEsTransporte.style.display = esCoordinadora ? 'inline-block' : 'none';
 
         // Add event listener for destino change in despacho modal
         if (despachoDestinoSelect) {
@@ -4309,6 +4394,11 @@ const AdminHandlers = {
         if (!result) return;
         
         const { turnoActual, infoDespacho } = result;
+        if (esProveedorCoordinadora(turnoActual.nombreEmpresa || turnoActual.nombre_empresa || turnoActual.nombre)) {
+            await this.abrirModalTransportista(result);
+            return;
+        }
+
         const modal = document.getElementById('despachoModal');
         if (modal) {
             modal.style.display = 'none';
@@ -4417,7 +4507,8 @@ const AdminHandlers = {
         turnoActual.horaLlamada = Utils.obtenerHoraActual();
         
         const esTransporteCheckbox = document.getElementById('esTransporteCheckbox');
-        turnoActual.esTransporte = esTransporteCheckbox ? !!esTransporteCheckbox.checked : false;
+        turnoActual.esTransporte = esProveedorCoordinadora(turnoActual.nombreEmpresa || turnoActual.nombre_empresa || turnoActual.nombre)
+            || (esTransporteCheckbox ? !!esTransporteCheckbox.checked : false);
         infoDespacho.esTransporte = turnoActual.esTransporte;
 
         LocalStorage.guardarTurnoActual(AppState.turnoActual);
@@ -4438,12 +4529,16 @@ const AdminHandlers = {
         const checkbox = document.getElementById('esTransporteCheckbox');
         const btn = document.getElementById('btnEsTransporte');
         if (checkbox && btn) {
+            if (esProveedorCoordinadora(AppState.turnoActual?.nombreEmpresa || AppState.turnoActual?.nombre_empresa || AppState.turnoActual?.nombre)) {
+                checkbox.checked = true;
+                checkbox.disabled = true;
+            }
             btn.style.display = checkbox.checked ? 'inline-block' : 'none';
         }
     },
 
-    async abrirModalTransportista() {
-        const result = await this._guardarDespachoBase();
+    async abrirModalTransportista(resultActual = null) {
+        const result = resultActual || await this._guardarDespachoBase();
         if (!result) return;
         
         const { turnoActual } = result;
@@ -4847,8 +4942,12 @@ const AdminHandlers = {
             
             if (window.supabaseClient) {
                 try {
+                    const detalleCargaNotificacion = proveedoresListos
+                        .filter(proveedor => String(proveedor.destino || '').toLowerCase() === 'ambos')
+                        .map(proveedor => `${proveedor.nombreProveedor || proveedor.nit}: SIE (${proveedor.bultosSIE ?? '-'} bultos, ${proveedor.pesoSIE || '-'}); SI3 ZF (${proveedor.bultosSI3 ?? '-'} bultos, ${proveedor.pesoSI3 || '-'})`)
+                        .join(' | ');
                     await window.supabaseClient.from('notificaciones_salida').insert({
-                        mensaje: `Turno ${turnoActual.numero} - ${proveedoresListos.length} proveedores registrados`,
+                        mensaje: `Turno ${turnoActual.numero} - ${proveedoresListos.length} proveedores registrados${detalleCargaNotificacion ? `. Carga: ${detalleCargaNotificacion}` : ''}`,
                         remitente: 'admin',
                         leido: false,
                         tipo: 'salida_pendiente',
@@ -5020,6 +5119,10 @@ const proveedorData = {
             tipoVehiculo: turnoParaDespacho.tipoVehiculo || '',
             bultos: turnoParaDespacho.bultos || '',
             peso: turnoParaDespacho.peso || '',
+            bultosSIE: turnoParaDespacho.bultosSIE ?? null,
+            pesoSIE: turnoParaDespacho.pesoSIE || '',
+            bultosSI3: turnoParaDespacho.bultosSI3 ?? null,
+            pesoSI3: turnoParaDespacho.pesoSI3 || '',
             responsable: turnoParaDespacho.responsable || '',
             consecutivoIngreso: turnoParaDespacho.consecutivoIngreso || '',
             inspeccionFisica: turnoParaDespacho.inspeccionFisica || false,
@@ -5654,6 +5757,16 @@ const proveedorData = {
             window.refrescarVistaPreviaTipoVehiculo('editHistTipo');
             document.getElementById('editHistBultos').value = data.bultos || '';
             cargarPesoEnFormulario('editHistPeso', 'editHistPesoUnidad', data.peso);
+            document.getElementById('editHistBultosSIE').value = data.bultos_sie ?? '';
+            document.getElementById('editHistBultosSI3').value = data.bultos_si3 ?? '';
+            cargarPesoEnFormulario('editHistPesoSIE', 'editHistPesoSIEUnidad', data.peso_sie);
+            cargarPesoEnFormulario('editHistPesoSI3', 'editHistPesoSI3Unidad', data.peso_si3);
+            const cargaAmbosGroup = document.getElementById('editHistCargaAmbosGroup');
+            const bultosNormalGroup = document.getElementById('editHistBultos').closest('.form-group');
+            const pesoNormalGroup = document.getElementById('editHistPeso').closest('.form-group');
+            if (cargaAmbosGroup) cargaAmbosGroup.style.display = editDestino === 'ambos' ? 'grid' : 'none';
+            if (bultosNormalGroup) bultosNormalGroup.style.display = editDestino === 'ambos' ? 'none' : 'block';
+            if (pesoNormalGroup) pesoNormalGroup.style.display = editDestino === 'ambos' ? 'none' : 'block';
             document.getElementById('editHistResponsable').value = data.responsable || '';
 document.getElementById('editHistDestino').value = editDestino;
             this._editTransporteId = data.proveedor_transporte_id || null;
@@ -5663,8 +5776,12 @@ document.getElementById('editHistDestino').value = editDestino;
                 nit: data.nit || '',
                 num_factura: data.num_factura || '',
                 tipo_vehiculo: data.tipo_vehiculo || '',
-                bultos: data.bultos || '',
-                peso: data.peso || '',
+                bultos: data.bultos ?? '',
+                peso: data.peso ?? '',
+                bultos_sie: data.bultos_sie ?? null,
+                peso_sie: data.peso_sie || '',
+                bultos_si3: data.bultos_si3 ?? null,
+                peso_si3: data.peso_si3 || '',
                 responsable: data.responsable || '',
                 destino: data.destino || ''
             };
@@ -5675,12 +5792,21 @@ document.getElementById('editHistDestino').value = editDestino;
                 editDestinoSelect.onchange = () => {
                     const facturaGroup = document.getElementById('editHistFacturaGroup');
                     const facturaAmbosGroup = document.getElementById('editHistFacturaAmbosGroup');
+                    const cargaAmbosGroup = document.getElementById('editHistCargaAmbosGroup');
+                    const bultosNormalGroup = document.getElementById('editHistBultos').closest('.form-group');
+                    const pesoNormalGroup = document.getElementById('editHistPeso').closest('.form-group');
                     if (editDestinoSelect.value === 'ambos') {
                         facturaGroup.style.display = 'none';
                         facturaAmbosGroup.style.display = 'grid';
+                        cargaAmbosGroup.style.display = 'grid';
+                        bultosNormalGroup.style.display = 'none';
+                        pesoNormalGroup.style.display = 'none';
                     } else {
                         facturaGroup.style.display = 'block';
                         facturaAmbosGroup.style.display = 'none';
+                        cargaAmbosGroup.style.display = 'none';
+                        bultosNormalGroup.style.display = 'block';
+                        pesoNormalGroup.style.display = 'block';
                     }
                 };
             }
@@ -5700,8 +5826,23 @@ document.getElementById('editHistDestino').value = editDestino;
         const empresaVal = (document.getElementById('editHistEmpresa').value || '').trim();
         const proveedorVal = (document.getElementById('editHistProveedor').value || '').trim();
         const destino = document.getElementById('editHistDestino').value || null;
-        const pesoRegistrado = obtenerPesoRegistrado('editHistPeso', 'editHistPesoUnidad');
+        const esDestinoAmbos = String(destino || '').toLowerCase() === 'ambos';
+        const pesoRegistrado = esDestinoAmbos
+            ? { valido: true, valor: null }
+            : obtenerPesoRegistrado('editHistPeso', 'editHistPesoUnidad');
         if (!pesoRegistrado.valido) return;
+        const pesoSIE = esDestinoAmbos
+            ? obtenerPesoRegistrado('editHistPesoSIE', 'editHistPesoSIEUnidad')
+            : { valido: true, valor: null };
+        if (!pesoSIE.valido) return;
+        const pesoSI3 = esDestinoAmbos
+            ? obtenerPesoRegistrado('editHistPesoSI3', 'editHistPesoSI3Unidad')
+            : { valido: true, valor: null };
+        if (!pesoSI3.valido) return;
+        const bultosSeparadosIngresados = ['editHistBultosSIE', 'editHistBultosSI3']
+            .some(inputId => document.getElementById(inputId).value.trim() !== '');
+        const pesosSeparadosIngresados = ['editHistPesoSIE', 'editHistPesoSI3']
+            .some(inputId => document.getElementById(inputId).value.trim() !== '');
         const listaMaterialesSap = document.getElementById('editHistMaterialesSapLista');
         const materialesSap = Array.from(listaMaterialesSap?.querySelectorAll('.material-sap-input') || [])
             .map(entrada => entrada.value.trim())
@@ -5709,7 +5850,7 @@ document.getElementById('editHistDestino').value = editDestino;
         
         // Handle factura(s) based on destino
         let numFactura = '';
-        if (destino === 'ambos') {
+        if (esDestinoAmbos) {
             const facturaSIE = document.getElementById('editHistFacturaSIE')?.value?.trim();
             const facturaSI3 = document.getElementById('editHistFacturaSI3')?.value?.trim();
             if (!facturaSIE || !facturaSI3) {
@@ -5729,8 +5870,24 @@ document.getElementById('editHistDestino').value = editDestino;
             materiales_sap: materialesSap,
             num_factura: numFactura,
             tipo_vehiculo: document.getElementById('editHistTipo').value || null,
-            bultos: (bultosVal !== null && !isNaN(bultosVal)) ? bultosVal : null,
-            peso: pesoRegistrado.valor,
+            bultos: esDestinoAmbos
+                ? (bultosSeparadosIngresados
+                    ? null
+                    : (this._editOriginalPayload?.bultos !== '' && this._editOriginalPayload?.bultos !== null && this._editOriginalPayload?.bultos !== undefined
+                        ? parseInt(this._editOriginalPayload.bultos, 10)
+                        : null))
+                : ((bultosVal !== null && !isNaN(bultosVal)) ? bultosVal : null),
+            peso: esDestinoAmbos
+                ? (pesosSeparadosIngresados ? null : (this._editOriginalPayload?.peso ?? null))
+                : pesoRegistrado.valor,
+            bultos_sie: esDestinoAmbos
+                ? (document.getElementById('editHistBultosSIE').value !== '' ? parseInt(document.getElementById('editHistBultosSIE').value, 10) : null)
+                : null,
+            peso_sie: pesoSIE.valor,
+            bultos_si3: esDestinoAmbos
+                ? (document.getElementById('editHistBultosSI3').value !== '' ? parseInt(document.getElementById('editHistBultosSI3').value, 10) : null)
+                : null,
+            peso_si3: pesoSI3.valor,
             responsable: (document.getElementById('editHistResponsable').value || '').trim(),
             destino: destino
         };
@@ -5757,6 +5914,10 @@ document.getElementById('editHistDestino').value = editDestino;
                             tipo_vehiculo: payload.tipo_vehiculo,
                             bultos: payload.bultos,
                             peso: payload.peso,
+                            bultos_sie: payload.bultos_sie,
+                            peso_sie: payload.peso_sie,
+                            bultos_si3: payload.bultos_si3,
+                            peso_si3: payload.peso_si3,
                             responsable: payload.responsable,
                             destino: payload.destino,
                             updated_at: new Date().toISOString()
@@ -7245,6 +7406,10 @@ const DespachadorHandlers = {
                         tipoVehiculo: turno.tipoVehiculo || '',
                         bultos: turno.bultos || null,
                         peso: turno.peso || '',
+                        bultosSIE: turno.bultosSIE ?? null,
+                        pesoSIE: turno.pesoSIE || '',
+                        bultosSI3: turno.bultosSI3 ?? null,
+                        pesoSI3: turno.pesoSI3 || '',
                         responsable: turno.responsable || '',
                         consecutivoIngreso: turno.consecutivoIngreso || '',
                         contacto: turno.contacto || '',
@@ -7436,6 +7601,14 @@ const DespachadorHandlers = {
                     hora_finalizacion: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })
                 })
                 .eq('proveedor_transporte_id', proveedorId);
+
+            let proveedorNotificado = null;
+            try {
+                const proveedorListo = JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null');
+                proveedorNotificado = proveedorListo?.proveedores?.find(proveedor => String(proveedor.id) === String(proveedorId)) || null;
+            } catch (error) {
+                console.warn('No se pudo recuperar el detalle del proveedor para la notificación:', error);
+            }
             
             if (window.supabaseClient) {
                 await window.supabaseClient.from('notificaciones_salida').insert({
@@ -7451,6 +7624,13 @@ const DespachadorHandlers = {
                         proveedorId: proveedorId,
                         numero: turnoNumero || '',
                         turnoNumero: turnoNumero || '',
+                        destino: proveedorNotificado?.destino || '',
+                        bultos: proveedorNotificado?.bultos ?? null,
+                        peso: proveedorNotificado?.peso || '',
+                        bultosSIE: proveedorNotificado?.bultosSIE ?? null,
+                        pesoSIE: proveedorNotificado?.pesoSIE || '',
+                        bultosSI3: proveedorNotificado?.bultosSI3 ?? null,
+                        pesoSI3: proveedorNotificado?.pesoSI3 || '',
                         autorizadoSalida: true
                     }))
                 });
@@ -7561,6 +7741,10 @@ const DespachadorHandlers = {
                             tipoVehiculo: p.tipoVehiculo || '',
                             bultos: p.bultos || null,
                             peso: p.peso || '',
+                            bultosSIE: p.bultosSIE ?? null,
+                            pesoSIE: p.pesoSIE || '',
+                            bultosSI3: p.bultosSI3 ?? null,
+                            pesoSI3: p.pesoSI3 || '',
                             responsable: p.responsable || '',
                             destino: p.destino || '',
                             autorizadoSalida: true
@@ -7860,8 +8044,8 @@ const GenerarCertificado = {
 
 // Totales
               const totalVehiculos = historial.length;
-              const totalPeso = historial.reduce((sum, h) => sum + convertirPesoAKg(h.peso), 0);
-              const totalBultos = historial.reduce((sum, h) => sum + (parseInt(h.bultos) || 0), 0);
+              const totalPeso = historial.reduce((sum, h) => sum + pesoTotalTurnoEnKg(h), 0);
+              const totalBultos = historial.reduce((sum, h) => sum + bultosTotalesTurno(h), 0);
               const vehiculosConFactura = historial.filter(h => h.num_factura).length;
               const vehiculosConSalida = historial.filter(h => h.autorizado_salida).length;
 
@@ -7919,8 +8103,8 @@ const GenerarCertificado = {
                       diasAgrupados[fecha] = { turnos: 0, peso: 0, bultos: 0, facturas: 0, salidas: 0 };
                   }
                   diasAgrupados[fecha].turnos++;
-                  diasAgrupados[fecha].peso += convertirPesoAKg(h.peso);
-                  diasAgrupados[fecha].bultos += parseInt(h.bultos) || 0;
+                  diasAgrupados[fecha].peso += pesoTotalTurnoEnKg(h);
+                  diasAgrupados[fecha].bultos += bultosTotalesTurno(h);
                   if (h.num_factura) diasAgrupados[fecha].facturas++;
                   if (h.autorizado_salida) diasAgrupados[fecha].salidas++;
               });
@@ -8406,17 +8590,19 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
         const crearHojaDetalle = (filtroFn, colorHeader, nombreHoja) => {
             const data = [['#', 'Fecha', 'Turno', 'Empresa', 'Tipo Vehículo', 'Peso', 'Bultos', 'Factura', 'Salida OK', 'Hora Inicio', 'Hora Fin', 'Consecutivo', 'Proveedor', 'Empresa Transporte']];
             let idx = 0;
+            const registros = [];
             historial.forEach((h) => {
                 if (filtroFn(h)) {
                     idx++;
+                    registros.push(h);
                     data.push([
                         idx,
                         new Date(h.fecha).toLocaleDateString('es-CO'),
                         h.numero,
                         h.nombre_empresa || 'N/A',
                         h.tipo_vehiculo  || 'N/A',
-                        formatearPesoHistorial(h.peso) || '',
-                        parseInt(h.bultos)  || 0,
+                        formatearPesoPorDestino(h),
+                        formatearBultosPorDestino(h),
                         h.num_factura       || '',
                         h.autorizado_salida ? 'Sí' : 'No',
                         h.horaSolicitud     || '',
@@ -8431,8 +8617,8 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
                 const rows = data.slice(1);
                 data.push([
                     'TOTAL', '', '', '', '',
-                    rows.reduce((s, r) => s + (parseFloat(r[5]) || 0), 0).toLocaleString('es-CO'),
-                    rows.reduce((s, r) => s + (parseInt(r[6]) || 0), 0),
+                    registros.reduce((sum, h) => sum + pesoTotalTurnoEnKg(h), 0).toLocaleString('es-CO'),
+                    registros.reduce((sum, h) => sum + bultosTotalesTurno(h), 0),
                     '',
                     rows.filter(r => r[8] === 'Sí').length + ' ✓',
                     '', '', '', '', ''
@@ -8575,7 +8761,7 @@ const ExportarHoy = {
             const cols = ['Turno','Empresa','Placa','Factura','Tipo Vehículo','Bultos','Peso','Responsable','Destino','Hora Solicitud','Hora Llamada','Hora Fin','Salida OK'];
             const rows = historial.map(h => [
                 h.numero, h.nombreEmpresa, h.nit || '', h.numFactura || '',
-                h.tipoVehiculo || '', h.bultos || '', formatearPesoHistorial(h.peso),
+                h.tipoVehiculo || '', formatearBultosPorDestino(h), formatearPesoPorDestino(h),
                 h.responsable || '', h.destino || '',
                 h.horaSolicitud || '', h.horaLlamada || '', h.horaFinalizacion || '',
                 h.autorizadoSalida ? 'Sí' : 'No'
@@ -8801,8 +8987,8 @@ const PanelRendimiento = {
             const conSalida = historialHoy.filter(h => h.autorizadoSalida).length;
             const sinSalida = historialHoy.filter(h => !h.autorizadoSalida).length;
             const empresasUnicas = new Set(historialHoy.map(h => h.nombreEmpresa)).size;
-            const pesoTotal = historialHoy.reduce((s, h) => s + convertirPesoAKg(h.peso), 0);
-            const bultosTotal = historialHoy.reduce((s, h) => s + (parseInt(h.bultos) || 0), 0);
+            const pesoTotal = historialHoy.reduce((s, h) => s + pesoTotalTurnoEnKg(h), 0);
+            const bultosTotal = historialHoy.reduce((s, h) => s + bultosTotalesTurno(h), 0);
             panel.innerHTML = `
                 <div class="rendimiento-grid">
                     <div class="rendimiento-item"><span class="rendimiento-val">${historialHoy.length}</span><span class="rendimiento-lbl">Completados hoy</span></div>
