@@ -12,7 +12,7 @@
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="styles.css?v=40">
+        <link rel="stylesheet" href="styles.css?v=41">
     <style>
     .admin-grid { 
             grid-template-columns: 300px 1fr 1fr; 
@@ -1117,8 +1117,8 @@
                     <div class="historial-toolbar">
                         <input type="date" id="fechaHistorial" title="Filtrar por día" style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;">
                         <input type="text" id="busquedaHistorial" placeholder="Buscar por empresa, placa, factura..." />
-                        <button id="btnExportarHoy" class="btn btn-secondary btn-small" onclick="ExportarHoy.exportar()" title="Exportar turnos del día filtrado a CSV">
-                            ↓ CSV Día
+                        <button id="btnExportarHoyExcel" class="btn btn-primary btn-small" onclick="ExportarHoy.exportarExcel()" title="Descargar reporte diario de turnos en Excel">
+                            ↓ Excel Día
                         </button>
                         <button id="btnLimpiarHistorial" class="btn btn-secondary btn-small" title="Limpiar solo el historial del día seleccionado">Limpiar</button>
                     </div>
@@ -1785,11 +1785,12 @@
 
 
       <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
      <script src="supabase-config.js?v=4"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-    <script src="app.js?v=54"></script>
+    <script src="app.js?v=64"></script>
      <script>
         window.salidaDespachadorAnterior = null;
         window.inspeccionAnterior = null;

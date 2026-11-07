@@ -6005,7 +6005,7 @@ header > h1 + span {
 
 .turn-history .historial-toolbar {
     display: grid;
-    grid-template-columns: 170px minmax(220px, 1fr) auto auto;
+    grid-template-columns: 170px minmax(220px, 1fr) repeat(2, auto);
     align-items: center;
     gap: 10px !important;
     padding: 10px;
@@ -11904,16 +11904,19 @@ textarea:focus {
 #modalCertificado .certificate-export {
     display: flex;
     width: 100%;
-    min-height: 50px;
+    max-width: 369px;
+    min-height: 42px;
     align-items: center;
     justify-content: center;
     gap: 9px;
-    border-radius: 12px;
-    font-size: 0.95rem;
-    font-weight: 800;
+    margin: 14px auto 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
 }
 
-#modalCertificado .certificate-export span { font-size: 1.25rem; }
+#modalCertificado .certificate-export span { font-size: 1rem; }
 
 .admin-menu:not([open]) > .admin-menu-panel,
 .facturas-trash-menu:not([open]) > .admin-menu-panel {

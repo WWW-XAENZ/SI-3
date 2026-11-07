@@ -8081,9 +8081,10 @@ const GenerarCertificado = {
                   if (h.destino) {
                       destinoCount[h.destino] = (destinoCount[h.destino] || 0) + 1;
                   }
-                  if (h.nombre_empresa) {
-                      empresaSet.add(h.nombre_empresa);
-                  }
+                  const proveedorRegistrado = h.nombre_proveedor || h.nombreProveedor || '';
+                  const esTransporte = h.es_transporte === true || h.esTransporte === true;
+                  const transportadoraRegistrada = esTransporte ? proveedorRegistrado : '';
+                  if (transportadoraRegistrada) empresaSet.add(transportadoraRegistrada);
                   if (h.servicio) {
                       servicioCount[h.servicio] = (servicioCount[h.servicio] || 0) + 1;
                   }
@@ -8201,7 +8202,7 @@ const GenerarCertificado = {
                   </article>
                   <article class="certificate-metric certificate-metric-neutral">
                       <span class="certificate-metric-value">${d.totalEmpresas}</span>
-                      <span class="certificate-metric-label">Proveedores únicos</span>
+                      <span class="certificate-metric-label">Transportadoras únicas</span>
                   </article>
              </section>
              <section class="certificate-metrics certificate-metrics-secondary" aria-label="Completitud de registros">
@@ -8225,7 +8226,7 @@ const GenerarCertificado = {
              <p class="certificate-period">
                  Periodo del <strong>${d.primerDia}</strong> al <strong>${d.ultimoDia}</strong>
              </p>
-             <button id="btnExportarExcel" class="btn btn-primary certificate-export">
+             <button id="btnExportarExcel" class="btn btn-secondary btn-small certificate-export">
                  <span aria-hidden="true">↧</span> Exportar certificado a Excel
              </button>
          `;
@@ -8235,9 +8236,15 @@ const GenerarCertificado = {
          // Adjuntar handler al botón de exportar
          const btnExportar = document.getElementById('btnExportarExcel');
          if (btnExportar) {
-             btnExportar.addEventListener('click', () => {
+             btnExportar.addEventListener('click', async () => {
+                 if (btnExportar.disabled) return;
+                 const textoOriginal = btnExportar.innerHTML;
+                 btnExportar.disabled = true;
+                 btnExportar.setAttribute('aria-busy', 'true');
+                 btnExportar.innerHTML = '<span aria-hidden="true">⏳</span> Generando Excel...';
                  try {
-                     this.exportarExcel(
+                     await new Promise(resolve => requestAnimationFrame(resolve));
+                     await this.exportarExcel(
                          d.historial,
                          d.diasAgrupados,
                          d.totalVehiculos,
@@ -8260,12 +8267,16 @@ const GenerarCertificado = {
                  } catch (e) {
                      console.error('Error al exportar:', e);
                      Utils.mostrarNotificacion('Error al exportar: ' + e.message, 'error');
+                 } finally {
+                     btnExportar.disabled = false;
+                     btnExportar.removeAttribute('aria-busy');
+                     btnExportar.innerHTML = textoOriginal;
                  }
              });
          }
 },
 
-     exportarExcel(
+    async exportarExcel(
         historial,
         diasAgrupados,
         totalVehiculos,
@@ -8287,8 +8298,34 @@ const GenerarCertificado = {
     ) {
         console.log('Exportando certificado a Excel...');
 
+        const camposConInformacion = [
+            'fecha', 'numero', 'nombre_empresa', 'tipo_vehiculo', 'destino',
+            'num_factura', 'peso', 'bultos', 'consecutivo_ingreso', 'nombre_proveedor'
+        ];
+        const registrosValidos = Array.isArray(historial)
+            ? historial.filter(registro => registro && typeof registro === 'object' &&
+                camposConInformacion.some(campo => {
+                    const valor = registro[campo];
+                    return valor !== null && valor !== undefined && String(valor).trim() !== '';
+                }))
+            : [];
+
+        if (registrosValidos.length === 0 || registrosValidos.length !== historial.length) {
+            Utils.mostrarNotificacion(
+                registrosValidos.length === 0
+                    ? 'No se exportó el archivo: no hay registros con información.'
+                    : 'No se exportó el archivo: hay registros vacíos o inválidos. Revise el historial.',
+                'error'
+            );
+            return;
+        }
+
         if (typeof XLSX === 'undefined') {
             Utils.mostrarNotificacion('Librería Excel no cargada. Recargue la página.', 'error');
+            return;
+        }
+        if (typeof ExcelJS === 'undefined') {
+            Utils.mostrarNotificacion('No se pudo cargar el módulo de imágenes para Excel. Revise su conexión.', 'error');
             return;
         }
 
@@ -8378,15 +8415,17 @@ const GenerarCertificado = {
             [''],
             ['Zona Franca Bodegas SIE 240, 239 y SI3 ZF 221'],
             [''],
-            ['┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝'],
+            ['INDICADORES DEL PERIODO'],
             [''],
             ['Total Vehículos', totalVehiculos],
+            ['Peso Total (kg)', totalPeso],
+            ['Bultos Totales', totalBultos],
             ['Días Operativos', numDias],
-            ['Período', primerDia + ' — ' + ultimoDia],
+            ['Transportadoras Únicas', totalEmpresas],
+            ['Período', primerDia + ' - ' + ultimoDia],
             [''],
-            ['┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝'],
-            [''],
-            ['Generado:', new Date().toLocaleDateString('es-CO', { weekday:'long', year:'numeric', month:'long', day:'numeric' })]
+            ['Generado', new Date().toLocaleString('es-CO', { dateStyle: 'long', timeStyle: 'short' })],
+            ['Control de exportación', 'Registros revisados antes de generar el archivo']
         ];
         const wsPortada = XLSX.utils.aoa_to_sheet(portadaData);
 
@@ -8396,9 +8435,9 @@ const GenerarCertificado = {
             3:  { font: { bold: true, sz: 18, color: { rgb: C_AZUL_MEDIO },  name: "Calibri" }, alignment: { horizontal: "center", vertical: "center" } },
             4:  { font: { bold: false, sz: 14, italic: true, color: { rgb: C_GRIS_MEDIO }, name: "Calibri" }, alignment: { horizontal: "center", vertical: "center" } },
             6:  { font: { sz: 11, color: { rgb: C_GRIS_MEDIO }, name: "Calibri" }, alignment: { horizontal: "center" } },
-            8:  { font: { sz: 10, color: { rgb: C_BORDE }, name: "Calibri" }, alignment: { horizontal: "center" } },
-            14: { font: { sz: 10, color: { rgb: C_BORDE }, name: "Calibri" }, alignment: { horizontal: "center" } },
-            16: { font: { sz: 10, italic: true, color: { rgb: C_GRIS_MEDIO }, name: "Calibri" }, alignment: { horizontal: "center" } }
+            8:  { font: { bold: true, sz: 10, color: { rgb: C_BLANCO }, name: "Calibri" }, fill: { patternType: "solid", fgColor: { rgb: C_AZUL_OSCURO } }, alignment: { horizontal: "left", vertical: "center" } },
+            17: { font: { sz: 10, italic: true, color: { rgb: C_GRIS_MEDIO }, name: "Calibri" }, alignment: { horizontal: "left" } },
+            18: { font: { sz: 10, italic: true, color: { rgb: C_GRIS_MEDIO }, name: "Calibri" }, alignment: { horizontal: "left" } }
         };
         const portadaKPI = {
             etiqueta: { font: { bold: true, sz: 12, color: { rgb: C_AZUL_OSCURO }, name: "Calibri" }, fill: { patternType: "solid", fgColor: { rgb: C_AZUL_CLARO } }, alignment: { horizontal: "right", vertical: "center" }, border: { bottom: bordeDelgado.bottom, top: bordeDelgado.top, left: { style: "medium", color: { rgb: C_AZUL_MEDIO } }, right: bordeDelgado.right } },
@@ -8411,13 +8450,13 @@ const GenerarCertificado = {
                 const ref = XLSX.utils.encode_cell({ r: R, c: C });
                 if (!wsPortada[ref]) continue;
                 if (portadaEstilos[R]) { wsPortada[ref].s = portadaEstilos[R]; }
-                if (R === 10 || R === 11 || R === 12) {
+                if (R >= 10 && R <= 15) {
                     wsPortada[ref].s = C === 0 ? portadaKPI.etiqueta : portadaKPI.valor;
                 }
             }
         }
-        wsPortada['!cols']  = [{ wch: 28 }, { wch: 40 }];
-        wsPortada['!rows']  = [{ hpt: 20 }, { hpt: 55 }, { hpt: 10 }, { hpt: 40 }, { hpt: 28 }, { hpt: 10 }, { hpt: 22 }, { hpt: 10 }, { hpt: 14 }, { hpt: 10 }, { hpt: 28 }, { hpt: 28 }, { hpt: 28 }, { hpt: 10 }, { hpt: 14 }, { hpt: 10 }, { hpt: 22 }];
+        wsPortada['!cols']  = [{ wch: 30 }, { wch: 58 }];
+        wsPortada['!rows']  = Array.from({ length: portadaData.length }, (_, i) => ({ hpt: [1, 3].includes(i) ? 42 : i === 8 ? 24 : 20 }));
         XLSX.utils.book_append_sheet(wb, wsPortada, 'Portada');
 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
@@ -8441,7 +8480,7 @@ const GenerarCertificado = {
             [],
             ['INFORMACIÓN ADICIONAL', ''],
             ['Indicador', 'Valor'],
-            ['Proveedores Únicos', totalEmpresas],
+            ['Transportadoras Únicas', totalEmpresas],
             ['Con Factura', vehiculosConFactura],
             ['Salidas Autorizadas', vehiculosConSalida],
             ['Primer Día del Mes', primerDia],
@@ -8493,6 +8532,50 @@ wsResumen[ref].s = C === 0
         );
         XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
 
+        // Control de calidad para identificar campos incompletos sin ocultar registros.
+        const camposRevision = [
+            ['Fecha', registro => registro.fecha],
+            ['Empresa transportadora', registro => {
+                const esTransporte = registro.es_transporte === true || registro.esTransporte === true;
+                if (!esTransporte) return 'No aplica';
+                return registro.nombre_proveedor || registro.nombreProveedor || '';
+            }],
+            ['Número de turno', registro => registro.numero],
+            ['Tipo de vehículo', registro => registro.tipo_vehiculo || registro.tipoVehiculo],
+            ['Destino', registro => registro.destino || registro.destino_vehiculo],
+            ['Factura', registro => registro.num_factura || registro.numero_factura]
+        ];
+        const controlDatos = [
+            ['CONTROL DE CALIDAD DE DATOS', nombreMesMayus.toUpperCase()],
+            [],
+            ['Indicador', 'Resultado'],
+            ['Registros incluidos', historial.length],
+            ...camposRevision.map(([etiqueta, obtenerValor]) => [
+                `Registros sin ${etiqueta.toLowerCase()}`,
+                historial.filter(registro => {
+                    const valor = obtenerValor(registro);
+                    return valor === null || valor === undefined || String(valor).trim() === '';
+                }).length
+            ]),
+            [],
+            ['Validación de exportación', 'Sin registros completamente vacíos'],
+            ['Recomendación', 'Complete los campos faltantes en el sistema de turnos']
+        ];
+        const wsControl = XLSX.utils.aoa_to_sheet(controlDatos);
+        const controlRange = XLSX.utils.decode_range(wsControl['!ref']);
+        for (let R = 0; R <= controlRange.e.r; R++) {
+            for (let C = 0; C <= controlRange.e.c; C++) {
+                const ref = XLSX.utils.encode_cell({ r: R, c: C });
+                if (!wsControl[ref]) wsControl[ref] = { v: '', t: 's' };
+                if (R === 0) wsControl[ref].s = estiloEncabezado(C_AZUL_OSCURO);
+                else if (R === 2) wsControl[ref].s = estiloEncabezado(C_AZUL_MEDIO);
+                else if (![1, 9].includes(R)) wsControl[ref].s = estiloFila(R % 2 === 0, C === 0 ? 'left' : 'right');
+            }
+        }
+        wsControl['!cols'] = [{ wch: 34 }, { wch: 60 }];
+        wsControl['!rows'] = Array.from({ length: controlDatos.length }, () => ({ hpt: 21 }));
+        XLSX.utils.book_append_sheet(wb, wsControl, 'Control de datos');
+
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
         // HOJA 3 — DETALLE DIARIO
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
@@ -8528,6 +8611,9 @@ for (let R = 0; R <= diarioRange2.e.r; ++R) {
          }
         wsDiario['!cols'] = [{ wch: 16 }, { wch: 11 }, { wch: 16 }, { wch: 13 }, { wch: 13 }, { wch: 14 }];
         wsDiario['!rows']  = Array.from({ length: detalleDiarioData.length }, () => ({ hpt: 20 }));
+        if (totalRowDiario > 1) {
+            wsDiario['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: totalRowDiario - 1, c: 5 } }) };
+        }
         XLSX.utils.book_append_sheet(wb, wsDiario, 'Detalle Diario');
 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
@@ -8552,17 +8638,20 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
              }
              ws['!cols'] = cols;
              ws['!rows'] = Array.from({ length: datos.length }, () => ({ hpt: 20 }));
+             if (datos.length > 1) {
+                 ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: datos.length - 1, c: datos[0].length - 1 } }) };
+             }
              XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
          };
 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
         // HOJA 4 — TIPOS DE VEHÝCULO
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
-        const tiposData = [['Tipo de Vehículo', 'Cantidad', '% del Total']];
+        const tiposData = [['Tipo de Vehículo', 'Cantidad', '% del Total', 'Icono']];
         Object.entries(tipoVehiculoCount).forEach(([tipo, count]) => {
-            tiposData.push([tipo, count, ((count / totalVehiculos) * 100).toFixed(1) + '%']);
+            tiposData.push([tipo, count, ((count / totalVehiculos) * 100).toFixed(1) + '%', '']);
         });
-        crearHojaTabla(tiposData, [{ wch: 28 }, { wch: 14 }, { wch: 14 }], C_AZUL_MEDIO, 'Tipos Vehículo');
+        crearHojaTabla(tiposData, [{ wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 16 }], C_AZUL_MEDIO, 'Tipos Vehículo');
 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
         // HOJA 5 — DESTINOS
@@ -8588,39 +8677,42 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
         // HELPER: crear hoja de detalle (historial filtrado)
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
         const crearHojaDetalle = (filtroFn, colorHeader, nombreHoja) => {
-            const data = [['#', 'Fecha', 'Turno', 'Empresa', 'Tipo Vehículo', 'Peso', 'Bultos', 'Factura', 'Salida OK', 'Hora Inicio', 'Hora Fin', 'Consecutivo', 'Proveedor', 'Empresa Transporte']];
+            const data = [['#', 'Fecha', 'Turno', 'Tipo Vehículo', 'Peso', 'Bultos', 'Factura', 'Salida OK', 'Hora Inicio', 'Hora Fin', 'Consecutivo', 'Proveedor', 'Empresa transportadora']];
             let idx = 0;
             const registros = [];
             historial.forEach((h) => {
                 if (filtroFn(h)) {
                     idx++;
                     registros.push(h);
+                    const proveedorRegistrado = h.nombre_proveedor || h.nombreProveedor || '';
+                    const esTransporte = h.es_transporte === true || h.esTransporte === true;
+                    const proveedorParaExcel = h.nombre_empresa || h.nombreEmpresa || '';
+                    const transportadora = esTransporte ? proveedorRegistrado : '';
                     data.push([
                         idx,
                         new Date(h.fecha).toLocaleDateString('es-CO'),
                         h.numero,
-                        h.nombre_empresa || 'N/A',
                         h.tipo_vehiculo  || 'N/A',
                         formatearPesoPorDestino(h),
                         formatearBultosPorDestino(h),
                         h.num_factura       || '',
                         h.autorizado_salida ? 'Sí' : 'No',
-                        h.horaSolicitud     || '',
-                        h.horaFinalizacion  || '',
-                        h.consecutivoIngreso || '',
-                        h.nombreProveedor   || '',
-                        h.esTransporte ? (h.nombreEmpresa || '') : ''
+                        h.hora_solicitud || h.horaSolicitud || '',
+                        h.hora_finalizacion || h.horaFinalizacion || '',
+                        h.consecutivo_ingreso || h.consecutivoIngreso || '',
+                        proveedorParaExcel,
+                        transportadora || ''
                     ]);
                 }
             });
             if (data.length > 1) {
                 const rows = data.slice(1);
                 data.push([
-                    'TOTAL', '', '', '', '',
+                    'TOTAL', '', '', '',
                     registros.reduce((sum, h) => sum + pesoTotalTurnoEnKg(h), 0).toLocaleString('es-CO'),
                     registros.reduce((sum, h) => sum + bultosTotalesTurno(h), 0),
                     '',
-                    rows.filter(r => r[8] === 'Sí').length + ' ✓',
+                    rows.filter(r => r[7] === 'Sí').length + ' ✓',
                     '', '', '', '', ''
                 ]);
             }
@@ -8629,7 +8721,7 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
             const rng = XLSX.utils.decode_range(ws['!ref']);
             const lastR = rng.e.r;
             for (let R = 0; R <= lastR; ++R) {
-                for (let C = 0; C <= 13; ++C) {
+                for (let C = 0; C <= 12; ++C) {
                     const ref = XLSX.utils.encode_cell({ r: R, c: C });
                     if (!ws[ref]) { ws[ref] = { v: "", t: "s" }; }
                     if (R === 0) {
@@ -8637,16 +8729,17 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
                     } else if (R === lastR && data.length > 1) {
                         ws[ref].s = estiloTotal();
                     } else {
-                        let alin = C === 0 ? "center" : C === 3 || C === 4 ? "left" : "right";
-                        if (C >= 9 && C <= 13) alin = "center";
-                        const numFmt = (C === 5 || C === 6) ? '#,##0' : undefined;
+                        const alin = "center";
+                        const numFmt = (C === 4 || C === 5) ? '#,##0' : undefined;
                         ws[ref].s = estiloFila(R % 2 === 1, alin, numFmt);
                     }
                 }
             }
-            ws['!cols'] = [{ wch: 5 }, { wch: 13 }, { wch: 10 }, { wch: 26 }, { wch: 16 }, { wch: 13 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 22 }, { wch: 20 }];
+            ws['!cols'] = [{ wch: 7 }, { wch: 13 }, { wch: 10 }, { wch: 16 }, { wch: 13 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 24 }, { wch: 28 }];
             ws['!rows'] = Array.from({ length: data.length }, (_, i) => ({ hpt: i === 0 ? 28 : 18 }));
-            ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 0, c: 13 } }) };
+            if (data.length > 2) {
+                ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastR - 1, c: 12 } }) };
+            }
             XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
         };
 
@@ -8665,7 +8758,375 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
         const fechaGen = new Date().toISOString().slice(0, 10);
         const nombreArchivo = `Certificado_${nombreMesMayus.replace(/ /g, '_')}_${fechaGen}.xlsx`;
-        XLSX.writeFile(wb, nombreArchivo);
+        wb.Props = {
+            Title: `Certificado mensual de despachos - ${nombreMesMayus}`,
+            Subject: 'Resumen y detalle de operación logística',
+            Author: 'Sistema SI-3',
+            CreatedDate: new Date()
+        };
+
+        const cargarImagen = ruta => new Promise(resolve => {
+            const imagen = new Image();
+            imagen.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = imagen.naturalWidth;
+                    canvas.height = imagen.naturalHeight;
+                    const contexto = canvas.getContext('2d');
+                    contexto.fillStyle = '#FFFFFF';
+                    contexto.fillRect(0, 0, canvas.width, canvas.height);
+                    contexto.drawImage(imagen, 0, 0);
+                    resolve(canvas.toDataURL('image/png'));
+                } catch (error) {
+                    console.warn(`No se pudo preparar la imagen ${ruta}:`, error);
+                    resolve(null);
+                }
+            };
+            imagen.onerror = () => {
+                console.warn(`No se pudo cargar la imagen local: ${ruta}`);
+                resolve(null);
+            };
+            imagen.src = new URL(ruta, window.location.href).href;
+        });
+
+        const crearLogoRespaldo = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 360;
+            canvas.height = 150;
+            const contexto = canvas.getContext('2d');
+            contexto.fillStyle = '#FFFFFF';
+            contexto.fillRect(0, 0, canvas.width, canvas.height);
+            contexto.fillStyle = '#3478C5';
+            contexto.font = '900 112px Arial';
+            contexto.textBaseline = 'middle';
+            contexto.fillText('SI3', 22, 76);
+            return canvas.toDataURL('image/png');
+        };
+        const crearIconoVehiculoRespaldo = archivo => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 320;
+            canvas.height = 160;
+            const contexto = canvas.getContext('2d');
+            const nombre = archivo.replace('vehiculo-', '').replace('.png', '').toUpperCase();
+            contexto.fillStyle = '#FFFFFF';
+            contexto.fillRect(0, 0, canvas.width, canvas.height);
+            contexto.fillStyle = '#20538F';
+            if (nombre === 'MOTO') {
+                contexto.beginPath();
+                contexto.arc(85, 104, 22, 0, Math.PI * 2);
+                contexto.arc(235, 104, 22, 0, Math.PI * 2);
+                contexto.fill();
+                contexto.strokeStyle = '#20538F';
+                contexto.lineWidth = 12;
+                contexto.beginPath();
+                contexto.moveTo(85, 104);
+                contexto.lineTo(140, 62);
+                contexto.lineTo(182, 104);
+                contexto.lineTo(235, 104);
+                contexto.lineTo(192, 52);
+                contexto.stroke();
+            } else {
+                contexto.fillRect(42, 48, 158, 50);
+                contexto.fillRect(200, 66, 72, 32);
+                contexto.fillStyle = '#DCEBFA';
+                contexto.fillRect(214, 72, 35, 18);
+                contexto.fillStyle = '#173F70';
+                contexto.beginPath();
+                contexto.arc(94, 104, 19, 0, Math.PI * 2);
+                contexto.arc(226, 104, 19, 0, Math.PI * 2);
+                contexto.fill();
+                contexto.fillStyle = '#FFFFFF';
+                contexto.beginPath();
+                contexto.arc(94, 104, 8, 0, Math.PI * 2);
+                contexto.arc(226, 104, 8, 0, Math.PI * 2);
+                contexto.fill();
+            }
+            contexto.fillStyle = '#334155';
+            contexto.font = 'bold 16px Arial';
+            contexto.textAlign = 'center';
+            contexto.fillText(nombre, 160, 145);
+            return canvas.toDataURL('image/png');
+        };
+
+        const normalizarTextoGrafico = valor => String(valor || '')
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+        const obtenerIconoVehiculo = tipo => {
+            const nombre = normalizarTextoGrafico(tipo);
+            if (nombre.includes('CONTEN')) return 'vehiculo-contenedor.png';
+            if (nombre.includes('CARPAD')) return 'vehiculo-carpado.png';
+            if (nombre.includes('FURGON')) return 'vehiculo-furgon.png';
+            if (nombre.includes('MULA')) return 'vehiculo-mula.png';
+            if (nombre.includes('MOTO')) return 'vehiculo-moto.png';
+            return 'vehiculo-particular.png';
+        };
+        const crearLienzoGrafico = (ancho, alto, titulo) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = ancho;
+            canvas.height = alto;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, ancho, alto);
+            ctx.fillStyle = '#173F70';
+            ctx.font = '700 25px Arial';
+            ctx.fillText(titulo, 34, 42);
+            return { canvas, ctx };
+        };
+        const crearGraficoBarras = (titulo, etiquetas, valores) => {
+            const datos = etiquetas.map((etiqueta, indice) => ({ etiqueta, valor: valores[indice] }))
+                .sort((a, b) => b.valor - a.valor).slice(0, 7);
+            const alto = Math.max(270, 95 + datos.length * 43);
+            const { canvas, ctx } = crearLienzoGrafico(760, alto, titulo);
+            const maximo = Math.max(...datos.map(dato => dato.valor), 1);
+            const xInicio = 230;
+            const anchoMaximo = 440;
+            datos.forEach((dato, indice) => {
+                const y = 78 + indice * 43;
+                ctx.fillStyle = '#334155';
+                ctx.font = '15px Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText(dato.etiqueta.length > 23 ? `${dato.etiqueta.slice(0, 21)}...` : dato.etiqueta, xInicio - 14, y + 18);
+                ctx.fillStyle = '#E8EFF7';
+                ctx.fillRect(xInicio, y, anchoMaximo, 24);
+                ctx.fillStyle = indice % 2 ? '#3478C5' : '#20538F';
+                ctx.fillRect(xInicio, y, Math.max(3, dato.valor / maximo * anchoMaximo), 24);
+                ctx.fillStyle = '#173F70';
+                ctx.textAlign = 'left';
+                ctx.font = 'bold 14px Arial';
+                ctx.fillText(String(dato.valor), xInicio + anchoMaximo + 10, y + 18);
+            });
+            return canvas.toDataURL('image/png');
+        };
+        const crearGraficoDona = (titulo, etiquetas, valores) => {
+            const { canvas, ctx } = crearLienzoGrafico(760, 330, titulo);
+            const colores = ['#20538F', '#3478C5', '#16A085', '#E0A12D', '#64748B', '#C65D36'];
+            const total = valores.reduce((suma, valor) => suma + valor, 0) || 1;
+            let angulo = -Math.PI / 2;
+            valores.forEach((valor, indice) => {
+                const siguiente = angulo + (valor / total) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.arc(190, 185, 112, angulo, siguiente);
+                ctx.strokeStyle = colores[indice % colores.length];
+                ctx.lineWidth = 42;
+                ctx.stroke();
+                angulo = siguiente;
+            });
+            ctx.fillStyle = '#173F70';
+            ctx.font = 'bold 22px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(String(total), 190, 192);
+            ctx.font = '13px Arial';
+            ctx.fillStyle = '#64748B';
+            ctx.fillText('despachos', 190, 215);
+            etiquetas.slice(0, 7).forEach((etiqueta, indice) => {
+                const y = 103 + indice * 31;
+                ctx.fillStyle = colores[indice % colores.length];
+                ctx.fillRect(390, y - 12, 14, 14);
+                ctx.fillStyle = '#334155';
+                ctx.textAlign = 'left';
+                ctx.font = '14px Arial';
+                ctx.fillText(`${etiqueta}: ${valores[indice]}`, 416, y);
+            });
+            return canvas.toDataURL('image/png');
+        };
+        const crearGraficoLinea = (titulo, etiquetas, valores) => {
+            const { canvas, ctx } = crearLienzoGrafico(1160, 360, titulo);
+            const xIzquierda = 70;
+            const xDerecha = 1110;
+            const ySuperior = 90;
+            const yInferior = 292;
+            const maximo = Math.max(...valores, 1);
+            ctx.strokeStyle = '#D8E1EC';
+            ctx.fillStyle = '#64748B';
+            ctx.font = '12px Arial';
+            for (let linea = 0; linea <= 4; linea++) {
+                const y = yInferior - (linea / 4) * (yInferior - ySuperior);
+                ctx.beginPath();
+                ctx.moveTo(xIzquierda, y);
+                ctx.lineTo(xDerecha, y);
+                ctx.stroke();
+                ctx.textAlign = 'right';
+                ctx.fillText(String(Math.round(maximo * linea / 4)), xIzquierda - 12, y + 4);
+            }
+            const puntos = valores.map((valor, indice) => ({
+                x: xIzquierda + (valores.length <= 1 ? 0 : indice / (valores.length - 1) * (xDerecha - xIzquierda)),
+                y: yInferior - valor / maximo * (yInferior - ySuperior)
+            }));
+            ctx.beginPath();
+            puntos.forEach((punto, indice) => indice ? ctx.lineTo(punto.x, punto.y) : ctx.moveTo(punto.x, punto.y));
+            ctx.strokeStyle = '#20538F';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            puntos.forEach(punto => {
+                ctx.beginPath();
+                ctx.arc(punto.x, punto.y, 5, 0, Math.PI * 2);
+                ctx.fillStyle = '#16A085';
+                ctx.fill();
+            });
+            etiquetas.forEach((etiqueta, indice) => {
+                if (indice % Math.max(1, Math.ceil(etiquetas.length / 12)) !== 0) return;
+                ctx.fillStyle = '#64748B';
+                ctx.textAlign = 'center';
+                ctx.font = '11px Arial';
+                ctx.fillText(etiqueta, puntos[indice].x, yInferior + 24);
+            });
+            return canvas.toDataURL('image/png');
+        };
+
+        try {
+            const vehiculosTipos = Object.entries(tipoVehiculoCount);
+            const destinos = Object.entries(destinoCount).map(([destino, cantidad]) => [
+                destino === 'ensambles' ? 'SIE' : destino === 'plasticos' ? 'SI3 ZF' : 'AMBOS', cantidad
+            ]);
+            const dias = Object.entries(diasAgrupados);
+            const graficos = [
+                crearGraficoBarras('Vehículos por tipo', vehiculosTipos.map(([tipo]) => tipo), vehiculosTipos.map(([, cantidad]) => cantidad)),
+                crearGraficoDona('Despachos por destino', destinos.map(([destino]) => destino), destinos.map(([, cantidad]) => cantidad)),
+                crearGraficoLinea('Actividad diaria: turnos por día', dias.map(([fecha]) => fecha.slice(0, 5)), dias.map(([, datos]) => datos.turnos))
+            ];
+            const archivosVehiculo = [...new Set(vehiculosTipos.map(([tipo]) => obtenerIconoVehiculo(tipo)))];
+            const [logoBase64, ...tiposImagen] = await Promise.all([
+                cargarImagen('Logo-Web-SI3.png'),
+                ...archivosVehiculo.map(cargarImagen)
+            ]);
+            const imagenesPorArchivo = new Map(archivosVehiculo.map((archivo, indice) => [
+                archivo,
+                tiposImagen[indice] || crearIconoVehiculoRespaldo(archivo)
+            ]));
+            const datosExcel = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+            const libroExcel = new ExcelJS.Workbook();
+            await libroExcel.xlsx.load(datosExcel);
+
+            libroExcel.worksheets.forEach(hoja => {
+                if (hoja.name === 'Dashboard') return;
+                const anchosMaximos = Array(hoja.columnCount).fill(0);
+                hoja.eachRow({ includeEmpty: false }, fila => {
+                    fila.eachCell({ includeEmpty: false }, celda => {
+                        const texto = celda.text || '';
+                        texto.split('\n').forEach(linea => {
+                            anchosMaximos[celda.col - 1] = Math.max(anchosMaximos[celda.col - 1], linea.length);
+                        });
+                    });
+                });
+                anchosMaximos.forEach((longitud, indice) => {
+                    hoja.getColumn(indice + 1).width = Math.min(80, Math.max(24, longitud + 10));
+                });
+
+                hoja.eachRow({ includeEmpty: true }, fila => {
+                    let altoFila = Math.max(fila.height || 18, 28);
+                    fila.eachCell({ includeEmpty: true }, celda => {
+                        celda.alignment = {
+                            ...(celda.alignment || {}),
+                            horizontal: 'center',
+                            vertical: 'middle',
+                            wrapText: true
+                        };
+                        const ancho = hoja.getColumn(celda.col).width || 12;
+                        const longitud = (celda.text || '').split('\n')
+                            .reduce((maximo, linea) => Math.max(maximo, linea.length), 0);
+                        altoFila = Math.max(altoFila, Math.min(10, Math.ceil(longitud / ancho)) * 18);
+                    });
+                    fila.height = altoFila;
+                });
+                if (['SIE', 'SI3 ZF'].includes(hoja.name)) {
+                    [12, 20, 18, 30, 22, 18, 22, 18, 18, 18, 22, 36, 40].forEach((ancho, indice) => {
+                        const columna = hoja.getColumn(indice + 1);
+                        columna.width = Math.max(columna.width || 0, ancho);
+                    });
+                }
+            });
+            libroExcel.getWorksheet('Tipos Vehículo').getColumn(4).width = 20;
+
+            const hojaPortada = libroExcel.getWorksheet('Portada');
+            ['A4:B4', 'A5:B5', 'A7:B7', 'A9:B9'].forEach(rango => hojaPortada.mergeCells(rango));
+            hojaPortada.getColumn(1).width = 40;
+            hojaPortada.getColumn(2).width = 40;
+            hojaPortada.getRow(4).height = 48;
+            hojaPortada.getRow(5).height = 36;
+            hojaPortada.getRow(7).height = 34;
+            hojaPortada.getRow(9).height = 32;
+
+            const agregarImagen = (base64, extension = 'png') => base64
+                ? libroExcel.addImage({ base64, extension })
+                : null;
+            const idLogo = agregarImagen(logoBase64 || crearLogoRespaldo());
+            libroExcel.getWorksheet('Portada').addImage(idLogo, {
+                tl: { col: 1, row: 0 }, ext: { width: 180, height: 92 }
+            });
+
+            const hojaTiposExcel = libroExcel.getWorksheet('Tipos Vehículo');
+            vehiculosTipos.forEach(([tipo], indice) => {
+                const idImagen = agregarImagen(imagenesPorArchivo.get(obtenerIconoVehiculo(tipo)));
+                const numeroFila = indice + 2;
+                hojaTiposExcel.getRow(numeroFila).height = 48;
+                if (idImagen !== null) {
+                    hojaTiposExcel.addImage(idImagen, {
+                        tl: { col: 3, row: numeroFila - 1 }, ext: { width: 104, height: 42 }
+                    });
+                }
+            });
+
+            ['Detalle Diario', 'Tipos Vehículo', 'Destinos', 'Servicios', 'SIE', 'SI3 ZF'].forEach(nombreHoja => {
+                const hoja = libroExcel.getWorksheet(nombreHoja);
+                if (hoja) hoja.views = [{ state: 'frozen', ySplit: 1 }];
+            });
+
+            const hojaDashboard = libroExcel.addWorksheet('Dashboard', {
+                views: [{ state: 'frozen', ySplit: 2 }]
+            });
+            hojaDashboard.columns = Array.from({ length: 12 }, () => ({ width: 13 }));
+            hojaDashboard.mergeCells('A1:L1');
+            hojaDashboard.getCell('A1').value = 'DASHBOARD OPERATIVO SI-3';
+            hojaDashboard.getCell('A1').font = { name: 'Calibri', size: 20, bold: true, color: { argb: 'FFFFFFFF' } };
+            hojaDashboard.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+            hojaDashboard.getCell('A1').alignment = { vertical: 'middle' };
+            hojaDashboard.getRow(1).height = 36;
+            hojaDashboard.mergeCells('A2:L2');
+            hojaDashboard.getCell('A2').value = `${nombreMesMayus} | ${totalVehiculos} vehículos | ${totalPeso.toLocaleString('es-CO')} kg | ${numDias} días operativos`;
+            hojaDashboard.getCell('A2').font = { name: 'Calibri', size: 11, color: { argb: 'FF334155' } };
+            hojaDashboard.getRow(2).height = 24;
+            const graficosExcel = graficos.map(grafico => libroExcel.addImage({ base64: grafico, extension: 'png' }));
+            hojaDashboard.addImage(graficosExcel[0], { tl: { col: 0, row: 3 }, ext: { width: 520, height: 250 } });
+            hojaDashboard.addImage(graficosExcel[1], { tl: { col: 6, row: 3 }, ext: { width: 500, height: 250 } });
+            hojaDashboard.addImage(graficosExcel[2], { tl: { col: 0, row: 17 }, ext: { width: 940, height: 292 } });
+            hojaDashboard.getCell('A32').value = 'Detalle filtrable disponible en las hojas Tipos Vehículo, Destinos, Servicios y Detalle Diario.';
+            hojaDashboard.getCell('A32').font = { italic: true, color: { argb: 'FF64748B' }, size: 10 };
+            hojaDashboard.mergeCells('A32:L32');
+
+            await Promise.all(libroExcel.worksheets.map(hoja => hoja.protect('SI3-lectura-2026', {
+                spinCount: 1000,
+                selectLockedCells: true,
+                selectUnlockedCells: true,
+                formatCells: false,
+                formatColumns: false,
+                formatRows: false,
+                insertColumns: false,
+                insertRows: false,
+                insertHyperlinks: false,
+                deleteColumns: false,
+                deleteRows: false,
+                sort: true,
+                autoFilter: true,
+                objects: false,
+                scenarios: false
+            })));
+
+            const archivoFinal = await libroExcel.xlsx.writeBuffer();
+            const enlaceDescarga = document.createElement('a');
+            const urlDescarga = URL.createObjectURL(new Blob([archivoFinal], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            }));
+            enlaceDescarga.href = urlDescarga;
+            enlaceDescarga.download = nombreArchivo;
+            document.body.appendChild(enlaceDescarga);
+            enlaceDescarga.click();
+            enlaceDescarga.remove();
+            setTimeout(() => URL.revokeObjectURL(urlDescarga), 1000);
+        } catch (error) {
+            console.error('Error al componer el Excel con gráficos e imágenes:', error);
+            const detalleError = error?.message || String(error);
+            Utils.mostrarNotificacion(`No se pudo completar el Excel: ${detalleError.slice(0, 140)}`, 'error');
+            return;
+        }
 
         Utils.mostrarNotificacion('Excel exportado correctamente', 'success');
     }
@@ -8777,6 +9238,154 @@ const ExportarHoy = {
             Utils.mostrarNotificacion(`${historial.length} registros exportados`, 'success');
         } catch(e) {
             Utils.mostrarNotificacion('Error al exportar: ' + e.message, 'error');
+        }
+    },
+    async exportarExcel() {
+        const boton = document.getElementById('btnExportarHoyExcel');
+        const textoOriginal = boton?.innerHTML;
+        if (boton) {
+            boton.disabled = true;
+            boton.textContent = 'Preparando Excel...';
+        }
+
+        try {
+            if (typeof XLSX === 'undefined') throw new Error('La librería Excel no está cargada.');
+            if (!window.supabaseClient) throw new Error('Se necesita conexión a Supabase.');
+
+            const fechaInput = document.getElementById('fechaHistorial');
+            const fecha = fechaInput?.value || window.getLocalDate?.() || new Date().toISOString().slice(0, 10);
+            const historial = await SupabaseDB.cargarHistorial(500, fecha);
+            if (!historial.length) {
+                Utils.mostrarNotificacion('No hay turnos completados para la fecha seleccionada.', 'warning');
+                return;
+            }
+
+            const encabezados = [
+                'Turno', 'Proveedor', 'Placa / Cédula', 'Factura', 'Tipo de vehículo',
+                'Bultos', 'Peso (kg)', 'Responsable', 'Destino', 'Hora de solicitud',
+                'Hora de llamada', 'Hora de finalización', 'Salida autorizada', 'Empresa transportadora'
+            ];
+            const filas = historial.map(turno => [
+                turno.numero || '',
+                turno.nombreEmpresa || '',
+                turno.nit || '',
+                turno.numFactura || '',
+                turno.tipoVehiculo || '',
+                bultosTotalesTurno(turno),
+                pesoTotalTurnoEnKg(turno),
+                turno.responsable || '',
+                turno.destino === 'ensambles' ? 'SIE' : turno.destino === 'plasticos' ? 'SI3 ZF' : turno.destino || '',
+                turno.horaSolicitud || '',
+                turno.horaLlamada || '',
+                turno.horaFinalizacion || '',
+                turno.autorizadoSalida ? 'Sí' : 'No',
+                turno.esTransporte ? turno.nombreProveedor || '' : ''
+            ]);
+            const totalBultos = historial.reduce((total, turno) => total + bultosTotalesTurno(turno), 0);
+            const totalPeso = historial.reduce((total, turno) => total + pesoTotalTurnoEnKg(turno), 0);
+            const datos = [
+                ['REPORTE DIARIO DE TURNOS'],
+                [`Fecha: ${new Date(`${fecha}T12:00:00`).toLocaleDateString('es-CO', { dateStyle: 'full' })}   |   Registros: ${historial.length}`],
+                [],
+                encabezados,
+                ...filas,
+                ['TOTAL', '', '', '', '', totalBultos, totalPeso, '', '', '', '', '', '', '']
+            ];
+
+            const hoja = XLSX.utils.aoa_to_sheet(datos);
+            const filaEncabezado = 3;
+            const filaDatosInicial = filaEncabezado + 1;
+            const filaTotal = datos.length - 1;
+            if (filas.length) {
+                const filaFinalDatosExcel = filaDatosInicial + filas.length;
+                hoja[XLSX.utils.encode_cell({ r: filaTotal, c: 5 })] = {
+                    t: 'n', v: totalBultos, f: `SUM(F${filaDatosInicial + 1}:F${filaFinalDatosExcel})`, z: '#,##0'
+                };
+                hoja[XLSX.utils.encode_cell({ r: filaTotal, c: 6 })] = {
+                    t: 'n', v: totalPeso, f: `SUM(G${filaDatosInicial + 1}:G${filaFinalDatosExcel})`, z: '#,##0.00'
+                };
+            }
+
+            const estiloTitulo = {
+                font: { name: 'Calibri', sz: 20, bold: true, color: { rgb: 'FFFFFF' } },
+                fill: { patternType: 'solid', fgColor: { rgb: '173F70' } },
+                alignment: { horizontal: 'left', vertical: 'center' }
+            };
+            const estiloSubtitulo = {
+                font: { name: 'Calibri', sz: 11, italic: true, color: { rgb: '334155' } },
+                fill: { patternType: 'solid', fgColor: { rgb: 'EAF1F8' } },
+                alignment: { horizontal: 'left', vertical: 'center' }
+            };
+            const estiloEncabezado = {
+                font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
+                fill: { patternType: 'solid', fgColor: { rgb: '20538F' } },
+                alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                border: { bottom: { style: 'medium', color: { rgb: '173F70' } } }
+            };
+            const estiloTotal = {
+                font: { name: 'Calibri', sz: 11, bold: true, color: { rgb: '173F70' } },
+                fill: { patternType: 'solid', fgColor: { rgb: 'DCEBFA' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border: { top: { style: 'medium', color: { rgb: '20538F' } } }
+            };
+            for (let fila = 0; fila <= filaTotal; fila++) {
+                for (let columna = 0; columna < encabezados.length; columna++) {
+                    const referencia = XLSX.utils.encode_cell({ r: fila, c: columna });
+                    if (!hoja[referencia]) hoja[referencia] = { t: 's', v: '' };
+                    if (fila === 0) hoja[referencia].s = estiloTitulo;
+                    else if (fila === 1) hoja[referencia].s = estiloSubtitulo;
+                    else if (fila === filaEncabezado) hoja[referencia].s = estiloEncabezado;
+                    else if (fila === filaTotal) hoja[referencia].s = estiloTotal;
+                    else {
+                        hoja[referencia].s = {
+                            font: { name: 'Calibri', sz: 10, color: { rgb: '243B53' } },
+                            fill: { patternType: 'solid', fgColor: { rgb: fila % 2 ? 'F4F7FA' : 'FFFFFF' } },
+                            alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+                            border: { bottom: { style: 'thin', color: { rgb: 'DCE6EF' } } }
+                        };
+                    }
+                }
+            }
+
+            hoja['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: encabezados.length - 1 } },
+                { s: { r: 1, c: 0 }, e: { r: 1, c: encabezados.length - 1 } }
+            ];
+            hoja['!cols'] = [
+                { wch: 12 }, { wch: 32 }, { wch: 20 }, { wch: 20 }, { wch: 24 },
+                { wch: 15 }, { wch: 17 }, { wch: 26 }, { wch: 18 }, { wch: 20 },
+                { wch: 20 }, { wch: 23 }, { wch: 19 }, { wch: 32 }
+            ];
+            hoja['!rows'] = Array.from({ length: datos.length }, (_, indice) => ({
+                hpt: indice === 0 ? 38 : indice === 1 ? 26 : indice === filaEncabezado ? 34 : 25
+            }));
+            if (filas.length) {
+                hoja['!autofilter'] = {
+                    ref: XLSX.utils.encode_range({
+                        s: { r: filaEncabezado, c: 0 },
+                        e: { r: filaEncabezado + filas.length, c: encabezados.length - 1 }
+                    })
+                };
+            }
+
+            const libro = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(libro, hoja, 'Turnos del día');
+            libro.Props = {
+                Title: `Reporte diario de turnos ${fecha}`,
+                Subject: 'Turnos completados del día',
+                Author: 'Sistema SI-3',
+                CreatedDate: new Date()
+            };
+            XLSX.writeFile(libro, `Turnos_${fecha}.xlsx`);
+            Utils.mostrarNotificacion(`${historial.length} registros exportados a Excel`, 'success');
+        } catch (error) {
+            console.error('Error al exportar Excel diario:', error);
+            Utils.mostrarNotificacion('Error al exportar Excel: ' + error.message, 'error');
+        } finally {
+            if (boton) {
+                boton.disabled = false;
+                boton.innerHTML = textoOriginal;
+            }
         }
     }
 };
