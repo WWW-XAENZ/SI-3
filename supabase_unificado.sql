@@ -62,13 +62,17 @@ CREATE TABLE IF NOT EXISTS turnos (
     notas TEXT,
     destino VARCHAR(50),
     fecha_cita TIMESTAMP WITH TIME ZONE,
-    num_factura VARCHAR(50),
+    num_factura VARCHAR(255),
     consecutivo_ingreso VARCHAR(100),
     num_facturas INTEGER,
     materiales_sap JSONB NOT NULL DEFAULT '[]'::jsonb,
     tipo_vehiculo VARCHAR(50),
     bultos INTEGER,
     peso VARCHAR(50),
+    bultos_sie INTEGER,
+    peso_sie VARCHAR(50),
+    bultos_si3 INTEGER,
+    peso_si3 VARCHAR(50),
     responsable VARCHAR(255),
     contacto VARCHAR(255),
     telefono VARCHAR(50),
@@ -119,13 +123,17 @@ CREATE TABLE IF NOT EXISTS historial_turnos (
     tiempo_atencion_minutos INTEGER,
     destino VARCHAR(50),
     fecha_cita TIMESTAMP WITH TIME ZONE,
-    num_factura VARCHAR(50),
+    num_factura VARCHAR(255),
     consecutivo_ingreso VARCHAR(100),
     num_facturas INTEGER,
     materiales_sap JSONB NOT NULL DEFAULT '[]'::jsonb,
     tipo_vehiculo VARCHAR(50),
     bultos INTEGER,
     peso VARCHAR(50),
+    bultos_sie INTEGER,
+    peso_sie VARCHAR(50),
+    bultos_si3 INTEGER,
+    peso_si3 VARCHAR(50),
     responsable VARCHAR(255),
     contacto VARCHAR(255),
     telefono VARCHAR(50),
@@ -135,6 +143,20 @@ CREATE TABLE IF NOT EXISTS historial_turnos (
     fecha TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE public.turnos
+    ADD COLUMN IF NOT EXISTS bultos_sie INTEGER,
+    ADD COLUMN IF NOT EXISTS peso_sie VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS bultos_si3 INTEGER,
+    ADD COLUMN IF NOT EXISTS peso_si3 VARCHAR(50),
+    ALTER COLUMN num_factura TYPE VARCHAR(255);
+
+ALTER TABLE public.historial_turnos
+    ADD COLUMN IF NOT EXISTS bultos_sie INTEGER,
+    ADD COLUMN IF NOT EXISTS peso_sie VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS bultos_si3 INTEGER,
+    ADD COLUMN IF NOT EXISTS peso_si3 VARCHAR(50),
+    ALTER COLUMN num_factura TYPE VARCHAR(255);
 
 CREATE TABLE IF NOT EXISTS usuarios (
     id BIGSERIAL PRIMARY KEY,
@@ -393,10 +415,14 @@ CREATE TABLE IF NOT EXISTS proveedores_transporte (
     nombre_empresa VARCHAR(255) NOT NULL,
     nit VARCHAR(20) NOT NULL,
     motivo TEXT,
-    num_factura VARCHAR(50),
+    num_factura VARCHAR(255),
     tipo_vehiculo VARCHAR(50),
     bultos INTEGER,
     peso VARCHAR(50),
+    bultos_sie INTEGER,
+    peso_sie VARCHAR(50),
+    bultos_si3 INTEGER,
+    peso_si3 VARCHAR(50),
     responsable VARCHAR(255),
     contacto VARCHAR(255),
     telefono VARCHAR(50),
@@ -416,6 +442,13 @@ CREATE TABLE IF NOT EXISTS proveedores_transporte (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE public.proveedores_transporte
+    ADD COLUMN IF NOT EXISTS bultos_sie INTEGER,
+    ADD COLUMN IF NOT EXISTS peso_sie VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS bultos_si3 INTEGER,
+    ADD COLUMN IF NOT EXISTS peso_si3 VARCHAR(50),
+    ALTER COLUMN num_factura TYPE VARCHAR(255);
 
 -- ============================================
 -- 3. AÑADIR COLUMNA a historial_turnos (para enlazar proveedores transportistas)

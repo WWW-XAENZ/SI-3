@@ -52,7 +52,7 @@ Sistema de gestión de turnos profesional para proveedores con sincronización e
 - Soporte para navegación por teclado
 
 #### 5. Validación de Datos
-- Validación de placa (6 caracteres alfanuméricos)
+- Validación de placa (6 caracteres alfanuméricos) o cédula (5 a 15 dígitos)
 - Validación de campos requeridos
 - Mensajes de error claros
 - Auto-conversión a mayúsculas
@@ -68,7 +68,7 @@ Sistema de gestión de turnos profesional para proveedores con sincronización e
 2. **Solicitar un turno**
    - Completar todos los campos del formulario:
      - Nombre de la empresa
-     - Placa del vehículo (6 caracteres)
+     - Placa del vehículo (6 caracteres) o cédula (5 a 15 dígitos)
      - Persona de contacto
      - Teléfono
      - Tipo de servicio

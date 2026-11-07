@@ -85,6 +85,44 @@ const obtenerPesoRegistrado = (inputId, unidadId) => {
     return { valido: true, valor: `${String(peso)} ${unidad === 'gr' ? 'gr' : 'kg'}` };
 };
 
+const obtenerCargaPorDestino = prefijo => {
+    const bultosSIE = document.getElementById(`${prefijo}BultosSIE`)?.value?.trim();
+    const bultosSI3 = document.getElementById(`${prefijo}BultosSI3`)?.value?.trim();
+    const pesoSIE = obtenerPesoRegistrado(`${prefijo}PesoSIE`, `${prefijo}PesoSIEUnidad`);
+    if (!pesoSIE.valido) return null;
+    const pesoSI3 = obtenerPesoRegistrado(`${prefijo}PesoSI3`, `${prefijo}PesoSI3Unidad`);
+    if (!pesoSI3.valido) return null;
+    return {
+        bultosSIE: bultosSIE ? parseInt(bultosSIE, 10) : null,
+        pesoSIE: pesoSIE.valor,
+        bultosSI3: bultosSI3 ? parseInt(bultosSI3, 10) : null,
+        pesoSI3: pesoSI3.valor
+    };
+};
+
+const cargarCargaPorDestino = (prefijo, datos = {}) => {
+    const bultosSIE = document.getElementById(`${prefijo}BultosSIE`);
+    const bultosSI3 = document.getElementById(`${prefijo}BultosSI3`);
+    if (bultosSIE) bultosSIE.value = datos.bultosSIE ?? '';
+    if (bultosSI3) bultosSI3.value = datos.bultosSI3 ?? '';
+    cargarPesoEnFormulario(`${prefijo}PesoSIE`, `${prefijo}PesoSIEUnidad`, datos.pesoSIE);
+    cargarPesoEnFormulario(`${prefijo}PesoSI3`, `${prefijo}PesoSI3Unidad`, datos.pesoSI3);
+};
+
+const actualizarCamposPorDestino = (prefijo, destino) => {
+    const ambos = destino === 'ambos';
+    const facturaGroup = document.getElementById(`${prefijo}FacturaGroup`);
+    const facturaAmbosGroup = document.getElementById(`${prefijo}FacturaAmbosGroup`);
+    const cargaAmbosGroup = document.getElementById(`${prefijo}CargaAmbosGroup`);
+    const bultosGroup = document.getElementById(`${prefijo}BultosGroup`);
+    const pesoGroup = document.getElementById(`${prefijo}PesoGroup`);
+    if (facturaGroup) facturaGroup.style.display = ambos ? 'none' : 'block';
+    if (facturaAmbosGroup) facturaAmbosGroup.style.display = ambos ? 'grid' : 'none';
+    if (cargaAmbosGroup) cargaAmbosGroup.style.display = ambos ? 'grid' : 'none';
+    if (bultosGroup) bultosGroup.style.display = ambos ? 'none' : 'block';
+    if (pesoGroup) pesoGroup.style.display = ambos ? 'none' : 'block';
+};
+
 const iconoTipoVehiculoSvg = (valor, incluirRuedas = true) => {
     const tipoNormalizado = normalizarTipoVehiculo(valor);
     const tipo = tipoNormalizado.includes('CONTEN') ? 'contenedor'
@@ -882,9 +920,6 @@ const SupabaseDB = {
                 nit: proveedor.nit,
                 contacto: proveedor.contacto || null,
                 telefono: proveedor.telefono || null,
-                servicio: proveedor.servicio || null,
-                consecutivo_ingreso: proveedor.consecutivoIngreso || null,
-                num_facturas: proveedor.numFacturas ?? null,
                 activo: true,
                 updated_at: new Date().toISOString()
             };
@@ -909,56 +944,37 @@ const SupabaseDB = {
                 if (error) throw error;
                 return this._mapearProveedor(data);
             } else {
-                console.log('🔹 Verificando duplicado por NIT:', proveedor.nit);
+                const normalizar = valor => String(valor || '')
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-z0-9]/gi, '')
+                    .toLowerCase();
+                const placa = normalizar(proveedor.nit);
+                const empresa = normalizar(proveedor.nombreEmpresa);
+                const contacto = normalizar(proveedor.contacto);
+                const telefono = normalizar(proveedor.telefono);
                 const selectPromise = window.supabaseClient
                     .from('proveedores')
-                    .select('id, nombre_empresa, nit, contacto, telefono, servicio, consecutivo_ingreso, num_facturas, num_factura')
-                    .eq('nit', proveedor.nit)
-                    .maybeSingle()
+                    .select('id, nombre_empresa, nit, contacto, telefono, activo, created_at, updated_at')
+                    .eq('activo', true)
                     .abortSignal(signal);
                 
-                const { data: existente, error: errorSelect } = await Promise.race([selectPromise, timeoutPromise]);
-                
-                if (errorSelect) {
-                    console.warn('Error al buscar proveedor existente:', errorSelect.message);
-                }
-                
-                if (existente) {
-                    const mismoNombre = existente.nombre_empresa === proveedor.nombreEmpresa;
-                    const mismaPlaca = existente.nit === proveedor.nit;
-                    
-                    if (mismoNombre && mismaPlaca) {
-                        console.log('🔹 Proveedor ya existe; actualizando también consecutivo y facturas');
-                        const updatePromiseExistente = window.supabaseClient
-                            .from('proveedores')
-                            .update(proveedorData)
-                            .eq('id', existente.id)
-                            .select()
-                            .single()
-                            .abortSignal(signal);
+                const { data: existentes, error: errorSelect } = await Promise.race([selectPromise, timeoutPromise]);
+                if (errorSelect) throw errorSelect;
 
-                        const { data: proveedorActualizado, error: errorActualizacion } = await Promise.race([
-                            updatePromiseExistente,
-                            timeoutPromise
-                        ]);
-
-                        if (errorActualizacion) throw errorActualizacion;
-                        return this._mapearProveedor(proveedorActualizado);
-                    } else {
-                        console.log('🔹 Proveedor existe pero cambió datos, actualizando...');
-                        const updatePromise2 = window.supabaseClient
-                            .from('proveedores')
-                            .update(proveedorData)
-                            .eq('nit', proveedor.nit)
-                            .select()
-                            .single()
-                            .abortSignal(signal);
-                        
-                        const { data: updateData, error: updateError } = await Promise.race([updatePromise2, timeoutPromise]);
-                        
-                        if (updateError) throw updateError;
-                        return this._mapearProveedor(updateData);
-                    }
+                const conductorRepetido = (existentes || []).find(item => {
+                    const mismaPlaca = placa && normalizar(item.nit) === placa;
+                    const mismaPersona = contacto &&
+                        normalizar(item.nombre_empresa) === empresa &&
+                        normalizar(item.contacto) === contacto;
+                    const mismoContactoTelefonico = !contacto && telefono &&
+                        normalizar(item.nombre_empresa) === empresa &&
+                        normalizar(item.telefono) === telefono;
+                    return mismaPlaca || mismaPersona || mismoContactoTelefonico;
+                });
+                if (conductorRepetido) {
+                    console.info('Proveedor no agregado al directorio: conductor ya registrado.', conductorRepetido.id);
+                    return this._mapearProveedor(conductorRepetido);
                 }
                 
                 console.log('🔹 Insertando nuevo proveedor NIT:', proveedor.nit);
@@ -974,19 +990,15 @@ const SupabaseDB = {
                 if (error) {
                     console.log('⚠︝ Error en insert, código:', error.code, 'mensaje:', error.message);
                     if (error.code === '23505') {
-                        console.log('🔹 Duplicado, actualizando por NIT...');
-                        const updatePromise3 = window.supabaseClient
+                        const { data: repetido, error: errorReconsulta } = await window.supabaseClient
                             .from('proveedores')
-                            .update(proveedorData)
+                            .select('id, nombre_empresa, nit, contacto, telefono, activo, created_at, updated_at')
                             .eq('nit', proveedor.nit)
-                            .select()
-                            .single()
+                            .eq('activo', true)
+                            .limit(1)
                             .abortSignal(signal);
-                        
-                        const { data: updateData2, error: updateError2 } = await Promise.race([updatePromise3, timeoutPromise]);
-                        
-                        if (updateError2) throw updateError2;
-                        return this._mapearProveedor(updateData2);
+                        if (errorReconsulta) throw errorReconsulta;
+                        if (repetido?.length) return this._mapearProveedor(repetido[0]);
                     }
                     throw error;
                 }
@@ -995,45 +1007,7 @@ const SupabaseDB = {
             }
          } catch (error) {
             console.error('❌ Error al guardar proveedor:', error);
-            // Si el error es por columna inexistente, reintentar sin los campos nuevos
-            if (error.message?.includes('consecutivo_ingreso') || error.message?.includes('num_facturas')) {
-                console.warn('⚠️ Columnas nuevas no existen en proveedores, reintentando sin ellas...');
-                const proveedorDataBasico = {
-                    nombre_empresa: proveedor.nombreEmpresa,
-                    nit: proveedor.nit,
-                    contacto: proveedor.contacto || null,
-                    telefono: proveedor.telefono || null,
-                    servicio: proveedor.servicio || null,
-                    activo: true,
-                    updated_at: new Date().toISOString()
-                };
-                try {
-                    if (proveedor.id) {
-                        const { data, error: errUpdate } = await window.supabaseClient
-                            .from('proveedores')
-                            .update(proveedorDataBasico)
-                            .eq('id', proveedor.id)
-                            .select()
-                            .single()
-                            .abortSignal(signal);
-                        if (errUpdate) throw errUpdate;
-                        return this._mapearProveedor(data);
-                    } else {
-                        const { data, error: errInsert } = await window.supabaseClient
-                            .from('proveedores')
-                            .insert(proveedorDataBasico)
-                            .select()
-                            .single()
-                            .abortSignal(signal);
-                        if (errInsert) throw errInsert;
-                        return this._mapearProveedor(data);
-                    }
-                } catch (retryError) {
-                    console.error('❌ Reintento de proveedor también falló:', retryError);
-                    throw retryError;
-                }
-            }
-            throw error;
+             throw error;
         }
     },
 
@@ -1130,6 +1104,10 @@ const SupabaseDB = {
                 tipo_vehiculo: turno.tipoVehiculo || null,
                 bultos: turno.bultos || null,
                 peso: turno.peso || null,
+                bultos_sie: turno.bultosSIE ?? null,
+                peso_sie: turno.pesoSIE || null,
+                bultos_si3: turno.bultosSI3 ?? null,
+                peso_si3: turno.pesoSI3 || null,
                 responsable: turno.responsable || null,
                 contacto: turno.contacto || null,
                 telefono: turno.telefono || null,
@@ -1438,6 +1416,10 @@ const SupabaseDB = {
                 console.log('updateData.tipo_vehiculo:', updateData.tipo_vehiculo);
                 updateData.bultos = infoDespacho.bultos ? parseInt(infoDespacho.bultos) : null;
                 updateData.peso = infoDespacho.peso || null;
+                updateData.bultos_sie = infoDespacho.bultosSIE ?? null;
+                updateData.peso_sie = infoDespacho.pesoSIE || null;
+                updateData.bultos_si3 = infoDespacho.bultosSI3 ?? null;
+                updateData.peso_si3 = infoDespacho.pesoSI3 || null;
                 updateData.responsable = infoDespacho.responsable || null;
                 updateData.contacto = infoDespacho.contacto || null;
                 updateData.telefono = infoDespacho.telefono || null;
@@ -1700,6 +1682,10 @@ const SupabaseDB = {
             tipoVehiculo: t.tipo_vehiculo,
             bultos: t.bultos,
             peso: t.peso,
+            bultosSIE: t.bultos_sie,
+            pesoSIE: t.peso_sie,
+            bultosSI3: t.bultos_si3,
+            pesoSI3: t.peso_si3,
             responsable: t.responsable,
             contacto: t.contacto,
             telefono: t.telefono,
@@ -1736,6 +1722,10 @@ const SupabaseDB = {
                 tipo_vehiculo: turno.tipoVehiculo || null,
                 bultos: turno.bultos ? parseInt(turno.bultos) : null,
                 peso: turno.peso || null,
+                bultos_sie: turno.bultosSIE ?? null,
+                peso_sie: turno.pesoSIE || null,
+                bultos_si3: turno.bultosSI3 ?? null,
+                peso_si3: turno.pesoSI3 || null,
                 responsable: turno.responsable || null,
                 contacto: turno.contacto || null,
                 telefono: turno.telefono || null,
@@ -1833,6 +1823,10 @@ const SupabaseDB = {
                 tipoVehiculo: h.tipo_vehiculo,
                 bultos: h.bultos,
                 peso: h.peso,
+                bultosSIE: h.bultos_sie,
+                pesoSIE: h.peso_sie,
+                bultosSI3: h.bultos_si3,
+                pesoSI3: h.peso_si3,
                 responsable: h.responsable,
                 contacto: h.contacto,
                 telefono: h.telefono,
@@ -1866,47 +1860,72 @@ const SupabaseDB = {
         try {
             const hoy = getLocalDate();
             
+            const manana = new Date(`${hoy}T00:00:00`);
+            manana.setDate(manana.getDate() + 1);
+            const mananaStr = `${manana.getFullYear()}-${String(manana.getMonth() + 1).padStart(2, '0')}-${String(manana.getDate()).padStart(2, '0')}`;
             const [
-                { count: totalTurnosHoy },
-                { count: turnosEspera },
-                { count: turnosAtendiendo },
-                { count: totalProveedores }
+                { count: totalTurnosHoy, error: errorHistorial },
+                { data: turnosActivos, error: errorTurnos },
+                { data: proveedores, error: errorProveedores }
             ] = await Promise.all([
                 window.supabaseClient
                     .from('historial_turnos')
                     .select('*', { count: 'exact', head: true })
-                    .gte('fecha', `${hoy}T00:00:00`),
+                    .gte('fecha', `${hoy}T00:00:00`)
+                    .lt('fecha', `${mananaStr}T00:00:00`),
                 
                 window.supabaseClient
                     .from('turnos')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('estado', 'espera'),
-                
-                window.supabaseClient
-                    .from('turnos')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('estado', 'atendiendo'),
+                    .select('estado, fecha_cita, fecha_solicitud')
+                    .in('estado', ['espera', 'citado', 'llegado', 'atendiendo']),
                 
                 window.supabaseClient
                     .from('proveedores')
-                    .select('*', { count: 'exact', head: true })
+                    .select('id, nombre_empresa, nit, contacto, telefono')
                     .eq('activo', true)
             ]);
 
+            if (errorHistorial) throw errorHistorial;
+            if (errorTurnos) throw errorTurnos;
+            if (errorProveedores) throw errorProveedores;
+
+            const visibles = (turnosActivos || []).filter(turno => {
+                const fecha = String(turno.fecha_cita || turno.fecha_solicitud || '').split('T')[0];
+                return !fecha || fecha >= hoy;
+            });
+            const turnosEspera = visibles.filter(turno => turno.estado === 'espera').length;
+            const turnosAtendiendo = visibles.filter(turno => turno.estado === 'atendiendo').length;
+            const normalizarProveedor = valor => String(valor || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]/gi, '')
+                .toLowerCase();
+            const clavesProveedores = new Set();
+            let totalProveedores = 0;
+            (proveedores || []).forEach(proveedor => {
+                const empresa = normalizarProveedor(proveedor.nombre_empresa);
+                const contacto = normalizarProveedor(proveedor.contacto);
+                const placa = normalizarProveedor(proveedor.nit);
+                const telefono = normalizarProveedor(proveedor.telefono);
+                const claves = [];
+                if (contacto) claves.push(`persona:${empresa}|${contacto}`);
+                if (placa) claves.push(`placa:${placa}`);
+                if (!contacto && telefono) claves.push(`telefono:${empresa}|${telefono}`);
+                if (claves.length === 0) claves.push(`id:${proveedor.id}`);
+                if (claves.some(clave => clavesProveedores.has(clave))) return;
+                claves.forEach(clave => clavesProveedores.add(clave));
+                totalProveedores++;
+            });
+
             return {
                 totalTurnos: totalTurnosHoy || 0,
-                turnosEspera: turnosEspera || 0,
-                turnosAtendiendo: turnosAtendiendo || 0,
-                totalProveedores: totalProveedores || 0
+                turnosEspera,
+                turnosAtendiendo,
+                totalProveedores
             };
         } catch (error) {
             console.error('Error al cargar estadísticas:', error);
-            return {
-                totalTurnos: 0,
-                turnosEspera: 0,
-                turnosAtendiendo: 0,
-                totalProveedores: 0
-            };
+            throw error;
         }
     },
 
@@ -2108,6 +2127,10 @@ const SupabaseDB = {
             tipo_vehiculo: proveedor.tipoVehiculo || null,
             bultos: proveedor.bultos ? parseInt(proveedor.bultos) : null,
             peso: proveedor.peso || null,
+            bultos_sie: proveedor.bultosSIE ?? null,
+            peso_sie: proveedor.pesoSIE || null,
+            bultos_si3: proveedor.bultosSI3 ?? null,
+            peso_si3: proveedor.pesoSI3 || null,
             responsable: proveedor.responsable || null,
             contacto: proveedor.contacto || null,
             telefono: proveedor.telefono || null,
@@ -2325,6 +2348,10 @@ const SupabaseDB = {
                 tipo_vehiculo: proveedor.tipoVehiculo || null,
                 bultos: proveedor.bultos ? parseInt(proveedor.bultos) : null,
                 peso: proveedor.peso || null,
+                bultos_sie: proveedor.bultosSIE ?? null,
+                peso_sie: proveedor.pesoSIE || null,
+                bultos_si3: proveedor.bultosSI3 ?? null,
+                peso_si3: proveedor.pesoSI3 || null,
                 responsable: proveedor.responsable || null,
                 contacto: proveedor.contacto || null,
                 telefono: proveedor.telefono || null,
@@ -2363,6 +2390,10 @@ const SupabaseDB = {
             tipoVehiculo: p.tipo_vehiculo,
             bultos: p.bultos,
             peso: p.peso,
+            bultosSIE: p.bultos_sie,
+            pesoSIE: p.peso_sie,
+            bultosSI3: p.bultos_si3,
+            pesoSI3: p.peso_si3,
             responsable: p.responsable,
             contacto: p.contacto,
             telefono: p.telefono,
@@ -2686,7 +2717,6 @@ const Turnos = {
 
     async solicitar(datosProveedor, motivo = '', signal = null, estadoOverride = null) {
         console.log('=== CREANDO TURNO ===');
-        console.log('📌 Datos recibidos:', datosProveedor);
         console.log('📌 Signal:', !!signal);
         
         if (!datosProveedor.nit) {
@@ -2752,11 +2782,11 @@ const Turnos = {
         console.log('📦 Paso 1: Guardando proveedor en Supabase...');
         const proveedorGuardado = await SupabaseDB.guardarProveedor(datosProveedor, signal);
         console.log('✅ Proveedor guardado:', proveedorGuardado);
-        
+
         if (!proveedorGuardado && window.supabaseClient) {
             console.warn('⚠︝ Proveedor no guardado en Supabase, continuando...');
         }
-        
+
         if (window.RenderAdmin && typeof window.RenderAdmin.proveedores === 'function') {
             await window.RenderAdmin.proveedores();
         }
@@ -2808,13 +2838,17 @@ const Turnos = {
             tipoVehiculo: datosProveedor.tipoVehiculo || null,
             bultos: datosProveedor.bultos || null,
             peso: datosProveedor.peso || null,
+            bultosSIE: datosProveedor.bultosSIE ?? null,
+            pesoSIE: datosProveedor.pesoSIE || null,
+            bultosSI3: datosProveedor.bultosSI3 ?? null,
+            pesoSI3: datosProveedor.pesoSI3 || null,
             responsable: datosProveedor.responsable || null
         };
 
         console.log('📦 Paso 3: Guardando turno en Supabase...');
         const turnoSupabase = await SupabaseDB.guardarTurno(turno, signal);
         console.log('✅ Turno guardado en Supabase:', turnoSupabase);
-        
+
         if (turnoSupabase && turnoSupabase.id) {
             turno.id = turnoSupabase.id;
         } else {
@@ -3101,7 +3135,7 @@ const RenderUsuario = {
 
             try {
                 const esCitado = miTurno.estado === 'citado' || miTurno.fechaCita;
-                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
                 
                 if (esCitado && !siendoAtendido) {
                     const fechaHoraMostrar = miTurno.fechaCita ? (() => {
@@ -3411,6 +3445,7 @@ const RenderAdmin = {
         const contadorDiv = document.getElementById('contadorTurnosEspera');
         const busqueda = document.getElementById('busquedaEspera')?.value?.toLowerCase() || '';
         
+        const totalTurnosEnEspera = AppState.turnos.filter(t => t.estado === 'espera').length;
         let turnosNormales = AppState.turnos.filter(t => t.estado === 'espera');
         
         if (busqueda) {
@@ -3422,6 +3457,8 @@ const RenderAdmin = {
         }
         
         if (contadorDiv) contadorDiv.textContent = turnosNormales.length;
+        const totalTurnosEspera = document.getElementById('turnosEspera');
+        if (totalTurnosEspera) totalTurnosEspera.textContent = totalTurnosEnEspera;
         
         if (!listaDiv) return;
 
@@ -3556,15 +3593,36 @@ const RenderAdmin = {
 
         try {
             const proveedores = await SupabaseDB.cargarProveedores();
+            const normalizar = valor => String(valor || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]/gi, '')
+                .toLowerCase();
+            const vistos = new Set();
+            const proveedoresUnicos = [...proveedores]
+                .sort((a, b) => (Date.parse(b.updatedAt || b.createdAt || '') || 0) - (Date.parse(a.updatedAt || a.createdAt || '') || 0))
+                .filter(proveedor => {
+                    const empresa = normalizar(proveedor.nombreEmpresa);
+                    const contacto = normalizar(proveedor.contacto);
+                    const nit = normalizar(proveedor.nit);
+                    const telefono = normalizar(proveedor.telefono);
+                    const claves = [];
+                    if (contacto) claves.push(`persona:${empresa}|${contacto}`);
+                    if (nit) claves.push(`placa:${nit}`);
+                    if (!contacto && telefono) claves.push(`telefono:${empresa}|${telefono}`);
+                    if (claves.length === 0) claves.push(`id:${proveedor.id}`);
+                    if (claves.some(clave => vistos.has(clave))) return false;
+                    claves.forEach(clave => vistos.add(clave));
+                    return true;
+                });
 
             // Filtrar por búsqueda
-            const proveedoresFiltrados = proveedores.filter(p => {
+            const proveedoresFiltrados = proveedoresUnicos.filter(p => {
                 if (!busqueda) return true;
                 return (p.nombreEmpresa || '').toLowerCase().includes(busqueda) ||
                        (p.nit || '').toLowerCase().includes(busqueda) ||
                        (p.contacto || '').toLowerCase().includes(busqueda) ||
-                       (p.telefono || '').toLowerCase().includes(busqueda) ||
-                       (p.consecutivoIngreso || '').toLowerCase().includes(busqueda);
+                       (p.telefono || '').toLowerCase().includes(busqueda);
             });
 
             if (contadorDiv) contadorDiv.textContent = proveedoresFiltrados.length;
@@ -3595,15 +3653,11 @@ const RenderAdmin = {
                 const expandido = !multiple;
 
                 const proveedoresHtml = lista.map(p => {
-                    const esTransporte = (p.servicio || '').toLowerCase() === 'transporte';
-                    const badge = esTransporte
-                        ? '<span class="prov-badge transporte">TRANSPORTE</span>'
-                        : (p.servicio ? `<span class="prov-badge normal">${this._labelServicio(p.servicio)}</span>` : '');
                     return `
                         <div class="prov-proveedor">
                             <div class="prov-proveedor-info">
-                                <div class="prov-proveedor-nombre">${p.contacto || 'Proveedor'}${badge}</div>
-                                <div class="prov-proveedor-meta">${p.nit || '—'}${p.telefono ? ` · ${p.telefono}` : ''}${p.consecutivoIngreso ? ` · Cons: ${p.consecutivoIngreso}` : ''}</div>
+                                <div class="prov-proveedor-nombre">${escaparHtml(p.contacto || 'Contacto sin nombre')}</div>
+                                <div class="prov-proveedor-meta">Placa o cédula: ${escaparHtml(p.nit || '—')}${p.telefono ? ` · Teléfono: ${escaparHtml(p.telefono)}` : ''}</div>
                             </div>
                             <button class="btn btn-danger btn-small" onclick="AdminHandlers.eliminarProveedor(${p.id})">Eliminar</button>
                         </div>
@@ -3611,15 +3665,15 @@ const RenderAdmin = {
                 }).join('');
 
                 const subTexto = multiple
-                    ? `${lista.length} conductores · ${lista.map(p => p.nit).filter(Boolean).join(', ')}`
-                    : (lista[0].servicio ? this._labelServicio(lista[0].servicio) : 'Proveedor');
+                    ? `${lista.length} contactos · ${lista.map(p => p.nit).filter(Boolean).join(', ')}`
+                    : `${lista[0].contacto || 'Contacto'} · ${lista[0].nit || 'Sin placa'}`;
 
                 const header = `
                     <div class="prov-empresa-header" onclick="window.toggleProveedoresEmpresa('${detallesId}', '${chevronId}')">
                         <div class="prov-avatar" style="background:${color};">${iniciales}</div>
                         <div class="prov-empresa-info">
-                            <div class="prov-empresa-nombre">${empresa}</div>
-                            <div class="prov-empresa-sub">${subTexto}</div>
+                            <div class="prov-empresa-nombre">${escaparHtml(empresa)}</div>
+                            <div class="prov-empresa-sub">${escaparHtml(subTexto)}</div>
                         </div>
                         ${multiple ? `<span class="prov-chevron ${expandido ? 'abierto' : ''}" id="${chevronId}">▶</span>` : ''}
                     </div>
@@ -3725,7 +3779,7 @@ const RenderAdmin = {
             if (historial.length === 0) {
                 historialDiv.innerHTML = '<p class="empty-message">No hay historial de turnos</p>';
             } else {
-                const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
                 
                 historialDiv.innerHTML = `
                     <table class="history-table">
@@ -3758,8 +3812,12 @@ const RenderAdmin = {
                                     <td>${h.nit || '-'}</td>
                                     <td>${formatearFacturasHistorial(h)}</td>
                                     <td>${h.tipoVehiculo || '-'}</td>
-                                    <td>${h.bultos || '-'}</td>
-                                    <td>${formatearPesoHistorial(h.peso) || '-'}</td>
+                                    <td>${h.destino === 'ambos'
+                                        ? `SIE: ${h.bultosSIE ?? '-'} · SI3 ZF: ${h.bultosSI3 ?? '-'}`
+                                        : h.bultos || '-'}</td>
+                                    <td>${h.destino === 'ambos'
+                                        ? `SIE: ${formatearPesoHistorial(h.pesoSIE) || '-'} · SI3 ZF: ${formatearPesoHistorial(h.pesoSI3) || '-'}`
+                                        : formatearPesoHistorial(h.peso) || '-'}</td>
                                     <td>${h.responsable || '-'}</td>
                                     <td>${Utils.formatearHora(h.horaLlamada)}</td>
                                     <td>${Utils.formatearHora(h.horaFinalizacion)}</td>
@@ -3796,10 +3854,14 @@ const RenderAdmin = {
             const totalProveedoresEl = document.getElementById('totalProveedores');
             
             if (totalTurnosEl) totalTurnosEl.textContent = stats.totalTurnos;
-            if (turnosEsperaEl) turnosEsperaEl.textContent = stats.turnosEspera;
+            if (turnosEsperaEl) turnosEsperaEl.textContent = AppState.turnos.filter(turno => turno.estado === 'espera').length;
             if (totalProveedoresEl) totalProveedoresEl.textContent = stats.totalProveedores;
         } catch (error) {
             console.error('Error al cargar estadísticas:', error);
+            ['totalTurnos', 'totalProveedores'].forEach(id => {
+                const elemento = document.getElementById(id);
+                if (elemento) elemento.textContent = '—';
+            });
         }
     },
 
@@ -4076,6 +4138,10 @@ const AdminHandlers = {
                     tipoVehiculo: turno.tipoVehiculo,
                     bultos: turno.bultos,
                     peso: turno.peso,
+                    bultosSIE: turno.bultosSIE,
+                    pesoSIE: turno.pesoSIE,
+                    bultosSI3: turno.bultosSI3,
+                    pesoSI3: turno.pesoSI3,
                     responsable: turno.responsable,
                     contacto: turno.contacto,
                     telefono: turno.telefono,
@@ -4122,6 +4188,10 @@ const AdminHandlers = {
                     tipoVehiculo: turno.tipoVehiculo,
                     bultos: turno.bultos,
                     peso: turno.peso,
+                    bultosSIE: turno.bultosSIE,
+                    pesoSIE: turno.pesoSIE,
+                    bultosSI3: turno.bultosSI3,
+                    pesoSI3: turno.pesoSI3,
                     responsable: turno.responsable,
                     contacto: turno.contacto,
                     telefono: turno.telefono,
@@ -4199,6 +4269,7 @@ const AdminHandlers = {
         if (tipoVehiculoInput) tipoVehiculoInput.value = turno.tipoVehiculo || '';
         if (bultosInput) bultosInput.value = turno.bultos || '';
         cargarPesoEnFormulario('despachoPeso', 'despachoPesoUnidad', turno.peso);
+        cargarCargaPorDestino('despacho', turno);
         if (responsableInput) responsableInput.value = turno.responsable || '';
         
         const despachoDestinoSelect = document.getElementById('despachoDestino');
@@ -4212,16 +4283,9 @@ const AdminHandlers = {
         // Add event listener for destino change in despacho modal
         if (despachoDestinoSelect) {
             despachoDestinoSelect.onchange = () => {
-                const facturaGroup = document.getElementById('despachoFacturaGroup');
-                const facturaAmbosGroup = document.getElementById('despachoFacturaAmbosGroup');
-                if (despachoDestinoSelect.value === 'ambos') {
-                    facturaGroup.style.display = 'none';
-                    facturaAmbosGroup.style.display = 'grid';
-                } else {
-                    facturaGroup.style.display = 'block';
-                    facturaAmbosGroup.style.display = 'none';
-                }
+                actualizarCamposPorDestino('despacho', despachoDestinoSelect.value);
             };
+            actualizarCamposPorDestino('despacho', despachoDestinoSelect.value);
         }
         
         modal.dataset.turnoId = turnoId || turno.id;
@@ -4302,6 +4366,7 @@ const AdminHandlers = {
         // Handle factura(s) based on destino
         let numFactura = null;
         const destino = despachoDestinoSelect?.value || turnoActual.destino || '';
+        let cargaAmbos = { bultosSIE: null, pesoSIE: null, bultosSI3: null, pesoSI3: null };
         if (destino === 'ambos') {
             const facturaSIE = facturaSIEInput?.value?.trim();
             const facturaSI3 = facturaSI3Input?.value?.trim();
@@ -4310,18 +4375,23 @@ const AdminHandlers = {
                 return null;
             }
             numFactura = `SI3 ZF (${facturaSI3}) SIE (${facturaSIE})`;
+            cargaAmbos = obtenerCargaPorDestino('despacho');
+            if (!cargaAmbos) return null;
         } else {
             numFactura = numFacturaInput?.value?.trim() || null;
         }
 
-        const pesoRegistrado = obtenerPesoRegistrado('despachoPeso', 'despachoPesoUnidad');
+        const pesoRegistrado = destino === 'ambos'
+            ? { valido: true, valor: null }
+            : obtenerPesoRegistrado('despachoPeso', 'despachoPesoUnidad');
         if (!pesoRegistrado.valido) return null;
 
         const infoDespacho = {
             numFactura: numFactura,
             tipoVehiculo: tipoVehiculoInput?.value ? tipoVehiculoInput.value.trim() : null,
-            bultos: bultosInput?.value?.trim() || null,
+            bultos: destino === 'ambos' ? null : bultosInput?.value?.trim() || null,
             peso: pesoRegistrado.valor,
+            ...cargaAmbos,
             responsable: responsableInput?.value?.trim() || null,
             contacto: turnoActual.contacto || null,
             telefono: turnoActual.telefono || null,
@@ -4334,6 +4404,10 @@ const AdminHandlers = {
         turnoActual.tipoVehiculo = infoDespacho.tipoVehiculo;
         turnoActual.bultos = infoDespacho.bultos;
         turnoActual.peso = infoDespacho.peso;
+        turnoActual.bultosSIE = infoDespacho.bultosSIE;
+        turnoActual.pesoSIE = infoDespacho.pesoSIE;
+        turnoActual.bultosSI3 = infoDespacho.bultosSI3;
+        turnoActual.pesoSI3 = infoDespacho.pesoSI3;
         turnoActual.responsable = infoDespacho.responsable;
         turnoActual.contacto = infoDespacho.contacto;
         turnoActual.telefono = infoDespacho.telefono;
@@ -4399,12 +4473,20 @@ const AdminHandlers = {
         // Clear form fields
         document.getElementById('transportistaNombreProveedor').value = '';
         document.getElementById('transportistaFactura').value = '';
+        document.getElementById('transportistaFacturaSIE').value = '';
+        document.getElementById('transportistaFacturaSI3').value = '';
         document.getElementById('transportistaBultos').value = '';
         document.getElementById('transportistaPeso').value = '';
         document.getElementById('transportistaPesoUnidad').value = 'kg';
+        cargarCargaPorDestino('transportista');
         document.getElementById('transportistaResponsable').value = '';
         document.getElementById('transportistaTipoVehiculo').value = '';
         document.getElementById('transportistaDestino').value = '';
+        const destinoProveedor = document.getElementById('transportistaDestino');
+        if (destinoProveedor) {
+            destinoProveedor.onchange = () => actualizarCamposPorDestino('transportista', destinoProveedor.value);
+            actualizarCamposPorDestino('transportista', destinoProveedor.value);
+        }
         
         Utils.mostrarNotificacion(`Turno ${turnoActual.numero} - Registre proveedores`, 'info');
     },
@@ -4412,6 +4494,8 @@ const AdminHandlers = {
     async agregarProveedorTransportista() {
         const nombreProveedorInput = document.getElementById('transportistaNombreProveedor');
         const facturaInput = document.getElementById('transportistaFactura');
+        const facturaSIEInput = document.getElementById('transportistaFacturaSIE');
+        const facturaSI3Input = document.getElementById('transportistaFacturaSI3');
         const destinoInput = document.getElementById('transportistaDestino');
         const bultosInput = document.getElementById('transportistaBultos');
         const pesoInput = document.getElementById('transportistaPeso');
@@ -4431,12 +4515,26 @@ const AdminHandlers = {
             return;
         }
 
-        const pesoRegistrado = obtenerPesoRegistrado('transportistaPeso', 'transportistaPesoUnidad');
-        if (!pesoRegistrado.valido) return;
-
         const tipoVehiculo = tipoVehiculoInput?.value ? tipoVehiculoInput.value.trim() : '';
 
         const destino = destinoInput?.value ? destinoInput.value.trim() : '';
+        let numFactura = facturaInput?.value?.trim() || null;
+        let cargaAmbos = { bultosSIE: null, pesoSIE: null, bultosSI3: null, pesoSI3: null };
+        if (destino === 'ambos') {
+            const facturaSIE = facturaSIEInput?.value?.trim();
+            const facturaSI3 = facturaSI3Input?.value?.trim();
+            if (!facturaSIE || !facturaSI3) {
+                Utils.mostrarNotificacion('Ingrese las facturas para SIE y SI3 ZF', 'error');
+                return;
+            }
+            numFactura = `SI3 ZF (${facturaSI3}) SIE (${facturaSIE})`;
+            cargaAmbos = obtenerCargaPorDestino('transportista');
+            if (!cargaAmbos) return;
+        }
+        const pesoRegistrado = destino === 'ambos'
+            ? { valido: true, valor: null }
+            : obtenerPesoRegistrado('transportistaPeso', 'transportistaPesoUnidad');
+        if (!pesoRegistrado.valido) return;
 
         const proveedor = {
             id: null,
@@ -4445,10 +4543,11 @@ const AdminHandlers = {
             nit: turnoActual.nit || '',
             motivo: turnoActual.motivo || '',
             nombreProveedor: nombreProveedor,
-            numFactura: facturaInput?.value?.trim() || null,
+            numFactura,
             tipoVehiculo: tipoVehiculo,
-            bultos: bultosInput?.value?.trim() || null,
+            bultos: destino === 'ambos' ? null : bultosInput?.value?.trim() || null,
             peso: pesoRegistrado.valor,
+            ...cargaAmbos,
             responsable: responsableInput?.value?.trim() || null,
             contacto: turnoActual.contacto || null,
             telefono: turnoActual.telefono || null,
@@ -4472,6 +4571,10 @@ const AdminHandlers = {
                     tipo_vehiculo: proveedor.tipoVehiculo,
                     bultos: proveedor.bultos,
                     peso: proveedor.peso,
+                    bultos_sie: proveedor.bultosSIE,
+                    peso_sie: proveedor.pesoSIE,
+                    bultos_si3: proveedor.bultosSI3,
+                    peso_si3: proveedor.pesoSI3,
                     responsable: proveedor.responsable,
                     destino: proveedor.destino,
                     consecutivo_ingreso: proveedor.consecutivoIngreso || null
@@ -4501,6 +4604,8 @@ const AdminHandlers = {
     },
     _limpiarFormularioTransportista() {
         const ids = ['transportistaFactura',
+                     'transportistaFacturaSIE',
+                     'transportistaFacturaSI3',
                      'transportistaBultos', 
                      'transportistaPeso',
                      'transportistaPesoUnidad',
@@ -4514,6 +4619,8 @@ const AdminHandlers = {
         if (pesoUnidadSelect) pesoUnidadSelect.value = 'kg';
         const destinoSelect = document.getElementById('transportistaDestino');
         if (destinoSelect) destinoSelect.value = '';
+        cargarCargaPorDestino('transportista');
+        actualizarCamposPorDestino('transportista', '');
         const tipoVehiculoSelect = document.getElementById('transportistaTipoVehiculo');
         if (tipoVehiculoSelect) tipoVehiculoSelect.value = '';
         const nombreProveedorInput = document.getElementById('transportistaNombreProveedor');
@@ -4525,12 +4632,18 @@ const AdminHandlers = {
         const proveedor = AppState.proveedoresTransporte[index];
         if (!proveedor) return;
 
+        const facturaSIE = String(proveedor.numFactura || '').match(/SIE \(([^)]+)\)/)?.[1] || '';
+        const facturaSI3 = String(proveedor.numFactura || '').match(/SI3 ZF \(([^)]+)\)/)?.[1] || '';
         document.getElementById('transportistaFactura').value = proveedor.numFactura || '';
+        document.getElementById('transportistaFacturaSIE').value = facturaSIE;
+        document.getElementById('transportistaFacturaSI3').value = facturaSI3;
         document.getElementById('transportistaBultos').value = proveedor.bultos || '';
         cargarPesoEnFormulario('transportistaPeso', 'transportistaPesoUnidad', proveedor.peso);
+        cargarCargaPorDestino('transportista', proveedor);
         document.getElementById('transportistaResponsable').value = proveedor.responsable || '';
         document.getElementById('transportistaNombreProveedor').value = proveedor.nombreProveedor || '';
         document.getElementById('transportistaDestino').value = proveedor.destino || '';
+        actualizarCamposPorDestino('transportista', proveedor.destino || '');
         document.getElementById('transportistaTipoVehiculo').value = proveedor.tipoVehiculo || '';
         window.refrescarVistaPreviaTipoVehiculo('transportistaTipoVehiculo');
 
@@ -4555,7 +4668,7 @@ const AdminHandlers = {
     _renderProveedoresTransporte() {
         const listaDiv = document.getElementById('listaProveedoresTransporte');
         const contadorDiv = document.getElementById('contadorProveedoresTransporte');
-        const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+        const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
         
         if (contadorDiv) contadorDiv.textContent = AppState.proveedoresTransporte.length;
         
@@ -4567,17 +4680,25 @@ const AdminHandlers = {
             listaDiv.innerHTML = '<p class="empty-message">No hay proveedores agregados</p>';
         } else {
             listaDiv.innerHTML = proveedores.map((p, index) => {
-                const pesoDisplay = formatearPesoHistorial(p.peso) || 'N/A';
+                const pesoDisplay = p.destino === 'ambos'
+                    ? `SIE: ${formatearPesoHistorial(p.pesoSIE) || 'N/A'} · SI3 ZF: ${formatearPesoHistorial(p.pesoSI3) || 'N/A'}`
+                    : formatearPesoHistorial(p.peso) || 'N/A';
                 const destinoDisplay = destinoLabel[p.destino] || p.destino || 'N/A';
+                const bultosDisplay = p.destino === 'ambos'
+                    ? `SIE: ${p.bultosSIE ?? 'N/A'} · SI3 ZF: ${p.bultosSI3 ?? 'N/A'}`
+                    : p.bultos || 'N/A';
+                const facturaDisplay = p.destino === 'ambos'
+                    ? `SIE: ${String(p.numFactura || '').match(/SIE \(([^)]+)\)/)?.[1] || 'N/A'} · SI3 ZF: ${String(p.numFactura || '').match(/SI3 ZF \(([^)]+)\)/)?.[1] || 'N/A'}`
+                    : p.numFactura || 'N/A';
                 return `
                 <div class="turn-item" style="border-left: 3px solid #8b5cf6;">
                     <span class="turn-item-number" style="color: #8b5cf6;">${index + 1}</span>
                     <div class="turn-item-info">
                         <div class="turn-item-company">${p.nombreProveedor || 'N/A'}</div>
                     <div class="turn-item-details">
-                        <span>Factura: ${p.numFactura || 'N/A'}</span>
+                        <span>Factura: ${facturaDisplay}</span>
                         <span>Tipo: ${p.tipoVehiculo || 'N/A'}</span>
-                        <span>Bultos: ${p.bultos || 'N/A'}</span>
+                        <span>Bultos: ${bultosDisplay}</span>
                         <span>Peso: ${pesoDisplay}</span>
                         <span>Responsable: ${p.responsable || 'N/A'}</span>
                         <span>Destino: ${destinoDisplay}</span>
@@ -4622,37 +4743,14 @@ const AdminHandlers = {
 
         if (window.supabaseClient && turnoActual.nit) {
             try {
-                const empresa = turnoActual.nombre_empresa || 'Transportadora';
-                const { data: provExistente, error: errSel } = await window.supabaseClient
-                    .from('proveedores')
-                    .select('id')
-                    .eq('nit', turnoActual.nit)
-                    .limit(1);
-                
-                if (!errSel && provExistente && provExistente.length > 0) {
-                    await window.supabaseClient
-                        .from('proveedores')
-                        .update({
-                            servicio: 'transporte',
-                            nombre_empresa: empresa,
-                            activo: true,
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('nit', turnoActual.nit);
-                } else {
-                    await window.supabaseClient
-                        .from('proveedores')
-                        .insert({
-                            nombre_empresa: empresa,
-                            nit: turnoActual.nit,
-                            servicio: 'transporte',
-                            activo: true,
-                            fecha_registro: new Date().toISOString(),
-                            updated_at: new Date().toISOString()
-                        });
-                }
+                await SupabaseDB.guardarProveedor({
+                    nombreEmpresa: turnoActual.nombreEmpresa || turnoActual.nombre_empresa || 'Transportadora',
+                    nit: turnoActual.nit,
+                    contacto: turnoActual.contacto || '',
+                    telefono: turnoActual.telefono || ''
+                });
             } catch (e) {
-                console.warn('No se pudo marcar la empresa como transporte en el directorio:', e);
+                console.warn('No se pudo guardar el contacto en el directorio de proveedores:', e);
             }
         }
 
@@ -4702,6 +4800,10 @@ const AdminHandlers = {
                     tipoVehiculo: p.tipoVehiculo,
                     bultos: p.bultos,
                     peso: p.peso,
+                    bultosSIE: p.bultosSIE,
+                    pesoSIE: p.pesoSIE,
+                    bultosSI3: p.bultosSI3,
+                    pesoSI3: p.pesoSI3,
                     responsable: p.responsable,
                     destino: p.destino || '',
                     consecutivoIngreso: p.consecutivoIngreso || '',
@@ -4806,6 +4908,10 @@ const AdminHandlers = {
                     tipo_vehiculo: proveedor.tipoVehiculo || null,
                     bultos: proveedor.bultos ? parseInt(proveedor.bultos) : null,
                     peso: proveedor.peso || null,
+                    bultos_sie: proveedor.bultosSIE ?? null,
+                    peso_sie: proveedor.pesoSIE || null,
+                    bultos_si3: proveedor.bultosSI3 ?? null,
+                    peso_si3: proveedor.pesoSI3 || null,
                     responsable: proveedor.responsable || null,
                     contacto: proveedor.contacto || null,
                     telefono: proveedor.telefono || null,
@@ -5360,6 +5466,7 @@ const proveedorData = {
         limpiar('sinTurnoBultos');
         limpiar('sinTurnoPeso');
         limpiar('sinTurnoPesoUnidad', 'kg');
+        cargarCargaPorDestino('sinTurno');
         limpiar('sinTurnoResponsable');
         limpiar('sinTurnoDestino');
         limpiar('sinTurnoTipo');
@@ -5369,23 +5476,10 @@ const proveedorData = {
         const proveedorInput = document.getElementById('sinTurnoProveedor');
         if (proveedorInput) proveedorInput.focus();
         
-        // Toggle factura fields based on destino (one-time listener)
-        if (!window._sinTurnoDestinoListener) {
-            window._sinTurnoDestinoListener = true;
-            const destinoSelect = document.getElementById('sinTurnoDestino');
-            if (destinoSelect) {
-                destinoSelect.addEventListener('change', () => {
-                    const facturaGroup = document.getElementById('sinTurnoFacturaGroup');
-                    const facturaAmbosGroup = document.getElementById('sinTurnoFacturaAmbosGroup');
-                    if (destinoSelect.value === 'ambos') {
-                        facturaGroup.style.display = 'none';
-                        facturaAmbosGroup.style.display = 'grid';
-                    } else {
-                        facturaGroup.style.display = 'block';
-                        facturaAmbosGroup.style.display = 'none';
-                    }
-                });
-            }
+        const destinoSelect = document.getElementById('sinTurnoDestino');
+        if (destinoSelect) {
+            destinoSelect.onchange = () => actualizarCamposPorDestino('sinTurno', destinoSelect.value);
+            actualizarCamposPorDestino('sinTurno', destinoSelect.value);
         }
     },
     cerrarModalProveedorSinTurno() {
@@ -5419,6 +5513,11 @@ const proveedorData = {
         } else {
             factura = document.getElementById('sinTurnoFactura')?.value?.trim() || null;
         }
+        let cargaAmbos = { bultosSIE: null, pesoSIE: null, bultosSI3: null, pesoSI3: null };
+        if (destino === 'ambos') {
+            cargaAmbos = obtenerCargaPorDestino('sinTurno');
+            if (!cargaAmbos) return;
+        }
 
         if (!proveedorInput) {
             Utils.mostrarNotificacion('El nombre del proveedor es requerido', 'error');
@@ -5448,8 +5547,9 @@ const proveedorData = {
                 fechaCita: null,
                 numFactura: factura,
                 tipoVehiculo: tipo,
-                bultos: bultos,
-                peso: peso,
+                bultos: destino === 'ambos' ? null : bultos,
+                peso: destino === 'ambos' ? null : peso,
+                ...cargaAmbos,
                 responsable: responsable
             };
 
@@ -6008,7 +6108,7 @@ const InputConfig = {
 
         const catalogos = [
             ['SIE', window.CatalogoMaterialesSIE],
-            ['SIP / SI3 ZF', window.CatalogoMaterialesSIP]
+            ['SI3 ZF', window.CatalogoMaterialesSIP]
         ];
 
         const coincidenciasMap = new Map();
@@ -6113,7 +6213,7 @@ const InputConfig = {
             }
         }
 
-        detalle.textContent = resultados.join(' | ') || 'Código no encontrado en los catálogos SIE ni SIP.';
+        detalle.textContent = resultados.join(' | ') || 'Código no encontrado en los catálogos SIE ni SI3 ZF.';
         detalle.dataset.estado = resultados.length ? 'encontrado' : 'no-encontrado';
     },
 
@@ -7890,7 +7990,7 @@ const GenerarCertificado = {
                  <span class="certificate-eyebrow">SI-3 · REPORTE OPERATIVO</span>
                  <h3>Certificado mensual de despachos</h3>
                  <p class="certificate-month">${d.nombreMesMayus.toUpperCase()}</p>
-                 <p class="certificate-location">Zona Franca · Bodegas SIE 240, 239 y SIP 221</p>
+                 <p class="certificate-location">Zona Franca · Bodegas SIE 240, 239 y SI3 ZF 221</p>
              </div>
              <section class="certificate-metrics certificate-metrics-primary" aria-label="Resumen de operación">
                  <article class="certificate-metric certificate-metric-blue">
@@ -8014,7 +8114,7 @@ const GenerarCertificado = {
         const C_AZUL_OSCURO  = "1E3A8A";  // Azul corporativo principal
         const C_AZUL_MEDIO   = "2563EB";  // Azul botones / encabezados
         const C_AZUL_CLARO   = "DBEAFE";  // Fondo celdas par (azul suave)
-        const C_VERDE        = "059669";  // Ensambles
+        const C_VERDE        = "059669";
         const C_VERDE_CLARO  = "D1FAE5";  // Fondo zebra verde
         const C_AMARILLO     = "D97706";  // Advertencias / totales
         const C_AMARILLO_CL  = "FEF3C7";  // Fondo fila totales
@@ -8092,7 +8192,7 @@ const GenerarCertificado = {
             ['CERTIFICADO MENSUAL DE DESPACHOS'],
             [nombreMesMayus.toUpperCase()],
             [''],
-            ['Zona Franca Bodegas SIE 240, 239 y SIP 221'],
+            ['Zona Franca Bodegas SIE 240, 239 y SI3 ZF 221'],
             [''],
             ['┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝┝'],
             [''],
@@ -8285,7 +8385,7 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
         const destinosData = [['Destino', 'Cantidad', '% del Total']];
         Object.entries(destinoCount).forEach(([destino, count]) => {
-            const nombre = destino === 'ensambles' ? 'SI ENSAMBLES' : destino === 'plasticos' ? 'SI3 ZF SAS' : 'AMBOS';
+            const nombre = destino === 'ensambles' ? 'SIE' : destino === 'plasticos' ? 'SI3 ZF' : 'AMBOS';
             destinosData.push([nombre, count, ((count / totalVehiculos) * 100).toFixed(1) + '%']);
         });
         crearHojaTabla(destinosData, [{ wch: 22 }, { wch: 14 }, { wch: 14 }], C_AZUL_MEDIO, 'Destinos');
@@ -8365,14 +8465,14 @@ const crearHojaTabla = (datos, cols, colorHeader = C_AZUL_MEDIO, nombreHoja) => 
         };
 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
-        // HOJA 7 — SI ENSAMBLES
+        // HOJA 7 — SIE
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
-        crearHojaDetalle(h => h.destino === 'ensambles' || h.destino === 'ambos', C_VERDE, 'SI ENSAMBLES');
+        crearHojaDetalle(h => h.destino === 'ensambles' || h.destino === 'ambos', C_VERDE, 'SIE');
 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
-        // HOJA 8 — SI3 ZF SAS
+        // HOJA 8 — SI3 ZF
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
-        crearHojaDetalle(h => h.destino === 'plasticos' || h.destino === 'ambos', C_AZUL_MEDIO, 'SI3 ZF SAS');
+        crearHojaDetalle(h => h.destino === 'plasticos' || h.destino === 'ambos', C_AZUL_MEDIO, 'SI3 ZF');
 
         // ╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝╝
         // GENERAR Y DESCARGAR

@@ -11,7 +11,7 @@
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="styles.css?v=20">
+        <link rel="stylesheet" href="styles.css?v=33">
     <style>
         .admin-grid { 
             grid-template-columns: 320px 1fr; 
@@ -789,7 +789,7 @@
     <script src="supabase-config.js?v=4"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-    <script src="app.js?v=45"></script>
+    <script src="app.js?v=48"></script>
     <script src="sonido.js?v=2"></script>
     <script>
         function esperarClienteSupabase(callback, intentosMax = 100) {
@@ -959,12 +959,19 @@
                 }
                 
                 filtrarYMostrarTurnos();
-                const proveedorListo = completarDatosTransportadora(
+                let proveedorListo = completarDatosTransportadora(
                     normalizarDatosNotificacion(localStorage.getItem('proveedorListoSalir'))
                 );
-                if (proveedorListo?.esTransporte) {
-                    localStorage.setItem('proveedorListoSalir', JSON.stringify(proveedorListo));
-                    window.mostrarProveedorListo?.(proveedorListo);
+                if (proveedorListo) {
+                    const pendiente = await window.validarProveedorPendienteSalida?.(proveedorListo);
+                    if (pendiente === true) {
+                        localStorage.setItem('proveedorListoSalir', JSON.stringify(proveedorListo));
+                        window.mostrarProveedorListo?.(proveedorListo);
+                    } else {
+                        proveedorListo = null;
+                        if (pendiente === false) window.limpiarProveedorListo?.();
+                        else window.cerrarModalProveedorListo?.();
+                    }
                 }
                 const materialesSapProveedor = obtenerMaterialesSapDespachador(proveedorListo);
                 if (materialesSapProveedor.length) {
@@ -1064,6 +1071,10 @@
                 ['tipoVehiculo', 'tipo_vehiculo'],
                 ['bultos', 'bultos'],
                 ['peso', 'peso'],
+                ['bultosSIE', 'bultos_sie'],
+                ['pesoSIE', 'peso_sie'],
+                ['bultosSI3', 'bultos_si3'],
+                ['pesoSI3', 'peso_si3'],
                 ['responsable', 'responsable'],
                 ['destino', 'destino'],
                 ['horaSolicitud', 'hora_solicitud'],
@@ -1188,7 +1199,7 @@
             const nombreTurno = String(turno?.nombreEmpresa || turno?.nombre_empresa || turno?.nombre || '').trim();
             const numeroTurno = String(turno?.numero || '').trim();
             const placaTurno = String(turno?.nit || '').trim();
-            const destinoTurno = { ensambles: 'SIE / Ensambles', plasticos: 'SI3 ZF / Plásticos', ambos: 'Ambos' }[turno?.destino] || turno?.destino;
+            const destinoTurno = { ensambles: 'SIE', plasticos: 'SI3 ZF', ambos: 'AMBOS' }[turno?.destino] || turno?.destino;
             const datosTransportadora = [
                 ['Empresa', nombreTurno],
                 ['NIT / Placa', placaTurno],
@@ -1481,13 +1492,7 @@
             window.addEventListener('storage', (e) => {
                 if (e.key === 'proveedorListoSalir' && e.newValue) {
                     console.log('📥 Cambio detectado en localStorage desde otra pestaña');
-                    try {
-                        const proveedor = JSON.parse(e.newValue);
-                        console.log('📋 Proveedor recibido:', proveedor);
-                        window.mostrarProveedorListo?.(proveedor);
-                    } catch (err) {
-                        console.error('❌ Error al parsear:', err);
-                    }
+                    window.sincronizarProveedorListo?.();
                 } else if (e.key === 'proveedorListoSalir' && !e.newValue) {
                     window.limpiarProveedorListo?.();
                 }
@@ -1711,7 +1716,7 @@
                         const sinResultados = document.getElementById('historialDespachadorSinResultados');
                         if (sinResultados) sinResultados.hidden = true;
                     } else {
-                        const destinoLabel = { 'ensambles': 'SI ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                        const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
                         listaDiv.innerHTML = `
                                     <table class="history-table-desp">
                                     <thead>
@@ -1920,10 +1925,17 @@ return `
                                     }));
                                 } else {
                                     const pendiente = await window.validarProveedorPendienteSalida?.(datos);
-                                    if (pendiente !== false) {
+                                    if (pendiente === true) {
                                         mostrarProveedorListo(datos);
-                                    } else {
-                                        window.limpiarProveedorListo?.();
+                                    } else if (pendiente === false) {
+                                        const proveedorActual = normalizarDatosNotificacion(
+                                            localStorage.getItem('proveedorListoSalir')
+                                        );
+                                        if (proveedorActual?.timestamp === datos.timestamp) {
+                                            window.limpiarProveedorListo?.();
+                                        } else {
+                                            window.cerrarModalProveedorListo?.();
+                                        }
                                     }
                                 }
                             }
@@ -1997,10 +2009,7 @@ return `
             document.addEventListener('storage', (e) => {
                 if (e.key === 'proveedorListoSalir') {
                     if (e.newValue) {
-                        try {
-                            const proveedor = JSON.parse(e.newValue);
-                            window.mostrarProveedorListo?.(proveedor);
-                        } catch (err) {}
+                        window.sincronizarProveedorListo?.();
                     } else {
                         window.limpiarProveedorListo?.();
                     }
@@ -2090,18 +2099,23 @@ return `
 
                         if (error) throw error;
 
+                        let validacionIncierta = false;
                         for (const notificacion of data || []) {
                             const datos = normalizarDatosNotificacion(notificacion.datos);
                             if (!datos) continue;
 
                             const pendiente = await proveedorTieneSalidaPendiente(datos);
-                            if (pendiente === false) continue;
+                            if (pendiente === null) {
+                                validacionIncierta = true;
+                                continue;
+                            }
+                            if (!pendiente) continue;
 
                             console.log('📡 Proveedor pendiente cargado desde Supabase:', datos);
                             window.mostrarProveedorListo?.(datos);
                             return datos;
                         }
-                        window.limpiarProveedorListo?.();
+                        if (!validacionIncierta) window.limpiarProveedorListo?.();
                         return null;
                     } catch (e) {
                         console.warn('No se pudo cargar proveedor listo desde Supabase:', e);
@@ -2114,7 +2128,7 @@ return `
                     try {
                         let consulta = window.supabaseClient
                             .from('historial_turnos')
-                            .select('numero, autorizado_salida, proveedor_transporte_id');
+                            .select('numero, autorizado_salida, proveedor_transporte_id, nit, nombre_empresa, nombre_proveedor');
 
                         const idsProveedores = proveedor.esTransporte && Array.isArray(proveedor.proveedores)
                             ? proveedor.proveedores.map(item => item.id).filter(Boolean)
@@ -2124,11 +2138,32 @@ return `
                             consulta = consulta.in('proveedor_transporte_id', idsProveedores);
                         } else {
                             consulta = consulta.eq('numero', String(proveedor.numero));
+                            if (proveedor.nit) {
+                                consulta = consulta.eq('nit', String(proveedor.nit).trim());
+                            }
                         }
 
                         const { data, error } = await consulta.limit(50);
                         if (error) throw error;
-                        return (data || []).some(item => item.autorizado_salida !== true);
+                        const nitProveedor = String(proveedor.nit || '').trim().toUpperCase();
+                        const nombreProveedor = String(proveedor.nombre || proveedor.nombreEmpresa || '').trim().toLowerCase();
+                        const registrosCoincidentes = (data || []).filter(item => {
+                            if (!idsProveedores.length && nitProveedor) {
+                                return String(item.nit || '').trim().toUpperCase() === nitProveedor;
+                            }
+                            if (!idsProveedores.length && nombreProveedor && item.nombre_empresa) {
+                                return String(item.nombre_empresa).trim().toLowerCase() === nombreProveedor;
+                            }
+                            return true;
+                        });
+                        const pendientes = registrosCoincidentes.filter(item => item.autorizado_salida !== true);
+                        if (idsProveedores.length && Array.isArray(proveedor.proveedores)) {
+                            const idsPendientes = new Set(pendientes.map(item => String(item.proveedor_transporte_id)));
+                            proveedor.proveedores = proveedor.proveedores.filter(item =>
+                                idsPendientes.has(String(item.id))
+                            );
+                        }
+                        return pendientes.length > 0;
                     } catch (error) {
                         console.warn('No se pudo validar el turno pendiente:', error.message);
                         return null;
@@ -2145,15 +2180,16 @@ return `
                             if (proveedor) {
                                 proveedorTieneSalidaPendiente(proveedor).then(pendiente => {
                                     if (pendiente === false) {
-                                        const proveedorActual = normalizarDatosNotificacion(
-                                            JSON.parse(localStorage.getItem('proveedorListoSalir') || 'null')
-                                        );
-                                        if (proveedorActual?.numero === proveedor.numero) {
+                                        if (localStorage.getItem('proveedorListoSalir') === datosLocales) {
                                             window.limpiarProveedorListo?.();
                                         }
                                         return;
                                     }
-                                    window.mostrarProveedorListo?.(proveedor);
+                                    if (pendiente === true) {
+                                        window.mostrarProveedorListo?.(proveedor);
+                                    } else {
+                                        window.cerrarModalProveedorListo?.();
+                                    }
                                 });
                                 return;
                             }
@@ -2215,7 +2251,7 @@ return `
                         
                         renderizarProveedoresPendientes(proveedor.proveedores, proveedor.numero);
                     } else {
-                        const destinoLabels = { ensambles: 'SIE', plasticos: 'SI3 ZF SAS', ambos: 'AMBOS' };
+                        const destinoLabels = { ensambles: 'SIE', plasticos: 'SI3 ZF', ambos: 'AMBOS' };
                         const peso = proveedor.peso ? formatearPesoDespachador(proveedor.peso) : '-';
                         const materialesSap = obtenerMaterialesSapDespachador(proveedor);
                         const horaInicio = proveedor.horaLlamada || proveedor.hora_llamada || proveedor.horaLlegada || proveedor.hora_llegada;
@@ -2291,6 +2327,10 @@ return `
                             ['Vehículo', p.tipoVehiculo || p.tipo_vehiculo],
                             ['Bultos', p.bultos],
                             ['Peso', formatearPesoDespachador(p.peso)],
+                            ['Bultos SI3 ZF', p.bultosSI3 ?? p.bultos_si3],
+                            ['Peso SI3 ZF', formatearPesoDespachador(p.pesoSI3 ?? p.peso_si3)],
+                            ['Bultos SIE', p.bultosSIE ?? p.bultos_sie],
+                            ['Peso SIE', formatearPesoDespachador(p.pesoSIE ?? p.peso_sie)],
                             ['Destino', p.destino],
                             ['Hora de solicitud', horaSolicitudProveedor],
                             ['Hora de llamada', horaLlamadaProveedor],
@@ -2335,7 +2375,7 @@ return `
                     const modalExistente = document.getElementById('modal-proveedor-listo');
                     if (modalExistente) modalExistente.remove();
                     
-                    const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                    const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
                     const materialesSap = obtenerMaterialesSapDespachador(proveedor);
                     const materialesSapHtml = materialesSap.length
                         ? window.botonMostrarMaterialesSapHtml(materialesSap)
@@ -2375,8 +2415,15 @@ return `
                                 ['Consecutivo', p.consecutivoIngreso || p.consecutivo_ingreso],
                                 ['Factura', p.numFactura || p.num_factura],
                                 ['Vehículo', p.tipoVehiculo || p.tipo_vehiculo],
-                                ['Bultos', p.bultos],
-                                ['Peso', formatearPesoDespachador(p.peso)],
+                                ...(p.destino === 'ambos' ? [
+                                    ['Bultos SIE', p.bultosSIE ?? p.bultos_sie],
+                                    ['Peso SIE', formatearPesoDespachador(p.pesoSIE || p.peso_sie)],
+                                    ['Bultos SI3 ZF', p.bultosSI3 ?? p.bultos_si3],
+                                    ['Peso SI3 ZF', formatearPesoDespachador(p.pesoSI3 || p.peso_si3)]
+                                ] : [
+                                    ['Bultos', p.bultos],
+                                    ['Peso', formatearPesoDespachador(p.peso)]
+                                ]),
                                 ['Responsable', p.responsable],
                                 ['Destino', destinoLabel[p.destino] || p.destino],
                                 ['Hora de solicitud', formatearHoraSeguimiento(p.horaSolicitud || p.hora_solicitud)],
@@ -2442,7 +2489,7 @@ return `
                             <div class="modal-proveedor-detalles">
                                 <table class="modal-proveedor-detalles-table">
                                     <tr>
-                                        <td><strong>Placa:</strong></td>
+                                        <td><strong>Placa o cédula:</strong></td>
                                         <td>${proveedor.nit || 'N/A'}</td>
                                     </tr>
                                     <tr>
@@ -2455,11 +2502,15 @@ return `
                                     </tr>
                                     <tr>
                                         <td><strong>Bultos:</strong></td>
-                                        <td>${proveedor.bultos || 'N/A'}</td>
+                                        <td>${proveedor.destino === 'ambos'
+                                            ? `SIE: ${proveedor.bultosSIE ?? proveedor.bultos_sie ?? 'N/A'} · SI3 ZF: ${proveedor.bultosSI3 ?? proveedor.bultos_si3 ?? 'N/A'}`
+                                            : proveedor.bultos || 'N/A'}</td>
                                     </tr>
                                     <tr>
                                         <td><strong>Peso:</strong></td>
-                                        <td>${formatearPesoDespachador(proveedor.peso)}</td>
+                                        <td>${proveedor.destino === 'ambos'
+                                            ? `SIE: ${formatearPesoDespachador(proveedor.pesoSIE || proveedor.peso_sie) || 'N/A'} · SI3 ZF: ${formatearPesoDespachador(proveedor.pesoSI3 || proveedor.peso_si3) || 'N/A'}`
+                                            : formatearPesoDespachador(proveedor.peso)}</td>
                                     </tr>
                                     <tr>
                                         <td><strong>Responsable:</strong></td>
@@ -2561,7 +2612,7 @@ return `
                         if (!data || data.length === 0) {
                             if (listaDiv) listaDiv.innerHTML = '<p class="empty-message">Sin citas reservadas</p>';
                         } else {
-                            const destinoLabel = { 'ensambles': 'ENSAMBLES', 'plasticos': 'SI3 ZF SAS', 'ambos': 'AMBOS' };
+                            const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBOS' };
                             
                             // Agrupar por fecha
                             const gruposPorFecha = {};
@@ -2961,8 +3012,13 @@ const destinoLabel = { 'ensambles': 'SIE', 'plasticos': 'SI3 ZF', 'ambos': 'AMBO
                             if (notif.tipo === 'salida_pendiente' && datosNotificacion) {
                                 if (typeof window.mostrarProveedorListo === 'function') {
                                     try {
-                                        window.mostrarProveedorListo(datosNotificacion);
-                                        window.sincronizarProveedorListo?.();
+                                        const pendiente = await window.validarProveedorPendienteSalida?.(datosNotificacion);
+                                        if (pendiente === true) {
+                                            window.mostrarProveedorListo(datosNotificacion);
+                                            window.sincronizarProveedorListo?.();
+                                        } else if (pendiente === false) {
+                                            window.cerrarModalProveedorListo?.();
+                                        }
                                         cargarTurnosPendientesSalida();
                                         cargarEstadisticasDespachador();
                                         cargarHistorialDespachador();

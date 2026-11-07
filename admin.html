@@ -12,7 +12,7 @@
     <link rel="icon" type="image/png" href="Logo-Web-SI3.png">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="styles.css?v=30">
+        <link rel="stylesheet" href="styles.css?v=33">
     <style>
     .admin-grid { 
             grid-template-columns: 300px 1fr 1fr; 
@@ -1171,8 +1171,8 @@
                 <div class="form-group">
                     <label for="materialCatalogDestino">Catálogo:</label>
                     <select id="materialCatalogDestino" required>
-                        <option value="ensambles">SIE / SI ENSAMBLES</option>
-                        <option value="plasticos">SIP / SI3 ZF SAS</option>
+                        <option value="ensambles">SIE</option>
+                        <option value="plasticos">SI3 ZF</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -1192,8 +1192,8 @@
                         <label for="materialCatalogFilter">Catálogo:</label>
                         <select id="materialCatalogFilter">
                             <option value="todos">Todos</option>
-                            <option value="ensambles">SIE / SI ENSAMBLES</option>
-                            <option value="plasticos">SIP / SI3 ZF SAS</option>
+                            <option value="ensambles">SIE</option>
+                            <option value="plasticos">SI3 ZF</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1268,15 +1268,15 @@
             <div id="despachoInfo" class="despacho-info"></div>
             <form id="formDespacho">
                 <div class="form-group">
-                    <label>Placa:</label>
-                    <input type="text" id="despachoPlaca" placeholder="Placa del vehículo" readonly>
+                    <label>Placa o cédula:</label>
+                    <input type="text" id="despachoPlaca" placeholder="Placa o cédula" readonly>
                 </div>
                 <div class="form-group">
                     <label>Destino:</label>
                     <select id="despachoDestino">
                         <option value="">Seleccionar...</option>
-                        <option value="ensambles">SI ENSAMBLES</option>
-                        <option value="plasticos">SI3 ZF SAS</option>
+                        <option value="ensambles">SIE</option>
+                        <option value="plasticos">SI3 ZF</option>
                         <option value="ambos">AMBOS</option>
                     </select>
                 </div>
@@ -1286,12 +1286,12 @@
                 </div>
                 <div id="despachoFacturaAmbosGroup" style="display: none; grid-template-columns: 1fr 1fr; gap: 12px;">
                     <div class="form-group">
-                        <label>Factura SIE (SI ENSAMBLES):</label>
-                        <input type="text" id="despachoNumFacturaSIE" placeholder="Factura para SI ENSAMBLES">
+                        <label>Factura SIE:</label>
+                        <input type="text" id="despachoNumFacturaSIE" placeholder="Factura para SIE">
                     </div>
                     <div class="form-group">
-                        <label>Factura SI3 ZF SAS:</label>
-                        <input type="text" id="despachoNumFacturaSI3" placeholder="Factura para SI3 ZF SAS">
+                        <label>Factura SI3 ZF:</label>
+                        <input type="text" id="despachoNumFacturaSI3" placeholder="Factura para SI3 ZF">
                     </div>
                 </div>
                 <div class="form-group">
@@ -1307,11 +1307,11 @@
                         <option value="OTRO">OTRO</option>
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="despachoBultosGroup">
                     <label>Bultos:</label>
                     <input type="number" id="despachoBultos" placeholder="Cantidad" min="0">
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="despachoPesoGroup">
                     <label for="despachoPeso">Peso:</label>
                     <div class="peso-unidad-input">
                         <input type="number" id="despachoPeso" placeholder="Cantidad" min="0" step="any" inputmode="decimal">
@@ -1320,6 +1320,36 @@
                             <option value="gr">gr</option>
                         </select>
                     </div>
+                </div>
+                <div id="despachoCargaAmbosGroup" style="display: none; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <fieldset class="destino-carga-fields">
+                        <legend>SIE</legend>
+                        <div class="form-group">
+                            <label for="despachoBultosSIE">Bultos SIE:</label>
+                            <input type="number" id="despachoBultosSIE" min="0" placeholder="Cantidad">
+                        </div>
+                        <div class="form-group">
+                            <label for="despachoPesoSIE">Peso SIE:</label>
+                            <div class="peso-unidad-input">
+                                <input type="number" id="despachoPesoSIE" min="0" step="any" inputmode="decimal" placeholder="Cantidad">
+                                <select id="despachoPesoSIEUnidad" aria-label="Unidad del peso SIE"><option value="kg">kg</option><option value="gr">gr</option></select>
+                            </div>
+                        </div>
+                    </fieldset>
+                    <fieldset class="destino-carga-fields">
+                        <legend>SI3 ZF</legend>
+                        <div class="form-group">
+                            <label for="despachoBultosSI3">Bultos SI3 ZF:</label>
+                            <input type="number" id="despachoBultosSI3" min="0" placeholder="Cantidad">
+                        </div>
+                        <div class="form-group">
+                            <label for="despachoPesoSI3">Peso SI3 ZF:</label>
+                            <div class="peso-unidad-input">
+                                <input type="number" id="despachoPesoSI3" min="0" step="any" inputmode="decimal" placeholder="Cantidad">
+                                <select id="despachoPesoSI3Unidad" aria-label="Unidad del peso SI3 ZF"><option value="kg">kg</option><option value="gr">gr</option></select>
+                            </div>
+                        </div>
+                    </fieldset>
                 </div>
                 <div class="form-group">
                     <label>Responsable:</label>
@@ -1355,7 +1385,7 @@
               
                <div style="background: #f8fafc; padding: 16px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
                    <h3 style="margin: 0 0 12px 0; font-size: 14px; color: #475569;">Agregar Proveedor</h3>
-                   <p style="font-size: 12px; color: #94a3b8; margin-top: 0;">Placa: <strong style="color: #334155;" id="transportistaPlacaInfo">--</strong> | Tipo: <strong style="color: #334155;" id="transportistaTipoInfo">--</strong></p>
+                   <p style="font-size: 12px; color: #94a3b8; margin-top: 0;">Placa o cédula: <strong style="color: #334155;" id="transportistaPlacaInfo">--</strong> | Tipo: <strong style="color: #334155;" id="transportistaTipoInfo">--</strong></p>
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                           <div class="form-group" style="margin-bottom: 0;">
                               <label>Nombre del proveedor:</label>
@@ -1374,15 +1404,25 @@
                                   <option value="OTRO">OTRO</option>
                              </select>
                          </div>
-                         <div class="form-group" style="margin-bottom: 0;">
+                         <div class="form-group" id="transportistaFacturaGroup" style="margin-bottom: 0;">
                              <label>Factura:</label>
                              <input type="text" id="transportistaFactura" placeholder="Número de factura">
                          </div>
-                         <div class="form-group" style="margin-bottom: 0;">
+                         <div id="transportistaFacturaAmbosGroup" style="display: none; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 12px;">
+                             <div class="form-group" style="margin-bottom: 0;">
+                                 <label for="transportistaFacturaSIE">Factura SIE:</label>
+                                 <input type="text" id="transportistaFacturaSIE" placeholder="Factura para SIE">
+                             </div>
+                             <div class="form-group" style="margin-bottom: 0;">
+                                 <label for="transportistaFacturaSI3">Factura SI3 ZF:</label>
+                                 <input type="text" id="transportistaFacturaSI3" placeholder="Factura para SI3 ZF">
+                             </div>
+                         </div>
+                         <div class="form-group" id="transportistaBultosGroup" style="margin-bottom: 0;">
                              <label>Bultos:</label>
                              <input type="number" id="transportistaBultos" placeholder="Cantidad" min="0">
                          </div>
-                         <div class="form-group" style="margin-bottom: 0;">
+                         <div class="form-group" id="transportistaPesoGroup" style="margin-bottom: 0;">
                              <label for="transportistaPeso">Peso:</label>
                              <div class="peso-unidad-input">
                                  <input type="number" id="transportistaPeso" placeholder="Cantidad" min="0" step="any" inputmode="decimal">
@@ -1391,6 +1431,36 @@
                                      <option value="gr">gr</option>
                                  </select>
                              </div>
+                         </div>
+                         <div id="transportistaCargaAmbosGroup" style="display: none; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 12px;">
+                             <fieldset class="destino-carga-fields">
+                                 <legend>SIE</legend>
+                                 <div class="form-group">
+                                     <label for="transportistaBultosSIE">Bultos SIE:</label>
+                                     <input type="number" id="transportistaBultosSIE" min="0" placeholder="Cantidad">
+                                 </div>
+                                 <div class="form-group">
+                                     <label for="transportistaPesoSIE">Peso SIE:</label>
+                                     <div class="peso-unidad-input">
+                                         <input type="number" id="transportistaPesoSIE" min="0" step="any" inputmode="decimal" placeholder="Cantidad">
+                                         <select id="transportistaPesoSIEUnidad" aria-label="Unidad del peso SIE"><option value="kg">kg</option><option value="gr">gr</option></select>
+                                     </div>
+                                 </div>
+                             </fieldset>
+                             <fieldset class="destino-carga-fields">
+                                 <legend>SI3 ZF</legend>
+                                 <div class="form-group">
+                                     <label for="transportistaBultosSI3">Bultos SI3 ZF:</label>
+                                     <input type="number" id="transportistaBultosSI3" min="0" placeholder="Cantidad">
+                                 </div>
+                                 <div class="form-group">
+                                     <label for="transportistaPesoSI3">Peso SI3 ZF:</label>
+                                     <div class="peso-unidad-input">
+                                         <input type="number" id="transportistaPesoSI3" min="0" step="any" inputmode="decimal" placeholder="Cantidad">
+                                         <select id="transportistaPesoSI3Unidad" aria-label="Unidad del peso SI3 ZF"><option value="kg">kg</option><option value="gr">gr</option></select>
+                                     </div>
+                                 </div>
+                             </fieldset>
                          </div>
                          <div class="form-group" style="margin-bottom: 0;">
                              <label>Responsable:</label>
@@ -1406,8 +1476,8 @@
                              <label>Destino:</label>
                              <select id="transportistaDestino">
                                  <option value="">Seleccionar...</option>
-                                 <option value="ensambles">SI ENSAMBLES</option>
-                                 <option value="plasticos">SI3 ZF SAS</option>
+                                 <option value="ensambles">SIE</option>
+                                 <option value="plasticos">SI3 ZF</option>
                                  <option value="ambos">AMBOS</option>
                              </select>
                          </div>
@@ -1484,8 +1554,8 @@
                       <input type="text" id="editHistProveedor" placeholder="Proveedor">
                   </div>
                   <div class="form-group" style="margin-bottom: 0;">
-                      <label>Placa:</label>
-                      <input type="text" id="editHistPlaca" placeholder="Placa">
+                      <label>Placa o cédula:</label>
+                      <input type="text" id="editHistPlaca" placeholder="Placa (6 caracteres) o cédula (5 a 15 dígitos)" maxlength="15" pattern="(?:[A-Za-z0-9]{6}|[0-9]{5,15})" title="Ingrese una placa de 6 caracteres o una cédula de 5 a 15 dígitos">
                   </div>
                   <div class="form-group" style="margin-bottom: 0;">
                       <label>FMM (opcional):</label>
@@ -1502,12 +1572,12 @@
                   </div>
                   <div id="editHistFacturaAmbosGroup" class="edit-history-invoices" style="display: none;">
                       <div class="form-group" style="margin-bottom: 0;">
-                          <label>Factura SIE (SI ENSAMBLES):</label>
-                          <input type="text" id="editHistFacturaSIE" placeholder="Factura para SI ENSAMBLES">
+                          <label>Factura SIE:</label>
+                          <input type="text" id="editHistFacturaSIE" placeholder="Factura para SIE">
                       </div>
                       <div class="form-group" style="margin-bottom: 0;">
-                          <label>Factura SI3 ZF SAS:</label>
-                          <input type="text" id="editHistFacturaSI3" placeholder="Factura para SI3 ZF SAS">
+                          <label>Factura SI3 ZF:</label>
+                          <input type="text" id="editHistFacturaSI3" placeholder="Factura para SI3 ZF">
                       </div>
                   </div>
                   <div class="form-group" style="margin-bottom: 0;">
@@ -1551,8 +1621,8 @@
                       <label>Destino:</label>
                       <select id="editHistDestino">
                           <option value="">Seleccionar...</option>
-                          <option value="ensambles">SI ENSAMBLES</option>
-                          <option value="plasticos">SI3 ZF SAS</option>
+                          <option value="ensambles">SIE</option>
+                          <option value="plasticos">SI3 ZF</option>
                           <option value="ambos">AMBOS</option>
                       </select>
                   </div>
@@ -1584,8 +1654,8 @@
                             <label>Destino:</label>
                             <select id="sinTurnoDestino">
                                 <option value="">Seleccionar...</option>
-                                <option value="ensambles">SI ENSAMBLES</option>
-                                <option value="plasticos">SI3 ZF SAS</option>
+                                <option value="ensambles">SIE</option>
+                                <option value="plasticos">SI3 ZF</option>
                                 <option value="ambos">AMBOS</option>
                             </select>
                         </div>
@@ -1596,12 +1666,12 @@
                     </div>
                     <div id="sinTurnoFacturaAmbosGroup" style="display: none; grid-template-columns: 1fr 1fr; gap: 12px;">
                         <div class="form-group">
-                            <label>Factura SIE (SI ENSAMBLES):</label>
-                            <input type="text" id="sinTurnoFacturaSIE" placeholder="Factura para SI ENSAMBLES">
+                            <label>Factura SIE:</label>
+                            <input type="text" id="sinTurnoFacturaSIE" placeholder="Factura para SIE">
                         </div>
                         <div class="form-group">
-                            <label>Factura SI3 ZF SAS:</label>
-                            <input type="text" id="sinTurnoFacturaSI3" placeholder="Factura para SI3 ZF SAS">
+                            <label>Factura SI3 ZF:</label>
+                            <input type="text" id="sinTurnoFacturaSI3" placeholder="Factura para SI3 ZF">
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;" id="sinTurnoGrid2">
@@ -1618,13 +1688,13 @@
                                 <option value="OTRO">OTRO</option>
                             </select>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" id="sinTurnoBultosGroup">
                             <label>Bultos:</label>
                             <input type="number" id="sinTurnoBultos" placeholder="Cantidad" min="0">
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;" id="sinTurnoGrid3">
-                        <div class="form-group">
+                        <div class="form-group" id="sinTurnoPesoGroup">
                             <label for="sinTurnoPeso">Peso:</label>
                             <div class="sin-turno-peso-input">
                                 <input type="number" id="sinTurnoPeso" placeholder="Cantidad" min="0" step="any" inputmode="decimal">
@@ -1633,6 +1703,36 @@
                                     <option value="gr">gr</option>
                                 </select>
                             </div>
+                        </div>
+                        <div id="sinTurnoCargaAmbosGroup" style="display: none; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <fieldset class="destino-carga-fields">
+                                <legend>SIE</legend>
+                                <div class="form-group">
+                                    <label for="sinTurnoBultosSIE">Bultos SIE:</label>
+                                    <input type="number" id="sinTurnoBultosSIE" min="0" placeholder="Cantidad">
+                                </div>
+                                <div class="form-group">
+                                    <label for="sinTurnoPesoSIE">Peso SIE:</label>
+                                    <div class="peso-unidad-input">
+                                        <input type="number" id="sinTurnoPesoSIE" min="0" step="any" inputmode="decimal" placeholder="Cantidad">
+                                        <select id="sinTurnoPesoSIEUnidad" aria-label="Unidad del peso SIE"><option value="kg">kg</option><option value="gr">gr</option></select>
+                                    </div>
+                                </div>
+                            </fieldset>
+                            <fieldset class="destino-carga-fields">
+                                <legend>SI3 ZF</legend>
+                                <div class="form-group">
+                                    <label for="sinTurnoBultosSI3">Bultos SI3 ZF:</label>
+                                    <input type="number" id="sinTurnoBultosSI3" min="0" placeholder="Cantidad">
+                                </div>
+                                <div class="form-group">
+                                    <label for="sinTurnoPesoSI3">Peso SI3 ZF:</label>
+                                    <div class="peso-unidad-input">
+                                        <input type="number" id="sinTurnoPesoSI3" min="0" step="any" inputmode="decimal" placeholder="Cantidad">
+                                        <select id="sinTurnoPesoSI3Unidad" aria-label="Unidad del peso SI3 ZF"><option value="kg">kg</option><option value="gr">gr</option></select>
+                                    </div>
+                                </div>
+                            </fieldset>
                         </div>
                         <div class="form-group">
                             <label>Responsable:</label>
@@ -1659,7 +1759,7 @@
      <script src="supabase-config.js?v=4"></script>
     <script src="materiales_sie.js"></script>
     <script src="materiales_sip.js"></script>
-    <script src="app.js?v=45"></script>
+    <script src="app.js?v=48"></script>
      <script>
         window.salidaDespachadorAnterior = null;
         window.inspeccionAnterior = null;
@@ -1778,7 +1878,7 @@
             const contenedor = document.getElementById(elementId);
             if (!contenedor) return;
 
-            const destinoLabel = { ensambles: 'ENSAMBLES', plasticos: 'SI3 ZF SAS', ambos: 'AMBOS' };
+            const destinoLabel = { ensambles: 'SIE', plasticos: 'SI3 ZF', ambos: 'AMBOS' };
             const campos = [
                 ['Empresa', datos.nombreEmpresa || datos.nombre_empresa || datos.empresa],
                 ['Proveedor', datos.nombreProveedor || datos.nombre_proveedor],
@@ -2132,7 +2232,7 @@
 
                     materialesCatalogoAdmin = [
                         ...sie.map(item => ({ ...item, destino: 'ensambles', etiqueta: 'SIE' })),
-                        ...sip.map(item => ({ ...item, destino: 'plasticos', etiqueta: 'SIP / SI3 ZF' }))
+                        ...sip.map(item => ({ ...item, destino: 'plasticos', etiqueta: 'SI3 ZF' }))
                     ].map(item => ({
                         codigoSap: item.codigo_sap,
                         descripcion: item.descripcion,
@@ -2188,7 +2288,7 @@
                     try {
                         const catalogos = [
                             { tabla: 'materiales_sie', etiqueta: 'SIE' },
-                            { tabla: 'materiales_sip', etiqueta: 'SIP / SI3 ZF' }
+                            { tabla: 'materiales_sip', etiqueta: 'SI3 ZF' }
                         ];
                         const existentes = await Promise.all(catalogos.map(async catalogo => {
                             const { data, error } = await window.supabaseClient
@@ -2215,7 +2315,7 @@
                         else window.CatalogoMaterialesSIE?.set(codigoSap, descripcion);
                         catalogoAdminCargado = false;
                         await cargarCatalogoAdmin();
-                        status.textContent = `Material ${codigoSap} agregado al catálogo ${destino === 'plasticos' ? 'SIP / SI3 ZF' : 'SIE'}.`;
+                        status.textContent = `Material ${codigoSap} agregado al catálogo ${destino === 'plasticos' ? 'SI3 ZF' : 'SIE'}.`;
                         status.dataset.state = 'success';
                         formCatalogo.reset();
                     } catch (error) {
@@ -2247,7 +2347,7 @@
                 try {
                     const catalogos = [
                         { tabla: 'materiales_sie', etiqueta: 'SIE' },
-                        { tabla: 'materiales_sip', etiqueta: 'SIP / SI3 ZF' }
+                        { tabla: 'materiales_sip', etiqueta: 'SI3 ZF' }
                     ];
                     const existentes = await Promise.all(catalogos.map(async catalogo => {
                         const { data, error } = await window.supabaseClient
@@ -2478,17 +2578,22 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
             modal.setAttribute('aria-modal', 'true');
             modal.innerHTML = `<div class="stats-info-card">
                 <button type="button" class="stats-info-close" aria-label="Cerrar información">&times;</button>
-                <span class="stats-info-eyebrow">RESUMEN DE RECEPCIÓN</span>
-                <div class="stats-info-number" data-number>0</div>
-                <h2 data-title>Información</h2>
-                <p data-text>Detalle de la estadística seleccionada.</p>
+                <div class="stats-info-header">
+                    <span class="stats-info-eyebrow">RESUMEN DE RECEPCIÓN</span>
+                    <div class="stats-info-number" data-number>0</div>
+                    <h2 data-title>Información</h2>
+                    <p data-text>Detalle de la estadística seleccionada.</p>
+                </div>
                 <div class="admin-provider-search" data-provider-search hidden>
                     <span aria-hidden="true">⌕</span>
                     <input type="search" data-provider-input placeholder="Buscar empresa, contacto o placa..." aria-label="Buscar proveedores">
                 </div>
                 <div class="admin-provider-actions" data-provider-actions hidden>
-                    <button type="button" data-provider-expand>Mostrar todos</button>
-                    <button type="button" data-provider-collapse>Cerrar todos</button>
+                    <span class="admin-provider-count" data-provider-count></span>
+                    <div>
+                        <button type="button" data-provider-expand>Expandir grupos</button>
+                        <button type="button" data-provider-collapse>Contraer grupos</button>
+                    </div>
                 </div>
                 <p class="admin-provider-feedback" data-provider-feedback role="status" hidden></p>
                 <form class="admin-provider-editor" data-provider-editor hidden>
@@ -2498,20 +2603,9 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                     </div>
                     <div class="admin-provider-editor-grid">
                         <label>Empresa<input data-provider-field="nombreEmpresa" required maxlength="255"></label>
-                        <label>Placa<input data-provider-field="nit" required maxlength="20"></label>
+                        <label>Placa o cédula<input data-provider-field="nit" required maxlength="15" pattern="(?:[A-Za-z0-9]{6}|[0-9]{5,15})" title="Ingrese una placa de 6 caracteres o una cédula de 5 a 15 dígitos"></label>
                         <label>Contacto<input data-provider-field="contacto" maxlength="255"></label>
                         <label>Teléfono<input data-provider-field="telefono" maxlength="50"></label>
-                        <label>Servicio
-                            <select data-provider-field="servicio">
-                                <option value="">Proveedor</option>
-                                <option value="entrega">Entrega</option>
-                                <option value="servicio">Servicio técnico</option>
-                                <option value="reunion">Reunión</option>
-                                <option value="otro">Otro</option>
-                                <option value="transporte">Transporte</option>
-                            </select>
-                        </label>
-                        <label>Consecutivo<input data-provider-field="consecutivoIngreso" maxlength="100"></label>
                     </div>
                     <p class="admin-provider-editor-status" data-provider-editor-status role="status"></p>
                     <div class="admin-provider-editor-actions">
@@ -2537,14 +2631,15 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                     selector: '#listaTurnosEspera .turn-item'
                 },
                 proveedores: {
-                    title: 'Proveedores registrados',
-                    text: 'Proveedores disponibles en el registro operativo.',
+                    title: 'Directorio de proveedores',
+                    text: 'El directorio conserva empresa, contacto, placa o cédula y teléfono. La información operativa se guarda en cada turno.',
                     value: 'totalProveedores'
                 }
             };
 
             let proveedoresRegistrados = [];
             const normalizarProveedor = valor => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+            const normalizarClaveProveedor = valor => normalizarProveedor(valor).replace(/[^a-z0-9]/g, '');
             const escaparProveedor = valor => String(valor ?? '').replace(/[&<>"']/g, caracter => ({
                 '&': '&amp;',
                 '<': '&lt;',
@@ -2558,12 +2653,17 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                 return [...lista].sort((a, b) =>
                     (Date.parse(b.updatedAt || b.createdAt || '') || 0) - (Date.parse(a.updatedAt || a.createdAt || '') || 0)
                 ).filter(proveedor => {
-                    const placa = normalizarProveedor(proveedor.nit).replace(/[^a-z0-9]/g, '');
-                    const clave = placa
-                        ? `placa:${placa}`
-                        : `datos:${[proveedor.nombreEmpresa, proveedor.contacto, proveedor.telefono, proveedor.consecutivoIngreso].map(normalizarProveedor).join('|')}`;
-                    if (claves.has(clave)) return false;
-                    claves.add(clave);
+                    const empresa = normalizarClaveProveedor(proveedor.nombreEmpresa);
+                    const contacto = normalizarClaveProveedor(proveedor.contacto);
+                    const placa = normalizarClaveProveedor(proveedor.nit);
+                    const telefono = normalizarClaveProveedor(proveedor.telefono);
+                    const clavesProveedor = [];
+                    if (contacto) clavesProveedor.push(`persona:${empresa}|${contacto}`);
+                    if (placa) clavesProveedor.push(`placa:${placa}`);
+                    if (!contacto && telefono) clavesProveedor.push(`telefono:${empresa}|${telefono}`);
+                    if (clavesProveedor.length === 0) clavesProveedor.push(`id:${proveedor.id}`);
+                    if (clavesProveedor.some(clave => claves.has(clave))) return false;
+                    clavesProveedor.forEach(clave => claves.add(clave));
                     return true;
                 });
             }
@@ -2577,14 +2677,13 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
 
             function renderProveedores(busqueda = '') {
                 const contenido = modal.querySelector('[data-content]');
-                const termino = busqueda.trim().toLowerCase();
-                const filtrados = proveedoresRegistrados.filter(proveedor => {
-                    const texto = [proveedor.nombreEmpresa, proveedor.contacto, proveedor.nit, proveedor.telefono, proveedor.servicio, proveedor.consecutivoIngreso]
-                        .filter(Boolean).join(' ').toLowerCase();
-                    return !termino || texto.includes(termino);
+                const termino = normalizarProveedor(busqueda);
+                const unicos = obtenerProveedoresUnicos(proveedoresRegistrados).filter(proveedor => {
+                    if (!termino) return true;
+                    const texto = [proveedor.nombreEmpresa, proveedor.contacto, proveedor.nit, proveedor.telefono]
+                        .filter(Boolean).map(normalizarProveedor).join(' ');
+                    return texto.includes(termino);
                 });
-
-                const unicos = obtenerProveedoresUnicos(filtrados);
 
                 const grupos = new Map();
                 unicos.forEach(proveedor => {
@@ -2595,20 +2694,24 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                 });
 
                 const empresas = [...grupos.values()];
+                modal.querySelector('[data-provider-count]').textContent =
+                    `${empresas.length} ${empresas.length === 1 ? 'empresa' : 'empresas'} · ${unicos.length} ${unicos.length === 1 ? 'contacto' : 'contactos'}`;
                 contenido.innerHTML = empresas.length ? empresas.map(({ nombre: empresa, proveedores: lista }, index) => {
                     const grupoId = `admin-prov-group-${index}`;
                     const varios = lista.length > 1;
-                    const servicio = lista[0].servicio ? String(lista[0].servicio).toUpperCase() : 'Proveedor';
                     const personas = lista.map(proveedor => {
-                        const contacto = proveedor.contacto || '—';
-                        const placa = proveedor.nit || '—';
-                        const telefono = proveedor.telefono || '—';
-                        const consecutivo = proveedor.consecutivoIngreso || '—';
+                        const contacto = proveedor.contacto || 'Contacto sin nombre';
                         const id = escaparProveedor(proveedor.id);
+                        const detalles = [
+                            proveedor.nit && ['Placa o cédula', proveedor.nit],
+                            proveedor.telefono && ['Teléfono', proveedor.telefono]
+                        ].filter(Boolean).map(([etiqueta, valor]) =>
+                            `<span class="admin-provider-chip"><small>${etiqueta}</small>${escaparProveedor(valor)}</span>`
+                        ).join('');
                         return `<div class="admin-provider-person">
                             <div class="admin-provider-person-copy">
                                 <strong>${escaparProveedor(contacto)}</strong>
-                                <span><b>Placa</b> ${escaparProveedor(placa)} <b>Tel.</b> ${escaparProveedor(telefono)} <b>Cons.</b> ${escaparProveedor(consecutivo)}</span>
+                                <div class="admin-provider-details">${detalles || `<span class="admin-provider-chip">Sin datos adicionales</span>`}</div>
                             </div>
                             <div class="admin-provider-person-actions">
                                 <button type="button" data-provider-edit="${id}" aria-label="Editar ${escaparProveedor(contacto)}">Editar</button>
@@ -2619,7 +2722,7 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                     return `<div class="stats-info-row admin-provider-record ${varios ? 'admin-provider-group' : ''}">
                         <button type="button" class="admin-provider-head" data-provider-toggle="${grupoId}" aria-expanded="${!varios}">
                             <span class="admin-provider-mark">${escaparProveedor(empresa.slice(0, 2).toUpperCase())}</span>
-                            <span class="admin-provider-title"><strong>${escaparProveedor(empresa)}</strong><small>${varios ? `${lista.length} conductores` : escaparProveedor(servicio)}</small></span>
+                            <span class="admin-provider-title"><strong>${escaparProveedor(empresa)}</strong><small>${varios ? `${lista.length} contactos` : escaparProveedor(lista[0].contacto || lista[0].nit || 'Proveedor')}</small></span>
                             ${varios ? `<span class="admin-provider-chevron" data-provider-chevron="${grupoId}">⌄</span>` : ''}
                         </button>
                         <div class="admin-provider-people" id="${grupoId}" ${varios ? 'hidden' : ''}>${personas}</div>
@@ -2651,6 +2754,7 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                 modal.querySelector('[data-text]').textContent = config.text;
                 const buscador = modal.querySelector('[data-provider-search]');
                 if (card.dataset.adminStat === 'proveedores') {
+                    modal.querySelector('.stats-info-card').classList.add('is-provider-directory');
                     buscador.hidden = false;
                     modal.querySelector('[data-provider-actions]').hidden = false;
                     const input = modal.querySelector('[data-provider-input]');
@@ -2667,6 +2771,7 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                         modal.querySelector('[data-content]').innerHTML = '<div class="stats-info-empty">No se pudo cargar la información de proveedores.</div>';
                     }
                 } else {
+                    modal.querySelector('.stats-info-card').classList.remove('is-provider-directory');
                     buscador.hidden = true;
                     modal.querySelector('[data-provider-actions]').hidden = true;
                     const registrosDisponibles = Array.from(document.querySelectorAll(config.selector));
@@ -2743,8 +2848,6 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                     campoEditor('nit').value = proveedor.nit || '';
                     campoEditor('contacto').value = proveedor.contacto || '';
                     campoEditor('telefono').value = proveedor.telefono || '';
-                    campoEditor('servicio').value = String(proveedor.servicio || '').toLowerCase();
-                    campoEditor('consecutivoIngreso').value = proveedor.consecutivoIngreso || '';
                     modal.querySelector('[data-provider-editor-name]').textContent = proveedor.nombreEmpresa || 'Proveedor';
                     modal.querySelector('[data-provider-editor-status]').textContent = '';
                     editor.hidden = false;
@@ -2784,11 +2887,24 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                 const original = proveedoresRegistrados.find(item => String(item.id) === id);
                 if (!original) return;
                 const nit = campoEditor('nit').value.trim();
-                const claveNit = normalizarProveedor(nit);
-                const duplicado = proveedoresRegistrados.some(item => String(item.id) !== id && normalizarProveedor(item.nit) === claveNit);
+                const claveNit = normalizarClaveProveedor(nit);
+                const empresa = normalizarClaveProveedor(campoEditor('nombreEmpresa').value);
+                const contacto = normalizarClaveProveedor(campoEditor('contacto').value);
+                const telefono = normalizarClaveProveedor(campoEditor('telefono').value);
+                const duplicado = proveedoresRegistrados.some(item => {
+                    if (String(item.id) === id) return false;
+                    const mismaPlaca = claveNit && normalizarClaveProveedor(item.nit) === claveNit;
+                    const mismoContacto = contacto &&
+                        normalizarClaveProveedor(item.nombreEmpresa) === empresa &&
+                        normalizarClaveProveedor(item.contacto) === contacto;
+                    const mismoTelefono = !contacto && telefono &&
+                        normalizarClaveProveedor(item.nombreEmpresa) === empresa &&
+                        normalizarClaveProveedor(item.telefono) === telefono;
+                    return mismaPlaca || mismoContacto || mismoTelefono;
+                });
                 const estado = modal.querySelector('[data-provider-editor-status]');
                 if (duplicado) {
-                    estado.textContent = 'Ya existe un proveedor registrado con esa placa.';
+                    estado.textContent = 'Ese conductor o contacto ya está registrado.';
                     return;
                 }
 
@@ -2801,9 +2917,7 @@ if (window.SonidoSI3) window.SonidoSI3.inicializar();
                         nombreEmpresa: campoEditor('nombreEmpresa').value.trim(),
                         nit,
                         contacto: campoEditor('contacto').value.trim(),
-                        telefono: campoEditor('telefono').value.trim(),
-                        servicio: campoEditor('servicio').value,
-                        consecutivoIngreso: campoEditor('consecutivoIngreso').value.trim()
+                        telefono: campoEditor('telefono').value.trim()
                     });
                     if (!actualizado) throw new Error('No se pudieron guardar los cambios.');
                     proveedoresRegistrados = await SupabaseDB.cargarProveedores() || [];
